@@ -503,7 +503,7 @@ const EquiposPage: React.FC = () => {
         styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
 
         // nombre seguro (<=31 chars, sin inválidos) — ¡ojo con '[' y ']'!
-        const safeName = emp.replace(/[\\/?*\[\]:]/g, "_").slice(0, 31) || "Empresa";
+        const safeName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
         XLSX.utils.book_append_sheet(wb, ws, safeName);
       }
 

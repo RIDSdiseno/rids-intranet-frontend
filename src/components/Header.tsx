@@ -1,5 +1,5 @@
 import React from "react";
-import { LogOut, HelpCircle, Globe, Home, CalendarDays } from "lucide-react";
+import { LogOut, HelpCircle, Globe, Home, CalendarDays, Ticket } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
@@ -13,7 +13,8 @@ const HOME_PATH = "/home";
 const VISITAS_PATH = "/visitas";
 const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
-const EMPRESAS_PATH = "/empresas"; // ajusta si tu app usa otra
+const EMPRESAS_PATH = "/empresas";
+const TICKETS_PATH = "/tickets"; // 👈 NUEVO
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -37,11 +38,10 @@ const Header: React.FC = () => {
   const goToVisitas = () => navigate(VISITAS_PATH);
   const goToEmpresas = () => navigate(EMPRESAS_PATH);
   const goToEquipos = () => navigate(EQUIPOS_PATH);
+  const goToTickets = () => navigate(TICKETS_PATH); // 👈 NUEVO
 
-  const baseBtn =
-    "hover:text-cyan-900 transition underline-offset-4";
-  const activeBtn =
-    "text-cyan-900 underline decoration-2";
+  const baseBtn = "hover:text-cyan-900 transition underline-offset-4";
+  const activeBtn = "text-cyan-900 underline decoration-2";
 
   return (
     <header className="w-full border-b border-neutral-200 bg-white shadow-sm">
@@ -97,6 +97,14 @@ const Header: React.FC = () => {
             Equipos
           </button>
 
+          {/* 👇 NUEVO: Tickets */}
+          <button
+            onClick={goToTickets}
+            className={`${baseBtn} ${isActive(TICKETS_PATH) ? activeBtn : ""}`}
+          >
+            Tickets
+          </button>
+
           <button className={baseBtn}>Reportes</button>
         </nav>
 
@@ -120,6 +128,16 @@ const Header: React.FC = () => {
             title="Visitas"
           >
             <CalendarDays className="h-5 w-5" />
+          </button>
+
+          {/* 👇 NUEVO: Tickets (mobile) */}
+          <button
+            onClick={goToTickets}
+            className="md:hidden hover:text-cyan-900 transition"
+            aria-label="Tickets"
+            title="Tickets"
+          >
+            <Ticket className="h-5 w-5" />
           </button>
 
           <button
