@@ -48,7 +48,7 @@ export type ApiList<T> = {
 /* =================== Config =================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
 
 /* =================== Helpers =================== */
@@ -123,7 +123,7 @@ function brandTagClasses(brand?: string | null) {
   if (/microsoft|surface/.test(b))
     return "border-purple-200 bg-purple-50 text-purple-900";
 
-  // fallback hash para variedad estable
+  // fallback hash
   const BRAND_PALETTE = [
     "border-teal-200 bg-teal-50 text-teal-900",
     "border-cyan-200 bg-cyan-50 text-cyan-900",
@@ -160,10 +160,15 @@ const TableSkeletonRows: React.FC<{ cols: number; rows?: number }> = ({
 
 /* =================== Page =================== */
 const SolicitantesPage: React.FC = () => {
+  // búsqueda y filtros
   const [q, setQ] = useState<string>("");
   const qDebounced = useDebouncedValue<string>(q, 400);
 
+  // paginación
   const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+
+  // carga/errores y datos
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiList<SolicitanteRow> | null>(null);
@@ -172,7 +177,7 @@ const SolicitantesPage: React.FC = () => {
   const [selected, setSelected] = useState<SolicitanteForDetail | null>(null);
   const [openDetail, setOpenDetail] = useState<boolean>(false);
 
-  // filtros
+  // filtro empresa
   type EmpresaOpt = { id: number; nombre: string };
   const [empresaOptions, setEmpresaOptions] = useState<EmpresaOpt[]>([]);
   const [empresaFilterId, setEmpresaFilterId] = useState<number | null>(null);
@@ -186,7 +191,7 @@ const SolicitantesPage: React.FC = () => {
   const reqSeqRef = useRef(0);
   const totalsSeqRef = useRef(0);
 
-  // Totales globales
+  // totales
   type Totals = { solicitantes: number; empresas: number; equipos: number };
   const [totals, setTotals] = useState<Totals | null>(null);
   const [loadingTotals, setLoadingTotals] = useState<boolean>(false);
@@ -214,12 +219,11 @@ const SolicitantesPage: React.FC = () => {
 
       const url = new URL(`${API_URL}/solicitantes`);
       url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
+      url.searchParams.set("pageSize", String(pageSize));
 
-      // Si hay filtro de empresa, tiene prioridad sobre la búsqueda libre
+      // Si hay filtro de empresa, tiene prioridad
       const qParam = (empresaFilterName ?? qDebounced).trim();
       if (qParam) url.searchParams.set("q", qParam);
-
       url.searchParams.set("_ts", String(Date.now()));
 
       const token = localStorage.getItem("accessToken");
@@ -247,13 +251,11 @@ const SolicitantesPage: React.FC = () => {
         try {
           const payload = await res.json();
           apiErr = (payload as { error?: string })?.error || apiErr;
-        } catch {
-          //
-        }
+        } catch { /* noop */ }
         throw new Error(apiErr);
       }
       if (res.status === 204) {
-        setData({ page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
+        setData({ page, pageSize, total: 0, totalPages: 1, items: [] });
         return;
       }
 
@@ -268,10 +270,10 @@ const SolicitantesPage: React.FC = () => {
             const json = JSON.parse(text) as ApiList<SolicitanteRow>;
             setData(json);
           } catch {
-            setData({ page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
+            setData({ page, pageSize, total: 0, totalPages: 1, items: [] });
           }
         } else {
-          setData({ page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
+          setData({ page, pageSize, total: 0, totalPages: 1, items: [] });
         }
       }
     } catch (err) {
@@ -282,17 +284,16 @@ const SolicitantesPage: React.FC = () => {
     }
   }
 
-  /* ======== FETCH TOTALES + OPCIONES DE EMPRESA ======== */
+  /* ======== FETCH TOTALES + OPCIONES ======== */
   async function fetchTotals(signal?: AbortSignal) {
     const seq = ++totalsSeqRef.current;
     try {
       setLoadingTotals(true);
       setErrorTotals(null);
 
-      // Cuando hay filtro de empresa, usarlo para los totales también.
       const qParam = (empresaFilterName ?? qDebounced).trim();
 
-      // Intentar endpoint /solicitantes/metrics (si existe)
+      // Intento con /metrics si existe
       try {
         const urlM = new URL(`${API_URL}/solicitantes/metrics`);
         if (qParam) urlM.searchParams.set("q", qParam);
@@ -325,18 +326,15 @@ const SolicitantesPage: React.FC = () => {
                 empresas: m.empresas,
                 equipos: m.equipos,
               });
-              // si el backend ofreciera también un listado de empresas, podríamos setEmpresaOptions aquí
               return;
             }
           }
         }
-      } catch {
-        // pasa al fallback
-      }
+      } catch { /* fallback */ }
 
-      // Fallback: recorrer todas las páginas y computar totales + opciones de empresa
+      // Fallback: paginar todo para sumar
       let solicitantesTotal = 0;
-      const empresasSet = new Map<number, string>(); // id -> nombre
+      const empresasSet = new Map<number, string>();
       let equiposTotal = 0;
 
       const baseUrl = new URL(`${API_URL}/solicitantes`);
@@ -369,9 +367,7 @@ const SolicitantesPage: React.FC = () => {
         solicitantesTotal += pageData.items.length;
         for (const it of pageData.items) {
           const id = it.empresa?.id_empresa;
-          if (typeof id === "number") {
-            empresasSet.set(id, it.empresa!.nombre);
-          }
+          if (typeof id === "number") empresasSet.set(id, it.empresa!.nombre);
           equiposTotal += it.equipos?.length ?? 0;
         }
       };
@@ -412,7 +408,6 @@ const SolicitantesPage: React.FC = () => {
         equipos: equiposTotal,
       });
 
-      // construir opciones para filtro (ordenadas)
       const opts = Array.from(empresasSet.entries())
         .map(([id, nombre]) => ({ id, nombre }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -420,7 +415,8 @@ const SolicitantesPage: React.FC = () => {
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setErrorTotals((err as Error)?.message || "Error al cargar totales");
-      // fallback mínimo si hay data cargada
+
+      // fallback mínimo si hay data
       if (data) {
         const empresasSet = new Map<number, string>();
         let equipos = 0;
@@ -451,7 +447,7 @@ const SolicitantesPage: React.FC = () => {
     fetchList(ctrl.signal);
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, qDebounced, empresaFilterName]);
+  }, [page, pageSize, qDebounced, empresaFilterName]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -716,7 +712,7 @@ const SolicitantesPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Empresa: color único por empresa */}
+                      {/* Empresa */}
                       <td className="px-4 py-3">
                         {s.empresa?.nombre ? (
                           <span
@@ -732,7 +728,7 @@ const SolicitantesPage: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Equipos: color por marca */}
+                      {/* Equipos */}
                       <td className="px-4 py-3">
                         {s.equipos.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
@@ -763,7 +759,7 @@ const SolicitantesPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Paginación */}
+          {/* Footer paginación + selector tamaño */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-white border-t border-cyan-100">
             <div className="text-sm text-neutral-700">
               {data ? (
@@ -783,7 +779,26 @@ const SolicitantesPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-neutral-700">
+                Filas por página:{" "}
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setPageSize(next);
+                    setPage(1); // reseteamos la página al cambiar el tamaño
+                  }}
+                  className="ml-2 rounded-xl border border-neutral-300 bg-white px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                </select>
+              </label>
+
+              <div className="w-px h-5 bg-cyan-100" />
+
               <button
                 onClick={goPrev}
                 disabled={!canPrev || loading}

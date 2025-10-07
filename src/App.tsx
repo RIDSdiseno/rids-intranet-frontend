@@ -6,10 +6,11 @@ import LoginRids from "./host/login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
-
-// 👇 usa el archivo de la PÁGINA (no el modal)
+// 👇 usa los archivos de PÁGINA (no modales)
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
-const EquiposPage = lazy(() => import("./host/EquiposPage")); // o "./host/EquiposPage" si lo moviste
+const EquiposPage = lazy(() => import("./host/EquiposPage"));
+// 👇 NUEVO: Tickets
+const TicketsPage = lazy(() => import("./host/Ticket")); // ajusta a la ruta real si difiere
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
@@ -57,6 +58,16 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <VisitasPage />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 👉 NUEVO: ruta Tickets */}
+          <Route
+            path="/tickets"
+            element={
+              <PrivateRoute>
+                <TicketsPage />
               </PrivateRoute>
             }
           />
