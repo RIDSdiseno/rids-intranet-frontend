@@ -2,14 +2,14 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import LoginRids from "./host/Login";
+import LoginRids from "./host/login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
 
 // 👇 usa el archivo de la PÁGINA (no el modal)
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
-const EquiposPage = lazy(() => import("./host/equipospage")); // o "./host/EquiposPage" si lo moviste
+const EquiposPage = lazy(() => import("./host/EquiposPage")); // o "./host/EquiposPage" si lo moviste
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
