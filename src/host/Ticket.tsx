@@ -1,3 +1,4 @@
+// src/pages/TicketsPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   SearchOutlined,
@@ -5,122 +6,182 @@ import {
   CloseCircleFilled,
   LeftOutlined,
   RightOutlined,
-  EyeOutlined,
+  FileExcelOutlined,
 } from "@ant-design/icons";
+import axios, { AxiosError } from "axios";
+import Header from "../components/Header";
 
-/* ===================== Tipos ===================== */
-type ApiList<T> = {
+/* ===================== Tipos de la API ===================== */
+type ApiRow = {
+  ticket_id: string;
+  solicitante_email: string | null;
+  empresa: string | null;
+  subject: string;
+  type: string | null;
+  fecha: string; // ISO
+};
+
+type ApiResp = {
   page: number;
   pageSize: number;
   total: number;
-  totalPages: number;
-  items: T[];
+  rows: ApiRow[];
 };
 
-export type TicketRow = {
-  id: number;
-  subject: string;
-  status: number; // 2 open, 3 pending, 4 resolved, 5 closed (FD)
-  priority: number; // 1 low, 2 medium, 3 high, 4 urgent
-  type?: string | null;
-  requesterEmail?: string | null;
-  requesterName?: string | null;
-  company?: { id: number; nombre: string } | null;
-  createdAt: string;
-  updatedAt: string;
-};
+type EmpresaOpt = { key: string; label: string };
 
 /* ===================== Config ===================== */
 const PAGE_SIZE = 10;
+const BASE_URL = (import.meta as ImportMeta).env.VITE_API_URL;
+const APP_TZ = (import.meta as ImportMeta).env.VITE_TZ || "America/Santiago";
+
+/* ===================== Cliente axios local ===================== */
+const api = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  timeout: 15000,
+});
 
 /* ===================== Utils ===================== */
-const clsx = (...xs: Array<string | undefined | null | false>) =>
-  xs.filter(Boolean).join(" ");
-const fmtDT = (d?: string | Date | null) => {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleString("es-CL");
-  } catch {
-    return String(d);
+const clsx = (...xs: Array<string | undefined | null | false>) => xs.filter(Boolean).join(" ");
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+
+/** Quita tildes */
+function stripAccents(s: string) {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+/** Clave de empresa: sin tildes, sin sufijos legales, minúsculas, espacios colapsados */
+function companyKey(raw?: string | null): string {
+  const base = (raw ?? "Sin empresa").trim().replace(/\s+/g, " ");
+  const noAccents = stripAccents(base).toLowerCase();
+  // borra sufijos legales comunes (sa, s.a., ltda, spa, s.p.a)
+  return noAccents
+    .replace(/\b(s\.?\s*a\.?|sa|ltda\.?|spa|s\.?\s*p\.?\s*a\.?)\b/g, "")
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Fecha en 24h, fija a la TZ de la app (igual que Railway) */
+function formatInTZ(iso: string | Date, tz: string = APP_TZ): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${pick("year")}-${pick("month")}-${pick("day")} ${pick("hour")}:${pick(
+    "minute",
+  )}:${pick("second")}`;
+}
+const fmtDT = (d?: string | Date | null) => (d ? formatInTZ(d) : "—");
+
+/* ===================== Tipos XLSX ===================== */
+import type * as XLSXNS from "xlsx-js-style";
+import type { WorkBook, WorkSheet, CellObject } from "xlsx-js-style";
+
+/** Bordes negros para todo el rango */
+function setAllBorders(
+  XLSX: typeof XLSXNS,
+  ws: WorkSheet,
+  range?: string,
+  thickness: "thin" | "medium" = "thin",
+  color: string = "FF000000",
+): void {
+  const ref = range || ws["!ref"];
+  if (!ref) return;
+  const [s, e] = ref.split(":");
+  const S = XLSX.utils.decode_cell(s);
+  const E = XLSX.utils.decode_cell(e);
+  const sheet = ws as unknown as Record<string, CellObject>;
+  for (let R = S.r; R <= E.r; R++) {
+    for (let C = S.c; C <= E.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!sheet[addr]) sheet[addr] = { t: "s", v: "" };
+      sheet[addr].s = {
+        ...(sheet[addr].s || {}),
+        border: {
+          top: { style: thickness, color: { rgb: color } },
+          left: { style: thickness, color: { rgb: color } },
+          right: { style: thickness, color: { rgb: color } },
+          bottom: { style: thickness, color: { rgb: color } },
+        },
+      };
+    }
   }
-};
-const PRIORITY_TXT: Record<number, string> = {
-  1: "Baja",
-  2: "Media",
-  3: "Alta",
-  4: "Urgente",
-};
-const STATUS_TXT: Record<number, string> = {
-  2: "Abierto",
-  3: "En espera",
-  4: "Resuelto",
-  5: "Cerrado",
-};
+}
 
-const StatusBadge: React.FC<{ status: number }> = ({ status }) => {
-  const name = STATUS_TXT[status] || String(status);
-  const klass =
-    status === 5
-      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-      : status === 4
-      ? "bg-sky-50 text-sky-800 border border-sky-200"
-      : status === 3
-      ? "bg-amber-50 text-amber-800 border border-amber-200"
-      : "bg-neutral-50 text-neutral-700 border border-neutral-200";
-  return (
-    <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", klass)}>
-      {name}
-    </span>
-  );
-};
+/** Encabezado con color + borde negro */
+function styleHeaderRow(ws: WorkSheet, headerCells: string[], fillRGB = "0EA5E9"): void {
+  const sheet = ws as unknown as Record<string, CellObject>;
+  for (const a of headerCells) {
+    if (!sheet[a]) continue;
+    sheet[a].s = {
+      font: { bold: true, color: { rgb: "FFFFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: `FF${fillRGB}` } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { rgb: "FF000000" } },
+        left: { style: "thin", color: { rgb: "FF000000" } },
+        right: { style: "thin", color: { rgb: "FF000000" } },
+        bottom: { style: "thin", color: { rgb: "FF000000" } },
+      },
+    };
+  }
+}
 
-/* ===================== MOCK ===================== */
-// Datos de ejemplo (solo para UI). Puedes borrarlo cuando conectes el endpoint real.
-const MOCK: TicketRow[] = Array.from({ length: 37 }).map((_, i) => ({
-  id: 23000 + i,
-  subject:
-    i % 3 === 0
-      ? "Instalación impresora"
-      : i % 3 === 1
-      ? "Error Outlook"
-      : "VPN sin conexión",
-  status: i % 4 === 0 ? 5 : i % 4 === 1 ? 4 : i % 4 === 2 ? 3 : 2,
-  priority: (i % 4) + 1,
-  type: i % 2 ? "Soporte" : "Incidente",
-  requesterEmail: i % 2 ? `user${i}@acme.com` : `colab${i}@ricoh-ladc.com`,
-  requesterName: i % 2 ? `Usuario ${i}` : `Colaborador ${i}`,
-  company: i % 2 ? { id: 1, nombre: "ACME" } : { id: 2, nombre: "Ricoh LADC" },
-  createdAt: new Date(Date.now() - i * 36e5).toISOString(),
-  updatedAt: new Date(Date.now() - i * 18e5).toISOString(),
-}));
+const COMPANY_COLORS = [
+  "FDE68A",
+  "A7F3D0",
+  "BFDBFE",
+  "FBCFE8",
+  "C7D2FE",
+  "FCA5A5",
+  "FCD34D",
+  "BBF7D0",
+  "BAE6FD",
+  "DDD6FE",
+] as const;
 
 /* ===================== Página ===================== */
 const TicketsPage: React.FC = () => {
   // filtros
-  const [q, setQ] = useState("");
-  const [empresaId, setEmpresaId] = useState<number | "">("");
-  const [onlyClosed, setOnlyClosed] = useState(true);
+  const [q, setQ] = useState<string>("");
+  const [onlyClosed, setOnlyClosed] = useState<boolean>(true);
 
-  // paginación
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<ApiList<TicketRow> | null>(null);
-  const totalPages = useMemo(() => Math.max(1, data?.totalPages ?? 1), [data]);
+  // filtros de fecha
+  const now = new Date();
+  const [year, setYear] = useState<number>(now.getFullYear());
+  const [month, setMonth] = useState<number | "">(""); // "" = todos
+
+  // filtro de empresa (SELECT por clave normalizada)
+  const [empresaOptions, setEmpresaOptions] = useState<EmpresaOpt[]>([]);
+  const [empresaKeyFilter, setEmpresaKeyFilter] = useState<string>(""); // clave normalizada
+
+  // paginación / datos
+  const [page, setPage] = useState<number>(1);
+  const [data, setData] = useState<ApiResp | null>(null);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? PAGE_SIZE))),
+    [data],
+  );
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
   // carga/errores
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const reqRef = useRef(0);
-
-  // empresas (mock derivado)
-  const empresas = useMemo(() => {
-    const map = new Map<number, string>();
-    MOCK.forEach((t) => {
-      if (t.company) map.set(t.company.id, t.company.nombre);
-    });
-    return Array.from(map.entries()).map(([id, nombre]) => ({ id, nombre }));
-  }, []);
+  const reqRef = useRef<number>(0);
+  const empReqRef = useRef<number>(0);
 
   const showingRange = useMemo(() => {
     if (!data || data.total === 0) return null;
@@ -129,72 +190,325 @@ const TicketsPage: React.FC = () => {
     return { start, end };
   }, [data]);
 
-  // ===== Mock fetch (simula API; reemplaza por fetch real cuando tengas credenciales) =====
-  const fetchList = async () => {
+  /* ===== Fetch listado ===== */
+  // Helper: trae TODOS los tickets del año actual con los filtros base (sin empresa)
+async function fetchAllYearRows(
+  year: number,
+  q: string,
+  onlyClosed: boolean
+): Promise<ApiRow[]> {
+  const paramsBase: Record<string, string> = {
+    page: "1",
+    pageSize: "800",
+    year: String(year),
+    _ts: String(Date.now()),
+  };
+  if (q.trim().length > 0) paramsBase.search = q.trim();
+  if (onlyClosed) paramsBase.status = "5";
+
+  const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
+  const all: ApiRow[] = [...(first.data.rows || [])];
+
+  const total = first.data.total ?? all.length;
+  const perPage = Number(paramsBase.pageSize);
+  const pages = Math.max(1, Math.ceil(total / perPage));
+
+  for (let p = 2; p <= pages; p++) {
+    const res = await api.get<ApiResp>("/tickets", {
+      params: { ...paramsBase, page: String(p) },
+    });
+    all.push(...(res.data.rows || []));
+  }
+  return all;
+}
+
+  /* ===== Fetch listado ===== */
+  const fetchList = async (): Promise<void> => {
     const seq = ++reqRef.current;
     setLoading(true);
     setError(null);
+
     try {
-      // filtra sobre MOCK
-      let items = [...MOCK];
-      if (onlyClosed) items = items.filter((t) => t.status === 5);
-      if (empresaId) items = items.filter((t) => t.company?.id === empresaId);
-      if (q.trim()) {
-        const needle = q.trim().toLowerCase();
-        items = items.filter(
-          (t) =>
-            (t.subject || "").toLowerCase().includes(needle) ||
-            (t.requesterEmail || "").toLowerCase().includes(needle) ||
-            (t.requesterName || "").toLowerCase().includes(needle),
-        );
+      let rows: ApiRow[] = [];
+
+      if (month === "") {
+        // “Todos”: agregamos TODO el año en el cliente
+        rows = await fetchAllYearRows(year, q, onlyClosed);
+        // si quieres respetar un backend que por defecto trae solo el mes actual,
+        // esta rama evita esa limitación
+      } else {
+        // Mes específico: dejamos que el backend pagine
+        const params: Record<string, string> = {
+          page: String(page),
+          pageSize: String(PAGE_SIZE),
+          year: String(year),
+          month: String(month),
+          _ts: String(Date.now()),
+        };
+        if (q.trim().length > 0) params.search = q.trim();
+        if (onlyClosed) params.status = "5";
+
+        const res = await api.get<ApiResp>("/tickets", { params });
+        if (seq !== reqRef.current) return;
+
+        rows = Array.isArray(res.data.rows) ? [...res.data.rows] : [];
+
+        // Filtrado de empresa robusto
+        if (empresaKeyFilter) {
+          rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
+        }
+
+        // Orden y set de data directo (paginación del backend)
+        rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        setData({
+          page: res.data.page ?? page,
+          pageSize: res.data.pageSize ?? PAGE_SIZE,
+          total: empresaKeyFilter ? rows.length : res.data.total ?? rows.length,
+          rows,
+        });
+        return; // terminamos aquí para el caso "mes específico"
       }
 
-      const total = items.length;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-      const safePage = Math.min(page, totalPages);
-      const start = (safePage - 1) * PAGE_SIZE;
-      const paged = items.slice(start, start + PAGE_SIZE);
+      // --- Rama “Todos los meses”: filtramos, ordenamos y paginamos en el cliente ---
+      if (empresaKeyFilter) {
+        rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
+      }
+      rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
+      const total = rows.length;
+      const start = (page - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      const pageRows = rows.slice(start, end);
+
+      setData({
+        page,
+        pageSize: PAGE_SIZE,
+        total,
+        rows: pageRows,
+      });
+    } catch (e) {
       if (seq !== reqRef.current) return;
-      setData({ page: safePage, pageSize: PAGE_SIZE, total, totalPages, items: paged });
-    } catch (e: unknown) {
-      // Si en algún momento vuelves a usar AbortController
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      const msg = e instanceof Error ? e.message : "Error al cargar tickets";
+      const msg =
+        e instanceof AxiosError
+          ? `HTTP ${e.response?.status ?? "error"}`
+          : e instanceof Error
+          ? e.message
+          : "Error al cargar tickets";
       setError(msg);
     } finally {
       if (seq === reqRef.current) setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q, empresaId, onlyClosed]);
 
-  const clearAll = () => {
+  /* ===== Fetch opciones de empresa (una vez, sin filtros) ===== */
+  const fetchEmpresaOptions = async (): Promise<void> => {
+    const seq = ++empReqRef.current;
+    try {
+      const paramsBase: Record<string, string> = {
+        page: "1",
+        pageSize: "800",
+        _ts: String(Date.now()),
+      };
+      const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
+      if (seq !== empReqRef.current) return;
+
+      const all: ApiRow[] = [...(first.data.rows || [])];
+      const total = first.data.total ?? all.length;
+      const perPage = Number(paramsBase.pageSize);
+      const pages = Math.max(1, Math.ceil(total / perPage));
+
+      for (let p = 2; p <= pages; p++) {
+        const res = await api.get<ApiResp>("/tickets", {
+          params: { ...paramsBase, page: String(p) },
+        });
+        all.push(...(res.data.rows || []));
+      }
+
+      // Dedup por clave
+      const seen = new Set<string>();
+      const opts: EmpresaOpt[] = [];
+      for (const r of all) {
+        const label = (r.empresa ?? "Sin empresa").trim() || "Sin empresa";
+        const key = companyKey(label);
+        if (!seen.has(key)) {
+          seen.add(key);
+          opts.push({ key, label });
+        }
+      }
+      opts.sort((a, b) => a.label.localeCompare(b.label, "es"));
+      setEmpresaOptions(opts);
+
+      // si la selección ya no existe, limpiar
+      if (empresaKeyFilter && !opts.some((o) => o.key === empresaKeyFilter)) {
+        setEmpresaKeyFilter("");
+        setPage(1);
+      }
+    } catch {
+      setEmpresaOptions([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!BASE_URL) {
+      setError("VITE_API_URL no está definido");
+      return;
+    }
+    void fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, q, onlyClosed, year, month, empresaKeyFilter]);
+
+  useEffect(() => {
+    void fetchEmpresaOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const clearAll = (): void => {
     setQ("");
-    setEmpresaId("");
     setOnlyClosed(true);
+    setMonth("");
+    setYear(now.getFullYear());
+    setEmpresaKeyFilter("");
     setPage(1);
   };
 
+  /* ===================== Exportar a Excel ===================== */
+  const exportExcel = async (): Promise<void> => {
+    try {
+      // 1) Trae TODO con filtros básicos (sin empresa; filtramos aquí)
+      const paramsBase: Record<string, string> = {
+        page: "1",
+        pageSize: "800",
+        year: String(year),
+        _ts: String(Date.now()),
+      };
+      if (q.trim().length > 0) paramsBase.search = q.trim();
+      if (onlyClosed) paramsBase.status = "5";
+      if (month !== "") paramsBase.month = String(month);
+
+      const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
+      const allRows: ApiRow[] = [...(first.data.rows || [])];
+
+      const total = first.data.total ?? allRows.length;
+      const perPage = Number(paramsBase.pageSize);
+      const pages = Math.max(1, Math.ceil(total / perPage));
+
+      for (let p = 2; p <= pages; p++) {
+        const res = await api.get<ApiResp>("/tickets", {
+          params: { ...paramsBase, page: String(p) },
+        });
+        allRows.push(...(res.data.rows || []));
+      }
+
+      // Orden por fecha DESC
+      allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+      // Filtro robusto por empresa
+      const filtered = empresaKeyFilter
+        ? allRows.filter((r) => companyKey(r.empresa) === empresaKeyFilter)
+        : allRows;
+
+      // 2) Agrupa por etiqueta visible (mantiene el nombre tal como viene)
+      const byCompany = new Map<string, ApiRow[]>();
+      for (const r of filtered) {
+        const label = (r.empresa ?? "Sin empresa").trim() || "Sin empresa";
+        const arr = byCompany.get(label) ?? [];
+        arr.push(r);
+        byCompany.set(label, arr);
+      }
+
+      // 3) xlsx-js-style
+      const XLSX = await import("xlsx-js-style");
+
+      // 4) Resumen
+      const summary = Array.from(byCompany.entries())
+        .map(([empresa, rows]) => ({ empresa, tickets: rows.length }))
+        .sort((a, b) => b.tickets - a.tickets);
+
+      const wsResumen: WorkSheet = XLSX.utils.aoa_to_sheet([
+        ["Empresa", "Tickets"],
+        ...summary.map((x) => [x.empresa, x.tickets]),
+      ]);
+      wsResumen["!cols"] = [{ wch: 40 }, { wch: 10 }];
+      styleHeaderRow(wsResumen, ["A1", "B1"], "0EA5E9");
+      setAllBorders(XLSX, wsResumen);
+
+      const wb: WorkBook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+      // 5) Hojas por empresa
+      const header = ["ID", "Asunto", "Solicitante (email)", "Tipo", "Fecha"];
+      let colorIdx = 0;
+
+      for (const [empresa, rows] of byCompany) {
+        rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+        const body = rows.map((r) => [
+          r.ticket_id,
+          r.subject,
+          r.solicitante_email ?? "",
+          r.type ?? "",
+          formatInTZ(r.fecha), // 24h + TZ
+        ]);
+
+        const ws: WorkSheet = XLSX.utils.aoa_to_sheet([header, ...body]);
+        ws["!cols"] = [{ wch: 10 }, { wch: 60 }, { wch: 35 }, { wch: 16 }, { wch: 22 }];
+
+        const fill = COMPANY_COLORS[colorIdx % COMPANY_COLORS.length];
+        colorIdx++;
+        styleHeaderRow(ws, ["A1", "B1", "C1", "D1", "E1"], fill);
+        setAllBorders(XLSX, ws);
+
+        const safe = (empresa || "Empresa").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, safe);
+      }
+
+      const parts: string[] = [`Tickets_${year}${month ? "_" + pad2(Number(month)) : ""}`];
+      if (empresaKeyFilter) {
+        const selected = empresaOptions.find((o) => o.key === empresaKeyFilter)?.label ?? "empresa";
+        parts.push(selected.replace(/\s+/g, "_"));
+      }
+      const fileName = `${parts.join("_")}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error al exportar";
+      setError(msg);
+    }
+  };
+
   /* =============== UI =============== */
+  const years = Array.from({ length: 8 }, (_, i) => now.getFullYear() - i);
+  const months = [
+    { v: "", label: "Todos" },
+    { v: 1, label: "Enero" },
+    { v: 2, label: "Febrero" },
+    { v: 3, label: "Marzo" },
+    { v: 4, label: "Abril" },
+    { v: 5, label: "Mayo" },
+    { v: 6, label: "Junio" },
+    { v: 7, label: "Julio" },
+    { v: 8, label: "Agosto" },
+    { v: 9, label: "Septiembre" },
+    { v: 10, label: "Octubre" },
+    { v: 11, label: "Noviembre" },
+    { v: 12, label: "Diciembre" },
+  ] as const;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50/40 via-white to-white">
+      <Header />
+
       <main className="p-6 max-w-6xl mx-auto">
-        {/* Header */}
+        {/* Header de página */}
         <header className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900">
-              Tickets
-            </h1>
+            <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900">Tickets</h1>
             <p className="text-sm text-neutral-500">
-              Lista de tickets (mock). Filtra por empresa, texto y estado.
+              Filtra por texto, estado, período y empresa; exporta a Excel con bordes y horario 24 h.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto">
             {/* Buscar */}
             <div className="relative w-full sm:w-64">
               <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
@@ -222,21 +536,56 @@ const TicketsPage: React.FC = () => {
               )}
             </div>
 
-            {/* Empresa */}
+            {/* Empresa (por clave normalizada) */}
             <select
-              value={empresaId}
+              value={empresaKeyFilter}
               onChange={(e) => {
-                const v = e.target.value;
-                setEmpresaId(v ? Number(v) : "");
+                setEmpresaKeyFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm min-w-[220px]"
+              aria-label="Filtrar por empresa"
+              title="Filtrar por empresa"
+            >
+              <option value="">— Todas las empresas —</option>
+              {empresaOptions.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Año */}
+            <select
+              value={year}
+              onChange={(e) => {
+                setYear(Number(e.target.value));
                 setPage(1);
               }}
               className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm"
-              aria-label="Filtrar por empresa"
+              aria-label="Filtrar por año"
             >
-              <option value="">Todas las empresas</option>
-              {empresas.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre}
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+
+            {/* Mes */}
+            <select
+              value={month}
+              onChange={(e) => {
+                const v = e.target.value;
+                setMonth(v === "" ? "" : Number(v));
+                setPage(1);
+              }}
+              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm"
+              aria-label="Filtrar por mes"
+            >
+              {months.map((m) => (
+                <option key={String(m.v)} value={String(m.v)}>
+                  {m.label}
                 </option>
               ))}
             </select>
@@ -261,6 +610,23 @@ const TicketsPage: React.FC = () => {
             >
               <CloseCircleFilled /> Limpiar
             </button>
+
+            {/* Exportar */}
+            <button
+              onClick={() => void exportExcel()}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 text-emerald-800 px-3 py-2.5 text-sm hover:bg-emerald-50"
+              title="Exportar a Excel"
+            >
+              <FileExcelOutlined /> Exportar
+            </button>
+
+            <button
+              onClick={() => void fetchList()}
+              className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
+              title="Recargar"
+            >
+              <ReloadOutlined /> Recargar
+            </button>
           </div>
         </header>
 
@@ -276,16 +642,12 @@ const TicketsPage: React.FC = () => {
                 <tr>
                   <th className="text-left px-4 py-3 w-[90px] font-semibold">ID</th>
                   <th className="text-left px-4 py-3 min-w-[260px] font-semibold">Asunto</th>
-                  <th className="text-left px-4 py-3 min-w-[200px] font-semibold">Empresa</th>
-                  <th className="text-left px-4 py-3 min-w-[220px] font-semibold">
-                    Solicitante
+                  <th className="text-left px-4 py-3 min-w-[220px] font-semibold">Empresa</th>
+                  <th className="text-left px-4 py-3 min-w-[240px] font-semibold">
+                    Solicitante (email)
                   </th>
-                  <th className="text-left px-4 py-3 min-w-[120px] font-semibold">Prioridad</th>
-                  <th className="text-left px-4 py-3 min-w-[140px] font-semibold">Estado</th>
-                  <th className="text-left px-4 py-3 min-w-[180px] font-semibold">Creado</th>
-                  <th className="text-left px-4 py-3 min-w-[180px] font-semibold">
-                    Actualizado
-                  </th>
+                  <th className="text-left px-4 py-3 min-w-[160px] font-semibold">Tipo</th>
+                  <th className="text-left px-4 py-3 min-w-[180px] font-semibold">Fecha</th>
                   <th className="px-4 py-3 w-[70px]" />
                 </tr>
               </thead>
@@ -293,7 +655,7 @@ const TicketsPage: React.FC = () => {
                 {loading &&
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={`sk-${i}`} className="border-t border-neutral-100">
-                      {Array.from({ length: 9 }).map((__, j) => (
+                      {Array.from({ length: 7 }).map((__, j) => (
                         <td key={`sk-${i}-${j}`} className="px-4 py-3">
                           <div className="h-4 w-full max-w-[260px] animate-pulse rounded bg-neutral-200/70" />
                         </td>
@@ -303,15 +665,15 @@ const TicketsPage: React.FC = () => {
 
                 {!loading && error && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-red-600">
+                    <td colSpan={7} className="px-4 py-10 text-center text-red-600">
                       {error}
                     </td>
                   </tr>
                 )}
 
-                {!loading && !error && data?.items?.length === 0 && (
+                {!loading && !error && (data?.rows?.length ?? 0) === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-neutral-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-500">
                       Sin resultados.
                     </td>
                   </tr>
@@ -319,38 +681,25 @@ const TicketsPage: React.FC = () => {
 
                 {!loading &&
                   !error &&
-                  data?.items?.map((t) => (
+                  data?.rows?.map((t) => (
                     <tr
-                      key={t.id}
+                      key={t.ticket_id}
                       className={clsx(
                         "border-t border-neutral-100 transition-colors",
                         "odd:bg-white even:bg-neutral-50/30 hover:bg-cyan-50/70",
                       )}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">{t.id}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{t.ticket_id}</td>
                       <td className="px-4 py-3">
                         <div className="max-w-[420px] truncate" title={t.subject}>
                           {t.subject}
                         </div>
                       </td>
-                      <td className="px-4 py-3">{t.company?.nombre ?? "—"}</td>
-                      <td className="px-4 py-3">
-                        {t.requesterName ?? t.requesterEmail ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">{PRIORITY_TXT[t.priority] || t.priority}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={t.status} />
-                      </td>
-                      <td className="px-4 py-3">{fmtDT(t.createdAt)}</td>
-                      <td className="px-4 py-3">{fmtDT(t.updatedAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          className="inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs border-cyan-300 text-cyan-800 hover:bg-cyan-50"
-                          title="Ver"
-                        >
-                          <EyeOutlined /> Ver
-                        </button>
-                      </td>
+                      <td className="px-4 py-3">{t.empresa ?? "—"}</td>
+                      <td className="px-4 py-3">{t.solicitante_email ?? "—"}</td>
+                      <td className="px-4 py-3">{t.type ?? "—"}</td>
+                      <td className="px-4 py-3">{fmtDT(t.fecha)}</td>
+                      <td className="px-4 py-3 text-right" />
                     </tr>
                   ))}
               </tbody>
@@ -363,8 +712,8 @@ const TicketsPage: React.FC = () => {
               {data && data.total > 0 ? (
                 <>
                   Mostrando <strong>{showingRange?.start}</strong>–<strong>{showingRange?.end}</strong>{" "}
-                  de <strong>{data.total}</strong> • Página <strong>{data.page}
-                  </strong> de <strong>{totalPages}</strong>
+                  de <strong>{data.total}</strong> • Página <strong>{data.page}</strong> de{" "}
+                  <strong>{totalPages}</strong>
                 </>
               ) : (
                 "—"
@@ -373,9 +722,7 @@ const TicketsPage: React.FC = () => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  fetchList();
-                }}
+                onClick={() => void fetchList()}
                 className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
                 title="Recargar"
               >
