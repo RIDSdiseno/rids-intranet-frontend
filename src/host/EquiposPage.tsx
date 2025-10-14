@@ -74,7 +74,7 @@ function excelCompanyColors(empresa: string): { headerFill: string; bodyFill: st
 
   // Casos especiales visibles
   if (e.includes("infinet")) return { headerFill: "FF1E3A8A", bodyFill: "FFDBEAFE" }; // azul fuerte / azul muy claro
-  if (e.includes("acme"))    return { headerFill: "FF047857", bodyFill: "FFD1FAE5" }; // verde fuerte / verde muy claro
+  if (e.includes("acme")) return { headerFill: "FF047857", bodyFill: "FFD1FAE5" }; // verde fuerte / verde muy claro
   if (e.includes("contoso")) return { headerFill: "FF6D28D9", bodyFill: "FFEDE9FE" }; // violeta fuerte / violeta muy claro
 
   // Fallback determinístico
@@ -94,9 +94,9 @@ function excelCompanyColors(empresa: string): { headerFill: string; bodyFill: st
 
 /** Estilo de borde (resaltado) para todas las celdas */
 const strongBorder = {
-  top:    { style: "thin", color: { rgb: "FF94A3B8" } },
-  left:   { style: "thin", color: { rgb: "FF94A3B8" } },
-  right:  { style: "thin", color: { rgb: "FF94A3B8" } },
+  top: { style: "thin", color: { rgb: "FF94A3B8" } },
+  left: { style: "thin", color: { rgb: "FF94A3B8" } },
+  right: { style: "thin", color: { rgb: "FF94A3B8" } },
   bottom: { style: "thin", color: { rgb: "FF94A3B8" } },
 } as const;
 
@@ -123,8 +123,8 @@ function styleWorksheet(
     const cell = ws[cellRef];
     if (!cell) continue;
     cell.s = {
-      fill:   { fgColor: { rgb: headerFill } },
-      font:   { bold: true, color: { rgb: "FFFFFFFF" } },
+      fill: { fgColor: { rgb: headerFill } },
+      font: { bold: true, color: { rgb: "FFFFFFFF" } },
       alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border: strongBorder,
     };
@@ -384,28 +384,65 @@ const EquiposPage: React.FC = () => {
 
   /* ======== Export Excel (Todos + por empresa + Resumen con estilos) ======== */
   async function exportToExcel() {
-    try {
-      setExportError(null);
-      setExporting(true);
+  try {
+    setExportError(null);
+    setExporting(true);
 
-      const token = localStorage.getItem("accessToken");
-      const fetchPage = async (p: number, ps: number) => {
-        const res = await fetch(buildUrl(p, ps, q), {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          credentials: "include",
-          cache: "no-store",
-        });
-        return res;
-      };
+    const token = localStorage.getItem("accessToken");
+    const API_BASE_URL = 'http://localhost:4000';
 
-      // Detectar pageSize aceptado
-      let detected: number | null = null;
-      let firstPage: ApiList<EquipoRow> | null = null;
-      for (const candidate of EXPORT_PAGE_CANDIDATES) {
+    const buildExportUrl = (p: number, ps: number) => {
+      const params = new URLSearchParams({
+        page: String(p),
+        pageSize: String(ps),
+        _ts: String(Date.now()), // ← Agrega timestamp para evitar cache
+      });
+
+      // **CORRECCIÓN CRÍTICA: Usa el mismo patrón que en tus logs exitosos**
+      if (empresaFilterName) {
+        params.append('search', empresaFilterName);
+        params.append('empresaName', empresaFilterName);
+      } else if (q && q.trim().length > 0) {
+        // Si no hay filtro de empresa pero sí búsqueda general
+        params.append('search', q.trim());
+      }
+      
+      if (marcaFilter && marcaFilter.trim().length > 0) {
+        params.append('marca', marcaFilter.trim());
+      }
+
+      return `${API_BASE_URL}/api/equipos?${params.toString()}`;
+    };
+
+    const fetchPage = async (p: number, ps: number) => {
+      const url = buildExportUrl(p, ps);
+      console.log('🔍 Export URL:', url); // ← Para debug
+      
+      const res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('❌ Error response:', errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
+      
+      return res;
+    };
+
+    // Detectar pageSize aceptado
+    let detected: number | null = null;
+    let firstPage: ApiList<EquipoRow> | null = null;
+    
+    for (const candidate of EXPORT_PAGE_CANDIDATES) {
+      try {
         const res = await fetchPage(1, candidate);
         if (res.ok || res.status === 204) {
           detected = candidate;
@@ -415,71 +452,93 @@ const EquiposPage: React.FC = () => {
               : ((await res.json()) as ApiList<EquipoRow>);
           break;
         }
-        if (res.status !== 400) {
-          let msg = `HTTP ${res.status}`;
-          try {
-            const payload = await res.json();
-            msg = (payload as { error?: string })?.error || msg;
-          } catch { /* ignore */ }
-          throw new Error(msg);
+      } catch (error) {
+        // Si falla con un pageSize, probar con el siguiente
+        if (candidate === EXPORT_PAGE_CANDIDATES[EXPORT_PAGE_CANDIDATES.length - 1]) {
+          // Si es el último candidato, lanzar el error
+          throw error;
         }
+        // Continuar con el siguiente candidato
+        continue;
       }
-      if (!detected || !firstPage) throw new Error("No se pudo determinar pageSize.");
+    }
+    
+    if (!detected || !firstPage) {
+      throw new Error("No se pudo determinar pageSize para la exportación.");
+    }
 
-      // Acumular todo
-      const all: EquipoRow[] = [];
-      all.push(...(firstPage.items || []));
-      for (let p = 2; p <= (firstPage.totalPages || 1); p++) {
-        const rx = await fetchPage(p, detected);
-        if (!rx.ok) throw new Error(`HTTP ${rx.status}`);
-        const jx = (await rx.json()) as ApiList<EquipoRow>;
-        all.push(...(jx.items || []));
-      }
+    // Acumular todo (ya viene filtrado por la API)
+    const all: EquipoRow[] = [];
+    all.push(...(firstPage.items || []));
+    
+    const totalPages = firstPage.totalPages || 1;
+    console.log(`📄 Exportando ${totalPages} páginas con pageSize ${detected}`);
+    
+    for (let p = 2; p <= totalPages; p++) {
+      const rx = await fetchPage(p, detected);
+      if (!rx.ok) throw new Error(`HTTP ${rx.status} en página ${p}`);
+      const jx = (await rx.json()) as ApiList<EquipoRow>;
+      all.push(...(jx.items || []));
+    }
 
-      // Map a filas
-      const rowMap = (e: EquipoRow) => ({
-        ID: e.id_equipo,
-        SERIAL: toUC(e.serial),
-        MARCA: toUC(e.marca),
-        MODELO: e.modelo || "",
-        CPU: e.procesador || "",
-        RAM: e.ram || "",
-        DISCO: e.disco || "",
-        PROPIEDAD: e.propiedad || "",
-        SOLICITANTE: e.solicitante || "",
-        EMPRESA: e.empresa || "",
-        SolicitanteId: e.idSolicitante,
-        EmpresaId: e.empresaId ?? "",
-      });
+    console.log(`✅ Total de equipos obtenidos: ${all.length}`);
+    if (empresaFilterName) {
+      console.log(`🏢 Filtrado por empresa: ${empresaFilterName}`);
+    }
 
-      // Agrupar por empresa
-      const byEmpresa = new Map<string, EquipoRow[]>();
+    // Map a filas
+    const rowMap = (e: EquipoRow) => ({
+      ID: e.id_equipo,
+      SERIAL: toUC(e.serial),
+      MARCA: toUC(e.marca),
+      MODELO: e.modelo || "",
+      CPU: e.procesador || "",
+      RAM: e.ram || "",
+      DISCO: e.disco || "",
+      PROPIEDAD: e.propiedad || "",
+      SOLICITANTE: e.solicitante || "",
+      EMPRESA: e.empresa || "",
+      SolicitanteId: e.idSolicitante,
+      EmpresaId: e.empresaId ?? "",
+    });
+
+    // **MODIFICACIÓN: Solo agrupar si no hay filtro de empresa**
+    const byEmpresa = new Map<string, EquipoRow[]>();
+    
+    if (empresaFilterName) {
+      // Si hay filtro de empresa, todo va en una sola entrada
+      byEmpresa.set(empresaFilterName, all);
+    } else {
+      // Sin filtro: agrupar normalmente
       for (const it of all) {
         const key = it.empresa || "— SIN EMPRESA —";
         if (!byEmpresa.has(key)) byEmpresa.set(key, []);
         byEmpresa.get(key)!.push(it);
       }
+    }
 
-      // Resúmenes
-      const resumenRows: { EMPRESA: string; TOTAL: number }[] = [];
-      const resumenMarcaRows: { EMPRESA: string; MARCA: string; TOTAL: number }[] = [];
-      for (const [emp, arr] of byEmpresa) {
-        resumenRows.push({ EMPRESA: emp, TOTAL: arr.length });
-        const m = new Map<string, number>();
-        for (const it of arr) {
-          const mk = (it.marca || "—").toUpperCase();
-          m.set(mk, (m.get(mk) || 0) + 1);
-        }
-        for (const [marca, total] of m) {
-          resumenMarcaRows.push({ EMPRESA: emp, MARCA: marca, TOTAL: total });
-        }
+    // Resúmenes (optimizados para cuando hay filtro)
+    const resumenRows: { EMPRESA: string; TOTAL: number }[] = [];
+    const resumenMarcaRows: { EMPRESA: string; MARCA: string; TOTAL: number }[] = [];
+    
+    for (const [emp, arr] of byEmpresa) {
+      resumenRows.push({ EMPRESA: emp, TOTAL: arr.length });
+      const m = new Map<string, number>();
+      for (const it of arr) {
+        const mk = (it.marca || "—").toUpperCase();
+        m.set(mk, (m.get(mk) || 0) + 1);
       }
+      for (const [marca, total] of m) {
+        resumenMarcaRows.push({ EMPRESA: emp, MARCA: marca, TOTAL: total });
+      }
+    }
 
-      // ✅ Import con estilos
-      const XLSX = await import("xlsx-js-style");
-      const wb = XLSX.utils.book_new();
+    // ✅ Import con estilos (xlsx-js-style)
+    const XLSX = await import("xlsx-js-style");
+    const wb = XLSX.utils.book_new();
 
-      // Hoja: Todos (header gris fuerte, cuerpo gris claro)
+    // **MODIFICACIÓN: Hoja "Todos" solo si no hay filtro de empresa**
+    if (!empresaFilterName && all.length > 0) {
       const rowsTodos = all.map(rowMap);
       const wsTodos = XLSX.utils.json_to_sheet(rowsTodos);
       const todosHeader = Object.keys(rowsTodos[0] || { ID: "", SERIAL: "" });
@@ -492,47 +551,75 @@ const EquiposPage: React.FC = () => {
         "FFF8FAFC"  // cuerpo gris muy claro
       );
       XLSX.utils.book_append_sheet(wb, wsTodos, "Todos");
+    }
 
-      // Hojas por empresa (colores propios)
-      for (const [emp, arr] of byEmpresa) {
-        const rs = arr.map(rowMap);
-        const ws = XLSX.utils.json_to_sheet(rs);
-        const header = Object.keys(rs[0] || { ID: "", SERIAL: "" });
+    // Hojas por empresa (optimizado para filtro único)
+    let colorIdx = 0;
+    for (const [emp, arr] of byEmpresa) {
+      const rs = arr.map(rowMap);
+      if (rs.length === 0) continue; // Saltar empresas sin equipos
+      
+      const ws = XLSX.utils.json_to_sheet(rs);
+      const header = Object.keys(rs[0] || { ID: "", SERIAL: "" });
 
-        const { headerFill, bodyFill } = excelCompanyColors(emp);
-        styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
+      const { headerFill, bodyFill } = excelCompanyColors(emp);
+      styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
 
-        // nombre seguro (<=31 chars, sin inválidos) — ¡ojo con '[' y ']'!
-        const safeName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
-        XLSX.utils.book_append_sheet(wb, ws, safeName);
+      // **MODIFICACIÓN: Nombre de hoja más simple cuando hay filtro**
+      let sheetName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
+      if (empresaFilterName && byEmpresa.size === 1) {
+        sheetName = "Equipos"; // Nombre simple cuando solo hay una empresa
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      colorIdx++;
+    }
+
+    // **MODIFICACIÓN: Hojas de resumen solo si no hay filtro y hay múltiples empresas**
+    if (!empresaFilterName && byEmpresa.size > 1) {
+      if (resumenRows.length > 0) {
+        const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
+        const resumenHeader = Object.keys(resumenRows[0] || { EMPRESA: "", TOTAL: 0 });
+        styleWorksheet(XLSX, wsResumen, resumenHeader, resumenRows.length, "FF0F766E", "FFECFEFF");
+        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
       }
 
-      // Hoja Resumen (estilo neutro, con bordes)
-      const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
-      const resumenHeader = Object.keys(resumenRows[0] || { EMPRESA: "", TOTAL: 0 });
-      styleWorksheet(XLSX, wsResumen, resumenHeader, resumenRows.length, "FF0F766E", "FFECFEFF");
-      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
-
-      const wsResumenMarca = XLSX.utils.json_to_sheet(resumenMarcaRows);
-      const resumenMarcaHeader = Object.keys(resumenMarcaRows[0] || { EMPRESA: "", MARCA: "", TOTAL: 0 });
-      styleWorksheet(XLSX, wsResumenMarca, resumenMarcaHeader, resumenMarcaRows.length, "FF6B21A8", "FFEDE9FE");
-      XLSX.utils.book_append_sheet(wb, wsResumenMarca, "Resumen x Marca");
-
-      // Guardar
-      const parts: string[] = ["equipos"];
-      if (empresaFilterName) parts.push(`empresa-${empresaFilterName.replace(/\s+/g, "_")}`);
-      if (marcaFilter) parts.push(`marca-${marcaFilter.replace(/\s+/g, "_")}`);
-      const fileName = `${parts.join("_")}_${new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/[:T]/g, "-")}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-    } catch (err) {
-      setExportError((err as Error)?.message || "Error al exportar a Excel");
-    } finally {
-      setExporting(false);
+      if (resumenMarcaRows.length > 0) {
+        const wsResumenMarca = XLSX.utils.json_to_sheet(resumenMarcaRows);
+        const resumenMarcaHeader = Object.keys(resumenMarcaRows[0] || { EMPRESA: "", MARCA: "", TOTAL: 0 });
+        styleWorksheet(XLSX, wsResumenMarca, resumenMarcaHeader, resumenMarcaRows.length, "FF6B21A8", "FFEDE9FE");
+        XLSX.utils.book_append_sheet(wb, wsResumenMarca, "Resumen x Marca");
+      }
     }
+
+    // **MODIFICACIÓN: Nombre de archivo más específico**
+    const parts: string[] = ["equipos"];
+    if (empresaFilterName) {
+      const safeEmpresaName = empresaFilterName.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
+      parts.push(safeEmpresaName);
+    }
+    if (marcaFilter) {
+      const safeMarca = marcaFilter.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
+      parts.push(`marca-${safeMarca}`);
+    }
+    
+    const timestamp = new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/[:T]/g, "-");
+    
+    const fileName = `${parts.join("_")}_${timestamp}.xlsx`;
+    
+    console.log(`💾 Guardando archivo: ${fileName}`);
+    XLSX.writeFile(wb, fileName);
+    
+  } catch (err) {
+    console.error('💥 Error en exportToExcel:', err);
+    setExportError((err as Error)?.message || "Error al exportar a Excel");
+  } finally {
+    setExporting(false);
   }
+}
 
   /* ======== Empresas (fallback desde /equipos) ======== */
   async function fetchEmpresaOptions(signal?: AbortSignal) {
@@ -737,149 +824,149 @@ const EquiposPage: React.FC = () => {
         {/* Filtros principales (incluye SELECT de empresas) */}
         {/* Filtros principales (RESPONSIVO) */}
         <section className="rounded-3xl border border-cyan-100 bg-white shadow-sm shadow-cyan-100/40 p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             {/* Buscar */}
             <div className="lg:col-span-3 sm:col-span-2 min-w-0">
-            <label className="text-xs font-semibold text-neutral-600">Buscar</label>
-            <div className="relative">
+              <label className="text-xs font-semibold text-neutral-600">Buscar</label>
+              <div className="relative">
                 <span className="absolute left-3 top-[10px] sm:top-[10px] text-neutral-500">
-                <SearchOutlined />
+                  <SearchOutlined />
                 </span>
                 <input
-                value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                placeholder="serial, modelo, CPU…"
-                className="mt-1 w-full rounded-2xl border pl-9 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                  placeholder="serial, modelo, CPU…"
+                  className="mt-1 w-full rounded-2xl border pl-9 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
                 />
                 {q.length > 0 && (
-                <button
+                  <button
                     onClick={() => setQ("")}
                     className="absolute right-2 top-[10px] sm:top-[10px] text-neutral-400 hover:text-neutral-600"
                     aria-label="Limpiar búsqueda"
                     title="Limpiar"
-                >
+                  >
                     <CloseCircleFilled />
-                </button>
+                  </button>
                 )}
-            </div>
+              </div>
             </div>
 
             {/* Empresa (SELECT) */}
             <div className="lg:col-span-2 sm:col-span-2 min-w-0">
-            <label className="text-xs font-semibold text-neutral-600">Empresa</label>
-            <div className="mt-1">
+              <label className="text-xs font-semibold text-neutral-600">Empresa</label>
+              <div className="mt-1">
                 <select
-                value={empresaFilterId ?? ""}
-                onChange={(e) => {
+                  value={empresaFilterId ?? ""}
+                  onChange={(e) => {
                     const v = e.target.value;
                     setEmpresaFilterId(v ? Number(v) : null);
                     setPage(1);
-                }}
-                className="w-full min-w-0 rounded-2xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
+                  }}
+                  className="w-full min-w-0 rounded-2xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
                 >
-                <option value="">
+                  <option value="">
                     {empLoading ? "Cargando empresas..." : "— Filtrar por empresa —"}
-                </option>
-                {empresaOptions.map((opt) => (
+                  </option>
+                  {empresaOptions.map((opt) => (
                     <option key={opt.id ?? -1} value={opt.id ?? ""}>
-                    {opt.nombre}
+                      {opt.nombre}
                     </option>
-                ))}
+                  ))}
                 </select>
-            </div>
-            {empError && <div className="text-[11px] text-red-600 mt-1">{empError}</div>}
+              </div>
+              {empError && <div className="text-[11px] text-red-600 mt-1">{empError}</div>}
             </div>
 
 
             {/* Acciones */}
             <div className="lg:col-span-1 sm:col-span-2">
-            <div className="h-full flex sm:justify-end items-end">
+              <div className="h-full flex sm:justify-end items-end">
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                <button
+                  <button
                     onClick={clearAll}
                     className="flex-1 sm:flex-none rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
                     title="Limpiar filtros"
-                >
+                  >
                     Limpiar
-                </button>
-                <button
+                  </button>
+                  <button
                     onClick={reload}
                     className="rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
                     title="Recargar"
-                >
+                  >
                     <ReloadOutlined />
-                </button>
-                <button
+                  </button>
+                  <button
                     onClick={exportToExcel}
                     disabled={exporting || loading}
                     className={clsx(
-                    "rounded-2xl border px-3 py-2.5 text-sm inline-flex items-center gap-2",
-                    "border-emerald-300 text-emerald-800 hover:bg-emerald-50",
-                    (exporting || loading) && "opacity-60 cursor-not-allowed"
+                      "rounded-2xl border px-3 py-2.5 text-sm inline-flex items-center gap-2",
+                      "border-emerald-300 text-emerald-800 hover:bg-emerald-50",
+                      (exporting || loading) && "opacity-60 cursor-not-allowed"
                     )}
                     title="Exportar a Excel (Todos, por Empresa y Resumen)"
-                >
+                  >
                     <DownloadOutlined />
                     {exporting ? "Exportando…" : "Exportar Excel"}
-                </button>
+                  </button>
                 </div>
+              </div>
             </div>
-            </div>
-        </div>
+          </div>
 
-        {/* Chips de filtros activos */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* Chips de filtros activos */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {empresaFilterName && (
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs">
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs">
                 Empresa: <strong className="truncate max-w-[40vw]">{empresaFilterName}</strong>
                 <button
-                onClick={() => { setEmpresaFilterId(null); setPage(1); }}
-                className="hover:text-cyan-700"
-                aria-label="Quitar filtro de empresa"
-                title="Quitar filtro de empresa"
+                  onClick={() => { setEmpresaFilterId(null); setPage(1); }}
+                  className="hover:text-cyan-700"
+                  aria-label="Quitar filtro de empresa"
+                  title="Quitar filtro de empresa"
                 >
-                <CloseCircleFilled />
+                  <CloseCircleFilled />
                 </button>
-            </span>
+              </span>
             )}
             {marcaFilter && (
-            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs">
+              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs">
                 Marca: <strong>{toUC(marcaFilter)}</strong>
                 <button
-                onClick={() => { setMarcaFilter(""); setPage(1); }}
-                className="hover:text-indigo-700"
-                aria-label="Quitar filtro de marca"
-                title="Quitar filtro de marca"
+                  onClick={() => { setMarcaFilter(""); setPage(1); }}
+                  className="hover:text-indigo-700"
+                  aria-label="Quitar filtro de marca"
+                  title="Quitar filtro de marca"
                 >
-                <CloseCircleFilled />
+                  <CloseCircleFilled />
                 </button>
-            </span>
+              </span>
             )}
             {exportError && (
-            <span className="text-xs text-red-600">Error exportando: {exportError}</span>
+              <span className="text-xs text-red-600">Error exportando: {exportError}</span>
             )}
-        </div>
+          </div>
 
-        {/* Rango + page size */}
-        <div className="mt-3 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          {/* Rango + page size */}
+          <div className="mt-3 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
             <div className="text-xs text-neutral-500">
-            {data && data.total > 0 ? (
+              {data && data.total > 0 ? (
                 <>Mostrando <b>{showingRange?.start}</b>–<b>{showingRange?.end}</b> de <b>{data.total}</b></>
-            ) : "—"}
+              ) : "—"}
             </div>
             <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-600">Por página</span>
-            <select
+              <span className="text-sm text-neutral-600">Por página</span>
+              <select
                 value={data?.pageSize ?? pageSize}
                 onChange={(ev) => onChangePageSize(Number(ev.target.value))}
                 className="rounded-xl border px-2 py-1"
-            >
+              >
                 {[10, 20, 30].map((n) => (
-                <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>{n}</option>
                 ))}
-            </select>
+              </select>
             </div>
-        </div>
+          </div>
         </section>
 
 

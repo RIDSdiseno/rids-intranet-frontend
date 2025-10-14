@@ -2,7 +2,7 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import LoginRids from "./host/Login";
+import LoginRids from "./host/login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
@@ -11,6 +11,10 @@ const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
 // 👇 NUEVO: Tickets
 const TicketsPage = lazy(() => import("./host/Ticket")); // ajusta a la ruta real si difiere
+
+const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
+
+const ReportesPage = lazy(() => import("./host/Reportes"));
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
@@ -68,6 +72,23 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <TicketsPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/empresas"
+            element={
+              <PrivateRoute>
+                <EmpresasPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/reportes"
+            element={
+              <PrivateRoute>
+                <ReportesPage />
               </PrivateRoute>
             }
           />

@@ -192,35 +192,35 @@ const TicketsPage: React.FC = () => {
 
   /* ===== Fetch listado ===== */
   // Helper: trae TODOS los tickets del año actual con los filtros base (sin empresa)
-async function fetchAllYearRows(
-  year: number,
-  q: string,
-  onlyClosed: boolean
-): Promise<ApiRow[]> {
-  const paramsBase: Record<string, string> = {
-    page: "1",
-    pageSize: "800",
-    year: String(year),
-    _ts: String(Date.now()),
-  };
-  if (q.trim().length > 0) paramsBase.search = q.trim();
-  if (onlyClosed) paramsBase.status = "5";
+  async function fetchAllYearRows(
+    year: number,
+    q: string,
+    onlyClosed: boolean
+  ): Promise<ApiRow[]> {
+    const paramsBase: Record<string, string> = {
+      page: "1",
+      pageSize: "800",
+      year: String(year),
+      _ts: String(Date.now()),
+    };
+    if (q.trim().length > 0) paramsBase.search = q.trim();
+    if (onlyClosed) paramsBase.status = "5";
 
-  const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
-  const all: ApiRow[] = [...(first.data.rows || [])];
+    const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
+    const all: ApiRow[] = [...(first.data.rows || [])];
 
-  const total = first.data.total ?? all.length;
-  const perPage = Number(paramsBase.pageSize);
-  const pages = Math.max(1, Math.ceil(total / perPage));
+    const total = first.data.total ?? all.length;
+    const perPage = Number(paramsBase.pageSize);
+    const pages = Math.max(1, Math.ceil(total / perPage));
 
-  for (let p = 2; p <= pages; p++) {
-    const res = await api.get<ApiResp>("/tickets", {
-      params: { ...paramsBase, page: String(p) },
-    });
-    all.push(...(res.data.rows || []));
+    for (let p = 2; p <= pages; p++) {
+      const res = await api.get<ApiResp>("/tickets", {
+        params: { ...paramsBase, page: String(p) },
+      });
+      all.push(...(res.data.rows || []));
+    }
+    return all;
   }
-  return all;
-}
 
   /* ===== Fetch listado ===== */
   const fetchList = async (): Promise<void> => {
@@ -292,8 +292,8 @@ async function fetchAllYearRows(
         e instanceof AxiosError
           ? `HTTP ${e.response?.status ?? "error"}`
           : e instanceof Error
-          ? e.message
-          : "Error al cargar tickets";
+            ? e.message
+            : "Error al cargar tickets";
       setError(msg);
     } finally {
       if (seq === reqRef.current) setLoading(false);
@@ -375,16 +375,28 @@ async function fetchAllYearRows(
   /* ===================== Exportar a Excel ===================== */
   const exportExcel = async (): Promise<void> => {
     try {
-      // 1) Trae TODO con filtros básicos (sin empresa; filtramos aquí)
+      // 1) Parámetros base con filtro de empresa si existe
       const paramsBase: Record<string, string> = {
         page: "1",
         pageSize: "800",
         year: String(year),
         _ts: String(Date.now()),
       };
+
+      // Aplicar todos los filtros incluyendo empresa
       if (q.trim().length > 0) paramsBase.search = q.trim();
       if (onlyClosed) paramsBase.status = "5";
       if (month !== "") paramsBase.month = String(month);
+
+      // **FILTRO CLAVE: Agregar empresa a los parámetros de la API**
+      if (empresaKeyFilter) {
+        // Asumiendo que el endpoint soporta filtrar por empresa
+        // Si el parámetro se llama diferente en la API, ajusta esto
+        paramsBase.empresa = empresaKeyFilter;
+        // O si necesitas el nombre en lugar del key:
+        // const empresaNombre = empresaOptions.find(o => o.key === empresaKeyFilter)?.label;
+        // if (empresaNombre) paramsBase.empresa = empresaNombre;
+      }
 
       const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
       const allRows: ApiRow[] = [...(first.data.rows || [])];
@@ -393,6 +405,7 @@ async function fetchAllYearRows(
       const perPage = Number(paramsBase.pageSize);
       const pages = Math.max(1, Math.ceil(total / perPage));
 
+      // 2) Solo hacer paginación si es necesario
       for (let p = 2; p <= pages; p++) {
         const res = await api.get<ApiResp>("/tickets", {
           params: { ...paramsBase, page: String(p) },
@@ -403,12 +416,13 @@ async function fetchAllYearRows(
       // Orden por fecha DESC
       allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
-      // Filtro robusto por empresa
+      // 3) Ya no necesitas filtrar localmente porque la API ya filtró
+      // Pero por si acaso mantén este filtro como respaldo
       const filtered = empresaKeyFilter
         ? allRows.filter((r) => companyKey(r.empresa) === empresaKeyFilter)
         : allRows;
 
-      // 2) Agrupa por etiqueta visible (mantiene el nombre tal como viene)
+      // 4) Agrupa por etiqueta visible
       const byCompany = new Map<string, ApiRow[]>();
       for (const r of filtered) {
         const label = (r.empresa ?? "Sin empresa").trim() || "Sin empresa";
@@ -417,26 +431,28 @@ async function fetchAllYearRows(
         byCompany.set(label, arr);
       }
 
-      // 3) xlsx-js-style
       const XLSX = await import("xlsx-js-style");
 
-      // 4) Resumen
+      // 5) Resumen (opcional si solo hay una empresa)
       const summary = Array.from(byCompany.entries())
         .map(([empresa, rows]) => ({ empresa, tickets: rows.length }))
         .sort((a, b) => b.tickets - a.tickets);
 
-      const wsResumen: WorkSheet = XLSX.utils.aoa_to_sheet([
-        ["Empresa", "Tickets"],
-        ...summary.map((x) => [x.empresa, x.tickets]),
-      ]);
-      wsResumen["!cols"] = [{ wch: 40 }, { wch: 10 }];
-      styleHeaderRow(wsResumen, ["A1", "B1"], "0EA5E9");
-      setAllBorders(XLSX, wsResumen);
-
       const wb: WorkBook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
 
-      // 5) Hojas por empresa
+      // Solo crear hoja de resumen si hay múltiples empresas
+      if (!empresaKeyFilter && byCompany.size > 1) {
+        const wsResumen: WorkSheet = XLSX.utils.aoa_to_sheet([
+          ["Empresa", "Tickets"],
+          ...summary.map((x) => [x.empresa, x.tickets]),
+        ]);
+        wsResumen["!cols"] = [{ wch: 40 }, { wch: 10 }];
+        styleHeaderRow(wsResumen, ["A1", "B1"], "0EA5E9");
+        setAllBorders(XLSX, wsResumen);
+        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+      }
+
+      // 6) Hojas por empresa
       const header = ["ID", "Asunto", "Solicitante (email)", "Tipo", "Fecha"];
       let colorIdx = 0;
 
@@ -448,7 +464,7 @@ async function fetchAllYearRows(
           r.subject,
           r.solicitante_email ?? "",
           r.type ?? "",
-          formatInTZ(r.fecha), // 24h + TZ
+          formatInTZ(r.fecha),
         ]);
 
         const ws: WorkSheet = XLSX.utils.aoa_to_sheet([header, ...body]);
@@ -459,16 +475,25 @@ async function fetchAllYearRows(
         styleHeaderRow(ws, ["A1", "B1", "C1", "D1", "E1"], fill);
         setAllBorders(XLSX, ws);
 
-        const safe = (empresa || "Empresa").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
-        XLSX.utils.book_append_sheet(wb, ws, safe);
+        // Nombre de la hoja más limpio
+        let sheetName = (empresa || "Empresa").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
+
+        // Si solo hay una empresa, llamar la hoja "Tickets"
+        if (byCompany.size === 1) {
+          sheetName = "Tickets";
+        }
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
 
+      // 7) Nombre del archivo más específico
       const parts: string[] = [`Tickets_${year}${month ? "_" + pad2(Number(month)) : ""}`];
       if (empresaKeyFilter) {
         const selected = empresaOptions.find((o) => o.key === empresaKeyFilter)?.label ?? "empresa";
         parts.push(selected.replace(/\s+/g, "_"));
       }
       const fileName = `${parts.join("_")}.xlsx`;
+
       XLSX.writeFile(wb, fileName);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error al exportar";
