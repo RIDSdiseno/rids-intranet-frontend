@@ -2,7 +2,7 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import LoginRids from "./host/login";
+import LoginRids from "./host/Login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 

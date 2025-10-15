@@ -1,5 +1,5 @@
 // src/host/Visitas.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Header from "../components/Header";
 import XlsxPopulate from "xlsx-populate/browser/xlsx-populate";
 import {
@@ -90,7 +90,7 @@ function aggregateForResumen(items: Array<VisitaRow>) {
   const adicionales = items.filter(x=>asTrue(x.otros)).length;
   const pie: Row2D[] = [["Solicitudes adicionales", adicionales],["Solicitud Programada", items.length - adicionales]];
   const bySolicitanteAll = new Map<string, number>();
-  for (const v of items) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? (v.solicitanteId ? `Sol. #${v.solicitanteId}` : "No especificado"));
+  for (const v of items) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? "No especificado");
   const bySolicitanteAllRows: Row2D[] = Array.from(bySolicitanteAll.entries()).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([u,n])=>[u,n]);
   return { daily, checklist, pie, bySolicitanteAllRows };
 }
@@ -145,7 +145,7 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
     let r=4; const startRow=r, endCol=HEADER.length;
     for (const v of rows) {
       const tecnico = v.tecnico?.nombre ?? `#${v.tecnicoId}`;
-      const solicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? (v.solicitanteId ? `Sol. #${v.solicitanteId}` : "—");
+      const solicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
       const started = v.inicio ? new Date(v.inicio) : null;
       const rowValues: ValueT[] = [
         v.id_visita, tecnico, empresa, solicitante, started, v.status,
@@ -289,9 +289,27 @@ const VisitasPage: React.FC = () => {
 
   const showingRange=useMemo(()=>{ if(!data||data.total===0) return null; const start=(data.page-1)*data.pageSize+1; const end=Math.min(data.page*data.pageSize,data.total); return {start,end}; },[data]);
 
-  const fetchFilters=async(signal?:AbortSignal)=>{ try { const url=new URL(`${API_URL}/visitas/filters`); const token=localStorage.getItem("accessToken"); const r=await fetch(url.toString(),{headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},credentials:"include",cache:"no-store",signal}); if(!r.ok) throw new Error(`HTTP ${r.status}`); const json=await r.json() as {tecnicos:TecnicoMini[]; empresas:EmpresaMini[]}; setTecnicos(json.tecnicos||[]); setEmpresas(json.empresas||[]); } catch { /* noop */ } };
+  /* === useCallback para cumplir exhaustive-deps === */
+  const fetchFilters = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const url=new URL(`${API_URL}/visitas/filters`);
+      const token=localStorage.getItem("accessToken");
+      const r=await fetch(url.toString(),{
+        headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},
+        credentials:"include",
+        cache:"no-store",
+        signal
+      });
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const json=await r.json() as {tecnicos:TecnicoMini[]; empresas:EmpresaMini[]};
+      setTecnicos(json.tecnicos||[]);
+      setEmpresas(json.empresas||[]);
+    } catch { /* noop */ }
+  }, []);
 
-  const fetchList=async(signal?:AbortSignal)=>{ const seq=++reqSeqRef.current; try {
+  const fetchList = useCallback(async (signal?: AbortSignal) => {
+    const seq=++reqSeqRef.current;
+    try {
       setLoading(true); setError(null);
       const url=new URL(`${API_URL}/visitas`);
       url.searchParams.set("page",String(page)); url.searchParams.set("pageSize",String(PAGE_SIZE));
@@ -300,20 +318,49 @@ const VisitasPage: React.FC = () => {
       if(empresaId) url.searchParams.set("empresaId",String(empresaId));
       url.searchParams.set("_ts",String(Date.now()));
       const token=localStorage.getItem("accessToken");
-      const res=await fetch(url.toString(),{method:"GET",headers:{"Content-Type":"application/json","Cache-Control":"no-cache",Pragma:"no-cache",...(token?{Authorization:`Bearer ${token}`}:{})},cache:"no-store",credentials:"include",signal});
+      const res=await fetch(url.toString(),{
+        method:"GET",
+        headers:{
+          "Content-Type":"application/json",
+          "Cache-Control":"no-cache",
+          Pragma:"no-cache",
+          ...(token?{Authorization:`Bearer ${token}`}:{})
+        },
+        cache:"no-store",
+        credentials:"include",
+        signal
+      });
       if(seq!==reqSeqRef.current) return;
-      if(!res.ok&&res.status!==204){ let apiErr=`HTTP ${res.status}`; try{ const payload=await res.json(); apiErr=(payload as {error?:string})?.error||apiErr;}catch{/* noop */} throw new Error(apiErr);}
+      if(!res.ok&&res.status!==204){
+        let apiErr=`HTTP ${res.status}`;
+        try{ const payload=await res.json() as { error?: string }; apiErr=payload?.error||apiErr; }catch{
+          //
+        }
+        throw new Error(apiErr);
+      }
       if(res.status===204){ setData({page,pageSize:PAGE_SIZE,total:0,totalPages:1,items:[]}); return; }
       const ct=res.headers.get("content-type")||"";
       if(ct.includes("application/json")) setData(await res.json() as ApiList<VisitaRow>);
-      else { const text=await res.text(); const json=text?(JSON.parse(text) as ApiList<VisitaRow>):null; setData(json??{page,pageSize:PAGE_SIZE,total:0,totalPages:1,items:[]}); }
-    } catch(err){ if((err as Error).name!=="AbortError") setError((err as Error)?.message||"Error al cargar visitas"); }
-    finally{ if(seq===reqSeqRef.current) setLoading(false); } };
+      else {
+        const text=await res.text();
+        const json=text?(JSON.parse(text) as ApiList<VisitaRow>):null;
+        setData(json??{page,pageSize:PAGE_SIZE,total:0,totalPages:1,items:[]});
+      }
+    } catch(err){
+      if((err as Error).name!=="AbortError") setError((err as Error)?.message||"Error al cargar visitas");
+    } finally {
+      if(seq===reqSeqRef.current) setLoading(false);
+    }
+  }, [page, qDebounced, tecnicoId, empresaId]);
 
-  const refreshNow = () => { const c=new AbortController(); void fetchList(c.signal); };
+  const refreshNow = useCallback(() => {
+    const c=new AbortController();
+    void fetchList(c.signal);
+  }, [fetchList]);
 
-  useEffect(()=>{ const c=new AbortController(); fetchFilters(c.signal); return ()=>c.abort(); },[]);
-  useEffect(()=>{ const c=new AbortController(); fetchList(c.signal); return ()=>c.abort(); },[page,qDebounced,tecnicoId,empresaId]);
+  /* === Efectos usando las funciones memorizadas === */
+  useEffect(()=>{ const c=new AbortController(); fetchFilters(c.signal); return ()=>c.abort(); },[fetchFilters]);
+  useEffect(()=>{ const c=new AbortController(); fetchList(c.signal); return ()=>c.abort(); },[fetchList]);
 
   const goPrev=()=>canPrev&&setPage(p=>p-1);
   const goNext=()=>canNext&&setPage(p=>p+1);
@@ -321,7 +368,7 @@ const VisitasPage: React.FC = () => {
 
   const openRow=(row:VisitaRow)=>{ const visita:VisitaDetail={
       id_visita:row.id_visita, empresaId:row.empresaId, tecnicoId:row.tecnicoId,
-      solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? (row.solicitanteId ? `Sol. #${row.solicitanteId}` : ""),
+      solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? "",
       inicio:row.inicio, fin:row.fin??null,
       confImpresoras:row.confImpresoras, confTelefonos:row.confTelefonos, confPiePagina:row.confPiePagina,
       otros:row.otros, otrosDetalle:row.otrosDetalle??null, status:row.status,
@@ -341,7 +388,8 @@ const VisitasPage: React.FC = () => {
       cache:"no-store",
     });
     if(!(r.ok || r.status===204)) {
-      let msg=`HTTP ${r.status}`; try { const j=await r.json(); msg=(j as any)?.error||msg; } catch { /* noop */ }
+      let msg=`HTTP ${r.status}`;
+      try { const j=await r.json() as { error?: string }; msg=j?.error||msg; } catch { /* noop */ }
       throw new Error(msg);
     }
   }
@@ -352,10 +400,10 @@ const VisitasPage: React.FC = () => {
       empresaId: row.empresaId,
       tecnicoId: row.tecnicoId,
       solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? "",
-      solicitanteId: row.solicitanteRef?.id_solicitante ?? row.solicitanteId ?? null,
+      solicitanteId: row.solicitanteRef?.id_solicitante ?? null,
       inicio: row.inicio,
       fin: row.fin ?? null,
-      status: row.status as any,
+      status: row.status as unknown as VisitaForEdit["status"],
       confImpresoras: !!row.confImpresoras,
       confTelefonos: !!row.confTelefonos,
       confPiePagina: !!row.confPiePagina,
@@ -539,7 +587,7 @@ const VisitasPage: React.FC = () => {
             <div className="rounded-2xl border border-slate-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
           )}
           {!loading && !error && data?.items?.map((v)=> {
-            const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? (v.solicitanteId ? `Sol. #${v.solicitanteId}` : "—");
+            const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
             const isDeleting = deletingId === v.id_visita;
             return (
               <article
@@ -593,7 +641,7 @@ const VisitasPage: React.FC = () => {
                 {!loading && error && (<tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>)}
                 {!loading && !error && data?.items?.length===0 && (<tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>)}
                 {!loading && !error && data?.items?.map((v)=> {
-                  const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? (v.solicitanteId ? `Sol. #${v.solicitanteId}` : "—");
+                  const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
                   const isDeleting = deletingId === v.id_visita;
                   return (
                     <tr
