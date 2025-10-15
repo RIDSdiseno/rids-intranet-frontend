@@ -55,7 +55,6 @@ function stripAccents(s: string) {
 function companyKey(raw?: string | null): string {
   const base = (raw ?? "Sin empresa").trim().replace(/\s+/g, " ");
   const noAccents = stripAccents(base).toLowerCase();
-  // borra sufijos legales comunes (sa, s.a., ltda, spa, s.p.a)
   return noAccents
     .replace(/\b(s\.?\s*a\.?|sa|ltda\.?|spa|s\.?\s*p\.?\s*a\.?)\b/g, "")
     .replace(/[.,]/g, "")
@@ -63,7 +62,7 @@ function companyKey(raw?: string | null): string {
     .trim();
 }
 
-/** Fecha en 24h, fija a la TZ de la app (igual que Railway) */
+/** Fecha en 24h, fija a la TZ de la app */
 function formatInTZ(iso: string | Date, tz: string = APP_TZ): string {
   const d = typeof iso === "string" ? new Date(iso) : iso;
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -162,7 +161,7 @@ const TicketsPage: React.FC = () => {
   const [year, setYear] = useState<number>(now.getFullYear());
   const [month, setMonth] = useState<number | "">(""); // "" = todos
 
-  // filtro de empresa (SELECT por clave normalizada)
+  // filtro de empresa
   const [empresaOptions, setEmpresaOptions] = useState<EmpresaOpt[]>([]);
   const [empresaKeyFilter, setEmpresaKeyFilter] = useState<string>(""); // clave normalizada
 
@@ -176,6 +175,20 @@ const TicketsPage: React.FC = () => {
   );
   const canPrev = page > 1;
   const canNext = page < totalPages;
+
+  // NUEVO: control del input “Ir a página”
+  const [pageInput, setPageInput] = useState<string>("1");
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page, totalPages]);
+
+  const clampPage = (p: number) => Math.min(Math.max(1, p), totalPages);
+  const goToPage = () => {
+    const n = Number(pageInput);
+    if (!Number.isFinite(n)) return;
+    const target = clampPage(Math.floor(n));
+    if (target !== page) setPage(target);
+  };
 
   // carga/errores
   const [loading, setLoading] = useState<boolean>(false);
@@ -191,7 +204,6 @@ const TicketsPage: React.FC = () => {
   }, [data]);
 
   /* ===== Fetch listado ===== */
-  // Helper: trae TODOS los tickets del año actual con los filtros base (sin empresa)
   async function fetchAllYearRows(
     year: number,
     q: string,
@@ -222,7 +234,6 @@ const TicketsPage: React.FC = () => {
     return all;
   }
 
-  /* ===== Fetch listado ===== */
   const fetchList = async (): Promise<void> => {
     const seq = ++reqRef.current;
     setLoading(true);
@@ -234,10 +245,8 @@ const TicketsPage: React.FC = () => {
       if (month === "") {
         // “Todos”: agregamos TODO el año en el cliente
         rows = await fetchAllYearRows(year, q, onlyClosed);
-        // si quieres respetar un backend que por defecto trae solo el mes actual,
-        // esta rama evita esa limitación
       } else {
-        // Mes específico: dejamos que el backend pagine
+        // Mes específico: paginación del backend
         const params: Record<string, string> = {
           page: String(page),
           pageSize: String(PAGE_SIZE),
@@ -253,12 +262,11 @@ const TicketsPage: React.FC = () => {
 
         rows = Array.isArray(res.data.rows) ? [...res.data.rows] : [];
 
-        // Filtrado de empresa robusto
+        // Filtro por empresa
         if (empresaKeyFilter) {
           rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
         }
 
-        // Orden y set de data directo (paginación del backend)
         rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
         setData({
           page: res.data.page ?? page,
@@ -266,10 +274,10 @@ const TicketsPage: React.FC = () => {
           total: empresaKeyFilter ? rows.length : res.data.total ?? rows.length,
           rows,
         });
-        return; // terminamos aquí para el caso "mes específico"
+        return;
       }
 
-      // --- Rama “Todos los meses”: filtramos, ordenamos y paginamos en el cliente ---
+      // “Todos los meses”: filtrar / ordenar / paginar en cliente
       if (empresaKeyFilter) {
         rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
       }
@@ -300,8 +308,7 @@ const TicketsPage: React.FC = () => {
     }
   };
 
-
-  /* ===== Fetch opciones de empresa (una vez, sin filtros) ===== */
+  /* ===== Empresas (para filtro) ===== */
   const fetchEmpresaOptions = async (): Promise<void> => {
     const seq = ++empReqRef.current;
     try {
@@ -325,7 +332,6 @@ const TicketsPage: React.FC = () => {
         all.push(...(res.data.rows || []));
       }
 
-      // Dedup por clave
       const seen = new Set<string>();
       const opts: EmpresaOpt[] = [];
       for (const r of all) {
@@ -339,7 +345,6 @@ const TicketsPage: React.FC = () => {
       opts.sort((a, b) => a.label.localeCompare(b.label, "es"));
       setEmpresaOptions(opts);
 
-      // si la selección ya no existe, limpiar
       if (empresaKeyFilter && !opts.some((o) => o.key === empresaKeyFilter)) {
         setEmpresaKeyFilter("");
         setPage(1);
@@ -375,28 +380,16 @@ const TicketsPage: React.FC = () => {
   /* ===================== Exportar a Excel ===================== */
   const exportExcel = async (): Promise<void> => {
     try {
-      // 1) Parámetros base con filtro de empresa si existe
       const paramsBase: Record<string, string> = {
         page: "1",
         pageSize: "800",
         year: String(year),
         _ts: String(Date.now()),
       };
-
-      // Aplicar todos los filtros incluyendo empresa
       if (q.trim().length > 0) paramsBase.search = q.trim();
       if (onlyClosed) paramsBase.status = "5";
       if (month !== "") paramsBase.month = String(month);
-
-      // **FILTRO CLAVE: Agregar empresa a los parámetros de la API**
-      if (empresaKeyFilter) {
-        // Asumiendo que el endpoint soporta filtrar por empresa
-        // Si el parámetro se llama diferente en la API, ajusta esto
-        paramsBase.empresa = empresaKeyFilter;
-        // O si necesitas el nombre en lugar del key:
-        // const empresaNombre = empresaOptions.find(o => o.key === empresaKeyFilter)?.label;
-        // if (empresaNombre) paramsBase.empresa = empresaNombre;
-      }
+      if (empresaKeyFilter) paramsBase.empresa = empresaKeyFilter;
 
       const first = await api.get<ApiResp>("/tickets", { params: paramsBase });
       const allRows: ApiRow[] = [...(first.data.rows || [])];
@@ -405,7 +398,6 @@ const TicketsPage: React.FC = () => {
       const perPage = Number(paramsBase.pageSize);
       const pages = Math.max(1, Math.ceil(total / perPage));
 
-      // 2) Solo hacer paginación si es necesario
       for (let p = 2; p <= pages; p++) {
         const res = await api.get<ApiResp>("/tickets", {
           params: { ...paramsBase, page: String(p) },
@@ -413,16 +405,12 @@ const TicketsPage: React.FC = () => {
         allRows.push(...(res.data.rows || []));
       }
 
-      // Orden por fecha DESC
       allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
-      // 3) Ya no necesitas filtrar localmente porque la API ya filtró
-      // Pero por si acaso mantén este filtro como respaldo
       const filtered = empresaKeyFilter
         ? allRows.filter((r) => companyKey(r.empresa) === empresaKeyFilter)
         : allRows;
 
-      // 4) Agrupa por etiqueta visible
       const byCompany = new Map<string, ApiRow[]>();
       for (const r of filtered) {
         const label = (r.empresa ?? "Sin empresa").trim() || "Sin empresa";
@@ -432,15 +420,12 @@ const TicketsPage: React.FC = () => {
       }
 
       const XLSX = await import("xlsx-js-style");
-
-      // 5) Resumen (opcional si solo hay una empresa)
       const summary = Array.from(byCompany.entries())
         .map(([empresa, rows]) => ({ empresa, tickets: rows.length }))
         .sort((a, b) => b.tickets - a.tickets);
 
       const wb: WorkBook = XLSX.utils.book_new();
 
-      // Solo crear hoja de resumen si hay múltiples empresas
       if (!empresaKeyFilter && byCompany.size > 1) {
         const wsResumen: WorkSheet = XLSX.utils.aoa_to_sheet([
           ["Empresa", "Tickets"],
@@ -452,7 +437,6 @@ const TicketsPage: React.FC = () => {
         XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
       }
 
-      // 6) Hojas por empresa
       const header = ["ID", "Asunto", "Solicitante (email)", "Tipo", "Fecha"];
       let colorIdx = 0;
 
@@ -475,18 +459,11 @@ const TicketsPage: React.FC = () => {
         styleHeaderRow(ws, ["A1", "B1", "C1", "D1", "E1"], fill);
         setAllBorders(XLSX, ws);
 
-        // Nombre de la hoja más limpio
         let sheetName = (empresa || "Empresa").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
-
-        // Si solo hay una empresa, llamar la hoja "Tickets"
-        if (byCompany.size === 1) {
-          sheetName = "Tickets";
-        }
-
+        if (byCompany.size === 1) sheetName = "Tickets";
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
 
-      // 7) Nombre del archivo más específico
       const parts: string[] = [`Tickets_${year}${month ? "_" + pad2(Number(month)) : ""}`];
       if (empresaKeyFilter) {
         const selected = empresaOptions.find((o) => o.key === empresaKeyFilter)?.label ?? "empresa";
@@ -561,7 +538,7 @@ const TicketsPage: React.FC = () => {
               )}
             </div>
 
-            {/* Empresa (por clave normalizada) */}
+            {/* Empresa */}
             <select
               value={empresaKeyFilter}
               onChange={(e) => {
@@ -731,21 +708,21 @@ const TicketsPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Footer paginación */}
-          <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-cyan-100">
+          {/* Footer paginación (actualizado) */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 bg-white border-t border-cyan-100">
             <div className="text-sm text-neutral-700">
               {data && data.total > 0 ? (
                 <>
                   Mostrando <strong>{showingRange?.start}</strong>–<strong>{showingRange?.end}</strong>{" "}
-                  de <strong>{data.total}</strong> • Página <strong>{data.page}</strong> de{" "}
-                  <strong>{totalPages}</strong>
+                  de <strong>{data.total}</strong> • Página{" "}
+                  <strong>{page}</strong> de <strong>{totalPages}</strong>
                 </>
               ) : (
                 "—"
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => void fetchList()}
                 className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
@@ -754,6 +731,7 @@ const TicketsPage: React.FC = () => {
                 <ReloadOutlined /> Recargar
               </button>
               <div className="w-px h-5 bg-cyan-100" />
+
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={!canPrev || loading}
@@ -766,6 +744,47 @@ const TicketsPage: React.FC = () => {
                 <LeftOutlined />
                 <span className="hidden sm:inline">Anterior</span>
               </button>
+
+              {/* NUEVO: selector rápido de página */}
+              <select
+                value={page}
+                onChange={(e) => setPage(Number(e.target.value))}
+                className="rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm"
+                aria-label="Seleccionar página"
+                title="Seleccionar página"
+              >
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>
+                    Página {p}
+                  </option>
+                ))}
+              </select>
+
+              {/* NUEVO: input Ir a página */}
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-neutral-300 bg-white px-2 py-1.5">
+                <label htmlFor="gotoPage" className="text-xs text-neutral-600">
+                  Ir a pág.
+                </label>
+                <input
+                  id="gotoPage"
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") goToPage();
+                  }}
+                  className="w-16 text-sm outline-none"
+                />
+                <button
+                  onClick={goToPage}
+                  className="text-sm px-2 py-1 rounded-lg border border-cyan-300 text-cyan-800 hover:bg-cyan-50"
+                >
+                  Ir
+                </button>
+              </div>
+
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={!canNext || loading}
