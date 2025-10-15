@@ -24,7 +24,11 @@ import {
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
 
+// ❌ Eliminamos la constante de estado, ya no se usa un filtro
+// const TICKET_COUNT_STATUS = 5; 
+
 /* =================== Helpers =================== */
+
 function formatNumber(n?: number | null) {
   if (typeof n !== "number") return "—";
   try {
@@ -47,13 +51,44 @@ function getCurrentMonthRange() {
   return { from: toIsoDate(from), to: toIsoDate(to) };
 }
 
+/**
+ * Helper genérico para hacer peticiones GET seguras a la API.
+ */
+async function securedFetch<T>(urlPath: string, signal?: AbortSignal): Promise<T> {
+    const url = new URL(`${API_URL}${urlPath}`);
+    url.searchParams.set("_ts", String(Date.now())); // No-cache bypass
+
+    const token = localStorage.getItem("accessToken");
+    
+    const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+        signal,
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text().catch(() => `HTTP Error ${res.status}`);
+        throw new Error(errorText || `HTTP ${res.status}`);
+    }
+
+    return res.json() as Promise<T>;
+}
+
+
 /* =================== Tipos =================== */
 type ApiList<T> = {
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
-  items: T[];
+  items: T[]; 
 };
 
 type VisitaEmpresaBreakdown = {
@@ -80,8 +115,10 @@ type StatBase = {
   icon: React.ReactNode;
   change: React.ReactNode;
 };
-type RefreshableStat = StatBase & { onRefresh: () => void };
+// Modificamos el tipo para incluir 'isLoading'
+type RefreshableStat = StatBase & { onRefresh: () => void; isLoading: boolean }; 
 type Stat = StatBase | RefreshableStat;
+
 function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
 }
@@ -164,17 +201,24 @@ const Home: React.FC = () => {
   const [loadingSol, setLoadingSol] = useState<boolean>(false);
   const [errorSol, setErrorSol] = useState<string | null>(null);
 
-  // total equipos (REAL)
+  // total equipos
   const [totalEquipos, setTotalEquipos] = useState<number | null>(null);
   const [loadingEq, setLoadingEq] = useState<boolean>(false);
   const [errorEq, setErrorEq] = useState<string | null>(null);
 
   // visitas
-  const [{ from, to }] = useState(getCurrentMonthRange());
+  const dateRange = useMemo(getCurrentMonthRange, []);
+  const { from, to } = dateRange;
   const [visitasTotal, setVisitasTotal] = useState<number | null>(null);
   const [visitasByTech, setVisitasByTech] = useState<VisitaMetricRow[]>([]);
   const [loadingVis, setLoadingVis] = useState<boolean>(false);
   const [errorVis, setErrorVis] = useState<string | null>(null);
+
+  // 🔄 Estado renombrado a 'TotalTickets' para reflejar que no hay filtro
+  const [totalTickets, setTotalTickets] = useState<number | null>(null);
+  const [loadingTic, setLoadingTic] = useState<boolean>(false);
+  const [errorTic, setErrorTic] = useState<string | null>(null);
+
 
   /* ====== fetch total solicitantes ====== */
   const fetchTotalSolicitantes = async (signal?: AbortSignal) => {
@@ -182,106 +226,52 @@ const Home: React.FC = () => {
       setLoadingSol(true);
       setErrorSol(null);
 
-      const url = new URL(`${API_URL}/solicitantes`);
-      url.searchParams.set("page", "1");
-      url.searchParams.set("pageSize", "1");
-      url.searchParams.set("_ts", String(Date.now()));
-
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = (await res.json()) as ApiList<unknown>;
+      const data = await securedFetch<ApiList<unknown>>(
+        "/solicitantes?page=1&pageSize=1", 
+        signal
+      );
       setTotalSolicitantes(data.total ?? 0);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      setErrorSol((err as Error)?.message || "Error al cargar");
+      setErrorSol((err as Error)?.message || "Error al cargar solicitantes");
       setTotalSolicitantes(null);
     } finally {
       setLoadingSol(false);
     }
   };
 
-  /* ====== fetch total equipos (REAL) ====== */
+  /* ====== fetch total equipos ====== */
   const fetchTotalEquipos = async (signal?: AbortSignal) => {
     try {
       setLoadingEq(true);
       setErrorEq(null);
 
-      const url = new URL(`${API_URL}/equipos`);
-      url.searchParams.set("page", "1");
-      url.searchParams.set("pageSize", "1");
-      url.searchParams.set("_ts", String(Date.now()));
-
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = (await res.json()) as ApiList<unknown>;
+      const data = await securedFetch<ApiList<unknown>>(
+        "/equipos?page=1&pageSize=1", 
+        signal
+      );
       setTotalEquipos(data.total ?? 0);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      setErrorEq((err as Error)?.message || "Error al cargar");
+      setErrorEq((err as Error)?.message || "Error al cargar equipos");
       setTotalEquipos(null);
     } finally {
       setLoadingEq(false);
     }
   };
 
-  /* ====== fetch métricas visitas (con empresas) ====== */
+  /* ====== fetch métricas visitas ====== */
   const fetchVisitasMetrics = async (signal?: AbortSignal) => {
     try {
       setLoadingVis(true);
       setErrorVis(null);
 
-      const url = new URL(`${API_URL}/visitas/metrics`); // <- este endpoint debe devolver 'empresas'
-      url.searchParams.set("from", from);
-      url.searchParams.set("to", to);
-      url.searchParams.set("_ts", String(Date.now()));
+      const data = await securedFetch<VisitasMetrics>(
+        `/visitas/metrics?from=${from}&to=${to}`, 
+        signal
+      );
 
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const json = (await res.json()) as VisitasMetrics;
-
-      const rows = (json.porTecnico ?? [])
+      const rows = (data.porTecnico ?? [])
         .map((r) => ({
           ...r,
           empresas: (r.empresas ?? [])
@@ -290,7 +280,7 @@ const Home: React.FC = () => {
         }))
         .sort((a, b) => b.cantidad - a.cantidad);
 
-      setVisitasTotal(json.total ?? 0);
+      setVisitasTotal(data.total ?? 0);
       setVisitasByTech(rows);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -302,22 +292,50 @@ const Home: React.FC = () => {
     }
   };
 
+  /* ====== fetch Total de Todos los Tickets (ACTUALIZADO) ====== */
+  const fetchTotalTickets = async (signal?: AbortSignal) => {
+    try {
+      setLoadingTic(true);
+      setErrorTic(null);
+
+      // ✅ SE ELIMINA EL FILTRO DE ESTADO
+      const data = await securedFetch<ApiList<unknown>>(
+        `/tickets?page=1&pageSize=1`, 
+        signal
+      );
+      
+      // 🔄 Usamos el estado totalTickets
+      setTotalTickets(data.total ?? 0);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setErrorTic((err as Error)?.message || "Error al cargar tickets");
+      setTotalTickets(null);
+    } finally {
+      setLoadingTic(false);
+    }
+  };
+
   useEffect(() => {
     const c1 = new AbortController();
     const c2 = new AbortController();
     const c3 = new AbortController();
+    const c4 = new AbortController(); 
+
     fetchTotalSolicitantes(c1.signal);
     fetchTotalEquipos(c2.signal);
     fetchVisitasMetrics(c3.signal);
+    fetchTotalTickets(c4.signal); // 🔄 Llamamos a la nueva función
+    
     return () => {
       c1.abort();
       c2.abort();
       c3.abort();
+      c4.abort(); 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ===== estadísticas de las cards ===== */
+  /* ===== estadísticas de las cards (con estados de carga actualizados) ===== */
   const computedStats: Stat[] = useMemo(
     () => [
       {
@@ -336,6 +354,7 @@ const Home: React.FC = () => {
           "Total de solicitantes"
         ),
         onRefresh: () => fetchTotalSolicitantes(),
+        isLoading: loadingSol,
       },
       {
         name: "Equipos Registrados",
@@ -353,6 +372,7 @@ const Home: React.FC = () => {
           "Total de dispositivos"
         ),
         onRefresh: () => fetchTotalEquipos(),
+        isLoading: loadingEq,
       },
       {
         name: "Visitas del mes",
@@ -375,26 +395,36 @@ const Home: React.FC = () => {
           </>
         ),
         onRefresh: () => fetchVisitasMetrics(),
+        isLoading: loadingVis,
       },
+      // TARJETA DE TOTAL DE TICKETS (ACTUALIZADA)
       {
-        name: "Incidencias Resueltas",
-        value: "73",
+        // 🔄 Nombre de la tarjeta actualizado
+        name: "Total de Incidencias", 
+        value: loadingTic ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          // 🔄 Usamos el estado totalTickets
+          formatNumber(totalTickets)
+        ),
         icon: <SafetyCertificateOutlined className="text-cyan-600 text-xl" />,
-        change: "84% efectividad",
+        change: errorTic ? (
+            <span className="text-red-600">Error: {errorTic}</span>
+        ) : (
+            // 🔄 Descripción de estado actualizada
+            <>Todos los tickets registrados</>
+        ),
+        onRefresh: () => fetchTotalTickets(), // 🔄 Llamamos a la nueva función
+        isLoading: loadingTic,
       },
     ],
     [
-      loadingSol,
-      totalSolicitantes,
-      errorSol,
-      loadingEq,
-      totalEquipos,
-      errorEq,
-      loadingVis,
-      visitasTotal,
-      errorVis,
-      from,
-      to,
+      loadingSol, totalSolicitantes, errorSol,
+      loadingEq, totalEquipos, errorEq,
+      loadingVis, visitasTotal, errorVis, from, to,
+      loadingTic, totalTickets, errorTic, // 🔄 Dependencia actualizada
     ]
   );
 
@@ -435,10 +465,16 @@ const Home: React.FC = () => {
                   {isRefreshableStat(stat) && (
                     <button
                       onClick={stat.onRefresh}
-                      className="ml-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 text-xs hover:bg-cyan-50"
+                      // Implementación de UX mejorada: icono giratorio y deshabilitado
+                      className={`ml-1 rounded-full p-1.5 transition text-cyan-700 hover:bg-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        stat.isLoading
+                          ? "animate-spin"
+                          : ""
+                      }`}
                       title="Actualizar"
+                      disabled={stat.isLoading}
                     >
-                      <ReloadOutlined />
+                      <ReloadOutlined className="text-sm" />
                     </button>
                   )}
                 </div>
@@ -464,10 +500,13 @@ const Home: React.FC = () => {
             </h2>
             <button
               onClick={() => fetchVisitasMetrics()}
-              className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50"
+              className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${
+                loadingVis ? "animate-spin" : ""
+              }`}
               title="Actualizar"
+              disabled={loadingVis}
             >
-              <ReloadOutlined /> Refrescar
+              {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
             </button>
           </div>
 

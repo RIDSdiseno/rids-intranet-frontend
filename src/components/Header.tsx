@@ -17,13 +17,13 @@ import {
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
 
-/* ================== API ================== */
+/* ================== CONFIGURACIÓN DE RUTAS Y API ================== */
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
 });
 
-/* ================== RUTAS ================== */
 const HOME_PATH = "/home";
 const VISITAS_PATH = "/visitas";
 const SOLICITANTES_PATH = "/solicitantes";
@@ -32,48 +32,134 @@ const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 const TICKETS_PATH = "/tickets";
 
-/* ================== DATA (grupos) ================== */
-const NAV = [
+/* ================== TIPOS DE NAVEGACIÓN ================== */
+
+type NavItem = {
+  label: string;
+  to: string;
+  icon: React.ReactNode;
+};
+
+type NavLink = NavItem & {
+  type: "link";
+  match: string[];
+};
+
+type NavGroup = {
+  type: "group";
+  label: string;
+  items: NavItem[];
+  match: string[];
+};
+
+type NavEntry = NavLink | NavGroup;
+
+/* ================== DATA DE NAVEGACIÓN (grupos) ================== */
+
+const NAV: NavEntry[] = [
   // Inicio (solo link)
   {
-    type: "link" as const,
+    type: "link",
     label: "Inicio",
     to: HOME_PATH,
-    icon: <Home size={18} />,
+    icon: <Home size={20} />,
     match: [HOME_PATH],
   },
   // Operación
   {
-    type: "group" as const,
+    type: "group",
     label: "Operación",
     items: [
-      { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={18} /> },
-      { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={18} /> },
-      { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={18} /> },
+      { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
+      { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
+      { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
     ],
     match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH],
   },
   // Gestión
   {
-    type: "group" as const,
+    type: "group",
     label: "Gestión",
     items: [
-      { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={18} /> },
-      { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={18} /> },
+      { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
+      { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
     ],
     match: [EMPRESAS_PATH, REPORTES_PATH],
   },
   // Tickets (solo link)
   {
-    type: "link" as const,
+    type: "link",
     label: "Tickets",
     to: TICKETS_PATH,
-    icon: <Ticket size={18} />,
+    icon: <Ticket size={20} />,
     match: [TICKETS_PATH],
   },
 ];
 
+/* ================== HELPERS DE NAVEGACIÓN ================== */
+
+function hintFor(path: string): string {
+  switch (path) {
+    case SOLICITANTES_PATH:
+      return "Registros de personas";
+    case VISITAS_PATH:
+      return "Agenda y visitas";
+    case EQUIPOS_PATH:
+      return "Inventario de equipos";
+    case EMPRESAS_PATH:
+      return "Catálogo de empresas";
+    case REPORTES_PATH:
+      return "KPIs y reportes";
+    case TICKETS_PATH:
+      return "Mesa de ayuda";
+    default:
+      return "Abrir sección";
+  }
+}
+
+/* ================== COMPONENTES (MOBILE) ================== */
+
+const MobileLink: React.FC<
+  React.PropsWithChildren<{ to: string; icon: React.ReactNode; onClick?: () => void }>
+> = ({ to, icon, children, onClick }) => {
+  const { pathname } = useLocation();
+  const isActive = pathname.startsWith(to);
+
+  const baseClasses = "flex items-center gap-3 rounded-xl px-3 py-3 transition"; // ↑ padding
+  const activeClasses = isActive ? "bg-cyan-50" : "hover:bg-slate-50";
+
+  return (
+    <Link to={to} onClick={onClick} className={`${baseClasses} ${activeClasses}`}>
+      <span
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ring-1  // ↑ icon container
+          ${isActive ? "bg-cyan-100 text-cyan-800 ring-cyan-200" : "bg-cyan-50 text-cyan-700 ring-cyan-100"}`}
+      >
+        {icon}
+      </span>
+      <span className="text-base font-medium text-slate-900">{children}</span>
+    </Link>
+  );
+};
+
+const MobileGroup: React.FC<{
+  title: string;
+  items: NavItem[];
+  onClickItem?: () => void;
+}> = ({ title, items, onClickItem }) => (
+  <div className="my-1">
+    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+    <div className="grid grid-cols-1">
+      {items.map((it) => (
+        <MobileLink key={it.label} to={it.to} icon={it.icon} onClick={onClickItem}>
+          {it.label}
+        </MobileLink>
+      ))}
+    </div>
+  </div>
+);
+
 /* ================== HEADER ================== */
+
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -84,11 +170,15 @@ const Header: React.FC = () => {
 
   const isActive = (paths: string[]) => paths.some((p) => pathname.startsWith(p));
 
-  // Cerrar al hacer click fuera
+  // Clases de botón reutilizables (↑ tamaños)
+  const baseBtn =
+    "px-4 py-2 rounded-xl text-base font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition whitespace-nowrap";
+  const activeBtn = "text-cyan-700 ring-1 ring-cyan-200 bg-cyan-50 hover:bg-cyan-50";
+
+  // Cerrar al hacer click fuera y al presionar 'Esc'
   React.useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpenIdx(null);
       }
     };
@@ -106,6 +196,11 @@ const Header: React.FC = () => {
     };
   }, []);
 
+  // Cierra el menú móvil al cambiar de ruta
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -117,55 +212,49 @@ const Header: React.FC = () => {
     }
   };
 
-  const baseBtn =
-    "px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition";
-  const activeBtn =
-    "text-cyan-700 ring-1 ring-cyan-200 bg-cyan-50 hover:bg-cyan-50";
-
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div ref={wrapRef} className="mx-auto max-w-7xl px-4 sm:px-6">
-        {/* Row */}
-        <div className="flex h-14 items-center justify-between gap-3">
-          {/* Marca */}
+        {/* Fila principal (↑ altura) */}
+        <div className="flex h-20 items-center justify-between gap-3 md:gap-6"> {/* h-16 → h-20 */}
+          {/* Marca (Logo y Nombre) */}
           <Link
             to={HOME_PATH}
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-3 group"
             aria-label="RIDS.CL - Inicio"
           >
             <img
-              src="/login/LOGO_RIDS_WEB1.png"
+              src="/login/LOGO_RIDS.png"
               alt="RIDS.CL"
-              className="h-7 w-auto object-contain transition group-hover:scale-[1.02]"
+              className="h-12 w-auto object-contain transition group-hover:scale-[1.03]" /* h-9 → h-12 */
             />
-            <span className="hidden sm:block font-extrabold tracking-[0.18em] text-slate-900">
-              RIDS.CL
-            </span>
+            {/* Nombre opcional grande (si se desea mostrar al lado del logo) */}
+            {/* <span className="hidden sm:inline text-lg font-semibold tracking-tight text-slate-900">RIDS.CL</span> */}
           </Link>
 
-          {/* Botón Mobile */}
+          {/* Botón Mobile (↑ tamaño) */}
           <button
-            className="md:hidden inline-flex items-center justify-center rounded-lg p-2 hover:bg-slate-100"
+            className="md:hidden inline-flex items-center justify-center rounded-xl p-3 hover:bg-slate-100 text-slate-700 hover:text-slate-900"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label="Abrir menú"
+            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
           >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            {mobileOpen ? <X size={26} /> : <Menu size={26} />}
           </button>
 
           {/* Nav (Desktop) */}
           <nav className="relative hidden md:flex items-center gap-2">
             {NAV.map((entry, idx) =>
               entry.type === "link" ? (
+                // Link simple
                 <Link
                   key={entry.label}
                   to={entry.to}
-                  className={`${baseBtn} ${
-                    isActive(entry.match) ? activeBtn : ""
-                  }`}
+                  className={`${baseBtn} ${isActive(entry.match) ? activeBtn : ""}`}
                 >
                   {entry.label}
                 </Link>
               ) : (
+                // Menú con Dropdown
                 <div key={entry.label} className="relative">
                   <button
                     onClick={() => setOpenIdx((o) => (o === idx ? null : idx))}
@@ -179,11 +268,11 @@ const Header: React.FC = () => {
                     {entry.label}
                   </button>
 
-                  {/* Panel */}
+                  {/* Panel Dropdown (↑ tamaño y paddings) */}
                   <div
                     onMouseLeave={() => setOpenIdx(null)}
-                    className={`absolute left-1/2 -translate-x-1/2 mt-2 w-[520px] 
-                      rounded-2xl border border-slate-200 bg-white shadow-xl
+                    className={`absolute left-1/2 -translate-x-1/2 mt-3 w-[640px]  // 520 → 640
+                      rounded-2xl border border-slate-200 bg-white shadow-2xl ring-1 ring-black/5
                       transition-all duration-200 origin-top
                       ${
                         openIdx === idx
@@ -191,23 +280,23 @@ const Header: React.FC = () => {
                           : "opacity-0 scale-[0.98] -translate-y-1 pointer-events-none"
                       }`}
                   >
-                    <div className="grid grid-cols-3 gap-2 p-3">
+                    <div className="grid grid-cols-3 gap-3 p-4"> {/* p-3 → p-4 */}
                       {entry.items.map((it) => (
                         <Link
                           key={it.label}
                           to={it.to}
-                          className="group flex items-center gap-2 rounded-xl px-3 py-2 hover:bg-slate-50"
+                          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-50 transition"
                           onClick={() => setOpenIdx(null)}
                         >
                           <span
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 
-                                       ring-1 ring-cyan-100 group-hover:bg-cyan-100 group-hover:text-cyan-800 transition"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 
+                                     ring-1 ring-cyan-100 group-hover:bg-cyan-100 group-hover:text-cyan-800 transition"
                             aria-hidden
                           >
                             {it.icon}
                           </span>
                           <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-sm font-medium text-slate-900">
+                            <span className="truncate text-sm font-semibold text-slate-900">{/* semibold */}
                               {it.label}
                             </span>
                             <span className="truncate text-xs text-slate-500">
@@ -218,9 +307,9 @@ const Header: React.FC = () => {
                       ))}
                     </div>
 
-                    {/* Foot note estilo Tesla */}
-                    <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-                      <Factory size={14} />
+                    {/* Foot note */}
+                    <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+                      <Factory size={16} />
                       <span>Plataforma operativa — RIDS.CL</span>
                     </div>
                   </div>
@@ -229,30 +318,33 @@ const Header: React.FC = () => {
             )}
           </nav>
 
-          {/* Acciones (derecha) */}
-          <div className="hidden md:flex items-center gap-4 text-slate-700">
+          {/* Acciones (derecha - Desktop) */}
+          <div className="hidden md:flex items-center gap-5 text-slate-700">
+            {/* Botón Ayuda */}
             <Link
               to="/ayuda"
-              className="hover:text-slate-900 transition"
+              className="p-2 hover:text-slate-900 transition rounded-xl hover:bg-slate-100"
               aria-label="Ayuda"
               title="Ayuda"
             >
-              <HelpCircle className="h-5 w-5" />
+              <HelpCircle className="h-6 w-6" />
             </Link>
+            {/* Botón Idioma */}
             <button
-              className="hover:text-slate-900 transition"
+              className="p-2 hover:text-slate-900 transition rounded-xl hover:bg-slate-100"
               aria-label="Idioma"
               title="Idioma"
             >
-              <Globe className="h-5 w-5" />
+              <Globe className="h-6 w-6" />
             </button>
+            {/* Botón Salir */}
             <button
               onClick={handleLogout}
-              className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700 transition"
+              className="inline-flex items-center gap-1.5 text-base font-semibold text-red-600 hover:text-red-700 transition"
               aria-label="Cerrar sesión"
               title="Cerrar sesión"
             >
-              <LogOut className="h-5 w-5" />
+              <LogOut className="h-6 w-6" />
               <span>Salir</span>
             </button>
           </div>
@@ -261,44 +353,47 @@ const Header: React.FC = () => {
         {/* Mobile panel */}
         <div
           className={`md:hidden overflow-hidden transition-[max-height,opacity] duration-300
-            ${mobileOpen ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"}`}
+            ${mobileOpen ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"}`}
         >
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-lg mb-3">
-            <div className="p-2">
-              {/* Inicio */}
-              <MobileLink to={HOME_PATH} icon={<Home size={18} />} onClick={() => setMobileOpen(false)}>
-                Inicio
-              </MobileLink>
-
-              {/* Operación */}
-              <MobileGroup title="Operación" items={[
-                { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={18} /> },
-                { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={18} /> },
-                { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={18} /> },
-              ]} onClickItem={() => setMobileOpen(false)} />
-
-              {/* Gestión */}
-              <MobileGroup title="Gestión" items={[
-                { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={18} /> },
-                { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={18} /> },
-              ]} onClickItem={() => setMobileOpen(false)} />
-
-              {/* Tickets */}
-              <MobileLink to={TICKETS_PATH} icon={<Ticket size={18} />} onClick={() => setMobileOpen(false)}>
-                Tickets
-              </MobileLink>
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-xl mb-4">
+            <div className="p-3">
+              {/* Iteramos sobre la misma data NAV para Mobile */}
+              {NAV.map((entry) =>
+                entry.type === "link" ? (
+                  <MobileLink
+                    key={entry.label}
+                    to={entry.to}
+                    icon={entry.icon}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {entry.label}
+                  </MobileLink>
+                ) : (
+                  <MobileGroup
+                    key={entry.label}
+                    title={entry.label}
+                    items={entry.items}
+                    onClickItem={() => setMobileOpen(false)}
+                  />
+                )
+              )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2">
-              <div className="flex items-center gap-3 text-slate-600">
-                <HelpCircle size={18} className="opacity-80" />
+            {/* Pie del panel móvil (Ayuda y Salir) */}
+            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+              <Link
+                to="/ayuda"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 text-slate-600 hover:text-slate-800 transition"
+              >
+                <HelpCircle size={20} className="opacity-80" />
                 <span className="text-sm">Centro de ayuda</span>
-              </div>
+              </Link>
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-700"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700"
               >
-                <LogOut size={18} /> Salir
+                <LogOut size={20} /> Salir
               </button>
             </div>
           </div>
@@ -307,57 +402,5 @@ const Header: React.FC = () => {
     </header>
   );
 };
-
-/* ================== Helpers UI ================== */
-function hintFor(path: string) {
-  switch (path) {
-    case SOLICITANTES_PATH:
-      return "Registros de personas";
-    case VISITAS_PATH:
-      return "Agenda y visitas";
-    case EQUIPOS_PATH:
-      return "Inventario de equipos";
-    case EMPRESAS_PATH:
-      return "Catálogo de empresas";
-    case REPORTES_PATH:
-      return "KPIs y reportes";
-    case TICKETS_PATH:
-      return "Mesa de ayuda";
-    default:
-      return "Abrir";
-  }
-}
-
-const MobileLink: React.FC<
-  React.PropsWithChildren<{ to: string; icon: React.ReactNode; onClick?: () => void }>
-> = ({ to, icon, children, onClick }) => (
-  <Link
-    to={to}
-    onClick={onClick}
-    className="flex items-center gap-3 rounded-xl px-3 py-2 hover:bg-slate-50"
-  >
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
-      {icon}
-    </span>
-    <span className="text-sm font-medium text-slate-900">{children}</span>
-  </Link>
-);
-
-const MobileGroup: React.FC<{
-  title: string;
-  items: { label: string; to: string; icon: React.ReactNode }[];
-  onClickItem?: () => void;
-}> = ({ title, items, onClickItem }) => (
-  <div className="my-1">
-    <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-    <div className="grid grid-cols-1">
-      {items.map((it) => (
-        <MobileLink key={it.label} to={it.to} icon={it.icon} onClick={onClickItem}>
-          {it.label}
-        </MobileLink>
-      ))}
-    </div>
-  </div>
-);
 
 export default Header;
