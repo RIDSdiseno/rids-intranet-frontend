@@ -554,7 +554,7 @@ const EquiposPage: React.FC = () => {
     }
 
     // Hojas por empresa (optimizado para filtro único)
-    let colorIdx = 0;
+    
     for (const [emp, arr] of byEmpresa) {
       const rs = arr.map(rowMap);
       if (rs.length === 0) continue; // Saltar empresas sin equipos
@@ -572,7 +572,7 @@ const EquiposPage: React.FC = () => {
       }
       
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      colorIdx++;
+      
     }
 
     // **MODIFICACIÓN: Hojas de resumen solo si no hay filtro y hay múltiples empresas**
