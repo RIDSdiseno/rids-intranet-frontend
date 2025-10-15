@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/pages/EmpresasPage.tsx
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LoadingOutlined,
   ReloadOutlined,
@@ -26,7 +27,11 @@ import {
 import type { PieLabelRenderProps } from "recharts";
 import Header from "../components/Header";
 
-// Interfaces
+/* ====================== Config ====================== */
+const API_URL =
+  (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
+
+/* ====================== Tipos ====================== */
 interface EstadisticasEmpresa {
   totalSolicitantes: number;
   totalEquipos: number;
@@ -59,7 +64,7 @@ interface Ticket {
   empresa: string | null;
 }
 
-// Helpers
+/* ====================== Helpers ====================== */
 function formatNumber(n?: number | null) {
   if (typeof n !== "number") return "—";
   try {
@@ -69,7 +74,7 @@ function formatNumber(n?: number | null) {
   }
 }
 
-// Tipos para stats
+/* Stats tipados */
 type StatBase = {
   name: string;
   value: React.ReactNode;
@@ -82,20 +87,20 @@ function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
 }
 
-// Tipos para tooltips Recharts (sin `any`)
+/* Tooltip tipado */
 type TooltipItem = {
   name: string;
   value: number;
   color?: string;
   payload?: unknown;
 };
-
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipItem[];
   label?: string | number;
 }
 
+/* Tooltips */
 const CustomBarTooltip: React.FC<CustomTooltipProps> = ({ active, label, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
   return (
@@ -120,7 +125,7 @@ const CustomPieTooltip: React.FC<CustomTooltipProps> = ({ active, payload }) => 
   );
 };
 
-// Label tipado para el Pie (coerción segura de percent)
+/* Label de Pie */
 const renderPieLabel = (props: PieLabelRenderProps) => {
   const { name } = props;
   const raw = (props as { percent?: unknown }).percent;
@@ -130,211 +135,240 @@ const renderPieLabel = (props: PieLabelRenderProps) => {
   return `${label} (${pct}%)`;
 };
 
-// Paleta
+/* Paleta colores */
 const DARK_PALETTE = [
   "#1e40af", "#dc2626", "#059669", "#7c3aed", "#ea580c",
   "#0891b2", "#b45309", "#be185d", "#4338ca", "#0f766e",
-  "#831843", "#78350f", "#374151", "#86198f", "#064e3b"
+  "#831843", "#78350f", "#374151", "#86198f", "#064e3b",
 ];
 
+/* ====================== Página ====================== */
 const EmpresasPage: React.FC = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'companies'>('overview');
+  const [activeTab, setActiveTab] = useState<"overview" | "companies">("overview");
 
   const fetchEmpresas = async (showRefresh = false) => {
+    const ctrl = new AbortController();
     try {
       if (showRefresh) setRefreshing(true);
       else setLoading(true);
 
       setError(null);
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem("accessToken") ?? "";
 
-      const response = await fetch('http://localhost:4000/api/empresas', {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      // Empresas
+      const eRes = await fetch(`${API_URL}/empresas`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+        signal: ctrl.signal,
       });
-      if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
-      const result: { success?: boolean; data?: Empresa[]; error?: string } = await response.json();
-      if (result.success) setEmpresas(result.data ?? []);
-      else throw new Error(result.error ?? 'Error al cargar empresas');
+      if (!eRes.ok) throw new Error(`HTTP ${eRes.status}: ${eRes.statusText}`);
+      const eJson: { success?: boolean; data?: Empresa[]; items?: Empresa[]; error?: string } =
+        await eRes.json();
+      const empresasData = eJson.data ?? eJson.items ?? [];
+      if (!Array.isArray(empresasData)) throw new Error("Formato inválido de empresas");
+      setEmpresas(empresasData);
 
-      const respTickets = await fetch('http://localhost:4000/api/tickets?all=true', {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      // Tickets (para ranking)
+      const tRes = await fetch(`${API_URL}/tickets?all=true`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+        signal: ctrl.signal,
       });
-      if (!respTickets.ok) throw new Error(`Error ${respTickets.status}: ${respTickets.statusText}`);
-      const ticketsResult: { rows?: Ticket[] } = await respTickets.json();
-      setTickets(ticketsResult.rows ?? []);
-
-    } catch (err: unknown) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : 'Error al cargar datos');
+      if (!tRes.ok) throw new Error(`HTTP ${tRes.status}: ${tRes.statusText}`);
+      const tJson: { rows?: Ticket[]; data?: Ticket[] } = await tRes.json();
+      setTickets(tJson.rows ?? tJson.data ?? []);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setError((err as Error)?.message || "Error al cargar datos");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => { fetchEmpresas(); }, []);
+  useEffect(() => {
+    fetchEmpresas();
+  }, []);
 
-  // Estadísticas totales
-  const statsTotales = useMemo(() => empresas.reduce((acc, empresa) => ({
-    totalEmpresas: acc.totalEmpresas + 1,
-    totalSolicitantes: acc.totalSolicitantes + empresa.estadisticas.totalSolicitantes,
-    totalEquipos: acc.totalEquipos + empresa.estadisticas.totalEquipos,
-    totalTickets: acc.totalTickets + empresa.estadisticas.totalTickets,
-    totalVisitas: acc.totalVisitas + empresa.estadisticas.totalVisitas,
-    totalTrabajos: acc.totalTrabajos + empresa.estadisticas.totalTrabajos,
-    visitasPendientes: acc.visitasPendientes + empresa.estadisticas.visitasPendientes,
-    trabajosPendientes: acc.trabajosPendientes + empresa.estadisticas.trabajosPendientes,
-  }), {
-    totalEmpresas: 0,
-    totalSolicitantes: 0,
-    totalEquipos: 0,
-    totalTickets: 0,
-    totalVisitas: 0,
-    totalTrabajos: 0,
-    visitasPendientes: 0,
-    trabajosPendientes: 0,
-  }), [empresas]);
+  /* ===== Agregados ===== */
+  const statsTotales = useMemo(
+    () =>
+      empresas.reduce(
+        (acc, empresa) => ({
+          totalEmpresas: acc.totalEmpresas + 1,
+          totalSolicitantes: acc.totalSolicitantes + empresa.estadisticas.totalSolicitantes,
+          totalEquipos: acc.totalEquipos + empresa.estadisticas.totalEquipos,
+          totalTickets: acc.totalTickets + empresa.estadisticas.totalTickets,
+          totalVisitas: acc.totalVisitas + empresa.estadisticas.totalVisitas,
+          totalTrabajos: acc.totalTrabajos + empresa.estadisticas.totalTrabajos,
+          visitasPendientes: acc.visitasPendientes + empresa.estadisticas.visitasPendientes,
+          trabajosPendientes: acc.trabajosPendientes + empresa.estadisticas.trabajosPendientes,
+        }),
+        {
+          totalEmpresas: 0,
+          totalSolicitantes: 0,
+          totalEquipos: 0,
+          totalTickets: 0,
+          totalVisitas: 0,
+          totalTrabajos: 0,
+          visitasPendientes: 0,
+          trabajosPendientes: 0,
+        }
+      ),
+    [empresas]
+  );
 
-  // Tickets totales por empresa
   const ticketsPorEmpresa = useMemo(() => {
     const result: Record<string, number> = {};
-    tickets.forEach(ticket => {
-      const empresa = ticket.empresa ?? "Sin empresa";
-      result[empresa] = (result[empresa] ?? 0) + 1;
+    tickets.forEach((t) => {
+      const emp = t.empresa ?? "Sin empresa";
+      result[emp] = (result[emp] ?? 0) + 1;
     });
     return result;
   }, [tickets]);
 
-  // 1. Distribución de equipos por empresa (Top 8)
-  const equiposPorEmpresa = useMemo(() =>
-    empresas
-      .map(empresa => ({
-        name: empresa.nombre.length > 12 ? empresa.nombre.substring(0, 12) + '...' : empresa.nombre,
-        equipos: empresa.estadisticas.totalEquipos,
-        solicitantes: empresa.estadisticas.totalSolicitantes,
-        fullName: empresa.nombre
-      }))
-      .sort((a, b) => b.equipos - a.equipos)
-      .slice(0, 8),
+  const equiposPorEmpresa = useMemo(
+    () =>
+      empresas
+        .map((e) => ({
+          name: e.nombre.length > 12 ? e.nombre.slice(0, 12) + "..." : e.nombre,
+          equipos: e.estadisticas.totalEquipos,
+          solicitantes: e.estadisticas.totalSolicitantes,
+          fullName: e.nombre,
+        }))
+        .sort((a, b) => b.equipos - a.equipos)
+        .slice(0, 8),
     [empresas]
   );
 
-  // 2. Empresas con más solicitantes (Top 6)
-  const solicitantesPorEmpresa = useMemo(() =>
-    empresas
-      .map(empresa => ({
-        name: empresa.nombre.length > 10 ? empresa.nombre.substring(0, 10) + '...' : empresa.nombre,
-        solicitantes: empresa.estadisticas.totalSolicitantes,
-        equipos: empresa.estadisticas.totalEquipos,
-        fullName: empresa.nombre
-      }))
-      .sort((a, b) => b.solicitantes - a.solicitantes)
-      .slice(0, 6),
+  const solicitantesPorEmpresa = useMemo(
+    () =>
+      empresas
+        .map((e) => ({
+          name: e.nombre.length > 10 ? e.nombre.slice(0, 10) + "..." : e.nombre,
+          solicitantes: e.estadisticas.totalSolicitantes,
+          equipos: e.estadisticas.totalEquipos,
+          fullName: e.nombre,
+        }))
+        .sort((a, b) => b.solicitantes - a.solicitantes)
+        .slice(0, 6),
     [empresas]
   );
 
-  // 3. Distribución por tamaño de empresa (basado en equipos)
   const distribucionTamanioEmpresas = useMemo(() => {
     const ranges = [
-      { name: 'Pequeña (1-10)', min: 1, max: 10, color: '#059669' },
-      { name: 'Mediana (11-50)', min: 11, max: 50, color: '#ea580c' },
-      { name: 'Grande (51+)', min: 51, max: Infinity, color: '#dc2626' },
-      { name: 'Sin equipos', min: 0, max: 0, color: '#374151' }
+      { name: "Pequeña (1-10)", min: 1, max: 10, color: "#059669" },
+      { name: "Mediana (11-50)", min: 11, max: 50, color: "#ea580c" },
+      { name: "Grande (51+)", min: 51, max: Infinity, color: "#dc2626" },
+      { name: "Sin equipos", min: 0, max: 0, color: "#374151" },
     ];
-
-    return ranges.map(range => {
-      const count = empresas.filter(empresa => {
-        if (range.min === 0 && range.max === 0) {
-          return empresa.estadisticas.totalEquipos === 0;
-        }
-        return empresa.estadisticas.totalEquipos >= range.min &&
-               empresa.estadisticas.totalEquipos <= range.max;
-      }).length;
-
-      return { name: range.name, value: count, color: range.color };
-    }).filter(item => item.value > 0);
+    return ranges
+      .map((r) => {
+        const count = empresas.filter((e) =>
+          r.min === 0 && r.max === 0
+            ? e.estadisticas.totalEquipos === 0
+            : e.estadisticas.totalEquipos >= r.min && e.estadisticas.totalEquipos <= r.max
+        ).length;
+        return { name: r.name, value: count, color: r.color };
+      })
+      .filter((x) => x.value > 0);
   }, [empresas]);
 
-  // Gráfico de tickets por empresa
-  const ticketsPorEmpresaDesc = useMemo(() =>
-    Object.entries(ticketsPorEmpresa)
-      .map(([name, value]) => ({
-        name: name.length > 12 ? name.substring(0, 12) + '...' : name,
-        value,
-        fullName: name
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8),
+  const ticketsPorEmpresaDesc = useMemo(
+    () =>
+      Object.entries(ticketsPorEmpresa)
+        .map(([name, value]) => ({
+          name: name.length > 12 ? name.slice(0, 12) + "..." : name,
+          value,
+          fullName: name,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
     [ticketsPorEmpresa]
   );
 
-  // Stats
-  const computedStats: Stat[] = useMemo(() => [
-    {
-      name: "Total Empresas",
-      value: refreshing ? (
-        <span className="inline-flex items-center gap-2">
-          <LoadingOutlined /> Cargando…
-        </span>
-      ) : (
-        formatNumber(statsTotales.totalEmpresas)
-      ),
-      icon: <BuildOutlined className="text-blue-700 text-xl" />,
-      change: "Empresas registradas",
-      onRefresh: () => fetchEmpresas(true),
-    },
-    {
-      name: "Solicitantes Activos",
-      value: refreshing ? (
-        <span className="inline-flex items-center gap-2">
-          <LoadingOutlined /> Cargando…
-        </span>
-      ) : (
-        formatNumber(statsTotales.totalSolicitantes)
-      ),
-      icon: <TeamOutlined className="text-green-700 text-xl" />,
-      change: "Total de usuarios",
-    },
-    {
-      name: "Equipos Registrados",
-      value: refreshing ? (
-        <span className="inline-flex items-center gap-2">
-          <LoadingOutlined /> Cargando…
-        </span>
-      ) : (
-        formatNumber(statsTotales.totalEquipos)
-      ),
-      icon: <LaptopOutlined className="text-purple-700 text-xl" />,
-      change: "Dispositivos en inventario",
-    },
-    {
-      name: "Tickets Totales",
-      value: refreshing ? (
-        <span className="inline-flex items-center gap-2">
-          <LoadingOutlined /> Cargando…
-        </span>
-      ) : (
-        formatNumber(Object.values(ticketsPorEmpresa).reduce((a, b) => a + b, 0))
-      ),
-      icon: <WarningOutlined className="text-red-700 text-xl" />,
-      change: "Tickets históricos",
-    },
-  ], [statsTotales, ticketsPorEmpresa, refreshing]);
+  const computedStats: Stat[] = useMemo(
+    () => [
+      {
+        name: "Total Empresas",
+        value: refreshing ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(statsTotales.totalEmpresas)
+        ),
+        icon: <BuildOutlined className="text-blue-700 text-xl" />,
+        change: "Empresas registradas",
+        onRefresh: () => fetchEmpresas(true),
+      },
+      {
+        name: "Solicitantes Activos",
+        value: refreshing ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(statsTotales.totalSolicitantes)
+        ),
+        icon: <TeamOutlined className="text-green-700 text-xl" />,
+        change: "Total de usuarios",
+      },
+      {
+        name: "Equipos Registrados",
+        value: refreshing ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(statsTotales.totalEquipos)
+        ),
+        icon: <LaptopOutlined className="text-purple-700 text-xl" />,
+        change: "Dispositivos en inventario",
+      },
+      {
+        name: "Tickets Totales",
+        value: refreshing ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(Object.values(ticketsPorEmpresa).reduce((a, b) => a + b, 0))
+        ),
+        icon: <WarningOutlined className="text-red-700 text-xl" />,
+        change: "Tickets históricos",
+      },
+    ],
+    [statsTotales, ticketsPorEmpresa, refreshing]
+  );
 
-  const filteredEmpresas = useMemo(() =>
-    empresas.filter(empresa =>
-      empresa.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      empresa.detalleEmpresa?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
+  const filteredEmpresas = useMemo(
+    () =>
+      empresas.filter(
+        (e) =>
+          e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          e.detalleEmpresa?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
     [empresas, searchTerm]
   );
 
+  /* ====================== Render ====================== */
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
@@ -373,17 +407,9 @@ const EmpresasPage: React.FC = () => {
 
       <main className="flex-1 p-6">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h1 className="text-3xl font-extrabold text-slate-800">
-            Dashboard de Empresas
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Análisis y estadísticas de todas las empresas.
-          </p>
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          <h1 className="text-3xl font-extrabold text-slate-800">Dashboard de Empresas</h1>
+          <p className="mt-2 text-slate-600">Análisis y estadísticas de todas las empresas.</p>
         </motion.div>
 
         {/* Tabs */}
@@ -393,23 +419,23 @@ const EmpresasPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="flex gap-2 mb-8 bg-white rounded-xl p-1 shadow-md inline-flex mt-6"
         >
-          {['overview', 'companies'].map((tab) => (
+          {["overview", "companies"].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab as 'overview' | 'companies')}
+              onClick={() => setActiveTab(tab as "overview" | "companies")}
               className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
                 activeTab === tab
-                  ? 'bg-cyan-700 text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
+                  ? "bg-cyan-700 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
               }`}
             >
-              {tab === 'overview' && 'Resumen'}
-              {tab === 'companies' && 'Empresas'}
+              {tab === "overview" && "Resumen"}
+              {tab === "companies" && "Empresas"}
             </button>
           ))}
         </motion.div>
 
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <>
             {/* Cards */}
             <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -438,9 +464,7 @@ const EmpresasPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="mt-3 text-3xl font-bold text-slate-800">
-                    {stat.value}
-                  </div>
+                  <div className="mt-3 text-3xl font-bold text-slate-800">{stat.value}</div>
                   <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
                 </motion.div>
               ))}
@@ -489,10 +513,7 @@ const EmpresasPage: React.FC = () => {
                         <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
                         <Bar dataKey="value">
                           {ticketsPorEmpresaDesc.map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={DARK_PALETTE[index % DARK_PALETTE.length]}
-                            />
+                            <Cell key={`cell-${index}`} fill={DARK_PALETTE[index % DARK_PALETTE.length]} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -535,10 +556,7 @@ const EmpresasPage: React.FC = () => {
                         <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
                         <Bar dataKey="equipos">
                           {equiposPorEmpresa.map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={DARK_PALETTE[(index + 3) % DARK_PALETTE.length]}
-                            />
+                            <Cell key={`cell-${index}`} fill={DARK_PALETTE[(index + 3) % DARK_PALETTE.length]} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -626,10 +644,7 @@ const EmpresasPage: React.FC = () => {
                         <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
                         <Bar dataKey="solicitantes">
                           {solicitantesPorEmpresa.map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]}
-                            />
+                            <Cell key={`cell-${index}`} fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -641,7 +656,7 @@ const EmpresasPage: React.FC = () => {
           </>
         )}
 
-        {activeTab === 'companies' && (
+        {activeTab === "companies" && (
           <motion.div
             className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
             initial={{ opacity: 0, y: 30 }}
@@ -652,7 +667,7 @@ const EmpresasPage: React.FC = () => {
               <h2 className="text-lg font-bold text-slate-800">Lista de Empresas</h2>
               <div className="flex gap-3">
                 <div className="relative">
-                  <SearchOutlined className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Buscar empresas..."
@@ -688,22 +703,22 @@ const EmpresasPage: React.FC = () => {
                           {empresa.nombre}
                         </h3>
                         <p className="text-sm text-slate-600">
-                          {empresa.estadisticas.totalSolicitantes} solicitantes •
+                          {empresa.estadisticas.totalSolicitantes} solicitantes •{" "}
                           {empresa.estadisticas.totalEquipos} equipos
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
                       <div className="text-right">
-                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          empresa.estadisticas.totalTickets > 10
-                            ? 'bg-orange-100 text-orange-800'
-                            : empresa.estadisticas.totalTickets > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-slate-100 text-slate-800'
-                        }`}>
-                          {/* badge opcional */}
-                        </div>
+                        <div
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            empresa.estadisticas.totalTickets > 10
+                              ? "bg-orange-100 text-orange-800"
+                              : empresa.estadisticas.totalTickets > 0
+                              ? "bg-green-100 text-green-800"
+                              : "bg-slate-100 text-slate-800"
+                          }`}
+                        />
                       </div>
                       <button className="text-blue-700 hover:text-blue-900 font-medium group-hover:translate-x-1 transition-transform duration-300">
                         Ver detalles →
