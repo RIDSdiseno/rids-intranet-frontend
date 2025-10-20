@@ -367,7 +367,7 @@ const EditSolicitanteModal: React.FC<{
 
       if (Object.keys(payload).length === 0) { onClose(); return; }
 
-      const r = await fetch(`${API_URL}/solicitante/${solicitante.id_solicitante}`, {
+      const r = await fetch(`${API_URL}/solicitantes/${solicitante.id_solicitante}`, {
         method: "PATCH", headers: { "Content-Type": "application/json", ...tokenHeader() },
         body: JSON.stringify(payload),
       });
@@ -570,7 +570,7 @@ const SolicitantesPage: React.FC = () => {
       try {
         setLoading(true); setError(null);
 
-        const url = new URL(`${API_URL}/solicitante`);
+        const url = new URL(`${API_URL}/solicitantes`);
         url.searchParams.set("page", String(page));
         url.searchParams.set("pageSize", String(pageSize));
         url.searchParams.set("orderBy", sortKey);
@@ -625,7 +625,7 @@ const SolicitantesPage: React.FC = () => {
       const seq = ++totalsSeqRef.current;
       try {
         setLoadingTotals(true); setErrorTotals(null);
-        const urlM = new URL(`${API_URL}/solicitante/metrics`);
+        const urlM = new URL(`${API_URL}/solicitantes/metrics`);
         if (empresaFilterId !== null) {
           urlM.searchParams.set("empresaId", String(empresaFilterId));
         } else if (qDebounced.trim()) {
@@ -712,7 +712,7 @@ const SolicitantesPage: React.FC = () => {
   /** Exportar Excel */
   const onExportExcel = async () => {
     try {
-      const firstU = new URL(`${API_URL}/solicitante`);
+      const firstU = new URL(`${API_URL}/solicitantes`);
       firstU.searchParams.set("page", "1");
       firstU.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
       firstU.searchParams.set("orderBy", sortKey);
@@ -727,7 +727,7 @@ const SolicitantesPage: React.FC = () => {
       const all: SolicitanteRow[] = [...first.items];
 
       for (let p = 2; p <= (first.totalPages || 1); p++) {
-        const u = new URL(`${API_URL}/solicitante`);
+        const u = new URL(`${API_URL}/solicitantes`);
         u.searchParams.set("page", String(p));
         u.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
         u.searchParams.set("orderBy", sortKey);
@@ -1169,7 +1169,7 @@ const SolicitantesPage: React.FC = () => {
                             e.stopPropagation();
                             if (deletingId !== null) return; // evita dobles clics
                             setDeletingId(s.id_solicitante);
-                            const base = `${API_URL}/solicitante/${s.id_solicitante}`;
+                            const base = `${API_URL}/solicitantes/${s.id_solicitante}`;
 
                             const tryDelete = async (force = false) => {
                               const url = force ? `${base}?force=true` : base;
@@ -1384,7 +1384,7 @@ const SolicitantesPage: React.FC = () => {
                 </button>
                 <button
                   onClick={async () => {
-                    const base = `${API_URL}/solicitante/${s.id_solicitante}`;
+                    const base = `${API_URL}/solicitantes/${s.id_solicitante}`;
                     const tryDelete = async (force = false) => {
                       const url = force ? `${base}?force=true` : base;
                       const r = await fetch(url, { method: "DELETE", headers: tokenHeader() });
