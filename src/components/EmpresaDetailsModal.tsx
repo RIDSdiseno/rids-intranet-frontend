@@ -5,8 +5,6 @@ import {
   LoadingOutlined,
   TeamOutlined,
   LaptopOutlined,
-  CopyOutlined,
-  EnvironmentOutlined,
 } from "@ant-design/icons";
 import {
   Drawer,
@@ -23,8 +21,6 @@ import {
   message,
 } from "antd";
 import type { TabsProps, TableColumnsType, TableProps } from "antd";
-
-
 
 /* ===== Tipos ===== */
 export interface EquipoLite {
@@ -320,7 +316,6 @@ const EmpresaDetailsModal: React.FC<Props> = ({
     [solicitantes.length, equipos.length, visitas.length]
   );
 
-  // props comunes a todas las tablas (sin any)
   const tableCommon: Pick<
     TableProps<unknown>,
     "size" | "bordered" | "sticky" | "className" | "scroll" | "pagination" | "rowClassName"
@@ -440,40 +435,7 @@ const EmpresaDetailsModal: React.FC<Props> = ({
                 <h3 className="text-xl font-bold text-slate-900">
                   {empresa?.nombre ?? "Detalles de Empresa"}
                 </h3>
-                {/* Línea secundaria con chips de contacto */}
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px]">
-                  {empresa?.detalleEmpresa?.rut && (
-                    <Tag color="default">RUT: {empresa.detalleEmpresa.rut}</Tag>
-                  )}
-                  {empresa?.detalleEmpresa?.email && (
-                    <Tag
-                      color="processing"
-                      className="cursor-pointer"
-                      onClick={() =>
-                        navigator.clipboard
-                          .writeText(empresa.detalleEmpresa!.email!)
-                          .then(() => message.success("Email copiado"))
-                      }
-                    >
-                      <CopyOutlined className="mr-1" />
-                      {empresa.detalleEmpresa.email}
-                    </Tag>
-                  )}
-                  {empresa?.detalleEmpresa?.direccion && (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        empresa.detalleEmpresa.direccion
-                      )}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Tag color="success" className="cursor-pointer">
-                        <EnvironmentOutlined className="mr-1" />
-                        Ver mapa
-                      </Tag>
-                    </a>
-                  )}
-                </div>
+                {/* (Se removieron los chips de RUT / email / Ver mapa) */}
               </div>
             </div>
 

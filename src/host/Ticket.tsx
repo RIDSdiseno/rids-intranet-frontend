@@ -43,7 +43,8 @@ const api = axios.create({
 });
 
 /* ===================== Utils ===================== */
-const clsx = (...xs: Array<string | undefined | null | false>) => xs.filter(Boolean).join(" ");
+const clsx = (...xs: Array<string | undefined | null | false>) =>
+  xs.filter(Boolean).join(" ");
 const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
 
 /** Quita tildes */
@@ -78,7 +79,7 @@ function formatInTZ(iso: string | Date, tz: string = APP_TZ): string {
   const pick = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "";
   return `${pick("year")}-${pick("month")}-${pick("day")} ${pick("hour")}:${pick(
-    "minute",
+    "minute"
   )}:${pick("second")}`;
 }
 const fmtDT = (d?: string | Date | null) => (d ? formatInTZ(d) : "—");
@@ -93,7 +94,7 @@ function setAllBorders(
   ws: WorkSheet,
   range?: string,
   thickness: "thin" | "medium" = "thin",
-  color: string = "FF000000",
+  color: string = "FF000000"
 ): void {
   const ref = range || ws["!ref"];
   if (!ref) return;
@@ -119,7 +120,11 @@ function setAllBorders(
 }
 
 /** Encabezado con color + borde negro */
-function styleHeaderRow(ws: WorkSheet, headerCells: string[], fillRGB = "0EA5E9"): void {
+function styleHeaderRow(
+  ws: WorkSheet,
+  headerCells: string[],
+  fillRGB = "0EA5E9"
+): void {
   const sheet = ws as unknown as Record<string, CellObject>;
   for (const a of headerCells) {
     if (!sheet[a]) continue;
@@ -170,13 +175,14 @@ const TicketsPage: React.FC = () => {
   const [data, setData] = useState<ApiResp | null>(null);
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? PAGE_SIZE))),
-    [data],
+    () =>
+      Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? PAGE_SIZE))),
+    [data]
   );
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
-  // NUEVO: control del input “Ir a página”
+  // control del input “Ir a página”
   const [pageInput, setPageInput] = useState<string>("1");
   useEffect(() => {
     setPageInput(String(page));
@@ -267,7 +273,9 @@ const TicketsPage: React.FC = () => {
           rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
         }
 
-        rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        rows.sort(
+          (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+        );
         setData({
           page: res.data.page ?? page,
           pageSize: res.data.pageSize ?? PAGE_SIZE,
@@ -281,7 +289,9 @@ const TicketsPage: React.FC = () => {
       if (empresaKeyFilter) {
         rows = rows.filter((r) => companyKey(r.empresa) === empresaKeyFilter);
       }
-      rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+      rows.sort(
+        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+      );
 
       const total = rows.length;
       const start = (page - 1) * PAGE_SIZE;
@@ -300,8 +310,8 @@ const TicketsPage: React.FC = () => {
         e instanceof AxiosError
           ? `HTTP ${e.response?.status ?? "error"}`
           : e instanceof Error
-            ? e.message
-            : "Error al cargar tickets";
+          ? e.message
+          : "Error al cargar tickets";
       setError(msg);
     } finally {
       if (seq === reqRef.current) setLoading(false);
@@ -405,7 +415,9 @@ const TicketsPage: React.FC = () => {
         allRows.push(...(res.data.rows || []));
       }
 
-      allRows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+      allRows.sort(
+        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+      );
 
       const filtered = empresaKeyFilter
         ? allRows.filter((r) => companyKey(r.empresa) === empresaKeyFilter)
@@ -441,7 +453,9 @@ const TicketsPage: React.FC = () => {
       let colorIdx = 0;
 
       for (const [empresa, rows] of byCompany) {
-        rows.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        rows.sort(
+          (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+        );
 
         const body = rows.map((r) => [
           r.ticket_id,
@@ -452,21 +466,33 @@ const TicketsPage: React.FC = () => {
         ]);
 
         const ws: WorkSheet = XLSX.utils.aoa_to_sheet([header, ...body]);
-        ws["!cols"] = [{ wch: 10 }, { wch: 60 }, { wch: 35 }, { wch: 16 }, { wch: 22 }];
+        ws["!cols"] = [
+          { wch: 10 },
+          { wch: 60 },
+          { wch: 35 },
+          { wch: 16 },
+          { wch: 22 },
+        ];
 
         const fill = COMPANY_COLORS[colorIdx % COMPANY_COLORS.length];
         colorIdx++;
         styleHeaderRow(ws, ["A1", "B1", "C1", "D1", "E1"], fill);
         setAllBorders(XLSX, ws);
 
-        let sheetName = (empresa || "Empresa").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
+        let sheetName = (empresa || "Empresa")
+          .replace(/[\\/?*[\]:]/g, "_")
+          .slice(0, 31);
         if (byCompany.size === 1) sheetName = "Tickets";
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
 
-      const parts: string[] = [`Tickets_${year}${month ? "_" + pad2(Number(month)) : ""}`];
+      const parts: string[] = [
+        `Tickets_${year}${month ? "_" + pad2(Number(month)) : ""}`,
+      ];
       if (empresaKeyFilter) {
-        const selected = empresaOptions.find((o) => o.key === empresaKeyFilter)?.label ?? "empresa";
+        const selected =
+          empresaOptions.find((o) => o.key === empresaKeyFilter)?.label ??
+          "empresa";
         parts.push(selected.replace(/\s+/g, "_"));
       }
       const fileName = `${parts.join("_")}.xlsx`;
@@ -496,23 +522,60 @@ const TicketsPage: React.FC = () => {
     { v: 12, label: "Diciembre" },
   ] as const;
 
+  /* ======= Componentes responsive ======= */
+  const TicketCard: React.FC<{ t: ApiRow }> = ({ t }) => (
+    <div className="sm:hidden rounded-2xl border border-cyan-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-neutral-500">ID {t.ticket_id}</div>
+          <div
+            className="font-semibold text-neutral-900 truncate"
+            title={t.subject}
+          >
+            {t.subject}
+          </div>
+          <div className="mt-1 text-sm text-neutral-700">
+            <span className="font-medium">Empresa: </span>
+            {t.empresa ?? "—"}
+          </div>
+          <div className="text-sm text-neutral-700">
+            <span className="font-medium">Solicitante: </span>
+            {t.solicitante_email ?? "—"}
+          </div>
+          <div className="text-sm text-neutral-700">
+            <span className="font-medium">Tipo: </span>
+            {t.type ?? "—"}
+          </div>
+        </div>
+        <div className="text-right text-xs text-neutral-500 shrink-0">
+          {fmtDT(t.fecha)}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ===================== Render ===================== */
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50/40 via-white to-white">
       <Header />
 
-      <main className="p-6 max-w-6xl mx-auto">
+      <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
         {/* Header de página */}
-        <header className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900">Tickets</h1>
-            <p className="text-sm text-neutral-500">
-              Filtra por texto, estado, período y empresa; exporta a Excel con bordes y horario 24 h.
+        <header className="mb-5 flex flex-col gap-3 md:gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="px-1">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900">
+              Tickets
+            </h1>
+            <p className="text-xs sm:text-sm text-neutral-500">
+              Filtra por texto, estado, período y empresa; exporta a Excel con
+              bordes y horario 24 h.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full md:w-auto">
+          {/* Controles — grid responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 w-full md:w-auto">
             {/* Buscar */}
-            <div className="relative w-full sm:w-64">
+            <div className="relative">
               <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
               <input
                 value={q}
@@ -523,7 +586,7 @@ const TicketsPage: React.FC = () => {
                 placeholder="Buscar asunto/solicitante/email"
                 className={clsx(
                   "w-full rounded-2xl border border-neutral-300 bg-white pl-9 pr-10 py-2.5",
-                  "focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50",
+                  "focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
                 )}
                 aria-label="Buscar tickets"
               />
@@ -545,7 +608,7 @@ const TicketsPage: React.FC = () => {
                 setEmpresaKeyFilter(e.target.value);
                 setPage(1);
               }}
-              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm min-w-[220px]"
+              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm min-w-0"
               aria-label="Filtrar por empresa"
               title="Filtrar por empresa"
             >
@@ -564,7 +627,7 @@ const TicketsPage: React.FC = () => {
                 setYear(Number(e.target.value));
                 setPage(1);
               }}
-              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm"
+              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm min-w-0"
               aria-label="Filtrar por año"
             >
               {years.map((y) => (
@@ -582,7 +645,7 @@ const TicketsPage: React.FC = () => {
                 setMonth(v === "" ? "" : Number(v));
                 setPage(1);
               }}
-              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm"
+              className="rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm min-w-0"
               aria-label="Filtrar por mes"
             >
               {months.map((m) => (
@@ -605,9 +668,10 @@ const TicketsPage: React.FC = () => {
               Solo cerrados
             </label>
 
+            {/* Limpiar */}
             <button
               onClick={clearAll}
-              className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
               title="Limpiar filtros"
             >
               <CloseCircleFilled /> Limpiar
@@ -616,15 +680,16 @@ const TicketsPage: React.FC = () => {
             {/* Exportar */}
             <button
               onClick={() => void exportExcel()}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 text-emerald-800 px-3 py-2.5 text-sm hover:bg-emerald-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300 text-emerald-800 px-3 py-2.5 text-sm hover:bg-emerald-50"
               title="Exportar a Excel"
             >
               <FileExcelOutlined /> Exportar
             </button>
 
+            {/* Recargar */}
             <button
               onClick={() => void fetchList()}
-              className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
               title="Recargar"
             >
               <ReloadOutlined /> Recargar
@@ -632,24 +697,65 @@ const TicketsPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Tabla */}
+        {/* === Tabla (sm+) y tarjetas (xs) === */}
         <section
           className="rounded-3xl border border-cyan-100 shadow-sm shadow-cyan-100/40 bg-white overflow-hidden"
           aria-live="polite"
           aria-busy={loading ? "true" : "false"}
         >
-          <div className="overflow-x-auto">
+          {/* Vista tarjetas para móviles */}
+          <div className="p-3 space-y-3 sm:hidden">
+            {loading &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={`skm-${i}`}
+                  className="rounded-2xl border border-neutral-200/70 p-4 bg-neutral-50 animate-pulse"
+                >
+                  <div className="h-3 w-24 rounded bg-neutral-300 mb-2" />
+                  <div className="h-4 w-3/4 rounded bg-neutral-300 mb-2" />
+                  <div className="h-3 w-1/2 rounded bg-neutral-300 mb-2" />
+                  <div className="h-3 w-2/3 rounded bg-neutral-300" />
+                </div>
+              ))}
+
+            {!loading && error && (
+              <div className="text-center text-red-600 py-6">{error}</div>
+            )}
+
+            {!loading && !error && (data?.rows?.length ?? 0) === 0 && (
+              <div className="text-center text-neutral-500 py-6">
+                Sin resultados.
+              </div>
+            )}
+
+            {!loading &&
+              !error &&
+              data?.rows?.map((t) => <TicketCard key={t.ticket_id} t={t} />)}
+          </div>
+
+          {/* Tabla para sm+ */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-cyan-50 text-cyan-900 border-b border-cyan-100 sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-4 py-3 w-[90px] font-semibold">ID</th>
-                  <th className="text-left px-4 py-3 min-w-[260px] font-semibold">Asunto</th>
-                  <th className="text-left px-4 py-3 min-w-[220px] font-semibold">Empresa</th>
+                  <th className="text-left px-4 py-3 w-[90px] font-semibold">
+                    ID
+                  </th>
+                  <th className="text-left px-4 py-3 min-w-[260px] font-semibold">
+                    Asunto
+                  </th>
+                  <th className="text-left px-4 py-3 min-w-[220px] font-semibold">
+                    Empresa
+                  </th>
                   <th className="text-left px-4 py-3 min-w-[240px] font-semibold">
                     Solicitante (email)
                   </th>
-                  <th className="text-left px-4 py-3 min-w-[160px] font-semibold">Tipo</th>
-                  <th className="text-left px-4 py-3 min-w-[180px] font-semibold">Fecha</th>
+                  <th className="text-left px-4 py-3 min-w-[160px] font-semibold">
+                    Tipo
+                  </th>
+                  <th className="text-left px-4 py-3 min-w-[180px] font-semibold">
+                    Fecha
+                  </th>
                   <th className="px-4 py-3 w-[70px]" />
                 </tr>
               </thead>
@@ -667,7 +773,10 @@ const TicketsPage: React.FC = () => {
 
                 {!loading && error && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-red-600">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-10 text-center text-red-600"
+                    >
                       {error}
                     </td>
                   </tr>
@@ -675,7 +784,10 @@ const TicketsPage: React.FC = () => {
 
                 {!loading && !error && (data?.rows?.length ?? 0) === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-500">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-10 text-center text-neutral-500"
+                    >
                       Sin resultados.
                     </td>
                   </tr>
@@ -688,17 +800,24 @@ const TicketsPage: React.FC = () => {
                       key={t.ticket_id}
                       className={clsx(
                         "border-t border-neutral-100 transition-colors",
-                        "odd:bg-white even:bg-neutral-50/30 hover:bg-cyan-50/70",
+                        "odd:bg-white even:bg-neutral-50/30 hover:bg-cyan-50/70"
                       )}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">{t.ticket_id}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {t.ticket_id}
+                      </td>
                       <td className="px-4 py-3">
-                        <div className="max-w-[420px] truncate" title={t.subject}>
+                        <div
+                          className="max-w-[420px] truncate"
+                          title={t.subject}
+                        >
                           {t.subject}
                         </div>
                       </td>
                       <td className="px-4 py-3">{t.empresa ?? "—"}</td>
-                      <td className="px-4 py-3">{t.solicitante_email ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        {t.solicitante_email ?? "—"}
+                      </td>
                       <td className="px-4 py-3">{t.type ?? "—"}</td>
                       <td className="px-4 py-3">{fmtDT(t.fecha)}</td>
                       <td className="px-4 py-3 text-right" />
@@ -708,14 +827,15 @@ const TicketsPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Footer paginación (actualizado) */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 bg-white border-t border-cyan-100">
-            <div className="text-sm text-neutral-700">
+          {/* Footer paginación */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 sm:px-4 py-3 bg-white border-t border-cyan-100">
+            <div className="text-xs sm:text-sm text-neutral-700 px-1">
               {data && data.total > 0 ? (
                 <>
-                  Mostrando <strong>{showingRange?.start}</strong>–<strong>{showingRange?.end}</strong>{" "}
-                  de <strong>{data.total}</strong> • Página{" "}
-                  <strong>{page}</strong> de <strong>{totalPages}</strong>
+                  Mostrando <strong>{showingRange?.start}</strong>–
+                  <strong>{showingRange?.end}</strong> de{" "}
+                  <strong>{data.total}</strong> • Página <strong>{page}</strong>{" "}
+                  de <strong>{totalPages}</strong>
                 </>
               ) : (
                 "—"
@@ -725,44 +845,50 @@ const TicketsPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => void fetchList()}
-                className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
+                className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs sm:text-sm border-cyan-300 text-cyan-800 hover:bg-cyan-50"
                 title="Recargar"
               >
-                <ReloadOutlined /> Recargar
+                <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
               </button>
-              <div className="w-px h-5 bg-cyan-100" />
+              <div className="hidden sm:block w-px h-5 bg-cyan-100" />
 
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={!canPrev || loading}
                 className={clsx(
-                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs sm:text-sm",
                   "border-cyan-300 text-cyan-800 hover:bg-cyan-50",
-                  (!canPrev || loading) && "opacity-50 cursor-not-allowed hover:bg-transparent",
+                  (!canPrev || loading) &&
+                    "opacity-50 cursor-not-allowed hover:bg-transparent"
                 )}
               >
                 <LeftOutlined />
                 <span className="hidden sm:inline">Anterior</span>
               </button>
 
-              {/* NUEVO: selector rápido de página */}
+              {/* Selector rápido de página */}
               <select
                 value={page}
                 onChange={(e) => setPage(Number(e.target.value))}
-                className="rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm"
+                className="rounded-2xl border border-neutral-300 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm"
                 aria-label="Seleccionar página"
                 title="Seleccionar página"
               >
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <option key={p} value={p}>
-                    Página {p}
-                  </option>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (p) => (
+                    <option key={p} value={p}>
+                      Página {p}
+                    </option>
+                  )
+                )}
               </select>
 
-              {/* NUEVO: input Ir a página */}
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-neutral-300 bg-white px-2 py-1.5">
-                <label htmlFor="gotoPage" className="text-xs text-neutral-600">
+              {/* Ir a página */}
+              <div className="inline-flex items-center gap-1 sm:gap-2 rounded-2xl border border-neutral-300 bg-white px-2 py-1.5">
+                <label
+                  htmlFor="gotoPage"
+                  className="text-[11px] sm:text-xs text-neutral-600"
+                >
                   Ir a pág.
                 </label>
                 <input
@@ -775,11 +901,11 @@ const TicketsPage: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") goToPage();
                   }}
-                  className="w-16 text-sm outline-none"
+                  className="w-14 sm:w-16 text-xs sm:text-sm outline-none"
                 />
                 <button
                   onClick={goToPage}
-                  className="text-sm px-2 py-1 rounded-lg border border-cyan-300 text-cyan-800 hover:bg-cyan-50"
+                  className="text-xs sm:text-sm px-2 py-1 rounded-lg border border-cyan-300 text-cyan-800 hover:bg-cyan-50"
                 >
                   Ir
                 </button>
@@ -789,9 +915,10 @@ const TicketsPage: React.FC = () => {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={!canNext || loading}
                 className={clsx(
-                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs sm:text-sm",
                   "border-cyan-300 text-cyan-800 hover:bg-cyan-50",
-                  (!canNext || loading) && "opacity-50 cursor-not-allowed hover:bg-transparent",
+                  (!canNext || loading) &&
+                    "opacity-50 cursor-not-allowed hover:bg-transparent"
                 )}
               >
                 <span className="hidden sm:inline">Siguiente</span>

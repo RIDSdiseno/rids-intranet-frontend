@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+// src/pages/EmpresasPage.tsx
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LoadingOutlined,
   ReloadOutlined,
   TeamOutlined,
   BuildOutlined,
   LaptopOutlined,
-  WarningOutlined,
   SearchOutlined,
   PieChartOutlined,
-  BarChartOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
@@ -34,13 +33,13 @@ import EmpresaDetailsModal, {
 
 /* ====================== Config ====================== */
 const API_URL =
-  (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";
+  (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
 
 /* ====================== Tipos de página ====================== */
 interface EstadisticasEmpresa {
+  totalTickets: number; // mantenemos en el tipo por compatibilidad con la API, pero NO lo usamos
   totalSolicitantes: number;
   totalEquipos: number;
-  totalTickets: number;
   totalVisitas: number;
   totalTrabajos: number;
   visitasPendientes: number;
@@ -57,20 +56,7 @@ interface Empresa extends EmpresaLite {
   estadisticas: EstadisticasEmpresa;
 }
 
-interface Ticket {
-  empresa: string | null;
-  id_ticket?: number;
-  asunto?: string | null;
-  estado?: string | null;
-  prioridad?: string | null;
-  creado_en?: string | null;
-  solicitante?: string | null;
-}
-
 /* ====================== Helpers ====================== */
-const clamp = (n: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, n));
-
 function formatNumber(n?: number | null) {
   if (typeof n !== "number") return "—";
   try {
@@ -85,20 +71,6 @@ function qs(params: Record<string, string | number | undefined | null>) {
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join("&");
   return s ? `?${s}` : "";
-}
-
-/** debounce simple con refs (sin setTimeout leaks) */
-function useDebounced<T>(value: T, delay = 350) {
-  const [v, setV] = useState(value);
-  const tRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (tRef.current) window.clearTimeout(tRef.current);
-    tRef.current = window.setTimeout(() => setV(value), clamp(delay, 120, 1500));
-    return () => {
-      if (tRef.current) window.clearTimeout(tRef.current);
-    };
-  }, [value, delay]);
-  return v;
 }
 
 /* ====================== Tooltips ====================== */
@@ -129,10 +101,7 @@ const CustomBarTooltip: React.FC<CustomTooltipProps> = ({
     </div>
   );
 };
-const CustomPieTooltip: React.FC<CustomTooltipProps> = ({
-  active,
-  payload,
-}) => {
+const CustomPieTooltip: React.FC<CustomTooltipProps> = ({ active, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
   return (
     <div className="rounded-xl border border-gray-300 bg-white/95 shadow-md p-3">
@@ -188,12 +157,9 @@ function isRefreshableStat(s: Stat): s is RefreshableStat {
 
 const EmpresasPage: React.FC = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const searchDebounced = useDebounced(searchTerm, 300);
-
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"overview" | "companies">(
     "overview"
@@ -204,55 +170,36 @@ const EmpresasPage: React.FC = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   const [empresaSel, setEmpresaSel] = useState<EmpresaLite | null>(null);
-  const [solicitantesSel, setSolicitantesSel] = useState<SolicitanteLite[]>(
-    []
-  );
+  const [solicitantesSel, setSolicitantesSel] = useState<SolicitanteLite[]>([]);
   const [equiposSel, setEquiposSel] = useState<EquipoLite[]>([]);
   const [visitasSel, setVisitasSel] = useState<Visita[]>([]);
 
-  // control de abort
-  const fetchCtrlRef = useRef<AbortController | null>(null);
-
   const fetchEmpresas = async (showRefresh = false) => {
+    const ctrl = new AbortController();
     try {
-      fetchCtrlRef.current?.abort();
-      const ctrl = new AbortController();
-      fetchCtrlRef.current = ctrl;
-
       if (showRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
 
       const token = localStorage.getItem("accessToken") ?? "";
-      const baseHeaders: HeadersInit = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
 
       // Empresas
       const eRes = await fetch(`${API_URL}/empresas`, {
-        headers: baseHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         cache: "no-store",
         signal: ctrl.signal,
       });
-      if (!eRes.ok) throw new Error(`HTTP ${eRes.status}: ${eRes.statusText}`);
+      if (!eRes.ok)
+        throw new Error(`HTTP ${eRes.status}: ${eRes.statusText}`);
       const eJson: { data?: Empresa[]; items?: Empresa[] } = await eRes.json();
       const empresasData = eJson.data ?? eJson.items ?? [];
       if (!Array.isArray(empresasData))
         throw new Error("Formato inválido de empresas");
       setEmpresas(empresasData);
-
-      // Tickets
-      const tRes = await fetch(`${API_URL}/tickets?all=true`, {
-        headers: baseHeaders,
-        credentials: "include",
-        cache: "no-store",
-        signal: ctrl.signal,
-      });
-      if (!tRes.ok) throw new Error(`HTTP ${tRes.status}: ${tRes.statusText}`);
-      const tJson: { rows?: Ticket[]; data?: Ticket[] } = await tRes.json();
-      setTickets(tJson.rows ?? tJson.data ?? []);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError((err as Error)?.message || "Error al cargar datos");
@@ -264,10 +211,6 @@ const EmpresasPage: React.FC = () => {
 
   useEffect(() => {
     fetchEmpresas();
-    return () => {
-      fetchCtrlRef.current?.abort();
-    };
-  
   }, []);
 
   /* ===== Derivados ===== */
@@ -277,27 +220,19 @@ const EmpresasPage: React.FC = () => {
         (acc, e) => ({
           totalEmpresas: acc.totalEmpresas + 1,
           totalSolicitantes:
-            acc.totalSolicitantes + (e.estadisticas?.totalSolicitantes ?? 0),
-          totalEquipos:
-            acc.totalEquipos + (e.estadisticas?.totalEquipos ?? 0),
-          totalTickets:
-            acc.totalTickets + (e.estadisticas?.totalTickets ?? 0),
-          totalVisitas:
-            acc.totalVisitas + (e.estadisticas?.totalVisitas ?? 0),
-          totalTrabajos:
-            acc.totalTrabajos + (e.estadisticas?.totalTrabajos ?? 0),
+            acc.totalSolicitantes + e.estadisticas.totalSolicitantes,
+          totalEquipos: acc.totalEquipos + e.estadisticas.totalEquipos,
+          totalVisitas: acc.totalVisitas + e.estadisticas.totalVisitas,
+          totalTrabajos: acc.totalTrabajos + e.estadisticas.totalTrabajos,
           visitasPendientes:
-            acc.visitasPendientes +
-            (e.estadisticas?.visitasPendientes ?? 0),
+            acc.visitasPendientes + e.estadisticas.visitasPendientes,
           trabajosPendientes:
-            acc.trabajosPendientes +
-            (e.estadisticas?.trabajosPendientes ?? 0),
+            acc.trabajosPendientes + e.estadisticas.trabajosPendientes,
         }),
         {
           totalEmpresas: 0,
           totalSolicitantes: 0,
           totalEquipos: 0,
-          totalTickets: 0,
           totalVisitas: 0,
           totalTrabajos: 0,
           visitasPendientes: 0,
@@ -307,23 +242,14 @@ const EmpresasPage: React.FC = () => {
     [empresas]
   );
 
-  const ticketsPorEmpresa = useMemo(() => {
-    const result: Record<string, number> = {};
-    tickets.forEach((t) => {
-      const emp = (t.empresa ?? "Sin empresa").trim() || "Sin empresa";
-      result[emp] = (result[emp] ?? 0) + 1;
-    });
-    return result;
-  }, [tickets]);
-
   const equiposPorEmpresa = useMemo(
     () =>
       empresas
         .map((e) => ({
           name:
             e.nombre.length > 12 ? e.nombre.slice(0, 12) + "..." : e.nombre,
-          equipos: e.estadisticas?.totalEquipos ?? 0,
-          solicitantes: e.estadisticas?.totalSolicitantes ?? 0,
+          equipos: e.estadisticas.totalEquipos,
+          solicitantes: e.estadisticas.totalSolicitantes,
           fullName: e.nombre,
         }))
         .sort((a, b) => b.equipos - a.equipos)
@@ -337,8 +263,8 @@ const EmpresasPage: React.FC = () => {
         .map((e) => ({
           name:
             e.nombre.length > 10 ? e.nombre.slice(0, 10) + "..." : e.nombre,
-          solicitantes: e.estadisticas?.totalSolicitantes ?? 0,
-          equipos: e.estadisticas?.totalEquipos ?? 0,
+          solicitantes: e.estadisticas.totalSolicitantes,
+          equipos: e.estadisticas.totalEquipos,
           fullName: e.nombre,
         }))
         .sort((a, b) => b.solicitantes - a.solicitantes)
@@ -352,14 +278,14 @@ const EmpresasPage: React.FC = () => {
       { name: "Mediana (11-50)", min: 11, max: 50, color: "#ea580c" },
       { name: "Grande (51+)", min: 51, max: Infinity, color: "#dc2626" },
       { name: "Sin equipos", min: 0, max: 0, color: "#374151" },
-    ] as const;
+    ];
     return ranges
       .map((r) => {
         const count = empresas.filter((e) =>
           r.min === 0 && r.max === 0
-            ? (e.estadisticas?.totalEquipos ?? 0) === 0
-            : (e.estadisticas?.totalEquipos ?? 0) >= r.min &&
-              (e.estadisticas?.totalEquipos ?? 0) <= r.max
+            ? e.estadisticas.totalEquipos === 0
+            : e.estadisticas.totalEquipos >= r.min &&
+              e.estadisticas.totalEquipos <= r.max
         ).length;
         return { name: r.name, value: count, color: r.color };
       })
@@ -406,34 +332,34 @@ const EmpresasPage: React.FC = () => {
         change: "Dispositivos en inventario",
       },
       {
-        name: "Tickets Totales",
+        name: "Visitas Totales",
         value: refreshing ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
           </span>
         ) : (
-          formatNumber(
-            Object.values(ticketsPorEmpresa).reduce((a, b) => a + b, 0)
-          )
+          formatNumber(statsTotales.totalVisitas)
         ),
-        icon: <WarningOutlined className="text-red-700 text-xl" />,
-        change: "Tickets históricos",
+        icon: <PieChartOutlined className="text-cyan-700 text-xl" />,
+        change: "Visitas registradas",
       },
     ],
-    [statsTotales, ticketsPorEmpresa, refreshing]
+    [statsTotales, refreshing]
   );
 
-  const filteredEmpresas = useMemo(() => {
-    const q = searchDebounced.trim().toLowerCase();
-    if (!q) return empresas;
-    return empresas.filter(
-      (e) =>
-        e.nombre.toLowerCase().includes(q) ||
-        (e.detalleEmpresa?.email ?? "").toLowerCase().includes(q)
-    );
-  }, [empresas, searchDebounced]);
+  const filteredEmpresas = useMemo(
+    () =>
+      empresas.filter(
+        (e) =>
+          e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          e.detalleEmpresa?.email
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase())
+      ),
+    [empresas, searchTerm]
+  );
 
-  /* ====== Abrir modal y cargar detalles de /equipos y /visitas ====== */
+  /* ====== Abrir modal y cargar detalles de rutas /equipos y /visitas ====== */
   const openDetails = async (empresa: Empresa) => {
     setEmpresaSel({
       id_empresa: empresa.id_empresa,
@@ -455,17 +381,16 @@ const EmpresasPage: React.FC = () => {
     setDetailsOpen(true);
 
     const token = localStorage.getItem("accessToken") ?? "";
-    const baseHeaders: HeadersInit = {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
 
     try {
       // Equipos por empresa
       const eqRes = await fetch(
         `${API_URL}/equipos${qs({ empresaId: empresa.id_empresa })}`,
         {
-          headers: baseHeaders,
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           credentials: "include",
         }
       );
@@ -482,34 +407,16 @@ const EmpresasPage: React.FC = () => {
       const vRes = await fetch(
         `${API_URL}/visitas${qs({ empresaId: empresa.id_empresa })}`,
         {
-          headers: baseHeaders,
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           credentials: "include",
         }
       );
       if (vRes.ok) {
-        // puede venir como {page,...items} o como {data/rows}
-        const contentType = vRes.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const vJson: {
-            data?: Visita[];
-            rows?: Visita[];
-            items?: Visita[];
-          } = await vRes.json();
-          setVisitasSel(vJson.data ?? vJson.rows ?? vJson.items ?? []);
-        } else {
-          // fallback raro (texto)
-          const text = await vRes.text();
-          try {
-            const parsed = JSON.parse(text) as {
-              data?: Visita[];
-              rows?: Visita[];
-              items?: Visita[];
-            };
-            setVisitasSel(parsed.data ?? parsed.rows ?? parsed.items ?? []);
-          } catch {
-            setVisitasSel([]);
-          }
-        }
+        const vJson: { data?: Visita[]; rows?: Visita[] } = await vRes.json();
+        setVisitasSel(vJson.data ?? vJson.rows ?? []);
       } else {
         setDetailsError(`No se pudieron cargar visitas (HTTP ${vRes.status})`);
       }
@@ -606,7 +513,10 @@ const EmpresasPage: React.FC = () => {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: idx * 0.1 }}
-                  whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
+                  whileHover={{
+                    scale: 1.03,
+                    boxShadow: "0 12px 24px rgba(0,0,0,.12)",
+                  }}
                 >
                   <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-100/40 blur-2xl" />
                   <div className="flex items-start justify-between">
@@ -636,78 +546,14 @@ const EmpresasPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Row 1 */}
+            {/* Row 1 (dos gráficos) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Tickets por empresa */}
+              {/* Equipos por empresa */}
               <motion.div
                 className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <BarChartOutlined className="text-blue-700" />
-                    Tickets por Empresa (Top 8)
-                  </h2>
-                  <button
-                    onClick={() => fetchEmpresas(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 text-blue-700 px-3 py-1.5 text-xs hover:bg-blue-50"
-                    title="Actualizar"
-                  >
-                    <ReloadOutlined /> Refrescar
-                  </button>
-                </div>
-                <div className="h-72">
-                  {Object.keys(ticketsPorEmpresa).length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-neutral-400">
-                      No hay datos de tickets para mostrar
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={Object.entries(ticketsPorEmpresa)
-                          .map(([name, value]) => ({
-                            name:
-                              name.length > 12
-                                ? name.slice(0, 12) + "..."
-                                : name,
-                            value,
-                          }))
-                          .sort((a, b) => b.value - a.value)
-                          .slice(0, 8)}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 12, fill: "#374151" }}
-                          interval={0}
-                          height={50}
-                          angle={-45}
-                          textAnchor="end"
-                        />
-                        <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
-                        <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
-                        <Bar dataKey="value">
-                          {Array.from({ length: 8 }).map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={DARK_PALETTE[index % DARK_PALETTE.length]}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Equipos por empresa */}
-              <motion.div
-                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -733,9 +579,7 @@ const EmpresasPage: React.FC = () => {
                         {equiposPorEmpresa.map((_, index) => (
                           <Cell
                             key={`cell-${index}`}
-                            fill={
-                              DARK_PALETTE[(index + 3) % DARK_PALETTE.length]
-                            }
+                            fill={DARK_PALETTE[(index + 3) % DARK_PALETTE.length]}
                           />
                         ))}
                       </Bar>
@@ -743,56 +587,13 @@ const EmpresasPage: React.FC = () => {
                   </ResponsiveContainer>
                 </div>
               </motion.div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Distribución por tamaño */}
-              <motion.div
-                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    <span className="inline-flex items-center gap-2">
-                      <PieChartOutlined className="text-purple-700" />
-                      Distribución por Tamaño
-                    </span>
-                  </h2>
-                </div>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={distribucionTamanioEmpresas}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={renderPieLabel}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {distribucionTamanioEmpresas.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={(props) => <CustomPieTooltip {...props} />}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
 
               {/* Más solicitantes */}
               <motion.div
                 className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.7 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.35 }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-slate-800">
@@ -820,13 +621,51 @@ const EmpresasPage: React.FC = () => {
                         {solicitantesPorEmpresa.map((_, index) => (
                           <Cell
                             key={`cell-${index}`}
-                            fill={
-                              DARK_PALETTE[(index + 6) % DARK_PALETTE.length]
-                            }
+                            fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]}
                           />
                         ))}
                       </Bar>
                     </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Row 2 (distribución, ancho completo) */}
+            <div className="grid grid-cols-1 gap-6 mb-8">
+              <motion.div
+                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.45 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-slate-800">
+                    <span className="inline-flex items-center gap-2">
+                      <PieChartOutlined className="text-purple-700" />
+                      Distribución por Tamaño
+                    </span>
+                  </h2>
+                </div>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={distribucionTamanioEmpresas}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={renderPieLabel}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {distribucionTamanioEmpresas.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={(props) => <CustomPieTooltip {...props} />} />
+                    </PieChart>
                   </ResponsiveContainer>
                 </div>
               </motion.div>
@@ -864,9 +703,7 @@ const EmpresasPage: React.FC = () => {
               {filteredEmpresas.length === 0 ? (
                 <div className="h-32 flex flex-col items-center justify-center text-neutral-400">
                   <div className="text-2xl mb-2">🏢</div>
-                  <div>
-                    No se encontraron empresas que coincidan con la búsqueda
-                  </div>
+                  <div>No se encontraron empresas que coincidan con la búsqueda</div>
                 </div>
               ) : (
                 filteredEmpresas.map((empresa, index) => (
@@ -886,25 +723,12 @@ const EmpresasPage: React.FC = () => {
                           {empresa.nombre}
                         </h3>
                         <p className="text-sm text-slate-600">
-                          {empresa.estadisticas.totalSolicitantes} solicitantes
-                          • {empresa.estadisticas.totalEquipos} equipos
+                          {empresa.estadisticas.totalSolicitantes} solicitantes •{" "}
+                          {empresa.estadisticas.totalEquipos} equipos
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            empresa.estadisticas.totalTickets > 10
-                              ? "bg-orange-100 text-orange-800"
-                              : empresa.estadisticas.totalTickets > 0
-                              ? "bg-green-100 text-green-800"
-                              : "bg-slate-100 text-slate-800"
-                          }`}
-                        >
-                          {empresa.estadisticas.totalTickets} tickets
-                        </span>
-                      </div>
                       <button
                         onClick={() => openDetails(empresa)}
                         className="text-blue-700 hover:text-blue-900 font-medium group-hover:translate-x-1 transition-transform duration-300"
