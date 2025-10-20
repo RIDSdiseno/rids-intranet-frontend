@@ -362,8 +362,6 @@ const VisitasPage: React.FC = () => {
   useEffect(()=>{ const c=new AbortController(); fetchFilters(c.signal); return ()=>c.abort(); },[fetchFilters]);
   useEffect(()=>{ const c=new AbortController(); fetchList(c.signal); return ()=>c.abort(); },[fetchList]);
 
-  const goPrev=()=>canPrev&&setPage(p=>p-1);
-  const goNext=()=>canNext&&setPage(p=>p+1);
   const clearAll=()=>{ setQ(""); setTecnicoId(""); setEmpresaId(""); setPage(1); };
 
   const openRow=(row:VisitaRow)=>{ const visita:VisitaDetail={
@@ -466,256 +464,378 @@ const VisitasPage: React.FC = () => {
     } catch(e){ console.error("[Export Excel] Error:",e); alert("No se pudo exportar el Excel. Revisa consola (plantilla/rutas/permiso)."); } };
 
   return (
-    <div className="min-h-screen relative">
-      {/* Fondo claro tecnológico */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-slate-50 to-white" />
-        <div className="absolute -top-28 -left-28 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl opacity-60 bg-gradient-to-br from-cyan-100 to-indigo-100" />
-        <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl opacity-50 bg-gradient-to-tr from-fuchsia-100 to-cyan-100" />
-      </div>
+  <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
+    {/* Fondo */}
+    <div className="pointer-events-none absolute inset-0 -z-10">
+      <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
+      <div className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40" />
+      <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
+    </div>
 
-      <Header />
+    <Header />
 
-      {/* Hero / Toolbar */}
-      <div className="px-4 sm:px-6 pt-4 sm:pt-6 max-w-6xl mx-auto">
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50 shadow-sm transition">
-          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,rgba(14,165,233,0.10),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.10),transparent_55%)]" />
-          <div className="relative p-4 sm:p-6 md:p-8">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
-              Visitas <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">RIDS.CL</span>
-            </h1>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600">
-              Filtra por técnico, empresa o texto libre. Exporta y gestiona en tiempo real.
-            </p>
+    {/* Hero / Toolbar */}
+    <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
+        <div className="absolute inset-0 opacity-60 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
+        <div className="relative p-4 sm:p-6 md:p-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+            Visitas{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
+              RIDS.CL
+            </span>
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-slate-600">
+            Filtra por técnico, empresa o texto libre. Exporta y gestiona en tiempo real.
+          </p>
 
-            {/* Toolbar responsive */}
-            <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-              {/* búsqueda */}
-              <div className="relative lg:col-span-2">
-                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={q}
-                  onChange={(e)=>{setQ(e.target.value); setPage(1);}}
-                  placeholder="Buscar…"
-                  className="w-full rounded-xl sm:rounded-2xl border border-slate-200 bg-white pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                  aria-label="Buscar visitas"
-                />
-                {q.length>0&&(
-                  <button
-                    onClick={()=>setQ("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <CloseCircleFilled />
-                  </button>
-                )}
-              </div>
+          {/* Toolbar: búsqueda + filtros + acciones */}
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
+            {/* Búsqueda */}
+            <div className="relative md:col-span-5">
+              <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
+              <input
+                value={q}
+                onChange={(e)=>{ setQ(e.target.value); setPage(1); }}
+                placeholder="Buscar…"
+                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+                aria-label="Buscar visitas"
+              />
+              {q.length > 0 && (
+                <button
+                  onClick={()=>setQ("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
+                  aria-label="Limpiar búsqueda"
+                  title="Limpiar"
+                  type="button"
+                >
+                  <CloseCircleFilled />
+                </button>
+              )}
+            </div>
 
+            {/* Filtro técnico */}
+            <div className="md:col-span-3">
               <select
                 value={tecnicoId}
-                onChange={(e)=>{const v=e.target.value; setTecnicoId(v?Number(v):""); setPage(1);}}
-                className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                onChange={(e)=>{ const v=e.target.value; setTecnicoId(v?Number(v):""); setPage(1); }}
+                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                 aria-label="Filtrar por técnico"
               >
                 <option value="">Todos los técnicos</option>
-                {tecnicos.map(t=> (<option key={t.id} value={t.id}>{t.nombre}</option>))}
+                {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
               </select>
+            </div>
 
+            {/* Filtro empresa */}
+            <div className="md:col-span-4">
               <select
                 value={empresaId}
-                onChange={(e)=>{const v=e.target.value; setEmpresaId(v?Number(v):""); setPage(1);}}
-                className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                onChange={(e)=>{ const v=e.target.value; setEmpresaId(v?Number(v):""); setPage(1); }}
+                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                 aria-label="Filtrar por empresa"
               >
                 <option value="">Todas las empresas</option>
-                {empresas.map(e=> (<option key={e.id} value={e.id}>{e.nombre}</option>))}
+                {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
               </select>
+            </div>
 
-              <div className="grid grid-cols-3 gap-2">
+            {/* Acciones */}
+            <div className="md:col-span-12 lg:col-span-12 xl:col-span-12">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* Limpiar */}
                 <button
                   onClick={clearAll}
-                  className="col-span-1 inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200 text-slate-700 px-3 py-2.5 text-sm hover:bg-slate-50 transition"
+                  type="button"
+                  className="
+                    inline-flex items-center justify-center gap-2
+                    rounded-2xl border border-cyan-200/70 bg-white/90
+                    px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 active:scale-[0.98]
+                    transition duration-200 w-full min-w-[120px]
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white
+                  "
                   title="Limpiar filtros"
                 >
-                  <CloseCircleFilled className="hidden sm:inline" /> <span className="truncate">Limpiar</span>
+                  <CloseCircleFilled className="hidden sm:inline" />
+                  <span className="truncate">Limpiar</span>
                 </button>
+
+                {/* Exportar */}
                 <button
                   onClick={onExportEmpresas}
-                  disabled={!data||(data?.total??0)===0}
+                  disabled={!data || (data?.total ?? 0) === 0}
+                  type="button"
                   className={clsx(
-                    "col-span-1 inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl px-3 py-2.5 text-sm text-white",
-                    "bg-gradient-to-br from-cyan-600 to-indigo-600 shadow-[0_8px_24px_-6px_rgba(56,189,248,0.35)] hover:brightness-110 transition",
-                    (!data||(data?.total??0)===0) && "opacity-50 cursor-not-allowed"
+                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
+                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                    (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
                   )}
                   title="Exportar"
                 >
-                  <DownloadOutlined className="hidden sm:inline" /> <span className="truncate">Exportar</span>
+                  <DownloadOutlined className="hidden sm:inline" />
+                  <span className="truncate">Exportar</span>
                 </button>
+
+                {/* Nueva visita */}
                 <button
                   onClick={()=>setOpenCreate(true)}
-                  className="col-span-1 inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl px-3 py-2.5 text-sm
-                             bg-gradient-to-br from-emerald-500 to-cyan-600 text-white shadow-[0_8px_24px_-6px_rgba(16,185,129,0.35)] hover:brightness-110 transition"
+                  type="button"
+                  className="
+                    inline-flex items-center justify-center gap-2
+                    rounded-2xl px-3 py-2.5 text-sm font-medium text-white
+                    bg-gradient-to-tr from-emerald-600 to-cyan-600
+                    shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
+                    hover:brightness-110 active:scale-[0.98]
+                    transition duration-200 w-full min-w-[120px]
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
+                  "
                   title="Nueva visita"
                 >
-                  <span className="sm:hidden">+</span><span className="hidden sm:inline">+ Nueva</span>
+                  <span className="sm:hidden">+</span>
+                  <span className="hidden sm:inline">+ Nueva</span>
                 </button>
               </div>
             </div>
           </div>
+
+          {/* Separador */}
+          <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
         </div>
       </div>
-
-      {/* Lista responsiva: Cards en móvil / Tabla en md+ */}
-      <main className="px-4 sm:px-6 pb-6 max-w-6xl mx-auto">
-        {/* Cards (mobile) */}
-        <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading?"true":"false"}>
-          {loading && (
-            <div className="space-y-3">
-              {Array.from({length:6}).map((_,i)=>(
-                <div key={`skc-${i}`} className="rounded-2xl border border-slate-200 bg-white p-4 animate-pulse">
-                  <div className="h-4 w-24 bg-slate-100 rounded mb-2" />
-                  <div className="h-3 w-3/4 bg-slate-100 rounded mb-2" />
-                  <div className="h-3 w-1/2 bg-slate-100 rounded" />
-                </div>
-              ))}
-            </div>
-          )}
-          {!loading && error && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
-          )}
-          {!loading && !error && data?.items?.length===0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
-          )}
-          {!loading && !error && data?.items?.map((v)=> {
-            const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-            const isDeleting = deletingId === v.id_visita;
-            return (
-              <article
-                key={v.id_visita}
-                className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:shadow-md hover:scale-[1.01]"
-              >
-                <header className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs text-slate-500">#{v.id_visita}</div>
-                    <h3 className="text-base font-semibold text-slate-900">{v.empresa?.nombre ?? `#${v.empresaId}`}</h3>
-                    <p className="text-xs text-slate-600 mt-0.5">{v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}</p>
-                  </div>
-                  <StatusBadge status={v.status} />
-                </header>
-                <p className="text-sm text-slate-700 mt-2">
-                  <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
-                </p>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <button onClick={()=>openRow(v)} className="col-span-1 rounded-xl border border-slate-200 text-slate-700 px-2 py-2 text-sm hover:bg-slate-50">Detalle</button>
-                  <button onClick={()=>onClickEdit(v)} className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"><EditOutlined />Editar</button>
-                  <button
-                    onClick={()=>onClickDelete(v)}
-                    disabled={isDeleting}
-                    className={clsx("col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
-                      isDeleting ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait" : "border-rose-200 text-rose-700 hover:bg-rose-50")}
-                  >
-                    <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-
-        {/* Tabla (desktop) */}
-        <section
-          className="hidden md:block rounded-3xl border border-slate-200 bg-white overflow-hidden mt-4"
-          aria-live="polite" aria-busy={loading?"true":"false"}
-        >
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gradient-to-r from-white to-slate-50 text-slate-700 border-b border-slate-200 sticky top-0 z-10">
-                <tr>
-                  {["ID","Técnico","Empresa","Solicitante","Inicio","Estado","Acciones"].map((h)=>(
-                    <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="text-slate-800">
-                {loading && <TableSkeletonRows cols={7} rows={8} />}
-                {!loading && error && (<tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>)}
-                {!loading && !error && data?.items?.length===0 && (<tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>)}
-                {!loading && !error && data?.items?.map((v)=> {
-                  const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-                  const isDeleting = deletingId === v.id_visita;
-                  return (
-                    <tr
-                      key={v.id_visita}
-                      className={clsx(
-                        "border-t border-slate-200 transition-colors",
-                        "odd:bg-white even:bg-slate-50/50 hover:bg-cyan-50"
-                      )}
-                      title="Ver detalle"
-                    >
-                      <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
-                      <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
-                      <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
-                      <td className="px-4 py-3"><div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div></td>
-                      <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button onClick={()=>openRow(v)} className="rounded-lg border border-slate-200 text-slate-700 px-2 py-1 hover:bg-slate-50 transition">Detalle</button>
-                          <button onClick={()=>onClickEdit(v)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"><EditOutlined /> Editar</button>
-                          <button
-                            onClick={()=>onClickDelete(v)}
-                            disabled={isDeleting}
-                            className={clsx("inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
-                              isDeleting ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait" : "border-rose-200 text-rose-700 hover:bg-rose-50")}
-                          >
-                            <DeleteOutlined /> {isDeleting ? "Eliminando…" : "Eliminar"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );})}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-slate-200">
-            <div className="text-sm text-slate-600 text-center sm:text-left">
-              {data ? (showingRange ? <>Mostrando <strong className="text-slate-900">{showingRange.start}</strong>–<strong className="text-slate-900">{showingRange.end}</strong> de <strong className="text-slate-900">{data.total}</strong> • Página <strong className="text-slate-900">{data.page}</strong> de <strong className="text-slate-900">{totalPages}</strong></> : "—") : "—"}
-            </div>
-            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
-              <button onClick={refreshNow} className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-slate-200 text-slate-700 hover:bg-slate-50 transition" title="Recargar"><ReloadOutlined /> <span className="hidden sm:inline">Recargar</span></button>
-              <button onClick={goPrev} disabled={!canPrev||loading} className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm","border-slate-200 text-slate-700 hover:bg-slate-50 transition",(!canPrev||loading)&&"opacity-40 cursor-not-allowed hover:bg-transparent")} aria-label="Página anterior"><LeftOutlined /><span className="hidden sm:inline">Anterior</span></button>
-              <button onClick={goNext} disabled={!canNext||loading} className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm","border-slate-200 text-slate-700 hover:bg-slate-50 transition",(!canNext||loading)&&"opacity-40 cursor-not-allowed hover:bg-transparent")} aria-label="Página siguiente"><span className="hidden sm:inline">Siguiente</span><RightOutlined /></button>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Modales */}
-      <VisitaDetailModal open={openDetail} onClose={()=>setOpenDetail(false)} visita={selected} />
-
-      {/* Crear */}
-      <CreateVisitaModal
-        open={openCreate}
-        onClose={()=>setOpenCreate(false)}
-        onCreated={()=>{ setOpenCreate(false); refreshNow(); }}
-        tecnicos={tecnicos}
-        empresas={empresas}
-      />
-
-      {/* Editar (reutiliza CreateVisitaModal en modo edición) */}
-      <CreateVisitaModal
-        open={openEdit}
-        mode="edit"
-        visita={editVisita ?? undefined}
-        onClose={()=>{ setOpenEdit(false); setEditVisita(null); }}
-        onCreated={()=>{}}
-        onUpdated={()=>{ setOpenEdit(false); setEditVisita(null); refreshNow(); }}
-        tecnicos={tecnicos}
-        empresas={empresas}
-      />
     </div>
-  );
+
+    {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
+    <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+      {/* Cards (mobile) */}
+      <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+        {loading && (
+          <div className="space-y-3">
+            {Array.from({length:6}).map((_,i)=>(
+              <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
+                <div className="h-4 w-24 bg-cyan-50 rounded mb-2" />
+                <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
+                <div className="h-3 w-1/2 bg-cyan-50 rounded" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && error && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
+        )}
+        {!loading && !error && data?.items?.length === 0 && (
+          <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
+        )}
+        {!loading && !error && data?.items?.map((v)=>{
+          const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+          const isDeleting = deletingId === v.id_visita;
+          return (
+            <article key={v.id_visita} className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md">
+              <header className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-slate-500">#{v.id_visita}</div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    {v.empresa?.nombre ?? `#${v.empresaId}`}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
+                  </p>
+                </div>
+                <StatusBadge status={v.status} />
+              </header>
+
+              <p className="text-sm text-slate-700 mt-2">
+                <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
+              </p>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button
+                  onClick={()=>openRow(v)}
+                  className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
+                >
+                  Detalle
+                </button>
+                <button
+                  onClick={()=>onClickEdit(v)}
+                  className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                >
+                  <EditOutlined />Editar
+                </button>
+                <button
+                  onClick={()=>onClickDelete(v)}
+                  disabled={isDeleting}
+                  className={clsx(
+                    "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                    isDeleting
+                      ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                      : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                  )}
+                >
+                  <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      {/* Tabla (desktop) */}
+      <section
+        className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
+        aria-live="polite"
+        aria-busy={loading ? "true" : "false"}
+      >
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
+              <tr>
+                {["ID","Técnico","Empresa","Solicitante","Inicio","Estado","Acciones"].map((h)=>(
+                  <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="text-slate-800">
+              {loading && <TableSkeletonRows cols={7} rows={8} />}
+              {!loading && error && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
+              )}
+              {!loading && !error && data?.items?.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
+              )}
+              {!loading && !error && data?.items?.map((v)=>{
+                const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+                const isDeleting = deletingId === v.id_visita;
+                return (
+                  <tr
+                    key={v.id_visita}
+                    className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
+                    <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
+                    <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
+                    <td className="px-4 py-3">
+                      <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
+                    </td>
+                    <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
+                    <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={()=>openRow(v)}
+                          className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-1 hover:bg-cyan-50 transition"
+                        >
+                          Detalle
+                        </button>
+                        <button
+                          onClick={()=>onClickEdit(v)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                        >
+                          <EditOutlined /> Editar
+                        </button>
+                        <button
+                          onClick={()=>onClickDelete(v)}
+                          disabled={isDeleting}
+                          className={clsx(
+                            "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
+                            isDeleting
+                              ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                              : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                          )}
+                        >
+                          <DeleteOutlined /> {isDeleting ? "Eliminando…" : "Eliminar"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer paginación */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
+          <div className="text-sm text-slate-700 text-center sm:text-left">
+            {data ? (
+              showingRange ? (
+                <>
+                  Mostrando{" "}
+                  <strong className="text-slate-900">{showingRange.start}</strong>–
+                  <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
+                  <strong className="text-slate-900">{data.total}</strong> • Página{" "}
+                  <strong className="text-slate-900">{data.page}</strong> de{" "}
+                  <strong className="text-slate-900">{totalPages}</strong>
+                </>
+              ) : "—"
+            ) : "—"}
+          </div>
+
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
+            <button
+              onClick={refreshNow}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition"
+              title="Recargar"
+              type="button"
+            >
+              <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
+            </button>
+            <button
+              onClick={()=>canPrev && setPage(p=>p-1)}
+              disabled={!canPrev || loading}
+              className={clsx(
+                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                (!canPrev || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+              )}
+              aria-label="Página anterior"
+              type="button"
+            >
+              <LeftOutlined />
+              <span className="hidden sm:inline">Anterior</span>
+            </button>
+            <button
+              onClick={()=>canNext && setPage(p=>p+1)}
+              disabled={!canNext || loading}
+              className={clsx(
+                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+              )}
+              aria-label="Página siguiente"
+              type="button"
+            >
+              <span className="hidden sm:inline">Siguiente</span>
+              <RightOutlined />
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {/* Modales */}
+    <VisitaDetailModal open={openDetail} onClose={()=>setOpenDetail(false)} visita={selected} />
+
+    <CreateVisitaModal
+      open={openCreate}
+      onClose={()=>setOpenCreate(false)}
+      onCreated={()=>{ setOpenCreate(false); refreshNow(); }}
+      tecnicos={tecnicos}
+      empresas={empresas}
+    />
+
+    <CreateVisitaModal
+      open={openEdit}
+      mode="edit"
+      visita={editVisita ?? undefined}
+      onClose={()=>{ setOpenEdit(false); setEditVisita(null); }}
+      onCreated={()=>{}}
+      onUpdated={()=>{ setOpenEdit(false); setEditVisita(null); refreshNow(); }}
+      tecnicos={tecnicos}
+      empresas={empresas}
+    />
+  </div>
+);
+
 };
 export default VisitasPage;
 

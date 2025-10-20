@@ -14,15 +14,18 @@ import {
   UpOutlined,
   DownOutlined,
   SwapOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import Header from "../components/Header";
+import CrearEquipoModal from "../components/CrearEquipo";
 
 /* =================== Config =================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
 const DEFAULT_PAGE_SIZE = 10;
-const MAX_PAGE_SIZE = 200; // para armar opciones de empresa
-const EXPORT_PAGE_CANDIDATES = [500, 200, 100, 50, 25, 10]; // prueba escalonada
+const MAX_PAGE_SIZE = 200;
+const EXPORT_PAGE_CANDIDATES = [500, 200, 100, 50, 25, 10];
+const API_BASE = API_URL.replace(/\/api\/?$/, "");
 
 /* =================== Tipos =================== */
 type EquipoRow = {
@@ -50,6 +53,24 @@ type ApiList<T> = {
 
 type EmpresaOpt = { id: number | null; nombre: string };
 
+type SolicitanteLite = {
+  id_solicitante: number;
+  nombre: string;
+  empresa?: { id_empresa: number; nombre: string } | null;
+};
+type ListSolicitantesResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: Array<{
+    id_solicitante: number;
+    nombre: string;
+    empresaId: number | null;
+    empresa: { id_empresa: number; nombre: string } | null;
+  }>;
+};
+
 /* =================== Helpers =================== */
 function clsx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -67,32 +88,29 @@ function strHash(s: string) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
+function toUC(s?: string | null) {
+  return s ? s.toUpperCase() : "";
+}
 
-/** Paleta por empresa para Excel (fills más claros para cuerpo, más fuertes para header) */
+/** Colores Excel por empresa */
 function excelCompanyColors(empresa: string): { headerFill: string; bodyFill: string } {
   const e = (empresa || "").toLowerCase();
-
-  // Casos especiales visibles
-  if (e.includes("infinet")) return { headerFill: "FF1E3A8A", bodyFill: "FFDBEAFE" }; // azul fuerte / azul muy claro
-  if (e.includes("acme")) return { headerFill: "FF047857", bodyFill: "FFD1FAE5" }; // verde fuerte / verde muy claro
-  if (e.includes("contoso")) return { headerFill: "FF6D28D9", bodyFill: "FFEDE9FE" }; // violeta fuerte / violeta muy claro
-
-  // Fallback determinístico
+  if (e.includes("infinet")) return { headerFill: "FF1E3A8A", bodyFill: "FFDBEAFE" };
+  if (e.includes("acme")) return { headerFill: "FF047857", bodyFill: "FFD1FAE5" };
+  if (e.includes("contoso")) return { headerFill: "FF6D28D9", bodyFill: "FFEDE9FE" };
   const palette = [
-    { headerFill: "FF0E7490", bodyFill: "FFCCFBF1" }, // teal
-    { headerFill: "FF2563EB", bodyFill: "FFDBEAFE" }, // azul
-    { headerFill: "FF7C3AED", bodyFill: "FFEDE9FE" }, // violeta
-    { headerFill: "FFB91C1C", bodyFill: "FFFEE2E2" }, // rojo
-    { headerFill: "FFB45309", bodyFill: "FFFFEDD5" }, // naranja
-    { headerFill: "FF15803D", bodyFill: "FFD1FAE5" }, // verde
-    { headerFill: "FF9D174D", bodyFill: "FFFCE7F3" }, // fucsia
-    { headerFill: "FF1D4ED8", bodyFill: "FFDBEAFE" }, // azul medio
+    { headerFill: "FF0E7490", bodyFill: "FFCCFBF1" },
+    { headerFill: "FF2563EB", bodyFill: "FFDBEAFE" },
+    { headerFill: "FF7C3AED", bodyFill: "FFEDE9FE" },
+    { headerFill: "FFB91C1C", bodyFill: "FFFEE2E2" },
+    { headerFill: "FFB45309", bodyFill: "FFFFEDD5" },
+    { headerFill: "FF15803D", bodyFill: "FFD1FAE5" },
+    { headerFill: "FF9D174D", bodyFill: "FFFCE7F3" },
+    { headerFill: "FF1D4ED8", bodyFill: "FFDBEAFE" },
   ];
   const idx = strHash(e || "empresa") % palette.length;
   return palette[idx];
 }
-
-/** Estilo de borde (resaltado) para todas las celdas */
 const strongBorder = {
   top: { style: "thin", color: { rgb: "FF94A3B8" } },
   left: { style: "thin", color: { rgb: "FF94A3B8" } },
@@ -100,52 +118,97 @@ const strongBorder = {
   bottom: { style: "thin", color: { rgb: "FF94A3B8" } },
 } as const;
 
-/** Aplica estilos a una hoja: header distinto, cuerpo con color por empresa, autofiltro y anchos */
+// Tipos auxiliares (ajusta si ya los importas en otro sitio)
+type XLSXNS = typeof import("xlsx-js-style");
+type WorkSheet = import("xlsx-js-style").WorkSheet;
+type CellObject = import("xlsx-js-style").CellObject;
+type ColInfo = import("xlsx-js-style").ColInfo;
+type Range = import("xlsx-js-style").Range;
+
+/** Estilo mínimo que usamos (evita `any`) */
+type CellStyle = {
+  fill?: { fgColor?: { rgb?: string } };
+  font?: { bold?: boolean; color?: { rgb?: string } };
+  alignment?: {
+    horizontal?: "center" | "left" | "right";
+    vertical?: "center" | "top" | "bottom";
+    wrapText?: boolean;
+  };
+  border?: typeof strongBorder;
+};
+
+/** Aplica estilo si la celda existe */
+function setCellStyle(ws: WorkSheet, addr: string, style: CellStyle) {
+  const cell = ws[addr] as (CellObject & { s?: CellStyle }) | undefined;
+  if (!cell) return;
+  cell.s = style;
+}
+
+// Helpers seguros de error (ponlos arriba del componente o en un utils)
+type ApiErrorPayload = { error?: string; message?: string };
+
+function isApiErrorPayload(v: unknown): v is ApiErrorPayload {
+  return typeof v === "object" && v !== null && ("error" in v || "message" in v);
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+
 function styleWorksheet(
-  XLSX: typeof import("xlsx-js-style"),
-  ws: import("xlsx-js-style").WorkSheet,
+  XLSX: XLSXNS,
+  ws: WorkSheet,
   headers: string[],
   totalRows: number,
   headerFill: string,
   bodyFill: string
 ) {
-  ws["!autofilter"] = {
-    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows, c: headers.length - 1 } }),
+  // Autofiltro
+  const range: Range = {
+    s: { r: 0, c: 0 },
+    e: { r: totalRows, c: headers.length - 1 },
   };
+  ws["!autofilter"] = { ref: XLSX.utils.encode_range(range) };
 
-  (ws["!cols"] as Array<{ wch: number }>) = headers.map((key) => ({
+  // Anchos de columnas
+  const cols: ColInfo[] = headers.map((key) => ({
     wch: Math.min(Math.max(key.length + 2, 10), 40),
   }));
+  ws["!cols"] = cols;
 
-  // Header con color fuerte, texto blanco y borde
+  // Encabezados
   for (let c = 0; c < headers.length; c++) {
     const cellRef = XLSX.utils.encode_cell({ r: 0, c });
-    const cell = ws[cellRef];
-    if (!cell) continue;
-    cell.s = {
+    setCellStyle(ws, cellRef, {
       fill: { fgColor: { rgb: headerFill } },
       font: { bold: true, color: { rgb: "FFFFFFFF" } },
       alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border: strongBorder,
-    };
+    });
   }
 
-  // Cuerpo con fill por empresa y bordes; primera columna algo distinta
+  // Cuerpo
   for (let r = 1; r <= totalRows; r++) {
     for (let c = 0; c < headers.length; c++) {
       const cellRef = XLSX.utils.encode_cell({ r, c });
-      if (!ws[cellRef]) continue;
       const isFirstCol = c === 0;
-      ws[cellRef]!.s = {
+      setCellStyle(ws, cellRef, {
         fill: { fgColor: { rgb: isFirstCol ? "FFF1F5F9" : bodyFill } },
         alignment: { vertical: "center" },
         border: strongBorder,
-      };
+      });
     }
   }
 }
 
-/** Tags empresa (chips) */
+/** Chips y temas */
 const COMPANY_TAG_PALETTE = [
   "border-emerald-200 bg-emerald-50 text-emerald-900",
   "border-teal-200 bg-teal-50 text-teal-900",
@@ -165,17 +228,12 @@ function companyTagClasses(empresaName?: string | null) {
   const idx = strHash(empresaName) % COMPANY_TAG_PALETTE.length;
   return COMPANY_TAG_PALETTE[idx];
 }
-
-/** Tags marca */
 function brandTagClasses(brand?: string | null) {
   const b = (brand || "").trim().toLowerCase();
-  if (/apple|macbook|imac|mac/.test(b))
-    return "border-slate-300 bg-slate-50 text-slate-900";
+  if (/apple|macbook|imac|mac/.test(b)) return "border-slate-300 bg-slate-50 text-slate-900";
   if (/dell/.test(b)) return "border-indigo-200 bg-indigo-50 text-indigo-900";
-  if (/\bhp\b|hewlett|packard/.test(b))
-    return "border-sky-200 bg-sky-50 text-sky-900";
-  if (/lenovo/.test(b))
-    return "border-orange-200 bg-orange-50 text-orange-900";
+  if (/\bhp\b|hewlett|packard/.test(b)) return "border-sky-200 bg-sky-50 text-sky-900";
+  if (/lenovo/.test(b)) return "border-orange-200 bg-orange-50 text-orange-900";
   if (/acer/.test(b)) return "border-lime-200 bg-lime-50 text-lime-900";
   if (/asus/.test(b)) return "border-violet-200 bg-violet-50 text-violet-900";
   if (/samsung/.test(b)) return "border-blue-200 bg-blue-50 text-blue-900";
@@ -197,20 +255,11 @@ function brandTagClasses(brand?: string | null) {
   const idx = strHash(b || "brand") % FALLBACK.length;
   return FALLBACK[idx];
 }
-
-/** Tema por empresa (color de fila y borde izquierdo). Incluye casos especiales. */
-function companyRowTheme(empresa?: string | null): {
-  bg: string;
-  borderLeft: string;
-} {
+function companyRowTheme(empresa?: string | null): { bg: string; borderLeft: string } {
   const e = (empresa || "").toLowerCase().trim();
-  if (e.includes("infinet"))
-    return { bg: "bg-blue-50/60", borderLeft: "border-blue-400" };
-  if (e.includes("acme"))
-    return { bg: "bg-emerald-50/60", borderLeft: "border-emerald-400" };
-  if (e.includes("contoso"))
-    return { bg: "bg-violet-50/60", borderLeft: "border-violet-400" };
-
+  if (e.includes("infinet")) return { bg: "bg-blue-50/60", borderLeft: "border-blue-400" };
+  if (e.includes("acme")) return { bg: "bg-emerald-50/60", borderLeft: "border-emerald-400" };
+  if (e.includes("contoso")) return { bg: "bg-violet-50/60", borderLeft: "border-violet-400" };
   const palette = [
     { bg: "bg-cyan-50/60", borderLeft: "border-cyan-400" },
     { bg: "bg-sky-50/60", borderLeft: "border-sky-400" },
@@ -227,26 +276,7 @@ function companyRowTheme(empresa?: string | null): {
   return palette[idx];
 }
 
-/* =================== Skeletons =================== */
-const TableSkeletonRows: React.FC<{ cols: number; rows?: number }> = ({
-  cols,
-  rows = 8,
-}) => (
-  <>
-    {Array.from({ length: rows }).map((_, i) => (
-      <tr key={`sk-${i}`} className="border-t border-neutral-100">
-        {Array.from({ length: cols }).map((__, j) => (
-          <td key={`sk-${i}-${j}`} className="px-4 py-3">
-            <div className="h-4 w-full max-w-[240px] animate-pulse rounded bg-neutral-200/70" />
-          </td>
-        ))}
-      </tr>
-    ))}
-  </>
-);
-
-/* =================== Utils UI =================== */
-const toUC = (s?: string | null) => (s ? s.toUpperCase() : "");
+/* =================== Sort =================== */
 type SortKey =
   | "id_equipo"
   | "serial"
@@ -261,6 +291,25 @@ type SortKey =
 type SortDir = "asc" | "desc";
 const sortIcon = (dir?: SortDir) =>
   !dir ? <SwapOutlined className="opacity-50" /> : dir === "asc" ? <UpOutlined /> : <DownOutlined />;
+
+/* =================== Solicitanes (remote search para edición) =================== */
+async function fetchSolicitantes(search: string, page = 1, pageSize = 20): Promise<ListSolicitantesResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  if (search.trim()) params.set("search", search.trim());
+  const token = localStorage.getItem("accessToken");
+  const res = await fetch(`${API_URL}/solicitantes?${params.toString()}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) throw new Error("No se pudo listar solicitantes");
+  return res.json();
+}
 
 /* =================== Page =================== */
 const EquiposPage: React.FC = () => {
@@ -317,10 +366,9 @@ const EquiposPage: React.FC = () => {
     const u = new URL(`${API_URL}/equipos`);
     u.searchParams.set("page", String(p));
     u.searchParams.set("pageSize", String(ps));
-    const sTerm = searchRaw ?? qDebounced;
-    const merged = [sTerm, empresaFilterName].filter(Boolean).join(" ").trim();
-    if (merged) u.searchParams.set("search", merged);
-    if (empresaFilterName) u.searchParams.set("empresaName", empresaFilterName);
+    const sTerm = (searchRaw ?? qDebounced).trim();
+    if (sTerm) u.searchParams.set("search", sTerm);
+    if (empresaFilterId != null) u.searchParams.set("empresaId", String(empresaFilterId));
     if (marcaFilter) u.searchParams.set("marca", marcaFilter);
     u.searchParams.set("_ts", String(Date.now()));
     return u.toString();
@@ -382,246 +430,187 @@ const EquiposPage: React.FC = () => {
     }
   }
 
-  /* ======== Export Excel (Todos + por empresa + Resumen con estilos) ======== */
+  /* ======== Export Excel ======== */
   async function exportToExcel() {
-  try {
-    setExportError(null);
-    setExporting(true);
+    try {
+      setExportError(null);
+      setExporting(true);
 
-    const token = localStorage.getItem("accessToken");
-    const API_BASE_URL = 'http://localhost:4000';
+      const token = localStorage.getItem("accessToken");
+      const buildExportUrl = (p: number, ps: number) => {
+        const params = new URLSearchParams({
+          page: String(p),
+          pageSize: String(ps),
+          _ts: String(Date.now()),
+        });
+        const sTerm = q.trim();
+        if (sTerm) params.append("search", sTerm);
+        if (empresaFilterId != null) params.append("empresaId", String(empresaFilterId));
+        if (marcaFilter.trim()) params.append("marca", marcaFilter.trim());
+        return `${API_BASE}/api/equipos?${params.toString()}`;
+      };
 
-    const buildExportUrl = (p: number, ps: number) => {
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(ps),
-        _ts: String(Date.now()), // ← Agrega timestamp para evitar cache
+      const fetchPage = async (p: number, ps: number) => {
+        const url = buildExportUrl(p, ps);
+        const res = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
+        return res;
+      };
+
+      let detected: number | null = null;
+      let firstPage: ApiList<EquipoRow> | null = null;
+
+      for (const candidate of EXPORT_PAGE_CANDIDATES) {
+        try {
+          const res = await fetchPage(1, candidate);
+          if (res.ok || res.status === 204) {
+            detected = candidate;
+            firstPage =
+              res.status === 204
+                ? { page: 1, pageSize: candidate, total: 0, totalPages: 1, items: [] }
+                : ((await res.json()) as ApiList<EquipoRow>);
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (!detected || !firstPage) {
+        throw new Error("No se pudo determinar pageSize para la exportación.");
+      }
+
+      const all: EquipoRow[] = [];
+      all.push(...(firstPage.items || []));
+
+      const totalPages = firstPage.totalPages || 1;
+      for (let p = 2; p <= totalPages; p++) {
+        const rx = await fetchPage(p, detected);
+        if (!rx.ok) throw new Error(`HTTP ${rx.status} en página ${p}`);
+        const jx = (await rx.json()) as ApiList<EquipoRow>;
+        all.push(...(jx.items || []));
+      }
+
+      const rowMap = (e: EquipoRow) => ({
+        ID: e.id_equipo,
+        SERIAL: toUC(e.serial),
+        MARCA: toUC(e.marca),
+        MODELO: e.modelo || "",
+        CPU: e.procesador || "",
+        RAM: e.ram || "",
+        DISCO: e.disco || "",
+        PROPIEDAD: e.propiedad || "",
+        SOLICITANTE: e.solicitante || "",
+        EMPRESA: e.empresa || "",
+        SolicitanteId: e.idSolicitante,
+        EmpresaId: e.empresaId ?? "",
       });
 
-      // **CORRECCIÓN CRÍTICA: Usa el mismo patrón que en tus logs exitosos**
+      const byEmpresa = new Map<string, EquipoRow[]>();
       if (empresaFilterName) {
-        params.append('search', empresaFilterName);
-        params.append('empresaName', empresaFilterName);
-      } else if (q && q.trim().length > 0) {
-        // Si no hay filtro de empresa pero sí búsqueda general
-        params.append('search', q.trim());
-      }
-      
-      if (marcaFilter && marcaFilter.trim().length > 0) {
-        params.append('marca', marcaFilter.trim());
-      }
-
-      return `${API_BASE_URL}/api/equipos?${params.toString()}`;
-    };
-
-    const fetchPage = async (p: number, ps: number) => {
-      const url = buildExportUrl(p, ps);
-      console.log('🔍 Export URL:', url); // ← Para debug
-      
-      const res = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-      });
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('❌ Error response:', errorText);
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
-      }
-      
-      return res;
-    };
-
-    // Detectar pageSize aceptado
-    let detected: number | null = null;
-    let firstPage: ApiList<EquipoRow> | null = null;
-    
-    for (const candidate of EXPORT_PAGE_CANDIDATES) {
-      try {
-        const res = await fetchPage(1, candidate);
-        if (res.ok || res.status === 204) {
-          detected = candidate;
-          firstPage =
-            res.status === 204
-              ? { page: 1, pageSize: candidate, total: 0, totalPages: 1, items: [] }
-              : ((await res.json()) as ApiList<EquipoRow>);
-          break;
+        byEmpresa.set(empresaFilterName, all);
+      } else {
+        for (const it of all) {
+          const key = it.empresa || "— SIN EMPRESA —";
+          if (!byEmpresa.has(key)) byEmpresa.set(key, []);
+          byEmpresa.get(key)!.push(it);
         }
-      } catch (error) {
-        // Si falla con un pageSize, probar con el siguiente
-        if (candidate === EXPORT_PAGE_CANDIDATES[EXPORT_PAGE_CANDIDATES.length - 1]) {
-          // Si es el último candidato, lanzar el error
-          throw error;
+      }
+
+      const resumenRows: { EMPRESA: string; TOTAL: number }[] = [];
+      const resumenMarcaRows: { EMPRESA: string; MARCA: string; TOTAL: number }[] = [];
+      for (const [emp, arr] of byEmpresa) {
+        resumenRows.push({ EMPRESA: emp, TOTAL: arr.length });
+        const m = new Map<string, number>();
+        for (const it of arr) {
+          const mk = (it.marca || "—").toUpperCase();
+          m.set(mk, (m.get(mk) || 0) + 1);
         }
-        // Continuar con el siguiente candidato
-        continue;
-      }
-    }
-    
-    if (!detected || !firstPage) {
-      throw new Error("No se pudo determinar pageSize para la exportación.");
-    }
-
-    // Acumular todo (ya viene filtrado por la API)
-    const all: EquipoRow[] = [];
-    all.push(...(firstPage.items || []));
-    
-    const totalPages = firstPage.totalPages || 1;
-    console.log(`📄 Exportando ${totalPages} páginas con pageSize ${detected}`);
-    
-    for (let p = 2; p <= totalPages; p++) {
-      const rx = await fetchPage(p, detected);
-      if (!rx.ok) throw new Error(`HTTP ${rx.status} en página ${p}`);
-      const jx = (await rx.json()) as ApiList<EquipoRow>;
-      all.push(...(jx.items || []));
-    }
-
-    console.log(`✅ Total de equipos obtenidos: ${all.length}`);
-    if (empresaFilterName) {
-      console.log(`🏢 Filtrado por empresa: ${empresaFilterName}`);
-    }
-
-    // Map a filas
-    const rowMap = (e: EquipoRow) => ({
-      ID: e.id_equipo,
-      SERIAL: toUC(e.serial),
-      MARCA: toUC(e.marca),
-      MODELO: e.modelo || "",
-      CPU: e.procesador || "",
-      RAM: e.ram || "",
-      DISCO: e.disco || "",
-      PROPIEDAD: e.propiedad || "",
-      SOLICITANTE: e.solicitante || "",
-      EMPRESA: e.empresa || "",
-      SolicitanteId: e.idSolicitante,
-      EmpresaId: e.empresaId ?? "",
-    });
-
-    // **MODIFICACIÓN: Solo agrupar si no hay filtro de empresa**
-    const byEmpresa = new Map<string, EquipoRow[]>();
-    
-    if (empresaFilterName) {
-      // Si hay filtro de empresa, todo va en una sola entrada
-      byEmpresa.set(empresaFilterName, all);
-    } else {
-      // Sin filtro: agrupar normalmente
-      for (const it of all) {
-        const key = it.empresa || "— SIN EMPRESA —";
-        if (!byEmpresa.has(key)) byEmpresa.set(key, []);
-        byEmpresa.get(key)!.push(it);
-      }
-    }
-
-    // Resúmenes (optimizados para cuando hay filtro)
-    const resumenRows: { EMPRESA: string; TOTAL: number }[] = [];
-    const resumenMarcaRows: { EMPRESA: string; MARCA: string; TOTAL: number }[] = [];
-    
-    for (const [emp, arr] of byEmpresa) {
-      resumenRows.push({ EMPRESA: emp, TOTAL: arr.length });
-      const m = new Map<string, number>();
-      for (const it of arr) {
-        const mk = (it.marca || "—").toUpperCase();
-        m.set(mk, (m.get(mk) || 0) + 1);
-      }
-      for (const [marca, total] of m) {
-        resumenMarcaRows.push({ EMPRESA: emp, MARCA: marca, TOTAL: total });
-      }
-    }
-
-    // ✅ Import con estilos (xlsx-js-style)
-    const XLSX = await import("xlsx-js-style");
-    const wb = XLSX.utils.book_new();
-
-    // **MODIFICACIÓN: Hoja "Todos" solo si no hay filtro de empresa**
-    if (!empresaFilterName && all.length > 0) {
-      const rowsTodos = all.map(rowMap);
-      const wsTodos = XLSX.utils.json_to_sheet(rowsTodos);
-      const todosHeader = Object.keys(rowsTodos[0] || { ID: "", SERIAL: "" });
-      styleWorksheet(
-        XLSX,
-        wsTodos,
-        todosHeader,
-        rowsTodos.length,
-        "FF334155", // header gris oscuro
-        "FFF8FAFC"  // cuerpo gris muy claro
-      );
-      XLSX.utils.book_append_sheet(wb, wsTodos, "Todos");
-    }
-
-    // Hojas por empresa (optimizado para filtro único)
-    
-    for (const [emp, arr] of byEmpresa) {
-      const rs = arr.map(rowMap);
-      if (rs.length === 0) continue; // Saltar empresas sin equipos
-      
-      const ws = XLSX.utils.json_to_sheet(rs);
-      const header = Object.keys(rs[0] || { ID: "", SERIAL: "" });
-
-      const { headerFill, bodyFill } = excelCompanyColors(emp);
-      styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
-
-      // **MODIFICACIÓN: Nombre de hoja más simple cuando hay filtro**
-      let sheetName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
-      if (empresaFilterName && byEmpresa.size === 1) {
-        sheetName = "Equipos"; // Nombre simple cuando solo hay una empresa
-      }
-      
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      
-    }
-
-    // **MODIFICACIÓN: Hojas de resumen solo si no hay filtro y hay múltiples empresas**
-    if (!empresaFilterName && byEmpresa.size > 1) {
-      if (resumenRows.length > 0) {
-        const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
-        const resumenHeader = Object.keys(resumenRows[0] || { EMPRESA: "", TOTAL: 0 });
-        styleWorksheet(XLSX, wsResumen, resumenHeader, resumenRows.length, "FF0F766E", "FFECFEFF");
-        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+        for (const [marca, total] of m) {
+          resumenMarcaRows.push({ EMPRESA: emp, MARCA: marca, TOTAL: total });
+        }
       }
 
-      if (resumenMarcaRows.length > 0) {
-        const wsResumenMarca = XLSX.utils.json_to_sheet(resumenMarcaRows);
-        const resumenMarcaHeader = Object.keys(resumenMarcaRows[0] || { EMPRESA: "", MARCA: "", TOTAL: 0 });
-        styleWorksheet(XLSX, wsResumenMarca, resumenMarcaHeader, resumenMarcaRows.length, "FF6B21A8", "FFEDE9FE");
-        XLSX.utils.book_append_sheet(wb, wsResumenMarca, "Resumen x Marca");
-      }
-    }
+      const XLSX = await import("xlsx-js-style");
+      const wb = XLSX.utils.book_new();
 
-    // **MODIFICACIÓN: Nombre de archivo más específico**
-    const parts: string[] = ["equipos"];
-    if (empresaFilterName) {
-      const safeEmpresaName = empresaFilterName.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
-      parts.push(safeEmpresaName);
+      if (!empresaFilterName && all.length > 0) {
+        const rowsTodos = all.map(rowMap);
+        const wsTodos = XLSX.utils.json_to_sheet(rowsTodos);
+        const todosHeader = Object.keys(rowsTodos[0] || { ID: "", SERIAL: "" });
+        styleWorksheet(XLSX, wsTodos, todosHeader, rowsTodos.length, "FF334155", "FFF8FAFC");
+        XLSX.utils.book_append_sheet(wb, wsTodos, "Todos");
+      }
+
+      for (const [emp, arr] of byEmpresa) {
+        const rs = arr.map(rowMap);
+        if (rs.length === 0) continue;
+        const ws = XLSX.utils.json_to_sheet(rs);
+        const header = Object.keys(rs[0] || { ID: "", SERIAL: "" });
+        const { headerFill, bodyFill } = excelCompanyColors(emp);
+        styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
+        let sheetName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
+        if (empresaFilterName && byEmpresa.size === 1) sheetName = "Equipos";
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      if (!empresaFilterName && byEmpresa.size > 1) {
+        if (resumenRows.length > 0) {
+          const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
+          const resumenHeader = Object.keys(resumenRows[0] || { EMPRESA: "", TOTAL: 0 });
+          styleWorksheet(XLSX, wsResumen, resumenHeader, resumenRows.length, "FF0F766E", "FFECFEFF");
+          XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+        }
+        if (resumenMarcaRows.length > 0) {
+          const wsResumenMarca = XLSX.utils.json_to_sheet(resumenMarcaRows);
+          const resumenMarcaHeader = Object.keys(resumenMarcaRows[0] || {
+            EMPRESA: "",
+            MARCA: "",
+            TOTAL: 0,
+          });
+          styleWorksheet(
+            XLSX,
+            wsResumenMarca,
+            resumenMarcaHeader,
+            resumenMarcaRows.length,
+            "FF6B21A8",
+            "FFEDE9FE"
+          );
+          XLSX.utils.book_append_sheet(wb, wsResumenMarca, "Resumen x Marca");
+        }
+      }
+
+      const parts: string[] = ["equipos"];
+      if (empresaFilterName) {
+        const safeEmpresaName = empresaFilterName.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
+        parts.push(safeEmpresaName);
+      }
+      if (marcaFilter) {
+        const safeMarca = marcaFilter.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
+        parts.push(`marca-${safeMarca}`);
+      }
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const fileName = `${parts.join("_")}_${timestamp}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      setExportError((err as Error)?.message || "Error al exportar a Excel");
+    } finally {
+      setExporting(false);
     }
-    if (marcaFilter) {
-      const safeMarca = marcaFilter.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
-      parts.push(`marca-${safeMarca}`);
-    }
-    
-    const timestamp = new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[:T]/g, "-");
-    
-    const fileName = `${parts.join("_")}_${timestamp}.xlsx`;
-    
-    console.log(`💾 Guardando archivo: ${fileName}`);
-    XLSX.writeFile(wb, fileName);
-    
-  } catch (err) {
-    console.error('💥 Error en exportToExcel:', err);
-    setExportError((err as Error)?.message || "Error al exportar a Excel");
-  } finally {
-    setExporting(false);
   }
-}
 
-  /* ======== Empresas (fallback desde /equipos) ======== */
+  /* ======== Empresas (desde /equipos como fallback) ======== */
   async function fetchEmpresaOptions(signal?: AbortSignal) {
     const seq = ++empSeqRef.current;
     try {
@@ -687,9 +676,6 @@ const EquiposPage: React.FC = () => {
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
       setEmpresaOptions(opts);
-      if (opts.length > 0 && empresaFilterId == null) {
-        setEmpresaFilterId(opts[0].id!);
-      }
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setEmpError((err as Error)?.message || "Error al cargar empresas");
@@ -705,20 +691,19 @@ const EquiposPage: React.FC = () => {
     fetchList(c.signal);
     return () => c.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, qDebounced, empresaFilterName, marcaFilter]);
+  }, [page, pageSize, qDebounced, empresaFilterId, marcaFilter]);
 
   useEffect(() => {
     const c = new AbortController();
     fetchEmpresaOptions(c.signal);
     return () => c.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ======== Handlers ======== */
   const clearAll = () => {
     setQ("");
     setMarcaFilter("");
-    setEmpresaFilterId(null);   // 👈 ahora también limpia la empresa
+    setEmpresaFilterId(null);
     setPage(1);
     const c = new AbortController();
     fetchList(c.signal);
@@ -741,19 +726,15 @@ const EquiposPage: React.FC = () => {
     setPage(1);
   };
 
-  // ordenar client-side (sin 'any')
+  // ordenar client-side
   const sortedItems = useMemo(() => {
     const arr = data?.items ? [...data.items] : [];
     const dir: 1 | -1 = sortDir === "asc" ? 1 : -1;
-
-    const toComparable = (
-      v: string | number | null | undefined
-    ): { n?: number; s: string } => {
+    const toComparable = (v: string | number | null | undefined): { n?: number; s: string } => {
       if (typeof v === "number") return { n: v, s: String(v) };
       const s = (v ?? "").toString().toLowerCase();
       return { s };
     };
-
     arr.sort((a, b) => {
       const va = a[sortKey] as string | number | null | undefined;
       const vb = b[sortKey] as string | number | null | undefined;
@@ -766,19 +747,175 @@ const EquiposPage: React.FC = () => {
       if (ca.s > cb.s) return 1 * dir;
       return 0;
     });
-
     return arr;
   }, [data?.items, sortKey, sortDir]);
 
-  // usar el setter (toggleSort)
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
       setSortKey(key);
       setSortDir("asc");
     }
   };
+
+  /* ================== CREAR (via Modal reutilizable) ================== */
+  const [createOpen, setCreateOpen] = useState(false);
+  const startCreate = () => setCreateOpen(true);
+
+  /* ================== EDITAR ================== */
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editRow, setEditRow] = useState<EquipoRow | null>(null);
+  type EquipoForm = {
+    serial: string;
+    marca: string;
+    modelo: string;
+    procesador: string;
+    ram: string;
+    disco: string;
+    propiedad: string;
+  };
+  const [editForm, setEditForm] = useState<EquipoForm>({
+    serial: "",
+    marca: "",
+    modelo: "",
+    procesador: "",
+    ram: "",
+    disco: "",
+    propiedad: "",
+  });
+  const [editSolicitanteId, setEditSolicitanteId] = useState<number | null>(null);
+
+  // buscador solicitantes (editar)
+  const [solSearchE, setSolSearchE] = useState("");
+  const solSearchEDeb = useDebouncedValue(solSearchE, 400);
+  const [solOptsE, setSolOptsE] = useState<SolicitanteLite[]>([]);
+  const [solLoadE, setSolLoadE] = useState(false);
+  const loadSolicitantesEdit = async () => {
+    setSolLoadE(true);
+    try {
+      const data = await fetchSolicitantes(solSearchEDeb, 1, 20);
+      setSolOptsE(
+        data.items.map((it) => ({
+          id_solicitante: it.id_solicitante,
+          nombre: it.nombre,
+          empresa: it.empresa,
+        }))
+      );
+    } catch {
+      // noop
+    } finally {
+      setSolLoadE(false);
+    }
+  };
+  useEffect(() => {
+    if (!editOpen) return;
+    loadSolicitantesEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen, solSearchEDeb]);
+
+  const startEdit = (row: EquipoRow) => {
+    setEditRow(row);
+    setEditForm({
+      serial: row.serial || "",
+      marca: row.marca || "",
+      modelo: row.modelo || "",
+      procesador: row.procesador || "",
+      ram: row.ram || "",
+      disco: row.disco || "",
+      propiedad: row.propiedad || "",
+    });
+    setEditSolicitanteId(row.idSolicitante || null);
+    setSolSearchE("");
+    setEditOpen(true);
+  };
+  const cancelEdit = () => {
+    if (editSaving) return;
+    setEditOpen(false);
+    setEditRow(null);
+  };
+  const saveEdit = async () => {
+    if (!editRow) return;
+
+    for (const k of Object.keys(editForm) as (keyof typeof editForm)[]) {
+      if (!String(editForm[k] ?? "").trim()) {
+        alert(`El campo "${String(k).toUpperCase()}" es obligatorio.`);
+        return;
+      }
+    }
+    if (!editSolicitanteId) {
+      alert("Debes seleccionar un solicitante.");
+      return;
+    }
+
+    try {
+      setEditSaving(true);
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`${API_URL}/equipos/${editRow.id_equipo}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({ ...editForm, idSolicitante: editSolicitanteId }),
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j: unknown = await res.json();
+          if (isApiErrorPayload(j)) msg = j.error ?? j.message ?? msg;
+        } catch {
+          // si el body no es JSON, mantenemos msg
+        }
+        throw new Error(msg);
+      }
+
+      await reload();
+      setEditOpen(false);
+      setEditRow(null);
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || "No se pudo actualizar el equipo");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+
+  /* ================== ELIMINAR ================== */
+  async function deleteEquipo(row: EquipoRow) {
+    if (!confirm(`¿Eliminar equipo #${row.id_equipo} (${row.serial})?`)) return;
+
+    const token = localStorage.getItem("accessToken");
+    try {
+      const res = await fetch(`${API_URL}/equipos/${row.id_equipo}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j: unknown = await res.json();
+          if (isApiErrorPayload(j)) msg = j.error ?? j.message ?? msg;
+        } catch {
+          // body no-JSON; conservamos msg
+        }
+        throw new Error(msg);
+      }
+
+      reload();
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || "No se pudo eliminar el equipo");
+    }
+  }
+
 
   /* =================== UI =================== */
   const headerCols = [
@@ -793,68 +930,191 @@ const EquiposPage: React.FC = () => {
     { key: "solicitante", label: "Solicitante", className: "min-w-[200px]" },
     { key: "empresa", label: "Empresa", className: "min-w-[200px]" },
   ] as const;
-  const lastHeaderIdx = headerCols.length - 1;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cyan-50/40 via-white to-white">
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
+      {/* Fondo */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
+        <div className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40" />
+        <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
+      </div>
+
       <Header />
 
-      <main className="p-4 sm:p-6 max-w-6xl mx-auto">
-        {/* Título + contador */}
-        <header className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900">
-              Equipos
-            </h1>
-            <p className="text-sm text-neutral-500">
-              Inventario, especificaciones y relación con solicitantes/empresas — RIDS
-            </p>
-          </div>
-          <div className="text-sm text-neutral-600">
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <LoadingOutlined /> Cargando…
-              </span>
-            ) : (
-              `${(data?.total ?? 0).toLocaleString()} resultado(s)`
-            )}
-          </div>
-        </header>
+      {/* Hero / Toolbar */}
+      <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
+          {/* Capa decorativa: no intercepta clics */}
+          <div className="absolute inset-0 opacity-60 pointer-events-none bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
+          <div className="relative p-4 sm:p-6 md:p-8">
+            {/* Título + contador */}
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                  Equipos{" "}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
+                    RIDS.CL
+                  </span>
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-600">
+                  Inventario, especificaciones y relación con solicitantes/empresas.
+                </p>
+              </div>
+              <div className="text-sm text-slate-600 md:shrink-0">
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoadingOutlined /> Cargando…
+                  </span>
+                ) : (
+                  `${(data?.total ?? 0).toLocaleString()} resultado(s)`
+                )}
+              </div>
+            </div>
 
-        {/* Filtros principales (incluye SELECT de empresas) */}
-        {/* Filtros principales (RESPONSIVO) */}
-        <section className="rounded-3xl border border-cyan-100 bg-white shadow-sm shadow-cyan-100/40 p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            {/* Buscar */}
-            <div className="lg:col-span-3 sm:col-span-2 min-w-0">
-              <label className="text-xs font-semibold text-neutral-600">Buscar</label>
-              <div className="relative">
-                <span className="absolute left-3 top-[10px] sm:top-[10px] text-neutral-500">
-                  <SearchOutlined />
-                </span>
+            {/* Toolbar / filtros */}
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-2 sm:gap-3">
+              {/* Buscar */}
+              <div className="relative md:col-span-4 min-w-0">
+                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
                 <input
                   value={q}
-                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setPage(1);
+                  }}
                   placeholder="serial, modelo, CPU…"
-                  className="mt-1 w-full rounded-2xl border pl-9 pr-10 py-2.5 outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400"
+                  aria-label="Buscar equipos"
                 />
                 {q.length > 0 && (
                   <button
                     onClick={() => setQ("")}
-                    className="absolute right-2 top-[10px] sm:top-[10px] text-neutral-400 hover:text-neutral-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
                     aria-label="Limpiar búsqueda"
                     title="Limpiar"
+                    type="button"
                   >
                     <CloseCircleFilled />
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Empresa (SELECT) */}
-            <div className="lg:col-span-2 sm:col-span-2 min-w-0">
-              <label className="text-xs font-semibold text-neutral-600">Empresa</label>
-              <div className="mt-1">
+              {/* Orden */}
+              <div className="md:col-span-4 grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-700 shrink-0">
+                    <SwapOutlined className="mr-1" /> Orden
+                  </span>
+                  <select
+                    value={sortKey}
+                    onChange={(e) => {
+                      setSortKey(e.target.value as typeof sortKey);
+                      setSortDir("asc");
+                      setPage(1);
+                    }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    aria-label="Ordenar por"
+                  >
+                    <option value="solicitante">Solicitante (A → Z)</option>
+                    <option value="empresa">Empresa (A → Z)</option>
+                    <option value="id_equipo">ID (asc)</option>
+                    <option value="serial">Serial (A → Z)</option>
+                    <option value="marca">Marca (A → Z)</option>
+                    <option value="modelo">Modelo (A → Z)</option>
+                    <option value="procesador">CPU (A → Z)</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-700 shrink-0">Dirección</span>
+                  <div className="flex w-full">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSortDir("asc");
+                        setPage(1);
+                      }}
+                      className={clsx(
+                        "w-1/2 inline-flex items-center justify-center gap-1 rounded-l-2xl border px-3 py-2 text-sm",
+                        "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50",
+                        sortDir === "asc" && "bg-cyan-600 text-white hover:bg-cyan-600"
+                      )}
+                      aria-pressed={sortDir === "asc"}
+                      title="Ascendente"
+                    >
+                      <UpOutlined /> Asc
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSortDir("desc");
+                        setPage(1);
+                      }}
+                      className={clsx(
+                        "w-1/2 inline-flex items-center justify-center gap-1 rounded-r-2xl border px-3 py-2 text-sm",
+                        "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50",
+                        sortDir === "desc" && "bg-cyan-600 text-white hover:bg-cyan-600"
+                      )}
+                      aria-pressed={sortDir === "desc"}
+                      title="Descendente"
+                    >
+                      <DownOutlined /> Desc
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones principales */}
+              <div className="md:col-span-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 justify-end">
+                  <button
+                    onClick={startCreate}
+                    className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white bg-gradient-to-tr from-indigo-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)] hover:brightness-110"
+                    title="Crear nuevo equipo"
+                    type="button"
+                  >
+                    <PlusOutlined />
+                    <span>Nuevo</span>
+                  </button>
+
+                  <button
+                    onClick={clearAll}
+                    className="col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50"
+                    title="Limpiar filtros"
+                    type="button"
+                  >
+                    Limpiar
+                  </button>
+
+                  <button
+                    onClick={reload}
+                    className="col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50"
+                    title="Recargar"
+                    type="button"
+                  >
+                    <ReloadOutlined />
+                    <span className="hidden sm:inline">Recargar</span>
+                  </button>
+
+                  <button
+                    onClick={exportToExcel}
+                    disabled={exporting || loading || (data?.total ?? 0) === 0}
+                    className={clsx(
+                      "col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
+                      "bg-gradient-to-tr from-emerald-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)] hover:brightness-110",
+                      (exporting || loading || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
+                    )}
+                    title="Exportar a Excel"
+                    type="button"
+                  >
+                    <DownloadOutlined />
+                    {exporting ? "Exportando…" : "Exportar"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Empresa */}
+              <div className="md:col-span-12 min-w-0 mt-1">
                 <select
                   value={empresaFilterId ?? ""}
                   onChange={(e) => {
@@ -862,305 +1122,367 @@ const EquiposPage: React.FC = () => {
                     setEmpresaFilterId(v ? Number(v) : null);
                     setPage(1);
                   }}
-                  className="w-full min-w-0 rounded-2xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/50"
+                  className="w-full min-w-0 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  aria-label="Filtrar por empresa"
                 >
-                  <option value="">
-                    {empLoading ? "Cargando empresas..." : "— Filtrar por empresa —"}
-                  </option>
+                  <option value="">{empLoading ? "Cargando empresas…" : "— Filtrar por empresa —"}</option>
                   {empresaOptions.map((opt) => (
                     <option key={opt.id ?? -1} value={opt.id ?? ""}>
                       {opt.nombre}
                     </option>
                   ))}
                 </select>
+                {empError && <div className="text-[11px] text-rose-600 mt-1">{empError}</div>}
               </div>
-              {empError && <div className="text-[11px] text-red-600 mt-1">{empError}</div>}
             </div>
 
+            {/* Chips filtros activos */}
+            <div className="mt-3 flex flex-wrap items-center gap-2 min-w-0">
+              {empresaFilterName && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Empresa:</span>
+                  <strong className="truncate">{empresaFilterName}</strong>
+                  <button
+                    onClick={() => {
+                      setEmpresaFilterId(null);
+                      setPage(1);
+                    }}
+                    className="hover:text-cyan-700 shrink-0"
+                    aria-label="Quitar filtro de empresa"
+                    title="Quitar filtro de empresa"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+              {marcaFilter && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Marca:</span>
+                  <strong className="truncate">{toUC(marcaFilter)}</strong>
+                  <button
+                    onClick={() => {
+                      setMarcaFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-700 shrink-0"
+                    aria-label="Quitar filtro de marca"
+                    title="Quitar filtro de marca"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+            </div>
 
-            {/* Acciones */}
-            <div className="lg:col-span-1 sm:col-span-2">
-              <div className="h-full flex sm:justify-end items-end">
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
+          </div>
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+        {/* Cards (mobile) */}
+        <section
+          className="md:hidden space-y-3 mt-4"
+          aria-live="polite"
+          aria-busy={loading ? "true" : "false"}
+        >
+          {loading && (
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={`sk-m-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4">
+                  <div className="h-4 w-24 bg-cyan-50 rounded mb-2 animate-pulse" />
+                  <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2 animate-pulse" />
+                  <div className="h-3 w-1/2 bg-cyan-50 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          )}
+          {!loading && error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
+          )}
+          {!loading && !error && sortedItems.length === 0 && (
+            <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">
+              Sin resultados.
+            </div>
+          )}
+          {!loading &&
+            !error &&
+            sortedItems.map((e) => (
+              <article key={`m-${e.id_equipo}`} className="rounded-2xl border border-cyan-200 bg-white p-4">
+                <header className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-slate-500">#{e.id_equipo}</div>
+                    <h3 className="text-base font-semibold text-slate-900">{e.modelo || "—"}</h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {toUC(e.serial)} • {e.procesador || "CPU —"} • {e.ram || "RAM —"} • {e.disco || "Disco —"}
+                    </p>
+                  </div>
+                  {e.marca ? (
+                    <button
+                      onClick={() => onClickBrand(e.marca!)}
+                      className={clsx(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border",
+                        brandTagClasses(e.marca)
+                      )}
+                      title="Filtrar por esta marca"
+                    >
+                      <TagOutlined className="opacity-80" /> {toUC(e.marca)}
+                    </button>
+                  ) : null}
+                </header>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {e.solicitante ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
+                      <LaptopOutlined className="opacity-80" /> {e.solicitante}
+                    </span>
+                  ) : null}
+                  {e.empresa ? (
+                    <span
+                      className={clsx(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border",
+                        companyTagClasses(e.empresa)
+                      )}
+                    >
+                      <TeamOutlined className="opacity-80" /> {e.empresa}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
                   <button
-                    onClick={clearAll}
-                    className="flex-1 sm:flex-none rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
-                    title="Limpiar filtros"
+                    type="button"
+                    onClick={() => startEdit(e)}
+                    className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
                   >
-                    Limpiar
+                    Editar
                   </button>
                   <button
-                    onClick={reload}
-                    className="rounded-2xl border border-cyan-300 text-cyan-800 px-3 py-2.5 text-sm hover:bg-cyan-50"
-                    title="Recargar"
+                    type="button"
+                    onClick={() => deleteEquipo(e)}
+                    className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs border-rose-200 bg-rose-50 text-rose-900 hover:bg-rose-100"
                   >
-                    <ReloadOutlined />
-                  </button>
-                  <button
-                    onClick={exportToExcel}
-                    disabled={exporting || loading}
-                    className={clsx(
-                      "rounded-2xl border px-3 py-2.5 text-sm inline-flex items-center gap-2",
-                      "border-emerald-300 text-emerald-800 hover:bg-emerald-50",
-                      (exporting || loading) && "opacity-60 cursor-not-allowed"
-                    )}
-                    title="Exportar a Excel (Todos, por Empresa y Resumen)"
-                  >
-                    <DownloadOutlined />
-                    {exporting ? "Exportando…" : "Exportar Excel"}
+                    Eliminar
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Chips de filtros activos */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {empresaFilterName && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs">
-                Empresa: <strong className="truncate max-w-[40vw]">{empresaFilterName}</strong>
-                <button
-                  onClick={() => { setEmpresaFilterId(null); setPage(1); }}
-                  className="hover:text-cyan-700"
-                  aria-label="Quitar filtro de empresa"
-                  title="Quitar filtro de empresa"
-                >
-                  <CloseCircleFilled />
-                </button>
-              </span>
-            )}
-            {marcaFilter && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs">
-                Marca: <strong>{toUC(marcaFilter)}</strong>
-                <button
-                  onClick={() => { setMarcaFilter(""); setPage(1); }}
-                  className="hover:text-indigo-700"
-                  aria-label="Quitar filtro de marca"
-                  title="Quitar filtro de marca"
-                >
-                  <CloseCircleFilled />
-                </button>
-              </span>
-            )}
-            {exportError && (
-              <span className="text-xs text-red-600">Error exportando: {exportError}</span>
-            )}
-          </div>
-
-          {/* Rango + page size */}
-          <div className="mt-3 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-            <div className="text-xs text-neutral-500">
-              {data && data.total > 0 ? (
-                <>Mostrando <b>{showingRange?.start}</b>–<b>{showingRange?.end}</b> de <b>{data.total}</b></>
-              ) : "—"}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-600">Por página</span>
-              <select
-                value={data?.pageSize ?? pageSize}
-                onChange={(ev) => onChangePageSize(Number(ev.target.value))}
-                className="rounded-xl border px-2 py-1"
-              >
-                {[10, 20, 30].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+              </article>
+            ))}
         </section>
 
-
-        {/* Tabla */}
+        {/* Tabla (desktop) */}
         <section
-          className="mt-4 rounded-3xl border border-cyan-100 shadow-sm shadow-cyan-100/40 bg-white overflow-hidden"
+          className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
           aria-live="polite"
           aria-busy={loading ? "true" : "false"}
         >
           <div className="overflow-x-auto">
-            <table className="min-w-full text-[13px] sm:text-sm">
-              {/* Encabezado con fondo y bordes reforzados */}
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-gradient-to-r from-cyan-50 to-white border-b-2 border-cyan-200">
-                  {headerCols.map((col, i) => (
-                    <th
-                      key={col.key}
-                      className={clsx(
-                        "text-left px-4 py-3 font-semibold text-cyan-900 select-none",
-                        "border-r border-cyan-100",
-                        i === 0 && "border-l-2 border-l-cyan-300 rounded-tl-xl",
-                        i === lastHeaderIdx && "rounded-tr-xl",
-                        col.className
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(col.key as SortKey)}
-                        className="inline-flex items-center gap-1 hover:opacity-80"
-                        title="Ordenar"
-                      >
-                        <span>{col.label}</span>
-                        <span>
-                          {sortKey === col.key ? sortIcon(sortDir) : sortIcon(undefined)}
-                        </span>
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {loading && <TableSkeletonRows cols={headerCols.length} rows={8} />}
-
-                {!loading && error && (
-                  <tr>
-                    <td colSpan={headerCols.length} className="px-4 py-10 text-center text-red-600">
-                      {error}
-                    </td>
-                  </tr>
-                )}
-
-                {!loading && !error && sortedItems.length === 0 && (
-                  <tr>
-                    <td colSpan={headerCols.length} className="px-4 py-12">
-                      <div className="flex flex-col items-center gap-3 text-neutral-600">
-                        <span>No encontramos resultados</span>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={clearAll}
-                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 text-cyan-800 px-3 py-2 text-sm hover:bg-cyan-50"
-                          >
-                            <CloseCircleFilled />
-                            Limpiar
-                          </button>
-                          <button
-                            onClick={reload}
-                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 text-cyan-800 px-3 py-2 text-sm hover:bg-cyan-50"
-                          >
-                            <ReloadOutlined />
-                            Recargar
-                          </button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {!loading &&
-                  !error &&
-                  sortedItems.map((e) => {
-                    const brand = e.marca || "";
-                    const isBrandActive =
-                      marcaFilter && marcaFilter.toLowerCase() === brand.toLowerCase();
-                    const theme = companyRowTheme(e.empresa);
-
-                    return (
-                      <tr
-                        key={e.id_equipo}
-                        className={clsx(
-                          "border-t border-neutral-100 transition-colors",
-                          theme.bg,
-                          "hover:bg-cyan-50/70"
-                        )}
-                      >
-                        {/* borde izquierdo por empresa */}
-                        <td
+            {(() => {
+              const colsWithActions = headerCols.length + 1;
+              return (
+                <table className="min-w-full text-[13px] sm:text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200">
+                      {headerCols.map((col, i) => (
+                        <th
+                          key={col.key}
                           className={clsx(
-                            "px-4 py-3 whitespace-nowrap border-l-4 rounded-l-xl",
-                            theme.borderLeft
+                            "text-left px-4 py-3 font-semibold text-slate-800 select-none",
+                            "border-r border-cyan-100",
+                            i === 0 && "border-l-2 border-l-cyan-300 rounded-tl-xl",
+                            col.className
                           )}
-                          title={e.empresa || undefined}
                         >
-                          {e.id_equipo}
-                        </td>
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col.key as SortKey)}
+                            className="inline-flex items-center gap-1 hover:opacity-80"
+                            title="Ordenar"
+                          >
+                            <span>{col.label}</span>
+                            <span>{sortKey === col.key ? sortIcon(sortDir) : sortIcon(undefined)}</span>
+                          </button>
+                        </th>
+                      ))}
+                      <th className="text-left px-4 py-3 font-semibold text-slate-800 select-none rounded-tr-xl w-[160px]">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
 
-                        <td className="px-4 py-3 font-mono tracking-wide">
-                          {toUC(e.serial)}
-                        </td>
+                  <tbody className="text-slate-800">
+                    {loading && (
+                      <>
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <tr key={`sk-${i}`} className="border-t border-neutral-100">
+                            {Array.from({ length: colsWithActions }).map((__, j) => (
+                              <td key={`sk-${i}-${j}`} className="px-4 py-3">
+                                <div className="h-4 w-full max-w-[240px] animate-pulse rounded bg-neutral-200/70" />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </>
+                    )}
 
-                        <td className="px-4 py-3">
-                          {e.marca ? (
-                            <button
-                              type="button"
-                              onClick={() => onClickBrand(brand)}
-                              className={clsx(
-                                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border transition",
-                                brandTagClasses(e.marca),
-                                "hover:brightness-95",
-                                isBrandActive && "ring-2 ring-offset-1 ring-indigo-300"
-                              )}
-                              title={
-                                isBrandActive
-                                  ? "Quitar filtro de esta marca"
-                                  : "Filtrar por esta marca"
-                              }
-                              aria-pressed={isBrandActive ? true : undefined}
-                            >
-                              <TagOutlined className="opacity-80" /> {toUC(e.marca)}
-                            </button>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {e.modelo || <span className="text-neutral-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {e.procesador || <span className="text-neutral-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {e.ram || <span className="text-neutral-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {e.disco || <span className="text-neutral-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {e.propiedad || <span className="text-neutral-400">—</span>}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {e.solicitante ? (
-                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
-                              <LaptopOutlined className="opacity-80" /> {e.solicitante}
-                            </span>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3 rounded-r-xl">
-                          {e.empresa ? (
-                            <span
-                              className={clsx(
-                                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border",
-                                companyTagClasses(e.empresa)
-                              )}
-                            >
-                              <TeamOutlined className="opacity-80" /> {e.empresa}
-                            </span>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
+                    {!loading && error && (
+                      <tr>
+                        <td colSpan={colsWithActions} className="px-4 py-10 text-center text-rose-700">
+                          {error}
                         </td>
                       </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+                    )}
+
+                    {!loading && !error && sortedItems.length === 0 && (
+                      <tr>
+                        <td colSpan={colsWithActions} className="px-4 py-12">
+                          <div className="flex flex-col items-center gap-3 text-slate-600">
+                            <span>No encontramos resultados</span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={clearAll}
+                                className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 text-cyan-800 px-3 py-2 text-sm hover:bg-cyan-50"
+                              >
+                                <CloseCircleFilled />
+                                Limpiar
+                              </button>
+                              <button
+                                onClick={reload}
+                                className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 text-cyan-800 px-3 py-2 text-sm hover:bg-cyan-50"
+                              >
+                                <ReloadOutlined />
+                                Recargar
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {!loading &&
+                      !error &&
+                      sortedItems.map((e) => {
+                        const brand = e.marca || "";
+                        const isBrandActive =
+                          marcaFilter && marcaFilter.toLowerCase() === brand.toLowerCase();
+                        const theme = companyRowTheme(e.empresa);
+                        return (
+                          <tr
+                            key={e.id_equipo}
+                            className={clsx(
+                              "border-t border-cyan-100 transition-colors",
+                              theme.bg,
+                              "hover:bg-cyan-50/70"
+                            )}
+                          >
+                            <td
+                              className={clsx(
+                                "px-4 py-3 whitespace-nowrap border-l-4 rounded-l-xl",
+                                theme.borderLeft
+                              )}
+                              title={e.empresa || undefined}
+                            >
+                              {e.id_equipo}
+                            </td>
+                            <td className="px-4 py-3 font-mono tracking-wide">{toUC(e.serial)}</td>
+                            <td className="px-4 py-3">
+                              {e.marca ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onClickBrand(brand)}
+                                  className={clsx(
+                                    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border transition",
+                                    brandTagClasses(e.marca),
+                                    "hover:brightness-95",
+                                    isBrandActive && "ring-2 ring-offset-1 ring-indigo-300"
+                                  )}
+                                  title={isBrandActive ? "Quitar filtro de esta marca" : "Filtrar por esta marca"}
+                                  aria-pressed={isBrandActive ? true : undefined}
+                                >
+                                  <TagOutlined className="opacity-80" /> {toUC(e.marca)}
+                                </button>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">{e.modelo || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">{e.procesador || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">{e.ram || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">{e.disco || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">{e.propiedad || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">
+                              {e.solicitante ? (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
+                                  <LaptopOutlined className="opacity-80" /> {e.solicitante}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {e.empresa ? (
+                                <span
+                                  className={clsx(
+                                    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border",
+                                    companyTagClasses(e.empresa)
+                                  )}
+                                >
+                                  <TeamOutlined className="opacity-80" /> {e.empresa}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 rounded-r-xl whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(e)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 px-2 py-1 text-xs hover:bg-indigo-100"
+                                  title="Editar"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteEquipo(e)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-900 px-2 py-1 text-xs hover:bg-rose-100"
+                                  title="Eliminar"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
 
-          {/* Paginación resultados */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-white border-t border-cyan-100">
-            <div className="text-sm text-neutral-700">
+          {exportError && (
+            <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-xs">
+              {exportError}
+            </div>
+          )}
+
+          {/* Paginación */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
+            <div className="text-sm text-slate-700 text-center sm:text-left">
               {data ? (
                 <span>
                   {showingRange ? (
                     <>
-                      Mostrando <strong>{showingRange.start}</strong>–<strong>{showingRange.end}</strong> de{" "}
-                      <strong>{data.total}</strong> •{" "}
+                      Mostrando <strong className="text-slate-900">{showingRange.start}</strong>–
+                      <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
+                      <strong className="text-slate-900">{data.total}</strong> •{" "}
                     </>
                   ) : null}
-                  Página <strong>{data.page}</strong> de <strong>{data.totalPages}</strong>
+                  Página <strong className="text-slate-900">{data.page}</strong> de{" "}
+                  <strong className="text-slate-900">{data.totalPages}</strong>
                 </span>
               ) : (
                 <span>—</span>
@@ -1173,24 +1495,41 @@ const EquiposPage: React.FC = () => {
                 disabled={!canPrev || loading}
                 className={clsx(
                   "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                  "border-cyan-300 text-cyan-800 hover:bg-cyan-50",
+                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
                   (!canPrev || loading) && "opacity-50 cursor-not-allowed hover:bg-transparent"
                 )}
                 aria-label="Página anterior"
+                type="button"
               >
                 <LeftOutlined />
                 <span className="hidden sm:inline">Anterior</span>
               </button>
+
+              <div className="hidden sm:flex items-center gap-2 ml-1">
+                <span className="text-sm text-slate-600">Por página</span>
+                <select
+                  value={data?.pageSize ?? pageSize}
+                  onChange={(ev) => onChangePageSize(Number(ev.target.value))}
+                  className="rounded-xl border border-cyan-200 bg-white px-2 py-1 text-sm"
+                >
+                  {[10, 20, 30].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <button
                 onClick={goNext}
                 disabled={!canNext || loading}
                 className={clsx(
                   "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                  "border-cyan-300 text-cyan-800 hover:bg-cyan-50",
+                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
                   (!canNext || loading) && "opacity-50 cursor-not-allowed hover:bg-transparent"
                 )}
                 aria-label="Página siguiente"
+                type="button"
               >
                 <span className="hidden sm:inline">Siguiente</span>
                 <RightOutlined />
@@ -1199,6 +1538,145 @@ const EquiposPage: React.FC = () => {
           </div>
         </section>
       </main>
+
+      {/* ===== Modal de creación (componente reutilizable) ===== */}
+      <CrearEquipoModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          reload();
+        }}
+      />
+
+      {/* ===== Modal de edición (inline) ===== */}
+      {editOpen && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40" onClick={cancelEdit} />
+          <div className="relative w-full max-w-2xl rounded-2xl border border-cyan-200 bg-white shadow-xl">
+            <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Editar equipo #{editRow?.id_equipo}</h3>
+              <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">
+                ✕
+              </button>
+            </div>
+
+            {/* Solicitante (remote search) */}
+            <div className="px-5 pt-4">
+              <label className="text-sm block">
+                <span className="block text-slate-700 mb-1">
+                  Solicitante <span className="text-rose-500">*</span>
+                </span>
+                <div className="flex gap-2">
+                  <input
+                    value={solSearchE}
+                    onChange={(e) => setSolSearchE(e.target.value)}
+                    placeholder="Buscar por nombre o empresa…"
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  />
+                  {solLoadE ? (
+                    <span className="inline-flex items-center px-2 text-slate-500"><LoadingOutlined /></span>
+                  ) : null}
+                </div>
+                <select
+                  value={editSolicitanteId ?? ""}
+                  onChange={(e) => setEditSolicitanteId(e.target.value ? Number(e.target.value) : null)}
+                  className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                >
+                  <option value="">{solLoadE ? "Cargando…" : "— Selecciona —"}</option>
+                  {solOptsE.map((s) => (
+                    <option key={s.id_solicitante} value={s.id_solicitante}>
+                      {s.nombre}{s.empresa?.nombre ? ` — ${s.empresa.nombre}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Campos de edición */}
+            <div
+              className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveEdit();
+                }
+              }}
+            >
+              {(() => {
+                type FieldKey = keyof typeof editForm; // "serial" | "marca" | ...
+
+                const FIELDS: Array<{ key: FieldKey; label: string; autoCap?: boolean }> = [
+                  { key: "serial", label: "Serial", autoCap: true },
+                  { key: "marca", label: "Marca", autoCap: true },
+                  { key: "modelo", label: "Modelo" },
+                  { key: "procesador", label: "CPU" },
+                  { key: "ram", label: "RAM" },
+                  { key: "disco", label: "Disco" },
+                  { key: "propiedad", label: "Propiedad" },
+                ];
+
+                return FIELDS.map((f) => (
+                  <label key={f.key} className="text-sm">
+                    <span className="block text-slate-700 mb-1">
+                      {f.label} <span className="text-rose-500">*</span>
+                    </span>
+                    <input
+                      required
+                      value={editForm[f.key]}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }))
+                      }
+                      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                        const v = e.target.value.trim();
+                        const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
+                        if (next !== editForm[f.key]) {
+                          setEditForm((prev) => ({ ...prev, [f.key]: next }));
+                        }
+                      }}
+                      placeholder={f.label}
+                      className={clsx(
+                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900",
+                        "border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      )}
+                    />
+                  </label>
+                ));
+              })()}
+
+              <div className="sm:col-span-2 text-[11px] text-slate-500 mt-1">
+                Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
+              </div>
+            </div>
+
+
+            <div className="px-5 py-4 border-t border-cyan-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end bg-slate-50">
+              <button
+                onClick={cancelEdit}
+                disabled={editSaving}
+                className={clsx(
+                  "inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm",
+                  "border-slate-200 text-slate-700 bg-white hover:bg-slate-100",
+                  editSaving && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                className={clsx(
+                  "inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-white",
+                  "bg-gradient-to-tr from-indigo-600 to-cyan-600 hover:brightness-110",
+                  editSaving && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {editSaving ? "Guardando…" : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
