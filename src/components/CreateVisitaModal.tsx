@@ -271,7 +271,7 @@ export default function CreateVisitaModal({
       solicitantesAbortRef.current = ctrl;
       setSolLoading(true); setSolError(null);
       try {
-        const url = new URL(`${API_URL}/solicitantes/mini`);
+        const url = new URL(`${API_URL}/solicitantes/by-empresa`);
         url.searchParams.set("empresaId", String(empresaId));
         if (solSearch.trim()) url.searchParams.set("q", solSearch.trim());
         const data = await apiGet<ApiListResp<{ id: number; nombre: string }>>(url.toString(), ctrl.signal);
