@@ -24,9 +24,6 @@ import {
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
 
-// ❌ Eliminamos la constante de estado, ya no se usa un filtro
-// const TICKET_COUNT_STATUS = 5; 
-
 /* =================== Helpers =================== */
 
 function formatNumber(n?: number | null) {
@@ -51,36 +48,33 @@ function getCurrentMonthRange() {
   return { from: toIsoDate(from), to: toIsoDate(to) };
 }
 
-/**
- * Helper genérico para hacer peticiones GET seguras a la API.
- */
+/** GET con bearer y no-cache */
 async function securedFetch<T>(urlPath: string, signal?: AbortSignal): Promise<T> {
-    const url = new URL(`${API_URL}${urlPath}`);
-    url.searchParams.set("_ts", String(Date.now())); // No-cache bypass
+  const url = new URL(`${API_URL}${urlPath}`);
+  url.searchParams.set("_ts", String(Date.now())); // No-cache bypass
 
-    const token = localStorage.getItem("accessToken");
-    
-    const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-    });
+  const token = localStorage.getItem("accessToken");
 
-    if (!res.ok) {
-        const errorText = await res.text().catch(() => `HTTP Error ${res.status}`);
-        throw new Error(errorText || `HTTP ${res.status}`);
-    }
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: "include",
+    cache: "no-store",
+    signal,
+  });
 
-    return res.json() as Promise<T>;
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => `HTTP Error ${res.status}`);
+    throw new Error(errorText || `HTTP ${res.status}`);
+  }
+
+  return res.json() as Promise<T>;
 }
-
 
 /* =================== Tipos =================== */
 type ApiList<T> = {
@@ -88,7 +82,7 @@ type ApiList<T> = {
   pageSize: number;
   total: number;
   totalPages: number;
-  items: T[]; 
+  items: T[];
 };
 
 type VisitaEmpresaBreakdown = {
@@ -115,10 +109,8 @@ type StatBase = {
   icon: React.ReactNode;
   change: React.ReactNode;
 };
-// Modificamos el tipo para incluir 'isLoading'
-type RefreshableStat = StatBase & { onRefresh: () => void; isLoading: boolean }; 
+type RefreshableStat = StatBase & { onRefresh: () => void; isLoading: boolean };
 type Stat = StatBase | RefreshableStat;
-
 function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
 }
@@ -156,7 +148,6 @@ type TooltipProps = {
 const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0].payload as VisitaMetricRow;
-
   const empresas = (row.empresas ?? [])
     .filter((e) => (e?.cantidad ?? 0) > 0)
     .sort((a, b) => b.cantidad - a.cantidad);
@@ -181,9 +172,7 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
               </li>
             ))}
             {empresas.length > 8 && (
-              <li className="text-[11px] text-neutral-500 mt-1">
-                +{empresas.length - 8} empresas más…
-              </li>
+              <li className="text-[11px] text-neutral-500 mt-1">+{empresas.length - 8} empresas más…</li>
             )}
           </ul>
         </div>
@@ -191,6 +180,63 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
         <div className="mt-2 text-xs text-neutral-500">Sin desglose por empresa.</div>
       )}
     </div>
+  );
+};
+
+/* ===== Hooks para breakpoint y truncado ===== */
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    if ("addEventListener" in mql) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange); // fallback
+    return () => {
+      if ("removeEventListener" in mql) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, [query]);
+
+  return matches;
+}
+
+function truncate(value: string, max: number) {
+  if (!value) return "";
+  return value.length <= max ? value : value.slice(0, Math.max(0, max - 1)) + "…";
+}
+
+/** Tick del XAxis que trunca por breakpoint (móvil/tablet/desktop) */
+const ResponsiveTick: React.FC<{
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  isMobile: boolean;
+  isTablet: boolean;
+}> = ({ x = 0, y = 0, payload, isMobile, isTablet }) => {
+  const full = payload?.value ?? "";
+  const max = isMobile ? 7 : isTablet ? 10 : 16; // ajusta a gusto
+  const text = truncate(full, max);
+
+  const fontSize = isMobile ? 10 : isTablet ? 11 : 12;
+  const dy = isMobile ? 10 : 12;
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        dy={dy}
+        textAnchor="middle"
+        fontSize={fontSize}
+        fill="#334155"
+        style={{ pointerEvents: "none" }}
+      >
+        {text}
+      </text>
+    </g>
   );
 };
 
@@ -214,22 +260,21 @@ const Home: React.FC = () => {
   const [loadingVis, setLoadingVis] = useState<boolean>(false);
   const [errorVis, setErrorVis] = useState<string | null>(null);
 
-  // 🔄 Estado renombrado a 'TotalTickets' para reflejar que no hay filtro
+  // tickets
   const [totalTickets, setTotalTickets] = useState<number | null>(null);
   const [loadingTic, setLoadingTic] = useState<boolean>(false);
   const [errorTic, setErrorTic] = useState<string | null>(null);
 
+  // breakpoints
+  const isMobile = useMediaQuery("(max-width: 640px)");
+  const isTablet = useMediaQuery("(min-width: 641px) and (max-width: 1024px)");
 
   /* ====== fetch total solicitantes ====== */
   const fetchTotalSolicitantes = async (signal?: AbortSignal) => {
     try {
       setLoadingSol(true);
       setErrorSol(null);
-
-      const data = await securedFetch<ApiList<unknown>>(
-        "/solicitantes?page=1&pageSize=1", 
-        signal
-      );
+      const data = await securedFetch<ApiList<unknown>>("/solicitantes?page=1&pageSize=1", signal);
       setTotalSolicitantes(data.total ?? 0);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -245,11 +290,7 @@ const Home: React.FC = () => {
     try {
       setLoadingEq(true);
       setErrorEq(null);
-
-      const data = await securedFetch<ApiList<unknown>>(
-        "/equipos?page=1&pageSize=1", 
-        signal
-      );
+      const data = await securedFetch<ApiList<unknown>>("/equipos?page=1&pageSize=1", signal);
       setTotalEquipos(data.total ?? 0);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -265,12 +306,7 @@ const Home: React.FC = () => {
     try {
       setLoadingVis(true);
       setErrorVis(null);
-
-      const data = await securedFetch<VisitasMetrics>(
-        `/visitas/metrics?from=${from}&to=${to}`, 
-        signal
-      );
-
+      const data = await securedFetch<VisitasMetrics>(`/visitas/metrics?from=${from}&to=${to}`, signal);
       const rows = (data.porTecnico ?? [])
         .map((r) => ({
           ...r,
@@ -279,7 +315,6 @@ const Home: React.FC = () => {
             .sort((a, b) => b.cantidad - a.cantidad),
         }))
         .sort((a, b) => b.cantidad - a.cantidad);
-
       setVisitasTotal(data.total ?? 0);
       setVisitasByTech(rows);
     } catch (err) {
@@ -292,19 +327,12 @@ const Home: React.FC = () => {
     }
   };
 
-  /* ====== fetch Total de Todos los Tickets (ACTUALIZADO) ====== */
+  /* ====== fetch total tickets ====== */
   const fetchTotalTickets = async (signal?: AbortSignal) => {
     try {
       setLoadingTic(true);
       setErrorTic(null);
-
-      // ✅ SE ELIMINA EL FILTRO DE ESTADO
-      const data = await securedFetch<ApiList<unknown>>(
-        `/tickets?page=1&pageSize=1`, 
-        signal
-      );
-      
-      // 🔄 Usamos el estado totalTickets
+      const data = await securedFetch<ApiList<unknown>>(`/tickets?page=1&pageSize=1`, signal);
       setTotalTickets(data.total ?? 0);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -319,23 +347,23 @@ const Home: React.FC = () => {
     const c1 = new AbortController();
     const c2 = new AbortController();
     const c3 = new AbortController();
-    const c4 = new AbortController(); 
+    const c4 = new AbortController();
 
     fetchTotalSolicitantes(c1.signal);
     fetchTotalEquipos(c2.signal);
     fetchVisitasMetrics(c3.signal);
-    fetchTotalTickets(c4.signal); // 🔄 Llamamos a la nueva función
-    
+    fetchTotalTickets(c4.signal);
+
     return () => {
       c1.abort();
       c2.abort();
       c3.abort();
-      c4.abort(); 
+      c4.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ===== estadísticas de las cards (con estados de carga actualizados) ===== */
+  /* ===== estadísticas (igual que ya tenías) ===== */
   const computedStats: Stat[] = useMemo(
     () => [
       {
@@ -397,26 +425,18 @@ const Home: React.FC = () => {
         onRefresh: () => fetchVisitasMetrics(),
         isLoading: loadingVis,
       },
-      // TARJETA DE TOTAL DE TICKETS (ACTUALIZADA)
       {
-        // 🔄 Nombre de la tarjeta actualizado
-        name: "Total de Incidencias", 
+        name: "Total de Incidencias",
         value: loadingTic ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
           </span>
         ) : (
-          // 🔄 Usamos el estado totalTickets
           formatNumber(totalTickets)
         ),
         icon: <SafetyCertificateOutlined className="text-cyan-600 text-xl" />,
-        change: errorTic ? (
-            <span className="text-red-600">Error: {errorTic}</span>
-        ) : (
-            // 🔄 Descripción de estado actualizada
-            <>Todos los tickets registrados</>
-        ),
-        onRefresh: () => fetchTotalTickets(), // 🔄 Llamamos a la nueva función
+        change: errorTic ? <span className="text-red-600">Error: {errorTic}</span> : <>Todos los tickets registrados</>,
+        onRefresh: () => fetchTotalTickets(),
         isLoading: loadingTic,
       },
     ],
@@ -424,7 +444,7 @@ const Home: React.FC = () => {
       loadingSol, totalSolicitantes, errorSol,
       loadingEq, totalEquipos, errorEq,
       loadingVis, visitasTotal, errorVis, from, to,
-      loadingTic, totalTickets, errorTic, // 🔄 Dependencia actualizada
+      loadingTic, totalTickets, errorTic,
     ]
   );
 
@@ -432,26 +452,22 @@ const Home: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
       <Header />
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-4 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <h1 className="text-3xl font-extrabold text-slate-800">
-            Dashboard de Estadísticas
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Resumen general de la actividad y soporte de RIDS.
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
+          <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
         </motion.div>
 
         {/* Cards */}
-        <div className="mt-6 grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           {computedStats.map((stat, idx) => (
             <motion.div
               key={stat.name}
-              className="bg-white rounded-xl shadow-md p-5 border border-slate-100 relative overflow-hidden"
+              className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-slate-100 relative overflow-hidden"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: idx * 0.1 }}
@@ -465,11 +481,8 @@ const Home: React.FC = () => {
                   {isRefreshableStat(stat) && (
                     <button
                       onClick={stat.onRefresh}
-                      // Implementación de UX mejorada: icono giratorio y deshabilitado
                       className={`ml-1 rounded-full p-1.5 transition text-cyan-700 hover:bg-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        stat.isLoading
-                          ? "animate-spin"
-                          : ""
+                        stat.isLoading ? "animate-spin" : ""
                       }`}
                       title="Actualizar"
                       disabled={stat.isLoading}
@@ -479,9 +492,7 @@ const Home: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div className="mt-3 text-3xl font-bold text-slate-800">
-                {stat.value}
-              </div>
+              <div className="mt-3 text-2xl sm:text-3xl font-bold text-slate-800">{stat.value}</div>
               <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
             </motion.div>
           ))}
@@ -489,15 +500,13 @@ const Home: React.FC = () => {
 
         {/* Gráfico */}
         <motion.div
-          className="mt-10 bg-white rounded-xl shadow-md p-6 border border-slate-100"
+          className="mt-8 sm:mt-10 bg-white rounded-xl shadow-md p-4 sm:p-6 border border-slate-100"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-slate-800">
-              Visitas del mes por técnico
-            </h2>
+          <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">Visitas del mes por técnico</h2>
             <button
               onClick={() => fetchVisitasMetrics()}
               className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -510,7 +519,7 @@ const Home: React.FC = () => {
             </button>
           </div>
 
-          <div className="h-72">
+          <div className="h-64 sm:h-72">
             {loadingVis ? (
               <div className="h-full flex items-center justify-center text-neutral-500">
                 <LoadingOutlined /> &nbsp; Cargando…
@@ -521,23 +530,43 @@ const Home: React.FC = () => {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={visitasByTech}>
+                <BarChart
+                  data={visitasByTech}
+                  margin={{
+                    top: 8,
+                    right: 8,
+                    left: 8,
+                    bottom: isMobile ? 24 : 12, // más espacio para ticks en móvil
+                  }}
+                  barCategoryGap={isMobile ? "20%" : "10%"}
+                >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="tecnico" tick={{ fontSize: 12 }} interval={0} height={50} />
+                  <XAxis
+                    dataKey="tecnico"
+                    height={isMobile ? 54 : 46}
+                    interval={isMobile ? "preserveStartEnd" : 0}
+                    minTickGap={isMobile ? 4 : 8}
+                    tickMargin={isMobile ? 6 : 10}
+                    tick={(props) => (
+                      <ResponsiveTick
+                        {...props}
+                        isMobile={isMobile}
+                        isTablet={isTablet}
+                      />
+                    )}
+                  />
                   <YAxis allowDecimals={false} />
                   <Tooltip content={(props) => <CustomTooltip {...props} />} />
                   <Bar dataKey="cantidad">
                     {visitasByTech.map((row) => (
-                      <Cell
-                        key={row.tecnicoId}
-                        fill={colorForTech(row.tecnicoId, row.tecnico)}
-                      />
+                      <Cell key={row.tecnicoId} fill={colorForTech(row.tecnicoId, row.tecnico)} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
+
           <div className="mt-2 text-xs text-neutral-500">
             Rango: <span className="font-medium">{from}</span> a{" "}
             <span className="font-medium">{to}</span>

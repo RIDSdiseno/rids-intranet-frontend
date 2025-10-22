@@ -1,10 +1,16 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+// src/main.tsx  (o src/index.tsx si así se llama en tu proyecto)
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./index.css";
+import App from "./App.tsx";
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+import { MsalProvider } from "@azure/msal-react";
+import { pca } from "./auth/msal"; // <-- crea src/auth/msal.ts como te indiqué
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <MsalProvider instance={pca}>
+      <App />
+    </MsalProvider>
+  </React.StrictMode>
+);

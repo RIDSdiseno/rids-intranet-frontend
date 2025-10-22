@@ -10,7 +10,8 @@ type SolicitanteMini = { id: number; nombre: string };
 
 type EstadoVisita = "PENDIENTE" | "COMPLETADA" | "CANCELADA";
 
-export type CreateVisitaPayload = {
+// Payloads: modo UNO (compat) y modo LOTE
+export type CreateVisitaPayloadSingle = {
   empresaId: number;
   tecnicoId: number;
   solicitante: string;
@@ -31,6 +32,15 @@ export type CreateVisitaPayload = {
   licenciaWindows: boolean;
   mantenimientoReloj: boolean;
   rendimientoEquipo: boolean;
+};
+
+// Nuevo: para lote
+export type CreateVisitaPayloadBatch = Omit<
+  CreateVisitaPayloadSingle,
+  "solicitante" | "solicitanteId"
+> & {
+  solicitantesIds?: number[];
+  solicitantesNombres?: string[];
 };
 
 export type VisitaForEdit = {
@@ -82,9 +92,7 @@ async function apiPost<TResp>(url: string, body: unknown): Promise<TResp> {
     try {
       const j = (await res.json()) as Partial<ApiError>;
       if (j?.error) msg = j.error;
-    } catch {
-      //
-    }
+    } catch { /* no-op */ }
     throw new Error(msg);
   }
   try { return (await res.json()) as TResp; } catch { return undefined as unknown as TResp; }
@@ -104,9 +112,7 @@ async function apiPatch<TResp>(url: string, body: unknown): Promise<TResp> {
     try {
       const j = (await res.json()) as Partial<ApiError>;
       if (j?.error) msg = j.error;
-    } catch {
-      //
-    }
+    } catch { /* no-op */ }
     throw new Error(msg);
   }
   try { return (await res.json()) as TResp; } catch { return undefined as unknown as TResp; }
@@ -126,9 +132,7 @@ async function apiGet<TResp>(url: string, signal?: AbortSignal): Promise<TResp> 
     try {
       const j = (await res.json()) as Partial<ApiError>;
       if (j?.error) msg = j.error;
-    } catch {
-      //
-    }
+    } catch { /* no-op */ }
     throw new Error(msg);
   }
   return (await res.json()) as TResp;
@@ -159,7 +163,11 @@ export default function CreateVisitaModal({
   const [empresaId, setEmpresaId] = useState<number | "">("");
   const [tecnicoId, setTecnicoId] = useState<number | "">("");
 
-  // selección real
+  // === Selección múltiples solicitantes (create) ===
+  const [selectedSolicitantes, setSelectedSolicitantes] = useState<Array<{ id?: number; nombre: string }>>([]);
+  const [manualNombre, setManualNombre] = useState("");
+
+  // === Modo edición: mantiene campos originales (uno) ===
   const [solicitanteId, setSolicitanteId] = useState<number | "">("");
   const [solicitante, setSolicitante] = useState("");
 
@@ -224,15 +232,22 @@ export default function CreateVisitaModal({
       setLicenciaWindows(visita.licenciaWindows);
       setMantenimientoReloj(visita.mantenimientoReloj);
       setRendimientoEquipo(visita.rendimientoEquipo);
+
+      // limpiar estados de lote
+      setSelectedSolicitantes([]);
+      setManualNombre("");
+
       setSolSearch("");
       setSolError(null);
       setSolLoading(false);
       setTimeout(() => searchRef.current?.focus(), 10);
     } else {
-      // modo create
+      // create
       setSubmitting(false); setError(null);
       setEmpresaId(""); setTecnicoId("");
       setSolicitanteId(""); setSolicitante("");
+      setSelectedSolicitantes([]);
+      setManualNombre("");
       setInicio(nowLocal); setFin(""); setStatus("PENDIENTE");
       setConfImpresoras(false); setConfTelefonos(false); setConfPiePagina(false);
       setOtros(false); setOtrosDetalle("");
@@ -244,17 +259,19 @@ export default function CreateVisitaModal({
     }
   }, [open, nowLocal, mode, visita]);
 
-  /** Limpia selección SOLO cuando cambia empresa (antes se limpiaba también al tipear) */
+  /** Limpiar selección cuando cambia empresa (solo create) */
   useEffect(() => {
     if (mode === "create") {
       setSolicitanteId("");
       setSolicitante("");
+      setSelectedSolicitantes([]);
+      setManualNombre("");
       setSolSearch("");
       setSolicitantes([]);
     }
   }, [empresaId, mode]);
 
-  /** Trae solicitantes (empresa + q) con cancelación + debounce */
+  /** Traer solicitantes (empresa + q) con cancelación + debounce */
   useEffect(() => {
     const empresaElegida = typeof empresaId === "number" && empresaId > 0;
 
@@ -278,7 +295,7 @@ export default function CreateVisitaModal({
         const list = data.items ?? [];
         setSolicitantes(list);
 
-        // Si estamos en edición y teníamos un solicitanteId, reaseguramos el nombre
+        // En edición, refresca nombre si aplica
         if (mode === "edit" && visita && typeof solicitanteId === "number" && solicitanteId > 0) {
           const found = list.find(s => s.id === solicitanteId);
           if (found) setSolicitante(found.nombre);
@@ -304,7 +321,33 @@ export default function CreateVisitaModal({
     if (el) el.scrollTop = 0;
   }, [solicitantes.length]);
 
-  function handleSelectSolicitante(e: React.ChangeEvent<HTMLSelectElement>) {
+  // === Helpers selección múltiple (create) ===
+  function addSolicitanteById(idStr: string) {
+    if (!idStr) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    const found = solicitantes.find(s => s.id === id);
+    if (!found) return;
+    const exists = selectedSolicitantes.some(s => s.id === id);
+    if (exists) return;
+    setSelectedSolicitantes(prev => [...prev, { id, nombre: found.nombre }]);
+  }
+
+  function removeSolicitante(idx: number) {
+    setSelectedSolicitantes(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function addManualNombre() {
+    const n = manualNombre.trim();
+    if (!n) return;
+    const exists = selectedSolicitantes.some(s => !s.id && s.nombre.toLowerCase() === n.toLowerCase());
+    if (exists) return;
+    setSelectedSolicitantes(prev => [...prev, { nombre: n }]);
+    setManualNombre("");
+  }
+
+  // Para edición (uno)
+  function handleSelectSolicitanteSingle(e: React.ChangeEvent<HTMLSelectElement>) {
     const val = e.target.value;
     if (!val) { setSolicitanteId(""); setSolicitante(""); return; }
     const idNum = Number(val);
@@ -321,18 +364,19 @@ export default function CreateVisitaModal({
     !!tecnicoId &&
     !!inicio &&
     (status === "PENDIENTE" || status === "COMPLETADA" || status === "CANCELADA") &&
-    typeof solicitanteId === "number" && solicitanteId > 0 &&
-    solicitante.trim().length > 0;
+    (
+      (mode === "edit" && typeof solicitanteId === "number" && solicitanteId > 0 && solicitante.trim().length > 0)
+      ||
+      (mode === "create" && selectedSolicitantes.length > 0)
+    );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
 
-    const payload: CreateVisitaPayload = {
+    const base = {
       empresaId: Number(empresaId),
       tecnicoId: Number(tecnicoId),
-      solicitante: solicitante.trim(),               // ← nombre visible
-      solicitanteId: typeof solicitanteId === "number" ? solicitanteId : null, // ← id real
       inicio: isoLocalFromDateTimeLocal(inicio),
       fin: fin ? isoLocalFromDateTimeLocal(fin) : null,
       status,
@@ -344,10 +388,27 @@ export default function CreateVisitaModal({
 
     try {
       setSubmitting(true); setError(null);
+
       if (mode === "edit" && visita) {
+        // Modo UNO para edit
+        const payload: CreateVisitaPayloadSingle = {
+          ...base,
+          solicitante: solicitante.trim(),
+          solicitanteId: typeof solicitanteId === "number" ? solicitanteId : null,
+        };
         await apiPatch<unknown>(`${API_URL}/visitas/${visita.id_visita}`, payload);
         onUpdated?.();
       } else {
+        // Modo LOTE para create
+        const ids = selectedSolicitantes.filter(s => typeof s.id === "number").map(s => s.id!) as number[];
+        const names = selectedSolicitantes.filter(s => !s.id).map(s => s.nombre.trim()).filter(Boolean);
+
+        const payload: CreateVisitaPayloadBatch = {
+          ...base,
+          ...(ids.length ? { solicitantesIds: ids } : {}),
+          ...(names.length ? { solicitantesNombres: names } : {}),
+        };
+
         await apiPost<unknown>(`${API_URL}/visitas`, payload);
         onCreated();
       }
@@ -370,11 +431,11 @@ export default function CreateVisitaModal({
               {mode === "edit" ? "Editar visita" : "Nueva visita"}
             </h2>
             <p className="text-xs text-neutral-500">
-              {mode === "edit" ? "Modifica los datos y guarda para actualizar el registro." : "Completa los datos y guarda para crear el registro."}
+              {mode === "edit" ? "Modifica los datos y guarda para actualizar el registro." : "Completa los datos y guarda para crear el registro (puedes agregar varios solicitantes)."}
             </p>
           </header>
 
-          <div className="p-6 space-y-6 max-h:[75vh] md:max-h-[75vh] overflow-auto">
+          <div className="p-6 space-y-6 md:max-h-[75vh] overflow-auto">
             {error && (
               <div className="rounded-xl border border-rose-200 bg-rose-50/80 text-rose-800 px-3 py-2 text-sm animate-in fade-in duration-150">
                 {error}
@@ -408,60 +469,161 @@ export default function CreateVisitaModal({
               </Field>
             </div>
 
-            {/* Buscar + Select */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field className="md:col-span-2" label="Buscar solicitante">
-                <div className="relative mt-1">
-                  <input
-                    ref={searchRef}
-                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2.5 pr-10 text-sm placeholder-neutral-400
-                               focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition"
-                    placeholder={empresaElegida ? "Escribe para filtrar…" : "Seleccione primero una empresa"}
-                    value={solSearch}
-                    onChange={(e) => setSolSearch(e.target.value)}
-                    disabled={!empresaElegida}          // <-- ya NO se deshabilita por solLoading
-                  />
-                  {solLoading && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Spinner className="w-4 h-4 text-emerald-600" />
-                    </span>
+            {/* Buscar + Select / Selección */}
+            {mode === "edit" ? (
+              // === UI de selección SINGLE (edición existente) ===
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Field className="md:col-span-2" label="Buscar solicitante">
+                  <div className="relative mt-1">
+                    <input
+                      ref={searchRef}
+                      className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2.5 pr-10 text-sm placeholder-neutral-400
+                                 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition"
+                      placeholder={empresaElegida ? "Escribe para filtrar…" : "Seleccione primero una empresa"}
+                      value={solSearch}
+                      onChange={(e) => setSolSearch(e.target.value)}
+                      disabled={!empresaElegida}
+                    />
+                    {solLoading && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Spinner className="w-4 h-4 text-emerald-600" />
+                      </span>
+                    )}
+                  </div>
+                </Field>
+
+                <Field label="Solicitante">
+                  <select
+                    ref={selectRef}
+                    className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm
+                               focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition hover:bg-neutral-50"
+                    value={solicitanteId === "" ? "" : String(solicitanteId)}
+                    onChange={handleSelectSolicitanteSingle}
+                    disabled={!empresaElegida}
+                    required={empresaElegida}
+                    size={listOpenSize}
+                  >
+                    {!empresaElegida ? (
+                      <option value="">Seleccione empresa</option>
+                    ) : solicitantes.length === 0 ? (
+                      <option value="" disabled>{solLoading ? "Cargando…" : "Sin coincidencias"}</option>
+                    ) : (
+                      <>
+                        <option value="">— Seleccione —</option>
+                        {solicitantes.map(s => (
+                          <option key={s.id} value={String(s.id)}>{s.nombre}</option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {typeof solicitanteId === "number" && solicitante && (
+                    <p className="mt-1 text-[11px] text-emerald-700">
+                      Seleccionado: <strong>{solicitante}</strong>
+                    </p>
+                  )}
+                  {solError && <p className="mt-1 text-[11px] text-rose-600">{solError}</p>}
+                </Field>
+              </div>
+            ) : (
+              // === UI de selección MÚLTIPLE (create) ===
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field className="md:col-span-2" label="Buscar solicitantes">
+                    <div className="relative mt-1">
+                      <input
+                        ref={searchRef}
+                        className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2.5 pr-10 text-sm placeholder-neutral-400
+                                   focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition"
+                        placeholder={empresaElegida ? "Escribe para filtrar…" : "Seleccione primero una empresa"}
+                        value={solSearch}
+                        onChange={(e) => setSolSearch(e.target.value)}
+                        disabled={!empresaElegida}
+                      />
+                      {solLoading && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <Spinner className="w-4 h-4 text-emerald-600" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] text-neutral-500">Selecciona del listado de la derecha y se agregará a la lista.</p>
+                  </Field>
+
+                  <Field label="Resultados">
+                    <select
+                      ref={selectRef}
+                      className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition hover:bg-neutral-50"
+                      onChange={(e) => { addSolicitanteById(e.target.value); e.currentTarget.selectedIndex = 0; }}
+                      disabled={!empresaElegida}
+                      size={listOpenSize}
+                    >
+                      {!empresaElegida ? (
+                        <option value="">Seleccione empresa</option>
+                      ) : solicitantes.length === 0 ? (
+                        <option value="" disabled>{solLoading ? "Cargando…" : "Sin coincidencias"}</option>
+                      ) : (
+                        <>
+                          <option value="">— Agregar —</option>
+                          {solicitantes.map(s => (
+                            <option key={s.id} value={String(s.id)}>{s.nombre}</option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                    {solError && <p className="mt-1 text-[11px] text-rose-600">{solError}</p>}
+                  </Field>
+                </div>
+
+                {/* Agregar manual por nombre */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field className="md:col-span-2" label="Agregar por nombre (si no existe)">
+                    <input
+                      className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2.5 text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition"
+                      placeholder="Ej: Invitado RIDS"
+                      value={manualNombre}
+                      onChange={(e) => setManualNombre(e.target.value)}
+                      disabled={!empresaElegida}
+                    />
+                  </Field>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={addManualNombre}
+                      disabled={!empresaElegida || manualNombre.trim().length === 0}
+                      className="w-full rounded-2xl px-4 py-2 text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:bg-emerald-200"
+                    >
+                      Agregar nombre
+                    </button>
+                  </div>
+                </div>
+
+                {/* Seleccionados */}
+                <div>
+                  <div className="mb-1 text-sm font-medium text-neutral-700">Seleccionados</div>
+                  {selectedSolicitantes.length === 0 ? (
+                    <div className="text-[13px] text-neutral-500">No hay solicitantes agregados.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSolicitantes.map((s, idx) => (
+                        <button
+                          key={`${s.id ?? "name"}:${s.nombre}:${idx}`}
+                          type="button"
+                          onClick={() => removeSolicitante(idx)}
+                          className="group inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800 hover:bg-emerald-100"
+                          title="Quitar"
+                        >
+                          <span className="font-medium">{s.nombre}</span>
+                          <span className="rounded-full bg-emerald-200 px-1.5 text-[11px] group-hover:bg-emerald-300">
+                            ×
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <p className="mt-1 text-[11px] text-neutral-500">Escribe y selecciona desde el listado a la derecha.</p>
-              </Field>
-
-              <Field label="Solicitante">
-                <select
-                  ref={selectRef}
-                  className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition hover:bg-neutral-50"
-                  value={solicitanteId === "" ? "" : String(solicitanteId)}   // <-- string
-                  onChange={handleSelectSolicitante}
-                  disabled={!empresaElegida}
-                  required={empresaElegida}
-                  size={listOpenSize}
-                >
-                  {!empresaElegida ? (
-                    <option value="">Seleccione empresa</option>
-                  ) : solicitantes.length === 0 ? (
-                    <option value="" disabled>{solLoading ? "Cargando…" : "Sin coincidencias"}</option>
-                  ) : (
-                    <>
-                      <option value="">— Seleccione —</option>
-                      {solicitantes.map(s => (
-                        <option key={s.id} value={String(s.id)}>{s.nombre}</option>  
-                      ))}
-                    </>
-                  )}
-                </select>
-                {typeof solicitanteId === "number" && solicitante && (
-                  <p className="mt-1 text-[11px] text-emerald-700">
-                    Seleccionado: <strong>{solicitante}</strong>
-                  </p>
-                )}
-                {solError && <p className="mt-1 text-[11px] text-rose-600">{solError}</p>}
-              </Field>
-            </div>
+              </div>
+            )}
 
             {/* Fechas y estado */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -545,7 +707,7 @@ export default function CreateVisitaModal({
               }`}
             >
               {submitting && <Spinner className="w-4 h-4 text-white" />}
-              {submitting ? "Guardando…" : mode === "edit" ? "Actualizar visita" : "Crear visita"}
+              {submitting ? "Guardando…" : mode === "edit" ? "Actualizar visita" : "Crear visita(s)"}
             </button>
           </footer>
         </form>

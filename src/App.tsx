@@ -6,15 +6,13 @@ import LoginRids from "./host/login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
-// 👇 usa los archivos de PÁGINA (no modales)
-const VisitasPage = lazy(() => import("./host/VisitasPage"));
-const EquiposPage = lazy(() => import("./host/EquiposPage"));
-// 👇 NUEVO: Tickets
-const TicketsPage = lazy(() => import("./host/Ticket")); // ajusta a la ruta real si difiere
-
-const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
-
-const ReportesPage = lazy(() => import("./host/Reportes"));
+// Páginas lazy
+const VisitasPage    = lazy(() => import("./host/VisitasPage"));
+const EquiposPage    = lazy(() => import("./host/EquiposPage"));
+const TicketsPage    = lazy(() => import("./host/Ticket"));
+const EmpresasPage   = lazy(() => import("./host/EmpresasPage"));
+const ReportesPage   = lazy(() => import("./host/Reportes"));
+const DocumentosPage = lazy(() => import("./host/DocumentosPage")); // 👈 NUEVO
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
@@ -66,7 +64,6 @@ const App: React.FC = () => {
             }
           />
 
-          {/* 👉 NUEVO: ruta Tickets */}
           <Route
             path="/tickets"
             element={
@@ -84,11 +81,22 @@ const App: React.FC = () => {
               </PrivateRoute>
             }
           />
+
           <Route
             path="/reportes"
             element={
               <PrivateRoute>
                 <ReportesPage />
+              </PrivateRoute>
+            }
+          />
+
+          {/* 👇 NUEVO: Documentos */}
+          <Route
+            path="/documentos"
+            element={
+              <PrivateRoute>
+                <DocumentosPage />
               </PrivateRoute>
             }
           />
