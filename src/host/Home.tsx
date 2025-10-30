@@ -19,20 +19,47 @@ import {
   Bar,
   Cell,
 } from "recharts";
+import axios, { AxiosError } from "axios";
 
 /* =================== Config =================== */
-const API_URL =
-  (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
+const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+
+/* =================== Axios client =================== */
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+  },
+});
+
+// Interceptor para inyectar Bearer cuando exista
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  // anti-cache param
+  config.params = { ...(config.params || {}), _ts: Date.now() };
+  return config;
+});
+
+const toErrorMessage = (e: unknown, fallback = "Error desconocido") => {
+  const ax = e as AxiosError<{ error?: string } | string>;
+  if (ax?.response?.data) {
+    if (typeof ax.response.data === "string") return ax.response.data || fallback;
+    if (typeof ax.response.data === "object") return ax.response.data.error || fallback;
+  }
+  return ax?.message || fallback;
+};
 
 /* =================== Helpers =================== */
-
+const NF_CL = new Intl.NumberFormat("es-CL");
 function formatNumber(n?: number | null) {
-  if (typeof n !== "number") return "—";
-  try {
-    return n.toLocaleString("es-CL");
-  } catch {
-    return String(n);
-  }
+  return typeof n === "number" ? NF_CL.format(n) : "—";
 }
 
 function getCurrentMonthRange() {
@@ -48,42 +75,8 @@ function getCurrentMonthRange() {
   return { from: toIsoDate(from), to: toIsoDate(to) };
 }
 
-/** GET con bearer y no-cache */
-async function securedFetch<T>(urlPath: string, signal?: AbortSignal): Promise<T> {
-  const url = new URL(`${API_URL}${urlPath}`);
-  url.searchParams.set("_ts", String(Date.now())); // No-cache bypass
-
-  const token = localStorage.getItem("accessToken");
-
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-    cache: "no-store",
-    signal,
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => `HTTP Error ${res.status}`);
-    throw new Error(errorText || `HTTP ${res.status}`);
-  }
-
-  return res.json() as Promise<T>;
-}
-
 /* =================== Tipos =================== */
-type ApiList<T> = {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  items: T[];
-};
+type PagedTotal = { total: number };
 
 type VisitaEmpresaBreakdown = {
   empresaId: number;
@@ -117,16 +110,8 @@ function isRefreshableStat(s: Stat): s is RefreshableStat {
 
 /* ===== Colores determinísticos por técnico ===== */
 const PALETTE = [
-  "#06b6d4", // cyan-500
-  "#0ea5e9", // sky-500
-  "#22c55e", // green-500
-  "#f59e0b", // amber-500
-  "#ef4444", // red-500
-  "#a855f7", // purple-500
-  "#14b8a6", // teal-500
-  "#f97316", // orange-500
-  "#3b82f6", // blue-500
-  "#84cc16", // lime-500
+  "#06b6d4", "#0ea5e9", "#22c55e", "#f59e0b", "#ef4444",
+  "#a855f7", "#14b8a6", "#f97316", "#3b82f6", "#84cc16",
 ];
 function hashToIndex(idOrText: number | string) {
   const s = String(idOrText);
@@ -138,14 +123,13 @@ function colorForTech(id: number, name: string) {
   return PALETTE[hashToIndex(`${id}-${name}`)];
 }
 
-/* ===== Tooltip personalizado (con desglose por empresa) ===== */
+/* ===== Tooltip personalizado ===== */
 type TooltipProps = {
   active?: boolean;
   label?: string | number;
   payload?: Array<{ value: number; payload: VisitaMetricRow }>;
 };
-
-const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
+const CustomTooltip: React.FC<TooltipProps> = React.memo(({ active, label, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0].payload as VisitaMetricRow;
   const empresas = (row.empresas ?? [])
@@ -157,10 +141,7 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
       <div className="text-sm font-semibold text-cyan-900">
         Técnico: <span className="font-bold">{label}</span>
       </div>
-      <div className="text-sm text-neutral-700">
-        Total visitas: <b>{row.cantidad}</b>
-      </div>
-
+      <div className="text-sm text-neutral-700">Total visitas: <b>{row.cantidad}</b></div>
       {empresas.length > 0 ? (
         <div className="mt-2 text-xs">
           <div className="mb-1 font-medium text-neutral-600">Por empresa</div>
@@ -181,7 +162,8 @@ const CustomTooltip: React.FC<TooltipProps> = ({ active, label, payload }) => {
       )}
     </div>
   );
-};
+});
+CustomTooltip.displayName = "CustomTooltip";
 
 /* ===== Hooks para breakpoint y truncado ===== */
 function useMediaQuery(query: string) {
@@ -192,25 +174,37 @@ function useMediaQuery(query: string) {
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
+
     const mql = window.matchMedia(query);
     const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
-    if ("addEventListener" in mql) mql.addEventListener("change", onChange);
-    else mql.addListener(onChange); // fallback
+
+    // Suscribir
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", onChange as EventListener);
+    } else if (typeof mql.addListener === "function") {
+      mql.addListener(onChange);
+    }
+
+    // Cleanup
     return () => {
-      if ("removeEventListener" in mql) mql.removeEventListener("change", onChange);
-      else mql.removeListener(onChange);
+      if (typeof mql.removeEventListener === "function") {
+        mql.removeEventListener("change", onChange as EventListener);
+      } else if (typeof mql.removeListener === "function") {
+        mql.removeListener(onChange);
+      }
     };
   }, [query]);
 
   return matches;
 }
 
+
 function truncate(value: string, max: number) {
   if (!value) return "";
   return value.length <= max ? value : value.slice(0, Math.max(0, max - 1)) + "…";
 }
 
-/** Tick del XAxis que trunca por breakpoint (móvil/tablet/desktop) */
+/** Tick del XAxis que trunca por breakpoint */
 const ResponsiveTick: React.FC<{
   x?: number;
   y?: number;
@@ -219,21 +213,13 @@ const ResponsiveTick: React.FC<{
   isTablet: boolean;
 }> = ({ x = 0, y = 0, payload, isMobile, isTablet }) => {
   const full = payload?.value ?? "";
-  const max = isMobile ? 7 : isTablet ? 10 : 16; // ajusta a gusto
+  const max = isMobile ? 7 : isTablet ? 10 : 16;
   const text = truncate(full, max);
-
   const fontSize = isMobile ? 10 : isTablet ? 11 : 12;
   const dy = isMobile ? 10 : 12;
-
   return (
     <g transform={`translate(${x},${y})`}>
-      <text
-        dy={dy}
-        textAnchor="middle"
-        fontSize={fontSize}
-        fill="#334155"
-        style={{ pointerEvents: "none" }}
-      >
+      <text dy={dy} textAnchor="middle" fontSize={fontSize} fill="#334155" style={{ pointerEvents: "none" }}>
         {text}
       </text>
     </g>
@@ -269,44 +255,49 @@ const Home: React.FC = () => {
   const isMobile = useMediaQuery("(max-width: 640px)");
   const isTablet = useMediaQuery("(min-width: 641px) and (max-width: 1024px)");
 
-  /* ====== fetch total solicitantes ====== */
-  const fetchTotalSolicitantes = async (signal?: AbortSignal) => {
+  /* ===== helper: fetch sólo total con axios ===== */
+  const fetchTotal = async (
+    path: "/solicitantes" | "/equipos" | "/tickets",
+    setter: (n: number | null) => void,
+    setLoading: (b: boolean) => void,
+    setError: (s: string | null) => void,
+    signal?: AbortSignal
+  ) => {
     try {
-      setLoadingSol(true);
-      setErrorSol(null);
-      const data = await securedFetch<ApiList<unknown>>("/solicitantes?page=1&pageSize=1", signal);
-      setTotalSolicitantes(data.total ?? 0);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setErrorSol((err as Error)?.message || "Error al cargar solicitantes");
-      setTotalSolicitantes(null);
+      setLoading(true);
+      setError(null);
+      const { data } = await api.get<PagedTotal>(`${path}`, {
+        params: { page: 1, pageSize: 1 },
+        signal,
+      });
+      setter(data.total ?? 0);
+    } catch (e) {
+      if ((e as Error).name === "CanceledError" || (e as Error).name === "AbortError") return;
+      setError(toErrorMessage(e, `Error al cargar ${path.slice(1)}`));
+      setter(null);
     } finally {
-      setLoadingSol(false);
+      setLoading(false);
     }
   };
 
-  /* ====== fetch total equipos ====== */
-  const fetchTotalEquipos = async (signal?: AbortSignal) => {
-    try {
-      setLoadingEq(true);
-      setErrorEq(null);
-      const data = await securedFetch<ApiList<unknown>>("/equipos?page=1&pageSize=1", signal);
-      setTotalEquipos(data.total ?? 0);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setErrorEq((err as Error)?.message || "Error al cargar equipos");
-      setTotalEquipos(null);
-    } finally {
-      setLoadingEq(false);
-    }
-  };
+  const fetchTotalSolicitantes = (signal?: AbortSignal) =>
+    fetchTotal("/solicitantes", setTotalSolicitantes, setLoadingSol, setErrorSol, signal);
 
-  /* ====== fetch métricas visitas ====== */
+  const fetchTotalEquipos = (signal?: AbortSignal) =>
+    fetchTotal("/equipos", setTotalEquipos, setLoadingEq, setErrorEq, signal);
+
+  const fetchTotalTickets = (signal?: AbortSignal) =>
+    fetchTotal("/tickets", setTotalTickets, setLoadingTic, setErrorTic, signal);
+
+  /* ===== métricas de visitas con axios ===== */
   const fetchVisitasMetrics = async (signal?: AbortSignal) => {
     try {
       setLoadingVis(true);
       setErrorVis(null);
-      const data = await securedFetch<VisitasMetrics>(`/visitas/metrics?from=${from}&to=${to}`, signal);
+      const { data } = await api.get<VisitasMetrics>(`/visitas/metrics`, {
+        params: { from, to },
+        signal,
+      });
       const rows = (data.porTecnico ?? [])
         .map((r) => ({
           ...r,
@@ -317,29 +308,13 @@ const Home: React.FC = () => {
         .sort((a, b) => b.cantidad - a.cantidad);
       setVisitasTotal(data.total ?? 0);
       setVisitasByTech(rows);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setErrorVis((err as Error)?.message || "Error al cargar visitas");
+    } catch (e) {
+      if ((e as Error).name === "CanceledError" || (e as Error).name === "AbortError") return;
+      setErrorVis(toErrorMessage(e, "Error al cargar visitas"));
       setVisitasTotal(null);
       setVisitasByTech([]);
     } finally {
       setLoadingVis(false);
-    }
-  };
-
-  /* ====== fetch total tickets ====== */
-  const fetchTotalTickets = async (signal?: AbortSignal) => {
-    try {
-      setLoadingTic(true);
-      setErrorTic(null);
-      const data = await securedFetch<ApiList<unknown>>(`/tickets?page=1&pageSize=1`, signal);
-      setTotalTickets(data.total ?? 0);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setErrorTic((err as Error)?.message || "Error al cargar tickets");
-      setTotalTickets(null);
-    } finally {
-      setLoadingTic(false);
     }
   };
 
@@ -363,7 +338,7 @@ const Home: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ===== estadísticas (igual que ya tenías) ===== */
+  /* ===== estadísticas ===== */
   const computedStats: Stat[] = useMemo(
     () => [
       {
@@ -376,11 +351,7 @@ const Home: React.FC = () => {
           formatNumber(totalSolicitantes)
         ),
         icon: <UserOutlined className="text-cyan-600 text-xl" />,
-        change: errorSol ? (
-          <span className="text-red-600">Error: {errorSol}</span>
-        ) : (
-          "Total de solicitantes"
-        ),
+        change: errorSol ? <span className="text-red-600">Error: {errorSol}</span> : "Total de solicitantes",
         onRefresh: () => fetchTotalSolicitantes(),
         isLoading: loadingSol,
       },
@@ -394,11 +365,7 @@ const Home: React.FC = () => {
           formatNumber(totalEquipos)
         ),
         icon: <LaptopOutlined className="text-cyan-600 text-xl" />,
-        change: errorEq ? (
-          <span className="text-red-600">Error: {errorEq}</span>
-        ) : (
-          "Total de dispositivos"
-        ),
+        change: errorEq ? <span className="text-red-600">Error: {errorEq}</span> : "Total de dispositivos",
         onRefresh: () => fetchTotalEquipos(),
         isLoading: loadingEq,
       },
@@ -440,11 +407,22 @@ const Home: React.FC = () => {
         isLoading: loadingTic,
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      loadingSol, totalSolicitantes, errorSol,
-      loadingEq, totalEquipos, errorEq,
-      loadingVis, visitasTotal, errorVis, from, to,
-      loadingTic, totalTickets, errorTic,
+      loadingSol,
+      totalSolicitantes,
+      errorSol,
+      loadingEq,
+      totalEquipos,
+      errorEq,
+      loadingVis,
+      visitasTotal,
+      errorVis,
+      from,
+      to,
+      loadingTic,
+      totalTickets,
+      errorTic,
     ]
   );
 
@@ -453,11 +431,7 @@ const Home: React.FC = () => {
       <Header />
 
       <main className="flex-1 p-4 sm:p-6">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
           <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
         </motion.div>
@@ -485,6 +459,7 @@ const Home: React.FC = () => {
                         stat.isLoading ? "animate-spin" : ""
                       }`}
                       title="Actualizar"
+                      aria-label={`Actualizar ${stat.name}`}
                       disabled={stat.isLoading}
                     >
                       <ReloadOutlined className="text-sm" />
@@ -513,6 +488,7 @@ const Home: React.FC = () => {
                 loadingVis ? "animate-spin" : ""
               }`}
               title="Actualizar"
+              aria-label="Actualizar visitas"
               disabled={loadingVis}
             >
               {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
@@ -521,7 +497,7 @@ const Home: React.FC = () => {
 
           <div className="h-64 sm:h-72">
             {loadingVis ? (
-              <div className="h-full flex items-center justify-center text-neutral-500">
+              <div className="h-full flex items-center justify-center text-neutral-500" role="status" aria-live="polite">
                 <LoadingOutlined /> &nbsp; Cargando…
               </div>
             ) : visitasByTech.length === 0 ? (
@@ -532,12 +508,7 @@ const Home: React.FC = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={visitasByTech}
-                  margin={{
-                    top: 8,
-                    right: 8,
-                    left: 8,
-                    bottom: isMobile ? 24 : 12, // más espacio para ticks en móvil
-                  }}
+                  margin={{ top: 8, right: 8, left: 8, bottom: isMobile ? 24 : 12 }}
                   barCategoryGap={isMobile ? "20%" : "10%"}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -547,13 +518,7 @@ const Home: React.FC = () => {
                     interval={isMobile ? "preserveStartEnd" : 0}
                     minTickGap={isMobile ? 4 : 8}
                     tickMargin={isMobile ? 6 : 10}
-                    tick={(props) => (
-                      <ResponsiveTick
-                        {...props}
-                        isMobile={isMobile}
-                        isTablet={isTablet}
-                      />
-                    )}
+                    tick={(props) => <ResponsiveTick {...props} isMobile={isMobile} isTablet={isTablet} />}
                   />
                   <YAxis allowDecimals={false} />
                   <Tooltip content={(props) => <CustomTooltip {...props} />} />
@@ -568,8 +533,7 @@ const Home: React.FC = () => {
           </div>
 
           <div className="mt-2 text-xs text-neutral-500">
-            Rango: <span className="font-medium">{from}</span> a{" "}
-            <span className="font-medium">{to}</span>
+            Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
           </div>
         </motion.div>
       </main>

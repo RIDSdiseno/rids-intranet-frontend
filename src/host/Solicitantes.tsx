@@ -1,847 +1,729 @@
 // src/host/Solicitantes.tsx
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState, Suspense, useRef } from "react";
+import axios, { AxiosError } from "axios";
+import Header from "../components/Header";
 import {
-  SearchOutlined,
-  LeftOutlined,
-  RightOutlined,
-  CloseCircleFilled,
-  ReloadOutlined,
-  ClearOutlined,
-  DownloadOutlined,
   PlusOutlined,
+  ReloadOutlined,
   EditOutlined,
   DeleteOutlined,
-  SaveOutlined,
-  CloseOutlined,
+  SearchOutlined,
+  GoogleOutlined,
+  WindowsOutlined,
+  CloseCircleFilled,
   LoadingOutlined,
-  SortAscendingOutlined,
-  DownOutlined,
-  SortDescendingOutlined,
+  CheckCircleFilled,
+  ExclamationCircleFilled,
+  InfoCircleFilled,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
-import Header from "../components/Header";
-import SolicitanteDetailModal from "../components/SolicitanteDetailModal";
-import type { SolicitanteForDetail } from "../components/SolicitanteDetailModal";
-import XlsxPopulate from "xlsx-populate/browser/xlsx-populate";
-import CrearSolicitante from "../components/CrearSolicitante";
+import { AnimatePresence, motion } from "framer-motion";
+import SyncGoogleModal from "../components/SyncGoogleModal";
 
-/* =================== Tipos =================== */
-type Empresa = { id_empresa: number; nombre: string } | null;
-type Equipo = {
+// ========= Config API =========
+const API_URL: string =
+  ((import.meta as unknown as ImportMeta).env?.VITE_API_URL as string) ||
+  "http://localhost:4000/api";
+
+const api = axios.create({ baseURL: API_URL, withCredentials: true });
+
+// ========= Tipos locales =========
+export type Empresa = { id_empresa: number; nombre: string };
+export type Equipo = {
   id_equipo: number;
   idSolicitante: number;
   serial: string | null;
   marca: string | null;
   modelo: string | null;
-  procesador: string | null;
-  ram: string | null;
-  disco: string | null;
   propiedad: string | null;
 };
+type MsLic = { skuId: string; skuPartNumber: string; displayName?: string };
+type AccountType = "google" | "microsoft" | "local" | null;
 
 export type SolicitanteRow = {
   id_solicitante: number;
   nombre: string;
-  email?: string | null;
+  email: string | null;
   empresaId: number | null;
-  empresa: Empresa;
+  empresa: Empresa | null;
   equipos: Equipo[];
+  accountType: AccountType;
+  googleUserId?: string | null;
+  microsoftUserId?: string | null;
+  msLicensesCount: number;
+  msLicenses?: MsLic[];
 };
 
-export type ApiList<T> = {
+// Tipos en el mismo archivo (arriba de la función o en tu bloque de tipos)
+type MsSyncPayload = {
+  empresaId: number;
+  domain?: string;
+  email?: string;
+};
+
+type MsSyncResponse = {
+  total?: number;
+  created?: number;
+  updated?: number;
+  skipped?: number;
+  // Por si el backend agrega campos extra
+  [key: string]: unknown;
+};
+
+
+type ListParams = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  empresaId?: number | null;
+  orderBy?: "empresa" | "nombre" | "id";
+  orderDir?: "asc" | "desc";
+};
+type ListResponse = {
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
-  items: T[];
+  items: SolicitanteRow[];
 };
 
-/* =================== Config =================== */
-const API_URL =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL ??
-  "http://localhost:4000/api";
-const DEFAULT_PAGE_SIZE = 10;
-const MAX_PAGE_SIZE = 100;
-
-/* =================== Helpers =================== */
-const tokenHeader = (): HeadersInit => {
-  const token = localStorage.getItem("accessToken");
-  const h: Record<string, string> = {};
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
+const prettyError = (e: unknown): string => {
+  const ax = e as AxiosError<{ error?: string }>;
+  return ax?.response?.data?.error || ax.message || "Error inesperado";
 };
 
-
-const normalize = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-
-function clsx(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
+// ========= API helpers =========
+async function apiListSolicitantes(params: ListParams, signal?: AbortSignal): Promise<ListResponse> {
+  const { data } = await api.get<ListResponse>("/solicitantes", {
+    params: { ...params, empresaId: params.empresaId ?? undefined },
+    signal,
+  });
+  return data;
 }
-function useDebouncedValue<T>(value: T, delay = 400): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
+async function apiMetrics(params: { q?: string; empresaId?: number | null }) {
+  const { data } = await api.get<{ solicitantes: number; empresas: number; equipos: number }>(
+    "/solicitantes/metrics",
+    { params: { ...params, empresaId: params.empresaId ?? undefined } }
+  );
+  return data;
 }
-function strHash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+async function apiCreateSolicitante(payload: {
+  nombre: string;
+  email?: string | null;
+  empresaId: number;
+}) {
+  const { data } = await api.post<SolicitanteRow>("/solicitantes", payload);
+  return data;
 }
-
-/** Paleta de tags (border/bg/text) para empresas */
-const COMPANY_TAG_PALETTE = [
-  "border-emerald-200 bg-emerald-50 text-emerald-900",
-  "border-teal-200 bg-teal-50 text-teal-900",
-  "border-cyan-200 bg-cyan-50 text-cyan-900",
-  "border-sky-200 bg-sky-50 text-sky-900",
-  "border-blue-200 bg-blue-50 text-blue-900",
-  "border-indigo-200 bg-indigo-50 text-indigo-900",
-  "border-violet-200 bg-violet-50 text-violet-900",
-  "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900",
-  "border-rose-200 bg-rose-50 text-rose-900",
-  "border-red-200 bg-red-50 text-red-900",
-  "border-orange-200 bg-orange-50 text-orange-900",
-  "border-amber-200 bg-amber-50 text-amber-900",
-  "border-lime-200 bg-lime-50 text-lime-900",
-  "border-green-200 bg-green-50 text-green-900",
-];
-function companyTagClasses(emp?: Empresa) {
-  if (!emp) return "border-gray-200 bg-gray-50 text-gray-800";
-  const seed = String(emp.id_empresa);
-  const idx = strHash(seed) % COMPANY_TAG_PALETTE.length;
-  return COMPANY_TAG_PALETTE[idx];
+async function apiUpdateSolicitante(
+  id: number,
+  payload: Partial<{ nombre: string; email: string | null; empresaId: number }>
+) {
+  const { data } = await api.patch<SolicitanteRow>(`/solicitantes/${id}`, payload);
+  return data;
 }
-
-function brandTagClasses(brand?: string | null) {
-  const b = (brand || "").trim().toLowerCase();
-  if (/apple|macbook|imac|mac/.test(b))
-    return "border-slate-300 bg-slate-50 text-slate-900";
-  if (/dell/.test(b)) return "border-indigo-200 bg-indigo-50 text-indigo-900";
-  if (/\bhp\b|hewlett|packard/.test(b))
-    return "border-sky-200 bg-sky-50 text-sky-900";
-  if (/lenovo/.test(b))
-    return "border-orange-200 bg-orange-50 text-orange-900";
-  if (/acer/.test(b)) return "border-lime-200 bg-lime-50 text-lime-900";
-  if (/asus/.test(b)) return "border-violet-200 bg-violet-50 text-violet-900";
-  if (/samsung/.test(b)) return "border-blue-200 bg-blue-50 text-blue-900";
-  if (/\bmsi\b/.test(b)) return "border-rose-200 bg-rose-50 text-rose-900";
-  if (/toshiba/.test(b)) return "border-amber-200 bg-amber-50 text-amber-900";
-  if (/huawei/.test(b)) return "border-red-200 bg-red-50 text-red-900";
-  if (/^lg$|lg electronics/.test(b))
-    return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900";
-  if (/microsoft|surface/.test(b))
-    return "border-purple-200 bg-purple-50 text-purple-900";
-  const BRAND_PALETTE = [
-    "border-teal-200 bg-teal-50 text-teal-900",
-    "border-cyan-200 bg-cyan-50 text-cyan-900",
-    "border-emerald-200 bg-emerald-50 text-emerald-900",
-    "border-blue-200 bg-blue-50 text-blue-900",
-    "border-indigo-200 bg-indigo-50 text-indigo-900",
-    "border-violet-200 bg-violet-50 text-violet-900",
-    "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900",
-    "border-rose-200 bg-rose-50 text-rose-900",
-    "border-amber-200 bg-amber-50 text-amber-900",
-    "border-lime-200 bg-lime-50 text-lime-900",
-  ];
-  const idx = strHash(b || "brand") % BRAND_PALETTE.length;
-  return BRAND_PALETTE[idx];
+async function apiDeleteSolicitante(
+  id: number,
+  opts: { transferToId?: number; fallback?: "null" | "sa" } = {}
+) {
+  const { data } = await api.delete<{ ok: boolean }>(`/solicitantes/${id}`, {
+    params: {
+      ...(opts.transferToId ? { transferToId: opts.transferToId } : {}),
+      ...(opts.fallback ? { fallback: opts.fallback } : {}),
+    },
+  });
+  return data;
+}
+async function apiGetSolicitante(id: number, includeMsDetails: boolean): Promise<SolicitanteRow> {
+  const { data } = await api.get<SolicitanteRow>(`/solicitantes/${id}`, {
+    params: { includeMsDetails },
+  });
+  return data;
 }
 
-/* =================== Excel helpers =================== */
-type ValueT = string | number | boolean | Date | null | undefined;
-interface Styled { style(s: Record<string, ValueT>): this; }
-interface CellLike extends Styled { value(): ValueT; value(v: ValueT): this; relativeCell(dr: number, dc: number): CellLike; }
-interface ColumnLike { width(w: number): void; }
-interface RangeLike extends Styled { merged(): boolean; merged(m: boolean): this; }
-interface WorksheetLike {
-  cell(a1: string): CellLike; cell(r: number, c: number): CellLike;
-  column(iOrLetter: number | string): ColumnLike;
-  range(r1: number, c1: number, r2: number, c2: number): RangeLike;
-  name(): string; name(n: string): void;
-}
-interface WorkbookLike {
-  sheet(name: string): WorksheetLike | undefined;
-  addSheet(name: string): WorksheetLike;
-  outputAsync(): Promise<ArrayBuffer>;
-}
+// ========= UI helpers (Tailwind) =========
+const clsx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
-const HEADER = ["ID", "Nombre", "Email", "Empresa", "Equipos", "Detalle equipos"] as const;
-const COLOR_BORDER = "D1D5DB";
-const COLOR_HEADER_TEXT = "0B4266";
-const COLOR_TEXT = "111827";
-const PALETTE = ["D9F99D","E0F2FE","FDE68A","FBCFE8","FCA5A5","DDD6FE","A7F3D0","FDE2E2","FFE4E6","F5F5F4"];
-function colorFor(key: string): string {
-  let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
-}
-function safeSheetName(raw: string) {
-  const base = (raw || "Empresa").replace(/[\\/:*?"[\]]/g, "_").slice(0, 31);
-  return base.length ? base : "Empresa";
-}
-function ensureUniqueSheetName(wb: WorkbookLike, desired: string) {
-  let name = desired, i = 2;
-  while (wb.sheet(name)) {
-    const s = `_${i}`;
-    name = (desired.slice(0, 31 - s.length) + s).replace(/[\\/:*?"[\]]/g, "_");
-    i++;
-  }
-  return name;
-}
-function setAllBorders(ws: WorksheetLike, r1: number, c1: number, r2: number, c2: number) {
-  ws.range(r1, c1, r2, c2).style({ border: true, borderColor: COLOR_BORDER });
-}
+const BadgeCount: React.FC<{ count: number }> = ({ count }) => (
+  <span className="inline-flex min-w-[1.75rem] justify-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+    {count}
+  </span>
+);
 
-async function buildExcelPerEmpresa(items: SolicitanteRow[]) {
-  const wb = (await (XlsxPopulate as unknown as { fromBlankAsync(): Promise<WorkbookLike>; }).fromBlankAsync()) as WorkbookLike;
-  const wsR = wb.addSheet("Resumen");
-  wsR.cell("A1").value("Empresa").style({ bold: true, fill: "F1F5F9", fontColor: COLOR_HEADER_TEXT, border: true, borderColor: COLOR_BORDER, horizontalAlignment: "center" });
-  wsR.cell("B1").value("Solicitantes").style({ bold: true, fill: "F1F5F9", fontColor: COLOR_HEADER_TEXT, border: true, borderColor: COLOR_BORDER, horizontalAlignment: "center" });
-  wsR.cell("C1").value("Equipos").style({ bold: true, fill: "F1F5F9", fontColor: COLOR_HEADER_TEXT, border: true, borderColor: COLOR_BORDER, horizontalAlignment: "center" });
-
-  type Acc = { solicitantes: number; equipos: number; nombre: string };
-  const byId = new Map<string, Acc>();
-  for (const s of items) {
-    const id = s.empresa?.id_empresa ?? s.empresaId ?? null;
-    const key = String(id ?? "null");
-    const nombre = s.empresa?.nombre ?? (id !== null ? `#${id}` : "Sin empresa");
-    const hit = byId.get(key) ?? { solicitantes: 0, equipos: 0, nombre };
-    hit.solicitantes += 1;
-    hit.equipos += s.equipos?.length ?? 0;
-    hit.nombre = nombre;
-    byId.set(key, hit);
-  }
-  const rows = Array.from(byId.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  let r = 2;
-  for (const t of rows) {
-    wsR.cell(r, 1).value(t.nombre);
-    wsR.cell(r, 2).value(t.solicitantes);
-    wsR.cell(r, 3).value(t.equipos);
-    r++;
-  }
-  wsR.column("A").width(36); wsR.column("B").width(16); wsR.column("C").width(16);
-  setAllBorders(wsR, 1, 1, Math.max(1, r - 1), 3);
-
-  type EmpKey = { id: number | null; nombre: string };
-  const group = new Map<string, { key: EmpKey; rows: SolicitanteRow[] }>();
-  for (const s of items) {
-    const id = s.empresa?.id_empresa ?? s.empresaId ?? null;
-    const nombre = s.empresa?.nombre ?? (id !== null ? `#${id}` : "Sin empresa");
-    const key = String(id ?? "null");
-    if (!group.has(key)) group.set(key, { key: { id, nombre }, rows: [] });
-    group.get(key)!.rows.push(s);
-  }
-  for (const { key, rows: people } of Array.from(group.values()).sort((a, b) => a.key.nombre.localeCompare(b.key.nombre, "es"))) {
-    const empresa = key.nombre;
-    const ws = wb.addSheet(ensureUniqueSheetName(wb, safeSheetName(empresa)));
-    ws.cell("A1").value(`Solicitantes — ${empresa}`).style({
-      bold: true, fontFamily: "Calibri", fontSize: 16, fontColor: COLOR_HEADER_TEXT,
-      horizontalAlignment: "center", verticalAlignment: "center", fill: colorFor(empresa),
-    });
-    ws.range(1, 1, 1, HEADER.length).merged(true);
-    for (let c = 0; c < HEADER.length; c++) {
-      ws.cell(3, c + 1).value(HEADER[c]).style({
-        bold: true, fontFamily: "Calibri", fontSize: 11, fontColor: COLOR_HEADER_TEXT,
-        fill: "F8FAFC", horizontalAlignment: "left", verticalAlignment: "center",
-        border: true, borderColor: COLOR_BORDER,
-      });
-    }
-    let rr = 4;
-    for (const s of people) {
-      const equiposNum = s.equipos?.length ?? 0;
-      const equiposDetalle = equiposNum
-        ? s.equipos.map((e) => {
-            const mm = [e.marca, e.modelo].filter(Boolean).join(" ");
-            const ser = e.serial ? ` (${e.serial})` : "";
-            return (mm || "Equipo") + ser;
-          }).join(" · ")
-        : "—";
-      const rowValues: ValueT[] = [
-        s.id_solicitante, s.nombre, s.email || "—", empresa, equiposNum, equiposDetalle,
-      ];
-      rowValues.forEach((val, c) => {
-        ws.cell(rr, c + 1).value(val).style({ fontFamily: "Calibri", fontSize: 11, fontColor: COLOR_TEXT });
-      });
-      if ((rr - 4) % 2 === 1) ws.range(rr, 1, rr, HEADER.length).style({ fill: "F9FAFB" });
-      rr++;
-    }
-    const widths = [10, 28, 32, 26, 10, 60];
-    widths.forEach((w, i) => ws.column(i + 1).width(w));
-    if (people.length > 0) setAllBorders(ws, 3, 1, rr - 1, HEADER.length);
-  }
-  const defaultSheet = wb.sheet("Sheet1"); if (defaultSheet) defaultSheet.name("_");
-  const out = await wb.outputAsync();
-  const blob = new Blob([out as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const urlBlob = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = urlBlob;
-  a.download = `Solicitantes_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(urlBlob);
-}
-
-/* =================== Animations =================== */
-const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-const fadeInUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } } } as const;
-const subtleHover = { whileHover: { y: -2, scale: 1.01, transition: { duration: 0.15 } } } as const;
-const press = { whileTap: { scale: 0.98 } } as const;
-const rowItem = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0, transition: { duration: 0.25, ease: EASE_OUT } } } as const;
-
-/* =================== Modal Editar =================== */
-const emailValid = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-type UpdatePayload = { nombre?: string; email?: string | null; empresaId?: number; };
-function isApiError(x: unknown): x is { error?: string } { return typeof x === "object" && x !== null && "error" in x; }
-
-const EditSolicitanteModal: React.FC<{
-  open: boolean; onClose: () => void; solicitante: SolicitanteRow | null; onUpdated: () => void;
-}> = ({ open, onClose, solicitante, onUpdated }) => {
-  const [nombre, setNombre] = useState("");
-  const [email, setEmail] = useState<string>("");
-  const [empresaId, setEmpresaId] = useState<string>("");
-  const [empresas, setEmpresas] = useState<{ id_empresa: number; nombre: string }[]>([]);
-  const [search, setSearch] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState<{ nombre?: boolean; email?: boolean }>({});
-
-  useEffect(() => {
-    if (!open) return;
-    setNombre(solicitante?.nombre ?? "");
-    setEmail(solicitante?.email ?? "");
-    setEmpresaId(
-      solicitante?.empresa?.id_empresa != null
-        ? String(solicitante.empresa.id_empresa)
-        : solicitante?.empresaId != null
-        ? String(solicitante.empresaId)
-        : ""
+const AccountBadge: React.FC<{ type: AccountType }> = ({ type }) => {
+  if (type === "google")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+        <GoogleOutlined /> Google
+      </span>
     );
-    setError(null); setTouched({});
-    type EmpresaDTO = { id_empresa: number; nombre: string };
-    type EmpresasResponse = { items?: EmpresaDTO[]; data?: EmpresaDTO[] };
-    const ctrl = new AbortController();
-    const load = async () => {
+  if (type === "microsoft")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+        <WindowsOutlined /> Microsoft
+      </span>
+    );
+  if (type === "local")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+        Local
+      </span>
+    );
+  return <span className="text-sm text-gray-400">—</span>;
+};
+
+const MsLicensesTag: React.FC<{ count: number; title?: string }> = ({ count, title }) =>
+  count ? (
+    <span title={title} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+      {count} licencia{count === 1 ? "" : "s"}
+    </span>
+  ) : (
+    <span className="text-sm text-gray-400">—</span>
+  );
+
+// ========= Toast system =========
+type ToastKind = "success" | "error" | "info";
+type Toast = { id: number; kind: ToastKind; message: string; detail?: string };
+const useToasts = () => {
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const dismiss = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // keep push stable and reference the stable dismiss
+  const push = useCallback((t: Omit<Toast, "id">) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, ...t }]);
+    // schedule dismiss using the stable dismiss reference
+    setTimeout(() => dismiss(id), 4200);
+  }, [dismiss]);
+
+  // keep a stable reference to dismiss for any external usage (if needed)
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
+
+  return { toasts, push, dismiss };
+};
+const ToastsView: React.FC<{
+  toasts: Toast[];
+  dismiss: (id: number) => void;
+}> = ({ toasts, dismiss }) => (
+  <div className="fixed top-4 right-4 z-[60] space-y-2">
+    <AnimatePresence>
+      {toasts.map((t) => {
+        const color =
+          t.kind === "success"
+            ? "bg-emerald-600"
+            : t.kind === "error"
+            ? "bg-rose-600"
+            : "bg-cyan-600";
+        const Icon =
+          t.kind === "success"
+            ? CheckCircleFilled
+            : t.kind === "error"
+            ? ExclamationCircleFilled
+            : InfoCircleFilled;
+        return (
+          <motion.div
+            key={t.id}
+            initial={{ opacity: 0, y: -10, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.97 }}
+            className={clsx(
+              "flex max-w-sm items-start gap-3 rounded-xl px-4 py-3 text-white shadow-lg",
+              color
+            )}
+          >
+            <Icon className="mt-0.5" />
+            <div className="flex-1">
+              <div className="text-sm font-semibold">{t.message}</div>
+              {t.detail && <div className="text-[12px] opacity-90">{t.detail}</div>}
+            </div>
+            <button
+              onClick={() => dismiss(t.id)}
+              className="ml-2 rounded-lg/80 bg-white/15 px-2 py-1 text-xs hover:bg-white/25"
+            >
+              Cerrar
+            </button>
+          </motion.div>
+        );
+      })}
+    </AnimatePresence>
+  </div>
+);
+
+// ========= Modal Tailwind genérico para Crear/Editar =========
+type TWModalProps = {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  onOk?: () => Promise<void> | void;
+  okText?: string;
+  children: React.ReactNode;
+  okDisabled?: boolean;
+  loading?: boolean;
+};
+const TWModal: React.FC<TWModalProps> = ({
+  open,
+  title,
+  onClose,
+  onOk,
+  okText = "Guardar",
+  children,
+  okDisabled,
+  loading,
+}) => {
+  if (!open) return null;
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="absolute inset-0 bg-black/30"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        />
+        <motion.div
+          className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-lg"
+          initial={{ y: 18, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 18, opacity: 0, scale: 0.98 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+        >
+          <div className="mb-3 text-lg font-semibold">{title}</div>
+          <div className="space-y-3">{children}</div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button className="rounded-xl border px-4 py-2 text-sm" onClick={onClose}>
+              Cancelar
+            </button>
+            {onOk && (
+              <button
+                className={clsx(
+                  "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white",
+                  okDisabled ? "bg-slate-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                )}
+                disabled={okDisabled || loading}
+                onClick={() => void onOk()}
+              >
+                {loading && <LoadingOutlined />}
+                {okText}
+              </button>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+// ========= Estado de upsert =========
+type UpsertState = { nombre: string; email: string | null; empresaId: number | null };
+const emptyUpsert: UpsertState = { nombre: "", email: null, empresaId: null };
+
+function useUpsert(initial?: Partial<UpsertState>) {
+  const [v, setV] = useState<UpsertState>({ ...emptyUpsert, ...(initial ?? {}) });
+  return { v, setV };
+}
+
+// ========= Validaciones =========
+const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+const validateUpsert = (v: UpsertState) => {
+  const errors: Partial<Record<keyof UpsertState, string>> = {};
+  if (!v.nombre || v.nombre.trim().length < 2) errors.nombre = "Ingresa un nombre válido (mínimo 2 caracteres).";
+  if (v.email && v.email.trim().length > 0 && !isEmail(v.email)) errors.email = "Email no tiene un formato válido.";
+  if (!v.empresaId) errors.empresaId = "Selecciona una empresa.";
+  return errors;
+};
+
+// ========= Modal de Detalle (lazy) =========
+const SolicitanteDetailModal = React.lazy(() => import("../components/SolicitanteDetailModal"));
+import type { SolicitanteForDetail } from "../components/SolicitanteDetailModal";
+
+// ========= Página =========
+export default function SolicitantesPage() {
+  const { toasts, push, dismiss } = useToasts();
+
+  // filtros (empresaId aquí SOLO filtra la lista)
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState(q);
+  const [empresaId, setEmpresaId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [orderBy, setOrderBy] = useState<"empresa" | "nombre" | "id">("empresa");
+  const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
+
+  // debounce búsqueda
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  // data
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [list, setList] = useState<ListResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] =
+    useState<{ solicitantes: number; empresas: number; equipos: number } | null>(null);
+
+  // crear/editar
+  const [creating, setCreating] = useState(false);
+  const [savingCreate, setSavingCreate] = useState(false);
+  const createForm = useUpsert();
+  const [createErrors, setCreateErrors] = useState<Partial<Record<keyof UpsertState, string>>>({});
+
+  const [editing, setEditing] = useState<SolicitanteRow | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editForm = useUpsert();
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof UpsertState, string>>>({});
+
+  // detalle
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<SolicitanteForDetail | null>(null);
+
+  // sync Google (modal separado)
+  const [syncGoogleOpen, setSyncGoogleOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  // ===================== Sync Microsoft (nuevo) =====================
+  const [syncMsOpen, setSyncMsOpen] = useState(false);
+  const [syncingMs, setSyncingMs] = useState(false);
+  const [msEmpresaId, setMsEmpresaId] = useState<number | null>(null);
+  const [msDomain, setMsDomain] = useState<string>("");
+  const [msEmail, setMsEmail] = useState<string>("");
+
+  const openSyncMicrosoft = () => {
+    setSyncMsOpen(true);
+    setMsEmpresaId(empresaId ?? null);
+    setMsDomain("");
+    setMsEmail("");
+  };
+
+  const runSyncMicrosoft = async () => {
+    if (!msEmpresaId) {
+      push({ kind: "error", message: "Selecciona una empresa", detail: "Debes elegir la empresa de destino." });
+      return;
+    }
+    try {
+      setSyncingMs(true);
+
+      const payload: MsSyncPayload = {
+        empresaId: msEmpresaId,
+        ...(msDomain.trim() ? { domain: msDomain.trim() } : {}),
+        ...(msEmail.trim() ? { email: msEmail.trim() } : {}),
+      };
+
+      const resp = msEmail.trim()
+        ? await api.put<MsSyncResponse>("/sync/microsoft/users", payload)
+        : await api.post<MsSyncResponse>("/sync/microsoft/users", payload);
+
+      const r = resp.data ?? {};
+      push({
+        kind: "success",
+        message: "Sincronización Microsoft lista",
+        detail: `Empresa: ${msEmpresaId} • Dominio: ${msDomain || "—"} • Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}`,
+      });
+      setSyncMsOpen(false);
+      void reloadAll();
+    } catch (e) {
+      push({ kind: "error", message: "Falló la sincronización Microsoft", detail: prettyError(e) });
+    } finally {
+      setSyncingMs(false);
+    }
+  };
+
+  // ================================================================
+
+  // Empresas para selects (nuevo shape: { success, data, total })
+  // Empresas para selects (nuevo shape: { success, data, total })
+type EmpresaApi = { id_empresa: number; nombre: string };
+type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: number };
+
+  useEffect(() => {
+    (async () => {
       try {
-        const u = new URL(`${API_URL}/empresas`); u.searchParams.set("pageSize", "2000");
-        const r = await fetch(u.toString(), { headers: tokenHeader(), signal: ctrl.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j: EmpresasResponse = await r.json();
-        const list: EmpresaDTO[] = (j.items ?? j.data ?? []).map((e) => ({ id_empresa: e.id_empresa, nombre: e.nombre }));
-        setEmpresas(list);
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setEmpresas([]);
+        const resp = await api.get<EmpresasListResponse>("/empresas");
+        const empresasData = Array.isArray(resp.data?.data) ? resp.data.data : [];
+        const items: Empresa[] = empresasData.map((e) => ({
+          id_empresa: e.id_empresa,
+          nombre: e.nombre,
+        }));
+        setEmpresas(items);
+      } catch (e) {
+        push({
+          kind: "error",
+          message: "No se pudieron cargar las empresas",
+          detail: prettyError(e),
+        });
+      }
+    })();
+    // `push` viene del hook de toasts; lo incluimos para evitar warning del linter.
+  }, [push]);
+  
+
+  // Lista (con cancelación) + métricas
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    const controller = new AbortController();
+    try {
+      const data = await apiListSolicitantes(
+        { page, pageSize, q: debouncedQ || undefined, empresaId, orderBy, orderDir },
+        controller.signal
+      );
+      setList(data);
+    } catch (e: unknown) {
+      // manejo de cancelación con axios
+      if (!axios.isCancel(e)) {
+        push({ kind: "error", message: "No se pudo cargar la lista", detail: prettyError(e) });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedQ, empresaId, orderBy, orderDir, push]);
+
+  const fetchMetrics = useCallback(async () => {
+    try {
+      const m = await apiMetrics({ q: debouncedQ || undefined, empresaId });
+      setMetrics(m);
+    } catch (e) {
+      push({ kind: "error", message: "No se pudieron cargar las métricas", detail: prettyError(e) });
+    }
+  }, [debouncedQ, empresaId, push]);
+
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
+  useEffect(() => {
+    void fetchMetrics();
+  }, [fetchMetrics]);
+
+  const reloadAll = async () => {
+    await Promise.all([fetchList(), fetchMetrics()]);
+  };
+
+  // tooltip licencias
+  const licTooltip = (r: SolicitanteRow): string | undefined =>
+    r.msLicenses && r.msLicenses.length
+      ? r.msLicenses.map((l) => l.displayName || l.skuPartNumber).join("\n")
+      : undefined;
+
+  // Crear / Editar
+  const openCreate = () => {
+    setCreating(true);
+    setCreateErrors({});
+    createForm.setV({ ...emptyUpsert, empresaId: empresaId ?? null });
+  };
+
+  const createInvalid = useMemo(() => {
+    return Object.keys(validateUpsert(createForm.v)).length > 0;
+  }, [createForm.v]);
+
+  const saveCreate = async () => {
+    const errs = validateUpsert(createForm.v);
+    setCreateErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    try {
+      setSavingCreate(true);
+      await apiCreateSolicitante({
+        nombre: createForm.v.nombre.trim(),
+        email: createForm.v.email ? createForm.v.email.trim() : null,
+        empresaId: createForm.v.empresaId!,
+      });
+      setCreating(false);
+      push({ kind: "success", message: "¡Creado correctamente!", detail: "El solicitante se registró sin problemas." });
+      void reloadAll();
+    } catch (e) {
+      push({ kind: "error", message: "No se pudo crear el solicitante", detail: prettyError(e) });
+    } finally {
+      setSavingCreate(false);
+    }
+  };
+
+  const openEdit = (row: SolicitanteRow) => {
+    setEditing(row);
+    setEditErrors({});
+    editForm.setV({ nombre: row.nombre, email: row.email ?? null, empresaId: row.empresaId });
+  };
+
+  const editInvalid = useMemo(() => {
+    return Object.keys(validateUpsert(editForm.v)).length > 0;
+  }, [editForm.v]);
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const errs = validateUpsert(editForm.v);
+    setEditErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    try {
+      setSavingEdit(true);
+      await apiUpdateSolicitante(editing.id_solicitante, {
+        nombre: editForm.v.nombre.trim(),
+        email: editForm.v.email ? editForm.v.email.trim() : null,
+        empresaId: editForm.v.empresaId!,
+      });
+      setEditing(null);
+      push({ kind: "success", message: "¡Se ha actualizado correctamente!", detail: "Los cambios fueron guardados." });
+      void reloadAll();
+    } catch (e) {
+      push({ kind: "error", message: "No se pudo actualizar", detail: prettyError(e) });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const removeRow = async (row: SolicitanteRow) => {
+    if (!confirm(`Eliminar a "${row.nombre}"?`)) return;
+    try {
+      await apiDeleteSolicitante(row.id_solicitante, { fallback: "sa" });
+      push({ kind: "success", message: "Eliminado correctamente", detail: `"${row.nombre}" fue eliminado.` });
+      void reloadAll();
+    } catch (e) {
+      push({ kind: "error", message: "No se pudo eliminar", detail: prettyError(e) });
+    }
+  };
+
+  // Sync Google — la empresa se elige dentro del modal
+  const openSyncGoogle = () => {
+    setSyncGoogleOpen(true);
+  };
+
+  const runSyncGoogle = async ({
+    empresaId,
+    domain,
+    email,
+  }: {
+    empresaId: number;
+    domain: string;
+    email?: string;
+  }) => {
+    try {
+      setSyncing(true);
+      const payload = { domain, empresaId, ...(email ? { email } : {}) };
+      const resp = email
+        ? await api.put("/sync/google/users", payload)
+        : await api.post("/sync/google/users", payload);
+      const r = resp?.data || {};
+      push({
+        kind: "success",
+        message: "Sincronización completada",
+        detail: `Dominio: ${domain} • Empresa: ${empresaId} • Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}`,
+      });
+      setSyncGoogleOpen(false);
+      void reloadAll();
+    } catch (e) {
+      push({ kind: "error", message: "Falló la sincronización", detail: prettyError(e) });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Carga del detalle (por ID)
+  useEffect(() => {
+    const load = async () => {
+      if (detailId == null) {
+        setDetail(null);
+        return;
+      }
+      try {
+        const row = await apiGetSolicitante(detailId, true);
+        // Mapear equipos al shape que espera el modal de detalle (agregar campos opcionales procesador/ram/disco)
+        const equiposMapped: SolicitanteForDetail["equipos"] = (row.equipos ?? []).map((e) => {
+          const rec = e as unknown as Record<string, unknown>;
+          return {
+            id_equipo: e.id_equipo,
+            idSolicitante: e.idSolicitante,
+            serial: e.serial,
+            marca: e.marca,
+            modelo: e.modelo,
+            propiedad: e.propiedad,
+            // propiedades adicionales opcionales que el detalle puede requerir
+            procesador: typeof rec["procesador"] === "string" ? (rec["procesador"] as string) : null,
+            ram: typeof rec["ram"] === "string" ? (rec["ram"] as string) : null,
+            disco: typeof rec["disco"] === "string" ? (rec["disco"] as string) : null,
+          };
+        });
+
+        const mapped: SolicitanteForDetail = {
+          id_solicitante: row.id_solicitante,
+          nombre: row.nombre,
+          empresaId: row.empresaId,
+          empresa: row.empresa,
+          equipos: equiposMapped,
+          accountType: row.accountType ?? null,
+          msLicenses: Array.isArray(row.msLicenses) ? (row.msLicenses as MsLic[]) : [],
+          msLicensesCount: row.msLicensesCount,
+        };
+
+        setDetail(mapped);
+      } catch (e) {
+        push({ kind: "error", message: "No se pudo cargar el detalle", detail: prettyError(e) });
       }
     };
     void load();
-    return () => ctrl.abort();
-  }, [open, solicitante]);
+  }, [detailId, push]);
 
-  const filteredEmpresas = useMemo(() => {
-    const s = normalize(search.trim()); if (!s) return empresas;
-    return empresas.filter((e) => normalize(e.nombre).includes(s));
-  }, [empresas, search]);
-
-  const nombreError = touched.nombre && !nombre.trim() ? "El nombre es obligatorio." : null;
-  const emailError = touched.email && email.trim() && !emailValid(email.trim()) ? "El correo no tiene un formato válido." : null;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTouched({ nombre: true, email: true });
-    if (!nombre.trim() || (email.trim() && !emailValid(email.trim()))) { setError("Revisa los campos marcados."); return; }
-    if (!solicitante) return;
-
-    setError(null); setSaving(true);
-    try {
-      const payload: UpdatePayload = {};
-      const nombreClean = nombre.trim();
-      const emailClean = email.trim();
-
-      if (nombreClean !== solicitante.nombre) payload.nombre = nombreClean;
-      if ((emailClean || null) !== (solicitante.email ?? null)) payload.email = emailClean ? emailClean : null;
-
-      const nextEmpresaId = empresaId ? Number(empresaId) : undefined;
-      const currentEmpresaId = solicitante.empresa?.id_empresa ?? solicitante.empresaId ?? undefined;
-      if (nextEmpresaId !== undefined && nextEmpresaId !== currentEmpresaId) payload.empresaId = nextEmpresaId;
-
-      if (Object.keys(payload).length === 0) { onClose(); return; }
-
-      const r = await fetch(`${API_URL}/solicitantes/${solicitante.id_solicitante}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json", ...tokenHeader() },
-        body: JSON.stringify(payload),
-      });
-
-      let j: unknown = null; try { j = await r.json(); } catch { /* optional */ }
-      if (!r.ok) {
-        const msg = isApiError(j) && j.error ? j.error : `HTTP ${r.status}`;
-        throw new Error(msg);
-      }
-      onUpdated(); onClose();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar.");
-    } finally { setSaving(false); }
+  const clearFilters = () => {
+    setQ("");
+    setEmpresaId(null);
+    setOrderBy("empresa");
+    setOrderDir("asc");
+    setPage(1);
   };
 
-  if (!open) return null;
+  /* ======================= RENDER ======================= */
   return (
-    <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="relative w-full max-w-2xl bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden">
-          {saving && (
-            <div className="absolute inset-0 z-10 grid place-items-center bg-white/60 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-cyan-700">
-                <LoadingOutlined className="animate-spin" /> Guardando…
-              </div>
-            </div>
-          )}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-indigo-50">
-            <div className="font-semibold text-slate-800">Editar solicitante</div>
-            <button onClick={onClose} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800" disabled={saving} aria-label="Cerrar modal">
-              <CloseOutlined />
-            </button>
-          </div>
-          <form onSubmit={submit} className="p-4 space-y-4">
-            {error && <div className="rounded-lg border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2">{error}</div>}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nombre <span className="text-rose-500">*</span>
-              </label>
-              <input
-                value={nombre}
-                onBlur={() => setTouched((t) => ({ ...t, nombre: true }))}
-                onChange={(e) => setNombre(e.target.value)}
-                disabled={saving}
-                className={clsx(
-                  "w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2",
-                  nombreError ? "border-rose-300 focus:ring-rose-400/40" : "border-cyan-200 focus:ring-cyan-500/30"
-                )}
-              />
-              {nombreError && <p className="mt-1 text-xs text-rose-600">{nombreError}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Email <span className="text-slate-400 font-normal">(opcional)</span>
-              </label>
-              <input
-                type="email"
-                value={email}
-                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={saving}
-                className={clsx(
-                  "w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2",
-                  emailError ? "border-rose-300 focus:ring-rose-400/40" : "border-cyan-200 focus:ring-cyan-500/30"
-                )}
-              />
-              {emailError && <p className="mt-1 text-xs text-rose-600">{emailError}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Empresa</label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar empresa…"
-                  disabled={saving}
-                  className="flex-1 px-3 py-2 rounded-lg border border-cyan-200 focus:ring-2 focus:ring-cyan-500/30"
-                />
-              </div>
-              <select
-                value={empresaId}
-                onChange={(e) => setEmpresaId(e.target.value)}
-                disabled={saving}
-                className="w-full px-3 py-2 rounded-lg border border-cyan-200 focus:ring-2 focus:ring-cyan-500/30"
-              >
-                <option value="">— Selecciona —</option>
-                {filteredEmpresas.map((emp) => (
-                  <option key={emp.id_empresa} value={String(emp.id_empresa)}>
-                    {emp.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button type="button" onClick={onClose} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-                <CloseOutlined /> Cancelar
-              </button>
-              <button type="submit" disabled={saving || !!nombreError || !!emailError} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60">
-                {saving ? <LoadingOutlined className="animate-spin" /> : <SaveOutlined />} Guardar cambios
-              </button>
-            </div>
-          </form>
-        </div>
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
+      {/* Fondo decorativo */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
+        <div className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40" />
+        <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
       </div>
-    </div>
-  );
-};
 
-/* =================== Page =================== */
-type SortKey = "empresa" | "nombre" | "id";
-type SortDir = "asc" | "desc";
+      <Header />
 
-const SolicitantesPage: React.FC = () => {
-  // búsqueda y filtros
-  const [q, setQ] = useState<string>("");
-  const qDebounced = useDebouncedValue<string>(q, 400);
-
-  // paginación
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
-
-  // carga/errores y datos
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ApiList<SolicitanteRow> | null>(null);
-
-  // selección modal detalle
-  const [selected, setSelected] = useState<SolicitanteForDetail | null>(null);
-  const [openDetail, setOpenDetail] = useState<boolean>(false);
-
-  // modales CRUD
-  const [openCreate, setOpenCreate] = useState(false);
-  const [editing, setEditing] = useState<SolicitanteRow | null>(null);
-
-  // filtro empresa
-  type EmpresaOpt = { id: number; nombre: string };
-  const [empresaOptions, setEmpresaOptions] = useState<EmpresaOpt[]>([]);
-  const [empresaFilterId, setEmpresaFilterId] = useState<number | null>(null);
-  const empresaSelectRef = useRef<HTMLSelectElement | null>(null);
-
-  // orden (UI select + toggle)
-  const [sortKey, setSortKey] = useState<SortKey>("empresa");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  // anti-race
-  const reqSeqRef = useRef(0);
-  const totalsSeqRef = useRef(0);
-
-  // totales
-  type Totals = { solicitantes: number; empresas: number; equipos: number };
-  const [totals, setTotals] = useState<Totals | null>(null);
-  const [loadingTotals, setLoadingTotals] = useState<boolean>(false);
-  const [errorTotals, setErrorTotals] = useState<string | null>(null);
-
-  
-
-  const showingRange = useMemo(() => {
-    if (!data || data.total === 0) return null;
-    const start = (data.page - 1) * data.pageSize + 1;
-    const end = Math.min(data.page * data.pageSize, data.total);
-    return { start, end };
-  }, [data]);
-
-  /* ======== Cargar opciones de empresa ======== */
-  useEffect(() => {
-    type EmpresasResponse = { items?: Array<{ id_empresa: number; nombre: string }>; data?: Array<{ id_empresa: number; nombre: string }>; };
-    const ctrl = new AbortController();
-    const loadEmpresas = async () => {
-      try {
-        const u = new URL(`${API_URL}/empresas`);
-        u.searchParams.set("pageSize", "5000");
-        const r = await fetch(u.toString(), { headers: tokenHeader(), cache: "no-store", signal: ctrl.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j: EmpresasResponse = await r.json();
-        const list = (j.items ?? j.data ?? []) as Array<{ id_empresa: number; nombre: string }>;
-        setEmpresaOptions(
-          list.map((e) => ({ id: e.id_empresa, nombre: e.nombre }))
-              .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
-        );
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        setEmpresaOptions([]);
-      }
-    };
-    void loadEmpresas();
-    return () => ctrl.abort();
-  }, []);
-
-  // Ajuste si la página queda fuera de rango
-  useEffect(() => {
-    if (data && page > data.totalPages) setPage(Math.max(1, data.totalPages));
-  }, [data, page]);
-
-  /* ======== FETCH LISTA ======== */
-  const fetchList = useCallback(
-    async (signal?: AbortSignal) => {
-      const seq = ++reqSeqRef.current;
-      try {
-        setLoading(true); setError(null);
-
-        const url = new URL(`${API_URL}/solicitantes`);
-        url.searchParams.set("page", String(page));
-        url.searchParams.set("pageSize", String(pageSize));
-        url.searchParams.set("orderBy", sortKey);
-        url.searchParams.set("orderDir", sortDir);
-
-        // backend actual usa empresaId O q.
-        if (empresaFilterId !== null) {
-          url.searchParams.set("empresaId", String(empresaFilterId));
-        } else if (qDebounced.trim()) {
-          url.searchParams.set("q", qDebounced.trim());
-        }
-        url.searchParams.set("_ts", String(Date.now()));
-
-        const res = await fetch(url.toString(), {
-          method: "GET",
-          headers: { "Cache-Control": "no-cache", Pragma: "no-cache", ...tokenHeader() },
-          cache: "no-store",
-          credentials: "include",
-          signal,
-        });
-
-        if (seq !== reqSeqRef.current) return;
-        if (!res.ok && res.status !== 204) {
-          let apiErr = `HTTP ${res.status}`;
-          try {
-            const payload: unknown = await res.json();
-            if (typeof payload === "object" && payload !== null && "error" in payload) {
-              apiErr = (payload as { error?: string }).error || apiErr;
-            }
-          } catch {/* ignore */}
-          throw new Error(apiErr);
-        }
-        if (res.status === 204) {
-          setData({ page, pageSize, total: 0, totalPages: 1, items: [] });
-          return;
-        }
-        const json = (await res.json()) as ApiList<SolicitanteRow>;
-        setData(json);
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Error al cargar");
-      } finally {
-        if (seq === reqSeqRef.current) setLoading(false);
-      }
-    },
-    [page, pageSize, empresaFilterId, qDebounced, sortKey, sortDir]
-  );
-
-  /* ======== FETCH TOTALES ======== */
-  const fetchTotals = useCallback(
-    async (signal?: AbortSignal) => {
-      const seq = ++totalsSeqRef.current;
-      try {
-        setLoadingTotals(true); setErrorTotals(null);
-        const urlM = new URL(`${API_URL}/solicitantes/metrics`);
-        if (empresaFilterId !== null) {
-          urlM.searchParams.set("empresaId", String(empresaFilterId));
-        } else if (qDebounced.trim()) {
-          urlM.searchParams.set("q", qDebounced.trim());
-        }
-        urlM.searchParams.set("_ts", String(Date.now()));
-        const r = await fetch(urlM.toString(), {
-          method: "GET",
-          headers: { "Cache-Control": "no-cache", Pragma: "no-cache", ...tokenHeader() },
-          cache: "no-store",
-          credentials: "include",
-          signal,
-        });
-        if (seq !== totalsSeqRef.current) return;
-        if (r.ok) {
-          const m = (await r.json()) as Partial<Totals>;
-          if (typeof m.solicitantes === "number" && typeof m.empresas === "number" && typeof m.equipos === "number") {
-            setTotals({ solicitantes: m.solicitantes, empresas: m.empresas, equipos: m.equipos });
-          } else setTotals(null);
-        } else setTotals(null);
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setErrorTotals(err instanceof Error ? err.message : "Error al cargar totales");
-      } finally {
-        if (seq === totalsSeqRef.current) setLoadingTotals(false);
-      }
-    },
-    [empresaFilterId, qDebounced]
-  );
-
-  /* ======== Effects ======== */
-  useEffect(() => {
-    const ctrl = new AbortController();
-    void fetchList(ctrl.signal);
-    return () => ctrl.abort();
-  }, [fetchList]);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    void fetchTotals(ctrl.signal);
-    return () => ctrl.abort();
-  }, [fetchTotals, data?.total]);
-
-  const canNext = useMemo(() => (data ? page < data.totalPages : false), [data, page]);
-
-  // estado: id del que se está eliminando
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  // pequeño toast de feedback
-  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const showToast = (text: string, type: "success" | "error" = "success") => {
-    setToast({ text, type });
-    window.setTimeout(() => setToast(null), 2500);
-  };
-
-  
-
-  /* ======== Handlers ======== */
-  const openRow = (row: SolicitanteRow) => {
-    const detail: SolicitanteForDetail = {
-      id_solicitante: row.id_solicitante,
-      nombre: row.nombre,
-      empresaId: row.empresaId,
-      empresa: row.empresa,
-      equipos: row.equipos,
-    };
-    setSelected(detail); setOpenDetail(true);
-  };
-  const closeDetail = () => setOpenDetail(false);
-
-  const clearSearch = () => {
-    setQ(""); setPage(1);
-    const ctrl1 = new AbortController(); void fetchList(ctrl1.signal);
-    const ctrl2 = new AbortController(); void fetchTotals(ctrl2.signal);
-  };
-
-  const clearEmpresaFilter = () => { setEmpresaFilterId(null); setPage(1); };
-
-  const manualReload = () => {
-    const ctrl1 = new AbortController(); void fetchList(ctrl1.signal);
-    const ctrl2 = new AbortController(); void fetchTotals(ctrl2.signal);
-  };
-
-  /** Exportar Excel */
-  const onExportExcel = async () => {
-    try {
-      const firstU = new URL(`${API_URL}/solicitantes`);
-      firstU.searchParams.set("page", "1");
-      firstU.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-      firstU.searchParams.set("orderBy", sortKey);
-      firstU.searchParams.set("orderDir", sortDir);
-      if (empresaFilterId !== null) firstU.searchParams.set("empresaId", String(empresaFilterId));
-      else if (qDebounced.trim()) firstU.searchParams.set("q", qDebounced.trim());
-      firstU.searchParams.set("_ts", String(Date.now()));
-
-      const firstR = await fetch(firstU.toString(), { headers: tokenHeader(), credentials: "include", cache: "no-store" });
-      if (!firstR.ok) throw new Error(`HTTP ${firstR.status}`);
-      const first = (await firstR.json()) as ApiList<SolicitanteRow>;
-      const all: SolicitanteRow[] = [...first.items];
-
-      for (let p = 2; p <= (first.totalPages || 1); p++) {
-        const u = new URL(`${API_URL}/solicitantes`);
-        u.searchParams.set("page", String(p));
-        u.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-        u.searchParams.set("orderBy", sortKey);
-        u.searchParams.set("orderDir", sortDir);
-        if (empresaFilterId !== null) u.searchParams.set("empresaId", String(empresaFilterId));
-        else if (qDebounced.trim()) u.searchParams.set("q", qDebounced.trim());
-        u.searchParams.set("_ts", String(Date.now()));
-        const r = await fetch(u.toString(), { headers: tokenHeader(), credentials: "include", cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const pj = (await r.json()) as ApiList<SolicitanteRow>;
-        all.push(...pj.items);
-      }
-      await buildExcelPerEmpresa(all);
-    } catch (e) {
-      console.error("[Export Excel] Error:", e);
-      alert("No se pudo exportar el Excel. Revisa consola.");
-    }
-  };
-
-  /* ======== Ordenamiento local (lista PLANA) ======== */
-  const sortedItems = useMemo(() => {
-    const arr = [...(data?.items ?? [])];
-
-    const byEmpresa = (a: SolicitanteRow, b: SolicitanteRow) =>
-      (a.empresa?.nombre ?? "Sin empresa").localeCompare(b.empresa?.nombre ?? "Sin empresa", "es");
-
-    const byNombre = (a: SolicitanteRow, b: SolicitanteRow) =>
-      normalize(a.nombre).localeCompare(normalize(b.nombre), "es");
-
-    const byId = (a: SolicitanteRow, b: SolicitanteRow) =>
-      a.id_solicitante - b.id_solicitante;
-
-    const cmp =
-      sortKey === "empresa" ? byEmpresa :
-      sortKey === "nombre"  ? byNombre  :
-      byId;
-
-    arr.sort((a, b) => (sortDir === "asc" ? cmp(a, b) : -cmp(a, b)));
-    return arr;
-  }, [data?.items, sortKey, sortDir]);
-
-  /* =================== UI =================== */
-  return (
-  <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
-    {/* Fondo */}
-    <div className="pointer-events-none absolute inset-0 -z-10">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6 }}
-        className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]"
-      />
-      <motion.div
-        initial={{ scale: 0.96, opacity: 0 }}
-        animate={{ scale: 1, opacity: 0.4 }}
-        transition={{ duration: 0.8, ease: EASE_OUT }}
-        className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200"
-      />
-      <motion.div
-        initial={{ scale: 0.96, opacity: 0 }}
-        animate={{ scale: 1, opacity: 0.4 }}
-        transition={{ duration: 0.8, ease: EASE_OUT, delay: 0.1 }}
-        className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200"
-      />
-    </div>
-
-    <Header />
-
-    <main className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
       {/* Hero / Toolbar */}
-      <motion.div
-        {...fadeInUp}
-        className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm"
-      >
-        <div className="absolute inset-0 opacity-60 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
-        <div className="relative p-4 sm:p-6 md:p-8">
-          <motion.h1
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900"
-          >
-            <span className="align-middle">Solicitantes</span>{" "}
-            <span className="align-middle text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
-              RIDS.CL
-            </span>
-          </motion.h1>
+      <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+        <motion.div
+          className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <div className="absolute inset-0 opacity-60 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
+          <div className="relative p-4 sm:p-6 md:p-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+              Solicitantes{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
+                RIDS.CL
+              </span>
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">Gestiona solicitantes, cuentas y equipos. Filtra, edita y consulta detalles.</p>
 
-          {/* Subtítulo */}
-          <p className="mt-1 text-xs sm:text-sm text-slate-600">
-            Gestión de solicitantes, empresas y equipos — búsqueda, exportación y CRUD.
-          </p>
-
-          {/* === CONTROLES (toolbar) === */}
-          <div className="mt-5 flex flex-col gap-3">
-            <div className="flex flex-col md:flex-row md:flex-wrap items-stretch gap-3">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[220px]">
+            {/* Toolbar */}
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-10 gap-3">
+              {/* Búsqueda */}
+              <div className="relative md:col-span-5">
                 <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
                 <input
-                  value={q}
-                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                  placeholder={
-                    empresaFilterId !== null
-                      ? "Búsqueda deshabilitada por filtro empresa"
-                      : "Buscar por nombre o empresa…"
-                  }
                   className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-                  aria-label="Buscar solicitantes por nombre o empresa"
-                  disabled={empresaFilterId !== null}
+                  placeholder="Buscar por nombre, email o empresa…"
+                  value={q}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Buscar solicitantes"
                 />
-                {q.length > 0 && empresaFilterId === null && (
+                {q.length > 0 && (
                   <button
-                    onClick={clearSearch}
+                    onClick={() => setQ("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
                     aria-label="Limpiar búsqueda"
                     title="Limpiar"
@@ -852,640 +734,611 @@ const SolicitantesPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Filtro empresa */}
-              <div className="relative w-full sm:w-64 md:w-72 lg:w-80 xl:w-96">
+              {/* Filtro empresa (SOLO filtra la lista/tabla) */}
+              <div className="md:col-span-3">
                 <select
-                  ref={empresaSelectRef}
-                  value={empresaFilterId ?? ""}
-                  onFocus={() => empresaSelectRef.current?.showPicker?.()}
-                  onClick={() => empresaSelectRef.current?.showPicker?.()}
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  value={empresaId ?? ""}
                   onChange={(e) => {
-                    const v = e.target.value;
-                    setEmpresaFilterId(v ? Number(v) : null);
+                    setEmpresaId(e.target.value ? Number(e.target.value) : null);
                     setPage(1);
                   }}
-                  className="w-full appearance-none rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 pr-10 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                   aria-label="Filtrar por empresa"
                 >
-                  <option value="">— Filtrar por empresa —</option>
-                  {empresaOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.nombre}</option>
+                  <option value="">Todas las empresas</option>
+                  {empresas.map((e) => (
+                    <option key={e.id_empresa} value={e.id_empresa}>
+                      {e.nombre}
+                    </option>
                   ))}
                 </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyan-700/80">
-                  <DownOutlined />
-                </span>
-
-                {empresaFilterId !== null && (
-                  <button
-                    onClick={clearEmpresaFilter}
-                    type="button"
-                    className="absolute -right-10 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
-                    title="Quitar filtro"
-                    aria-label="Quitar filtro de empresa"
-                  >
-                    <ClearOutlined />
-                  </button>
-                )}
               </div>
 
               {/* Orden */}
-              <div className="flex items-stretch gap-2 md:ml-auto flex-wrap">
-                <div className="relative w-full sm:w-44">
-                  <label className="sr-only">Ordenar por</label>
-                  <select
-                    value={sortKey}
-                    onChange={(e) => {
-                      const next = e.target.value as SortKey;
-                      setSortKey(next); setPage(1);
-                    }}
-                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 pr-9 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  >
-                    <option value="nombre">Nombre</option>
-                    <option value="empresa">Empresa</option>
-                    <option value="id">ID</option>
-                  </select>
-                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-cyan-700/80">
-                    <SortAscendingOutlined />
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => { setSortDir((d) => (d === "asc" ? "desc" : "asc")); setPage(1); }}
-                  title={sortDir === "asc" ? "Ascendente" : "Descendente"}
-                  aria-label="Cambiar dirección de orden"
-                  className={clsx(
-                    "inline-flex items-center justify-center rounded-2xl border px-3 py-2.5 text-sm",
-                    "border-cyan-200/70 bg-white/90 text-cyan-800 hover:bg-cyan-50"
-                  )}
-                >
-                  {sortDir === "asc" ? <SortAscendingOutlined /> : <SortDescendingOutlined />}
-                </button>
-
-                {/* Acciones */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto">
-                  {/* Nuevo */}
-                  <button
-                    onClick={() => setOpenCreate(true)}
-                    type="button"
-                    className="
-                      inline-flex items-center justify-center gap-2
-                      rounded-2xl px-3 py-2.5 text-sm font-medium
-                      text-white bg-gradient-to-tr from-emerald-600 to-cyan-600
-                      w-full sm:w-auto min-w-[120px]
-                      shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
-                      hover:brightness-110 active:scale-[0.98]
-                      transition duration-200
-                      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                      disabled:opacity-60 disabled:cursor-not-allowed
-                    "
-                    title="Nuevo solicitante"
-                  >
-                    <PlusOutlined className="hidden sm:inline" />
-                    <span className="truncate">Nuevo</span>
-                  </button>
-
-                  {/* Recargar */}
-                  <button
-                    onClick={manualReload}
-                    type="button"
-                    className="
-                      inline-flex items-center justify-center gap-2 rounded-2xl
-                      border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm
-                      text-cyan-800 hover:bg-cyan-50 active:scale-[0.98]
-                      transition duration-200 w-full sm:w-auto min-w-[120px]
-                      focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                      disabled:opacity-60 disabled:cursor-not-allowed
-                    "
-                    title="Recargar"
-                  >
-                    <ReloadOutlined className="hidden sm:inline" />
-                    <span className="truncate">Recargar</span>
-                  </button>
-
-                  {/* Exportar */}
-                  <button
-                    onClick={onExportExcel}
-                    type="button"
-                    className="
-                      inline-flex items-center justify-center gap-2 rounded-2xl
-                      px-3 py-2.5 text-sm font-medium text-white
-                      bg-gradient-to-tr from-cyan-600 to-indigo-600
-                      shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)]
-                      hover:brightness-110 active:scale-[0.98]
-                      transition duration-200 w-full sm:w-auto min-w-[120px]
-                      focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                      disabled:opacity-60 disabled:cursor-not-allowed
-                    "
-                    title="Exportar a Excel por empresa"
-                  >
-                    <DownloadOutlined className="hidden sm:inline" />
-                    <span className="truncate">Exportar</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Separador sutil */}
-            <div className="mt-3 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
-
-            {/* === KPIs === */}
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {loadingTotals ? (
-                <div className="sm:col-span-3 rounded-2xl border border-cyan-200/70 bg-white/70 p-3 text-slate-600">
-                  Cargando totales…
-                </div>
-              ) : errorTotals ? (
-                <div className="sm:col-span-3 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-rose-700">
-                  {errorTotals}
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-2xl border border-cyan-200/60 bg-white/70 backdrop-blur-md p-4 shadow-sm hover:shadow-md transition">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Solicitantes</div>
-                    <div className="mt-1 text-2xl font-extrabold text-slate-900">{totals?.solicitantes ?? "—"}</div>
-                  </div>
-                  <div className="rounded-2xl border border-cyan-200/60 bg-white/70 backdrop-blur-md p-4 shadow-sm hover:shadow-md transition">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Empresas</div>
-                    <div className="mt-1 text-2xl font-extrabold text-slate-900">{totals?.empresas ?? "—"}</div>
-                  </div>
-                  <div className="rounded-2xl border border-cyan-200/60 bg-white/70 backdrop-blur-md p-4 shadow-sm hover:shadow-md transition">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Equipos</div>
-                    <div className="mt-1 text-2xl font-extrabold text-slate-900">{totals?.equipos ?? "—"}</div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Tabla (desktop) — SIEMPRE PLANA */}
-      <section
-        className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
-        aria-live="polite"
-        aria-busy={loading ? "true" : "false"}
-      >
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
-              <tr>
-                {["ID", "Nombre", "Email", "Empresa", "Equipos", "Acciones"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold align-middle">
-                    <div className="inline-flex items-center gap-2">
-                      {h}
-                      {h === "Empresa" && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-normal text-cyan-700 bg-cyan-100/60 border border-cyan-200 rounded px-1.5 py-0.5">
-                          {sortDir === "asc" ? <SortAscendingOutlined /> : <SortDescendingOutlined />}
-                          {sortKey === "empresa"
-                            ? sortDir === "asc" ? "Empresa A–Z" : "Empresa Z–A"
-                            : sortKey === "nombre"
-                            ? sortDir === "asc" ? "Nombre A–Z" : "Nombre Z–A"
-                            : sortDir === "asc" ? "ID asc." : "ID desc."}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            {loading && (
-              <tbody>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={`sk-${i}`} className="border-t border-cyan-100/60">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <td key={`sk-${i}-${j}`} className="px-4 py-3">
-                        <div className="h-4 w-full max-w-[240px] animate-pulse rounded bg-gradient-to-r from-cyan-50 via-cyan-100 to-cyan-50" />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            )}
-
-            {!loading && !error && sortedItems.length === 0 && (
-              <tbody>
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">Sin resultados.</td>
-                </tr>
-              </tbody>
-            )}
-
-            {!loading && !error && sortedItems.length > 0 && (
-              <tbody>
-                {sortedItems.map((s, idx) => (
-                  <motion.tr
-                    key={s.id_solicitante}
-                    variants={rowItem}
-                    whileHover={{ backgroundColor: "rgba(219, 234, 254, 0.35)" }}
-                    className={clsx(
-                      "border-t border-cyan-100 transition-colors",
-                      idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
-                    )}
-                  >
-                    <td className="px-4 py-3 whitespace-nowrap">{s.id_solicitante}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        className="text-left max-w-[320px] truncate hover:underline decoration-dotted text-cyan-700"
-                        onClick={() => openRow(s)}
-                        title="Ver detalle"
-                        type="button"
-                      >
-                        {s.nombre}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.email ? (
-                        <div className="flex items-center gap-2 max-w-[320px]">
-                          <a
-                            href={`mailto:${s.email}`}
-                            className="truncate text-cyan-700 underline decoration-dotted hover:decoration-solid"
-                          >
-                            {s.email}
-                          </a>
-                          <motion.button
-                            {...press}
-                            whileHover={{ y: -1 }}
-                            onClick={() => navigator.clipboard.writeText(s.email!)}
-                            className="text-xs px-2 py-0.5 rounded border border-cyan-200 hover:bg-cyan-50"
-                            title="Copiar email"
-                            aria-label="Copiar email"
-                            type="button"
-                          >
-                            Copiar
-                          </motion.button>
-                        </div>
-                      ) : (
-                        <div className="max-w-[320px] truncate text-slate-500">—</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.empresa?.nombre ? (
-                        <span className={clsx(
-                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border",
-                          companyTagClasses(s.empresa)
-                        )}>
-                          {s.empresa.nombre}
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.equipos.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {s.equipos.map((e) => {
-                            const label = e.marca ?? "Equipo";
-                            const title = [e.marca, e.modelo, e.serial].filter(Boolean).join(" · ");
-                            return (
-                              <span
-                                key={e.id_equipo}
-                                className={clsx("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border", brandTagClasses(e.marca))}
-                                title={title}
-                              >
-                                {label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">0</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditing(s); }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
-                          title="Editar"
-                          type="button"
-                        >
-                          <EditOutlined /> Editar
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (deletingId !== null) return; // evita dobles clics
-                            setDeletingId(s.id_solicitante);
-                            const base = `${API_URL}/solicitantes/${s.id_solicitante}`;
-
-                            const tryDelete = async (force = false) => {
-                              const url = force ? `${base}?force=true` : base;
-                              const r = await fetch(url, { method: "DELETE", headers: tokenHeader() });
-                              if (!r.ok) {
-                                try {
-                                  const j: unknown = await r.json();
-                                  if (r.status === 409 && typeof j === "object" && j !== null && "error" in j) {
-                                    return { ok: false, conflict: true, message: (j as { error?: string }).error };
-                                  }
-                                } catch { /* ignore */ }
-                                throw new Error(`HTTP ${r.status}`);
-                              }
-                              return { ok: true };
-                            };
-
-                            try {
-                              const first = await tryDelete(false);
-                              if ((first as { ok: boolean }).ok) {
-                                showToast("Solicitante eliminado", "success");
-                                manualReload();
-                                return;
-                              }
-                              if ((first as { conflict?: boolean }).conflict) {
-                                const ask = window.confirm(
-                                  "Este solicitante tiene equipos asociados. ¿Deseas forzar la eliminación y desvincular sus equipos?"
-                                );
-                                if (!ask) return;
-                                const forced = await tryDelete(true);
-                                if ((forced as { ok: boolean }).ok) {
-                                  showToast("Solicitante eliminado", "success");
-                                  manualReload();
-                                  return;
-                                }
-                                throw new Error("No se pudo eliminar.");
-                              }
-                            } catch (err) {
-                              showToast(err instanceof Error ? err.message : "No se pudo eliminar.", "error");
-                            } finally {
-                              setDeletingId(null);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-60"
-                          title="Eliminar"
-                          type="button"
-                          disabled={deletingId === s.id_solicitante}
-                        >
-                          {deletingId === s.id_solicitante ? (
-                            <>
-                              <LoadingOutlined className="animate-spin" /> Eliminando…
-                            </>
-                          ) : (
-                            <>
-                              <DeleteOutlined /> Eliminar
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            )}
-
-            {!loading && error && (
-              <tbody>
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-rose-600">{error}</td>
-                </tr>
-              </tbody>
-            )}
-          </table>
-        </div>
-
-        {/* Footer paginación + selector tamaño */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
-          <div className="text-sm text-slate-700 text-center sm:text-left">
-            {data ? (
-              <span>
-                {showingRange ? (
-                  <>
-                    Mostrando{" "}
-                    <strong className="text-slate-900">{showingRange.start}</strong>
-                    –{/* EN DASH */}
-                    <strong className="text-slate-900">{showingRange.end}</strong>{" "}
-                    de <strong className="text-slate-900">{data.total}</strong> •{" "}
-                  </>
-                ) : null}
-                Página <strong className="text-slate-900">{data.page}</strong> de{" "}
-                <strong className="text-slate-900">{data.totalPages}</strong>
-              </span>
-            ) : (
-              <span>—</span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
-            <label className="text-sm text-slate-700">
-              Filas:{" "}
-              <select
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                className="ml-2 rounded-xl border border-cyan-200 bg-white px-2 py-1 text-sm text-slate-900"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={30}>30</option>
-              </select>
-            </label>
-
-            <motion.button
-              {...press}
-              {...subtleHover}
-              onClick={() => page > 1 && setPage((p) => p - 1)}
-              disabled={page <= 1 || loading}
-              className={clsx(
-                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                (page <= 1 || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-              )}
-              aria-label="Página anterior"
-              type="button"
-            >
-              <LeftOutlined />
-              <span className="hidden sm:inline">Anterior</span>
-            </motion.button>
-
-            <motion.button
-              {...press}
-              {...subtleHover}
-              onClick={() => canNext && setPage((p) => p + 1)}
-              disabled={!canNext || loading}
-              className={clsx(
-                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-              )}
-              aria-label="Página siguiente"
-              type="button"
-            >
-              <span className="hidden sm:inline">Siguiente</span>
-              <RightOutlined />
-            </motion.button>
-          </div>
-        </div>
-      </section>
-
-      {/* Cards (mobile) — SIEMPRE PLANAS */}
-      <section className="md:hidden mt-4 space-y-3">
-        {loading && (
-          <>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={`sk-m-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4">
-                <div className="h-4 w-2/3 animate-pulse rounded bg-gradient-to-r from-cyan-50 via-cyan-100 to-cyan-50" />
-                <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-gradient-to-r from-cyan-50 via-cyan-100 to-cyan-50" />
-              </div>
-            ))}
-          </>
-        )}
-
-        {!loading && !error && sortedItems.length === 0 && (
-          <div className="rounded-2xl border border-cyan-200 bg-white p-6 text-center text-slate-500">
-            Sin resultados.
-          </div>
-        )}
-
-        {!loading && !error && sortedItems.map((s) => (
-          <div key={`m-row-${s.id_solicitante}`} className="rounded-2xl border border-cyan-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <button
-                  className="text-left text-sm font-semibold text-cyan-700 hover:underline decoration-dotted"
-                  onClick={() => openRow(s)}
-                  type="button"
-                  title="Ver detalle"
-                >
-                  {s.nombre}
-                </button>
-                <div className="mt-1 text-xs text-slate-600">ID #{s.id_solicitante}</div>
-                <div className="mt-1 text-xs text-slate-600">
-                  {s.email ? (
-                    <a href={`mailto:${s.email}`} className="text-cyan-700 underline decoration-dotted">
-                      {s.email}
-                    </a>
-                  ) : "—"}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {s.equipos.length > 0 ? (
-                    s.equipos.map((e) => (
-                      <span
-                        key={`m-tag-${e.id_equipo}`}
-                        className={clsx("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border", brandTagClasses(e.marca))}
-                        title={[e.marca, e.modelo, e.serial].filter(Boolean).join(" · ")}
-                      >
-                        {e.marca ?? "Equipo"}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">0 equipos</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="shrink-0 flex flex-col gap-2">
-                <button
-                  onClick={() => setEditing(s)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
-                  title="Editar"
-                  type="button"
-                >
-                  <EditOutlined /> Editar
-                </button>
-                <button
-                  onClick={async () => {
-                    const base = `${API_URL}/solicitantes/${s.id_solicitante}`;
-                    const tryDelete = async (force = false) => {
-                      const url = force ? `${base}?force=true` : base;
-                      const r = await fetch(url, { method: "DELETE", headers: tokenHeader() });
-                      if (!r.ok) {
-                        try {
-                          const j: unknown = await r.json();
-                          if (r.status === 409 && typeof j === "object" && j !== null && "error" in j) {
-                            return { ok: false, conflict: true, message: (j as { error?: string }).error };
-                          }
-                        } catch { /* ignore */ }
-                        throw new Error(`HTTP ${r.status}`);
-                      }
-                      return { ok: true };
-                    };
-                    try {
-                      const first = await tryDelete(false);
-                      if ((first as { ok: boolean }).ok) { manualReload(); return; }
-                      if ((first as { conflict?: boolean }).conflict) {
-                        const ask = window.confirm("Este solicitante tiene equipos asociados. ¿Deseas forzar la eliminación y desvincular sus equipos?");
-                        if (!ask) return;
-                        const forced = await tryDelete(true);
-                        if ((forced as { ok: boolean }).ok) { manualReload(); return; }
-                        throw new Error("No se pudo eliminar.");
-                      }
-                    } catch (err) {
-                      alert(err instanceof Error ? err.message : "No se pudo eliminar.");
-                    }
+              <div className="md:col-span-2">
+                <select
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  value={`${orderBy}:${orderDir}`}
+                  onChange={(e) => {
+                    const [ob, od] = e.target.value.split(":") as ["empresa" | "nombre" | "id", "asc" | "desc"];
+                    setOrderBy(ob);
+                    setOrderDir(od);
+                    setPage(1);
                   }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
-                  title="Eliminar"
-                  type="button"
+                  aria-label="Ordenar"
                 >
-                  <DeleteOutlined /> Eliminar
+                  <option value="empresa:asc">Empresa A→Z</option>
+                  <option value="empresa:desc">Empresa Z→A</option>
+                  <option value="nombre:asc">Nombre A→Z</option>
+                  <option value="nombre:desc">Nombre Z→A</option>
+                  <option value="id:asc">ID ↑</option>
+                  <option value="id:desc">ID ↓</option>
+                </select>
+              </div>
+
+              {/* Acciones */}
+              <div className="md:col-span-10 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <button
+                  onClick={clearFilters}
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 active:scale-[0.98] transition duration-200 w-full min-w-[120px] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  title="Limpiar filtros"
+                >
+                  <CloseCircleFilled className="hidden sm:inline" />
+                  <span className="truncate">Limpiar</span>
+                </button>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition w-full min-w-[120px]"
+                  onClick={() => void reloadAll()}
+                  title="Recargar"
+                >
+                  <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
+                </button>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-emerald-600 to-cyan-600 px-3 py-2.5 text-sm font-medium text-white hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px] shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]"
+                  onClick={openCreate}
+                  title="Nuevo solicitante"
+                >
+                  <PlusOutlined /> <span className="hidden sm:inline">Nuevo</span>
+                </button>
+
+                {/* Botón Google con estética Googley */}
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
+                    syncing
+                      ? "bg-gradient-to-tr from-[#A8C7FA] to-[#81C995] cursor-wait"
+                      : "bg-gradient-to-tr from-[#34A853] to-[#4285F4] hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(66,133,244,0.45)]"
+                  )}
+                  onClick={openSyncGoogle}
+                  disabled={syncing}
+                  title="Actualizar cuentas desde Google Workspace"
+                >
+                  <GoogleOutlined /> <span className="hidden sm:inline">Actualizar Google</span>
+                </button>
+
+                {/* Botón Microsoft con estética Windows */}
+                <button
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
+                    syncingMs
+                      ? "bg-gradient-to-tr from-blue-400 to-blue-500 cursor-wait"
+                      : "bg-gradient-to-tr from-blue-700 to-blue-600 hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]"
+                  )}
+                  onClick={openSyncMicrosoft}
+                  disabled={syncingMs}
+                  title="Actualizar cuentas desde Microsoft 365"
+                >
+                  <WindowsOutlined /> <span className="hidden sm:inline">Actualizar Microsoft</span>
                 </button>
               </div>
             </div>
+
+            {/* Separador */}
+            <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
           </div>
-        ))}
-      </section>
-    </main>
+        </motion.div>
+      </div>
 
-    {/* Toast feedback */}
-    {toast && (
-      <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 12, scale: 0.98 }}
-        transition={{ duration: 0.2 }}
-        className={clsx(
-          "fixed bottom-6 right-6 z-[120] rounded-xl px-4 py-3 shadow-lg border",
-          toast.type === "success"
-            ? "bg-emerald-600 text-white border-emerald-500"
-            : "bg-rose-600 text-white border-rose-500"
-        )}
-        role="status"
-        aria-live="polite"
-      >
-        {toast.text}
-      </motion.div>
-    )}
+      {/* Métricas */}
+      <div className="px-3 sm:px-4 md:px-6 lg:px-8 mt-4 max-w-7xl mx-auto w-full">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05, duration: 0.2 }}
+          className="grid grid-cols-1 gap-3 md:grid-cols-3"
+        >
+          <div className="rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="text-sm text-gray-500">Solicitantes</div>
+            <div className="mt-1 text-2xl font-semibold">{metrics?.solicitantes ?? 0}</div>
+          </div>
+          <div className="rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="text-sm text-gray-500">Empresas</div>
+            <div className="mt-1 text-2xl font-semibold">{metrics?.empresas ?? 0}</div>
+          </div>
+          <div className="rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="text-sm text-gray-500">Equipos</div>
+            <div className="mt-1 text-2xl font-semibold">{metrics?.equipos ?? 0}</div>
+          </div>
+        </motion.div>
+      </div>
 
-    {/* Modales */}
-    <SolicitanteDetailModal open={openDetail} onClose={closeDetail} solicitante={selected} />
+      {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
+      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 mt-4 max-w-7xl mx-auto w-full">
+        {/* Cards (mobile) */}
+        <section className="md:hidden space-y-3" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+          {loading && (
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
+                  <div className="h-4 w-28 bg-cyan-50 rounded mb-2" />
+                  <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
+                  <div className="h-3 w-1/2 bg-cyan-50 rounded" />
+                </div>
+              ))}
+            </div>
+          )}
+          <AnimatePresence>
+            {!loading && (list?.items?.length ?? 0) === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center"
+              >
+                Sin resultados.
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {!loading &&
+              list?.items?.map((r) => {
+                const empresaNombre = r.empresa?.nombre ?? "—";
+                return (
+                  <motion.article
+                    key={r.id_solicitante}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md"
+                  >
+                    <header className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs text-slate-500">#{r.id_solicitante}</div>
+                        <button className="text-base font-semibold text-cyan-700 hover:underline" onClick={() => setDetailId(r.id_solicitante)} title="Ver detalle">
+                          {r.nombre}
+                        </button>
+                        <p className="text-xs text-slate-600 mt-0.5">{empresaNombre}</p>
+                      </div>
+                      <AccountBadge type={r.accountType} />
+                    </header>
 
-    {openCreate && (
-      <div className="fixed inset-0 z-[100]">
-        <div className="absolute inset-0 bg-black/60" onClick={() => setOpenCreate(false)} />
-        <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-cyan-50">
-              <div className="font-semibold text-slate-800 flex items-center gap-2">
-                <PlusOutlined /> Nuevo solicitante
+                    <p className="text-sm text-slate-700 mt-2">
+                      <span className="text-slate-500">Email:</span> {r.email ?? "—"}
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <BadgeCount count={r.equipos?.length ?? 0} />
+                      <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => setDetailId(r.id_solicitante)}
+                        className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
+                        aria-label={`Ver detalle de ${r.nombre}`}
+                      >
+                        Detalle
+                      </button>
+                      <button
+                        onClick={() => openEdit(r)}
+                        className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                        aria-label={`Editar solicitante ${r.nombre}`}
+                      >
+                        <EditOutlined />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => void removeRow(r)}
+                        className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 text-rose-700 px-2 py-2 text-sm hover:bg-rose-50"
+                        aria-label={`Eliminar solicitante ${r.nombre}`}
+                      >
+                        <DeleteOutlined />
+                        Eliminar
+                      </button>
+                    </div>
+                  </motion.article>
+                );
+              })}
+          </AnimatePresence>
+        </section>
+
+        {/* Tabla (desktop) */}
+        <section className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-3 w-16 text-left font-semibold">ID</th>
+                  <th className="px-4 py-3 text-left font-semibold">Nombre</th>
+                  <th className="px-4 py-3 text-left font-semibold">Empresa</th>
+                  <th className="px-4 py-3 text-center font-semibold">Equipos</th>
+                  <th className="px-4 py-3 text-left font-semibold">Cuenta</th>
+                  <th className="px-4 py-3 text-left font-semibold">Licencias MS</th>
+                  <th className="px-4 py-3 w-56 text-left font-semibold">Acciones</th>
+                </tr>
+              </thead>
+              <AnimatePresence initial={false}>
+                <tbody className="text-slate-800">
+                  {loading &&
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={`skt-${i}`} className="border-t border-cyan-100 animate-pulse">
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-10 bg-cyan-50 rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-40 bg-cyan-50 rounded" />
+                          <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-28 bg-cyan-50 rounded" />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="h-4 w-10 bg-cyan-50 rounded inline-block" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-20 bg-cyan-50 rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-24 bg-cyan-50 rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-8 w-40 bg-cyan-50 rounded" />
+                        </td>
+                      </tr>
+                    ))}
+
+                  {!loading && (list?.items?.length ?? 0) === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-slate-600">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                          Sin resultados
+                        </motion.div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {!loading &&
+                    list?.items?.map((r) => (
+                      <motion.tr
+                        key={r.id_solicitante}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                      >
+                        <td className="px-4 py-3">{r.id_solicitante}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            className="text-left text-cyan-700 hover:underline"
+                            onClick={() => setDetailId(r.id_solicitante)}
+                            title="Ver detalle"
+                            aria-label={`Ver detalle de ${r.nombre}`}
+                          >
+                            {r.nombre}
+                          </button>
+                          <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.empresa?.nombre ? (
+                            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
+                              {r.empresa.nombre}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <BadgeCount count={r.equipos?.length ?? 0} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <AccountBadge type={r.accountType} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                              onClick={() => openEdit(r)}
+                              aria-label={`Editar solicitante ${r.nombre}`}
+                            >
+                              <EditOutlined /> Editar
+                            </button>
+                            <button
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                              onClick={() => void removeRow(r)}
+                              aria-label={`Eliminar solicitante ${r.nombre}`}
+                            >
+                              <DeleteOutlined /> Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                </tbody>
+              </AnimatePresence>
+            </table>
+          </div>
+
+          {/* Paginación */}
+          <div className="flex items-center justify-between border-t px-4 py-3 bg-slate-50 text-sm">
+            <div>
+              {list
+                ? `${(list.page - 1) * list.pageSize + 1}-${Math.min(
+                    list.page * list.pageSize,
+                    list.total
+                  )} de ${list.total}`
+                : "0-0 de 0"}
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded-lg border px-2 py-1"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                aria-label="Tamaño de página"
+              >
+                {[10, 20, 50, 100].map((s) => (
+                  <option key={s} value={s}>
+                    {s}/pág
+                  </option>
+                ))}
+              </select>
+              <button
+                className="rounded-lg border px-3 py-1 disabled:opacity-50"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Página anterior"
+                title="Página anterior"
+              >
+                ←
+              </button>
+              <div>
+                Página {list?.page ?? page} / {list?.totalPages ?? 1}
               </div>
               <button
-                onClick={() => setOpenCreate(false)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800"
-                aria-label="Cerrar modal"
+                className="rounded-lg border px-3 py-1 disabled:opacity-50"
+                disabled={!list || page >= list.totalPages}
+                onClick={() => setPage((p) => (list ? Math.min(list.totalPages, p + 1) : p))}
+                aria-label="Página siguiente"
+                title="Página siguiente"
               >
-                <CloseOutlined />
+                →
               </button>
             </div>
-            <div className="p-4">
-              <CrearSolicitante
-                onCancel={() => setOpenCreate(false)}
-                onSuccess={() => { setOpenCreate(false); manualReload(); }}
-              />
-            </div>
           </div>
+        </section>
+      </main>
+
+      {/* Modal Crear */}
+      <TWModal
+        open={creating}
+        title="Nuevo solicitante"
+        onClose={() => setCreating(false)}
+        onOk={saveCreate}
+        okText="Crear"
+        okDisabled={createInvalid}
+        loading={savingCreate}
+      >
+        <label className="block text-sm">
+          Nombre
+          <input
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              createErrors.nombre ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={createForm.v.nombre}
+            onChange={(e) => {
+              const v = { ...createForm.v, nombre: e.target.value };
+              createForm.setV(v);
+              setCreateErrors((prev) => ({ ...prev, nombre: undefined }));
+            }}
+          />
+          {createErrors.nombre && <div className="mt-1 text-xs text-rose-600">{createErrors.nombre}</div>}
+        </label>
+        <label className="block text-sm">
+          Email
+          <input
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              createErrors.email ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={createForm.v.email ?? ""}
+            onChange={(e) => {
+              const v = { ...createForm.v, email: e.target.value || null };
+              createForm.setV(v);
+              setCreateErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+          />
+          {createErrors.email && <div className="mt-1 text-xs text-rose-600">{createErrors.email}</div>}
+        </label>
+        <label className="block text-sm">
+          Empresa
+          <select
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              createErrors.empresaId ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={createForm.v.empresaId ?? ""}
+            onChange={(e) => {
+              const v = { ...createForm.v, empresaId: e.target.value ? Number(e.target.value) : null };
+              createForm.setV(v);
+              setCreateErrors((prev) => ({ ...prev, empresaId: undefined }));
+            }}
+          >
+            <option value="">Selecciona…</option>
+            {empresas.map((e) => (
+              <option key={e.id_empresa} value={e.id_empresa}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
+          {createErrors.empresaId && <div className="mt-1 text-xs text-rose-600">{createErrors.empresaId}</div>}
+        </label>
+      </TWModal>
+
+      {/* Modal Editar */}
+      <TWModal
+        open={!!editing}
+        title="Editar solicitante"
+        onClose={() => setEditing(null)}
+        onOk={saveEdit}
+        okText="Guardar"
+        okDisabled={editInvalid}
+        loading={savingEdit}
+      >
+        <label className="block text-sm">
+          Nombre
+          <input
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              editErrors.nombre ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={editForm.v.nombre}
+            onChange={(e) => {
+              const v = { ...editForm.v, nombre: e.target.value };
+              editForm.setV(v);
+              setEditErrors((prev) => ({ ...prev, nombre: undefined }));
+            }}
+          />
+          {editErrors.nombre && <div className="mt-1 text-xs text-rose-600">{editErrors.nombre}</div>}
+        </label>
+        <label className="block text-sm">
+          Email
+          <input
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              editErrors.email ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={editForm.v.email ?? ""}
+            onChange={(e) => {
+              const v = { ...editForm.v, email: e.target.value || null };
+              editForm.setV(v);
+              setEditErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+          />
+          {editErrors.email && <div className="mt-1 text-xs text-rose-600">{editErrors.email}</div>}
+        </label>
+        <label className="block text-sm">
+          Empresa
+          <select
+            className={clsx(
+              "mt-1 w-full rounded-xl border px-3 py-2",
+              editErrors.empresaId ? "border-rose-300 focus:border-rose-400" : ""
+            )}
+            value={editForm.v.empresaId ?? ""}
+            onChange={(e) => {
+              const v = { ...editForm.v, empresaId: e.target.value ? Number(e.target.value) : null };
+              editForm.setV(v);
+              setEditErrors((prev) => ({ ...prev, empresaId: undefined }));
+            }}
+          >
+            <option value="">Selecciona…</option>
+            {empresas.map((e) => (
+              <option key={e.id_empresa} value={e.id_empresa}>
+                {e.nombre}
+              </option>
+            ))}
+          </select>
+          {editErrors.empresaId && <div className="mt-1 text-xs text-rose-600">{editErrors.empresaId}</div>}
+        </label>
+      </TWModal>
+
+      {/* Modal Sync Google — ahora elige la empresa en el modal */}
+      <SyncGoogleModal
+        open={syncGoogleOpen}
+        empresas={empresas}
+        syncing={syncing}
+        onClose={() => setSyncGoogleOpen(false)}
+        onSubmit={runSyncGoogle}
+      />
+
+      {/* Modal Sync Microsoft */}
+      <TWModal
+        open={syncMsOpen}
+        title="Actualizar Microsoft 365"
+        onClose={() => setSyncMsOpen(false)}
+        onOk={runSyncMicrosoft}
+        okText="Sincronizar"
+        loading={syncingMs}
+        okDisabled={!msEmpresaId}
+      >
+        <div className="grid gap-3">
+          <label className="block text-sm">
+            Empresa
+            <select
+              className="mt-1 w-full rounded-xl border px-3 py-2"
+              value={msEmpresaId ?? ""}
+              onChange={(e) => setMsEmpresaId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Selecciona…</option>
+              {empresas.map((e) => (
+                <option key={e.id_empresa} value={e.id_empresa}>{e.nombre}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm">
+            Dominio (opcional)
+            <input
+              className="mt-1 w-full rounded-xl border px-3 py-2"
+              placeholder="p.ej. grupocolchagua.cl"
+              value={msDomain}
+              onChange={(e) => setMsDomain(e.target.value)}
+            />
+            <div className="mt-1 text-[11px] text-slate-500">
+              Si lo dejas vacío, sincroniza todo el tenant permitido por tus credenciales.
+            </div>
+          </label>
+
+          <label className="block text-sm">
+            Email específico (opcional)
+            <input
+              className="mt-1 w-full rounded-xl border px-3 py-2"
+              placeholder="usuario@grupocolchagua.cl"
+              value={msEmail}
+              onChange={(e) => setMsEmail(e.target.value)}
+            />
+            <div className="mt-1 text-[11px] text-slate-500">
+              Si indicas un email, se sincroniza solo ese usuario (usa método PUT).
+            </div>
+          </label>
         </div>
-      </div>
-    )}
+      </TWModal>
 
-    <EditSolicitanteModal
-      open={!!editing}
-      onClose={() => setEditing(null)}
-      solicitante={editing}
-      onUpdated={manualReload}
-    />
-  </div>
-);
+      {/* Modal de Detalle */}
+      <Suspense fallback={null}>
+        {detail && (
+          <SolicitanteDetailModal
+            open
+            onClose={() => {
+              setDetail(null);
+              setDetailId(null);
+            }}
+            solicitante={detail}
+          />
+        )}
+      </Suspense>
 
-};
-
-export default SolicitantesPage;
+      {/* Toasts */}
+      <ToastsView toasts={toasts} dismiss={dismiss} />
+    </div>
+  );
+}

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect } from "react";
+// src/components/SolicitanteDetailModal.tsx
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CloseOutlined,
   LaptopOutlined,
@@ -8,9 +9,11 @@ import {
   BarcodeOutlined,
   InfoCircleOutlined,
   CopyOutlined,
+  DownOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 
-/** Tipos mínimos que el modal necesita (duplicados aquí para no depender de la página). */
+/* ================= Tipos ================= */
 export type Empresa = { id_empresa: number; nombre: string } | null;
 
 export type Equipo = {
@@ -25,12 +28,28 @@ export type Equipo = {
   propiedad: string | null;
 };
 
+/** NUEVO: tipos para cuenta/licencias */
+export type AccountType = "google" | "microsoft" | "manual" | string | null;
+
+export type MsLicense = {
+  skuId: string;
+  skuPartNumber: string;
+  displayName?: string;
+  licenseType?: string; // Business | Enterprise | Education | ...
+  licenseTier?: string; // Basic | Standard | Premium | E1 | E3 | E5...
+};
+
 export type SolicitanteForDetail = {
   id_solicitante: number;
   nombre: string;
   empresaId: number | null;
   empresa: Empresa;
   equipos: Equipo[];
+
+  /** NUEVO */
+  accountType?: AccountType;
+  msLicenses?: MsLicense[];
+  msLicensesCount?: number; // compat si el backend sólo devuelve el conteo
 };
 
 type DetailModalProps = {
@@ -74,8 +93,6 @@ function companyTagClasses(emp?: Empresa) {
 
 function brandTagClasses(brand?: string | null) {
   const b = (brand || "").trim().toLowerCase();
-
-  // marcas conocidas (asigna colores consistentes):
   if (/apple|macbook|imac|mac/.test(b))
     return "border-slate-300 bg-slate-50 text-slate-900";
   if (/dell/.test(b)) return "border-indigo-200 bg-indigo-50 text-indigo-900";
@@ -93,8 +110,6 @@ function brandTagClasses(brand?: string | null) {
     return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900";
   if (/microsoft|surface/.test(b))
     return "border-purple-200 bg-purple-50 text-purple-900";
-
-  // fallback por hash:
   const BRAND_PALETTE = [
     "border-teal-200 bg-teal-50 text-teal-900",
     "border-cyan-200 bg-cyan-50 text-cyan-900",
@@ -117,21 +132,78 @@ function initials(fullname?: string | null) {
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
+/* ====== chips cuenta ====== */
+function accountBadge(a?: AccountType) {
+  const v = (a ?? "").toString().toLowerCase();
+  const base =
+    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border";
+  if (v === "google")
+    return (
+      <span className={`${base} border-emerald-200 bg-emerald-50 text-emerald-800`}>
+        Google
+      </span>
+    );
+  if (v === "microsoft")
+    return (
+      <span className={`${base} border-sky-200 bg-sky-50 text-sky-800`}>
+        Microsoft
+      </span>
+    );
+  if (v === "manual")
+    return (
+      <span className={`${base} border-slate-200 bg-slate-50 text-slate-800`}>
+        Manual
+      </span>
+    );
+  if (!v)
+    return (
+      <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>
+        —
+      </span>
+    );
+  return (
+    <span className={`${base} border-violet-200 bg-violet-50 text-violet-800`}>
+      {v[0].toUpperCase() + v.slice(1)}
+    </span>
+  );
+}
+
+/* ====== resumen licencias ====== */
+function summarizeLicenses(lics?: MsLicense[]) {
+  if (!lics || lics.length === 0) return [];
+  const map = new Map<string, { label: string; count: number }>();
+  for (const l of lics) {
+    const label =
+      (l.licenseType || l.displayName || l.skuPartNumber) +
+      (l.licenseTier ? ` ${l.licenseTier}` : "");
+    const key = label.toLowerCase();
+    map.set(key, { label, count: (map.get(key)?.count ?? 0) + 1 });
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, "es")
+  );
+}
+
 const InfoRow: React.FC<{ label: string; value?: React.ReactNode }> = ({
   label,
   value,
 }) => (
   <div className="grid grid-cols-3 gap-3 py-2 border-b border-neutral-100 last:border-0">
-    <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
+    <div className="text-xs uppercase tracking-wide text-neutral-500">
+      {label}
+    </div>
     <div className="col-span-2 text-neutral-900">{value ?? "—"}</div>
   </div>
 );
 
+/* ================= Componente ================= */
 const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
   open,
   onClose,
   solicitante,
 }) => {
+  const [showLicDetail, setShowLicDetail] = useState(false);
+
   // Cerrar con ESC
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
@@ -156,10 +228,23 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
     return () => document.removeEventListener("keydown", handleKey);
   }, [handleKey]);
 
+  /* 👇 Hooks que dependen de props/estado deben ir ANTES del early-return */
+  const licSummary = useMemo(
+    () => summarizeLicenses(solicitante?.msLicenses),
+    [solicitante?.msLicenses]
+  );
+
+  // ✅ ahora sí, guard
   if (!open || !solicitante) return null;
 
   const empresa = solicitante.empresa;
   const equipos = solicitante.equipos ?? [];
+
+  const msCount =
+    (solicitante.msLicenses?.length ?? 0) ||
+    (typeof solicitante.msLicensesCount === "number"
+      ? solicitante.msLicensesCount
+      : 0);
 
   const copy = (txt?: string | null) => {
     if (!txt) return;
@@ -180,32 +265,41 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      {/* Backdrop con blur */}
+      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       {/* Card */}
       <div className="relative w-full sm:max-w-3xl mx-auto bg-white rounded-3xl shadow-2xl border border-cyan-100 overflow-hidden">
-        {/* Header con gradiente y avatar */}
+        {/* Header */}
         <div className="relative bg-gradient-to-r from-cyan-600 via-cyan-700 to-cyan-800 px-5 sm:px-7 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 min-w-0">
               <div className="h-12 w-12 rounded-2xl bg-white/15 ring-2 ring-white/30 flex items-center justify-center text-white font-bold">
                 {initials(solicitante.nombre)}
               </div>
-              <div className="text-white">
-                <h2 id="solicitante-modal-title" className="text-lg font-semibold leading-none">
+              <div className="text-white min-w-0">
+                <h2
+                  id="solicitante-modal-title"
+                  className="text-lg font-semibold leading-none truncate"
+                >
                   {solicitante.nombre}
                 </h2>
-                <div className="mt-1">
-                  <span
-                    className={
-                      "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium " +
-                      companyTagClasses(empresa)
-                    }
-                  >
-                    <InfoCircleOutlined />
-                    {empresa?.nombre ?? "Sin empresa"}
-                  </span>
+                <div className="mt-1 flex items-center gap-2 flex-wrap">
+                  {accountBadge(solicitante.accountType)}
+                  {empresa?.nombre && (
+                    <span
+                      className={
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-white/10 border-white/30"
+                      }
+                    >
+                      {empresa.nombre}
+                    </span>
+                  )}
+                  {msCount > 0 && (
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-white/10 border-white/30">
+                      {msCount} licencia{msCount === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -221,7 +315,7 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
           </div>
         </div>
 
-        {/* Body scrollable */}
+        {/* Body */}
         <div className="px-5 sm:px-7 py-6 max-h-[75vh] overflow-auto">
           {/* Información general */}
           <section className="mb-6">
@@ -263,6 +357,74 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
                   )
                 }
               />
+
+              {/* NUEVO: Tipo de cuenta */}
+              <InfoRow label="Cuenta" value={accountBadge(solicitante.accountType)} />
+
+              {/* NUEVO: Licencias Microsoft (resumen + detalle) */}
+              <InfoRow
+                label="Licencias MS"
+                value={
+                  msCount > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {/* Resumen */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {licSummary.map((it) => (
+                          <span
+                            key={it.label}
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border border-sky-200 bg-sky-50 text-sky-800"
+                            title={it.label}
+                          >
+                            {it.label} ×{it.count}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Toggle detalle */}
+                      {solicitante.msLicenses && solicitante.msLicenses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowLicDetail((v) => !v)}
+                          className="self-start text-xs text-cyan-700 hover:underline inline-flex items-center gap-1"
+                        >
+                          {showLicDetail ? <UpOutlined /> : <DownOutlined />}
+                          {showLicDetail ? "Ocultar detalle" : "Ver detalle"}
+                        </button>
+                      )}
+
+                      {/* Detalle */}
+                      {showLicDetail && solicitante.msLicenses && (
+                        <div className="rounded-lg border border-sky-100 bg-sky-50/50 p-2">
+                          <ul className="list-disc pl-5 space-y-1 text-sm text-slate-800">
+                            {solicitante.msLicenses.map((l, i) => {
+                              const main =
+                                l.displayName ||
+                                [l.licenseType, l.licenseTier].filter(Boolean).join(" ");
+                              return (
+                                <li key={`${l.skuId}-${i}`}>
+                                  <span className="font-medium">
+                                    {main || l.skuPartNumber}
+                                  </span>
+                                  {main && l.skuPartNumber && (
+                                    <span className="text-slate-500">
+                                      {" "}
+                                      — {l.skuPartNumber}
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+
+              {/* Equipos count chip */}
               <InfoRow
                 label="Equipos"
                 value={
@@ -316,8 +478,7 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
                       <div className="flex items-center gap-2 text-sm">
                         <BarcodeOutlined className="text-neutral-500" />
                         <span className="text-neutral-600">
-                          Serial:{" "}
-                          <span className="text-neutral-900">{eq.serial ?? "—"}</span>
+                          Serial: <span className="text-neutral-900">{eq.serial ?? "—"}</span>
                         </span>
                         {eq.serial && (
                           <button
@@ -333,8 +494,7 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
                       <div className="flex items-center gap-2 text-sm">
                         <InfoCircleOutlined className="text-neutral-500" />
                         <span className="text-neutral-600">
-                          Procesador:{" "}
-                          <span className="text-neutral-900">{eq.procesador ?? "—"}</span>
+                          Procesador: <span className="text-neutral-900">{eq.procesador ?? "—"}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -352,8 +512,7 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
                       <div className="flex items-center gap-2 text-sm">
                         <InfoCircleOutlined className="text-neutral-500" />
                         <span className="text-neutral-600">
-                          Propiedad:{" "}
-                          <span className="text-neutral-900">{eq.propiedad ?? "—"}</span>
+                          Propiedad: <span className="text-neutral-900">{eq.propiedad ?? "—"}</span>
                         </span>
                       </div>
                     </div>

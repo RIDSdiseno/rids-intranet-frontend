@@ -11,9 +11,6 @@ import {
   TeamOutlined,
   DownloadOutlined,
   LoadingOutlined,
-  UpOutlined,
-  DownOutlined,
-  SwapOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import Header from "../components/Header";
@@ -30,16 +27,16 @@ const API_BASE = API_URL.replace(/\/api\/?$/, "");
 /* =================== Tipos =================== */
 type EquipoRow = {
   id_equipo: number;
-  serial: string;
-  marca: string;
-  modelo: string;
-  procesador: string;
-  ram: string;
-  disco: string;
-  propiedad: string;
+  serial: string | null;
+  marca: string | null;
+  modelo: string | null;
+  procesador: string | null;
+  ram: string | null;
+  disco: string | null;
+  propiedad: string | null;
   solicitante: string | null;
   empresa: string | null;
-  idSolicitante: number;
+  idSolicitante: number | null;
   empresaId: number | null;
 };
 
@@ -161,7 +158,6 @@ function getErrorMessage(err: unknown): string {
   }
 }
 
-
 function styleWorksheet(
   XLSX: XLSXNS,
   ws: WorkSheet,
@@ -276,28 +272,13 @@ function companyRowTheme(empresa?: string | null): { bg: string; borderLeft: str
   return palette[idx];
 }
 
-/* =================== Sort =================== */
-type SortKey =
-  | "id_equipo"
-  | "serial"
-  | "marca"
-  | "modelo"
-  | "procesador"
-  | "ram"
-  | "disco"
-  | "propiedad"
-  | "solicitante"
-  | "empresa";
-type SortDir = "asc" | "desc";
-const sortIcon = (dir?: SortDir) =>
-  !dir ? <SwapOutlined className="opacity-50" /> : dir === "asc" ? <UpOutlined /> : <DownOutlined />;
-
-/* =================== Solicitanes (remote search para edición) =================== */
-async function fetchSolicitantes(search: string, page = 1, pageSize = 20): Promise<ListSolicitantesResponse> {
+/* =================== Solicitanes =================== */
+async function fetchSolicitantes(search: string, page = 1, pageSize = 20, empresaId?: number | null): Promise<ListSolicitantesResponse> {
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   if (search.trim()) params.set("search", search.trim());
+  if (empresaId != null) params.set("empresaId", String(empresaId));
   const token = localStorage.getItem("accessToken");
   const res = await fetch(`${API_URL}/solicitantes?${params.toString()}`, {
     credentials: "include",
@@ -337,10 +318,6 @@ const EquiposPage: React.FC = () => {
   const [data, setData] = useState<ApiList<EquipoRow> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Ordenamiento client-side
-  const [sortKey, setSortKey] = useState<SortKey>("id_equipo");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // Export
   const [exporting, setExporting] = useState(false);
@@ -513,7 +490,7 @@ const EquiposPage: React.FC = () => {
         PROPIEDAD: e.propiedad || "",
         SOLICITANTE: e.solicitante || "",
         EMPRESA: e.empresa || "",
-        SolicitanteId: e.idSolicitante,
+        SolicitanteId: e.idSolicitante ?? "",
         EmpresaId: e.empresaId ?? "",
       });
 
@@ -726,37 +703,21 @@ const EquiposPage: React.FC = () => {
     setPage(1);
   };
 
-  // ordenar client-side
-  const sortedItems = useMemo(() => {
+  // Orden fijo: Empresa ASC, luego Solicitante ASC, luego id_equipo ASC
+  const rowsSorted = useMemo(() => {
     const arr = data?.items ? [...data.items] : [];
-    const dir: 1 | -1 = sortDir === "asc" ? 1 : -1;
-    const toComparable = (v: string | number | null | undefined): { n?: number; s: string } => {
-      if (typeof v === "number") return { n: v, s: String(v) };
-      const s = (v ?? "").toString().toLowerCase();
-      return { s };
-    };
+    const norm = (v?: string | null) => (v ?? "").toString().trim().toLowerCase();
     arr.sort((a, b) => {
-      const va = a[sortKey] as string | number | null | undefined;
-      const vb = b[sortKey] as string | number | null | undefined;
-      const ca = toComparable(va);
-      const cb = toComparable(vb);
-      if (typeof ca.n === "number" && typeof cb.n === "number") {
-        return (ca.n - cb.n) * dir;
-      }
-      if (ca.s < cb.s) return -1 * dir;
-      if (ca.s > cb.s) return 1 * dir;
-      return 0;
+      const ea = norm(a.empresa), eb = norm(b.empresa);
+      if (ea < eb) return -1;
+      if (ea > eb) return 1;
+      const sa = norm(a.solicitante), sb = norm(b.solicitante);
+      if (sa < sb) return -1;
+      if (sa > sb) return 1;
+      return (a.id_equipo ?? 0) - (b.id_equipo ?? 0);
     });
     return arr;
-  }, [data?.items, sortKey, sortDir]);
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
+  }, [data?.items]);
 
   /* ================== CREAR (via Modal reutilizable) ================== */
   const [createOpen, setCreateOpen] = useState(false);
@@ -784,19 +745,28 @@ const EquiposPage: React.FC = () => {
     disco: "",
     propiedad: "",
   });
+
+  // Nueva cadena Empresa -> Solicitante
+  const [editEmpresaId, setEditEmpresaId] = useState<number | null>(null);
   const [editSolicitanteId, setEditSolicitanteId] = useState<number | null>(null);
 
-  // buscador solicitantes (editar)
+  // buscador solicitantes (editar) local (filtra sobre opciones ya cargadas)
   const [solSearchE, setSolSearchE] = useState("");
-  const solSearchEDeb = useDebouncedValue(solSearchE, 400);
+  const solSearchEDeb = useDebouncedValue(solSearchE, 300);
   const [solOptsE, setSolOptsE] = useState<SolicitanteLite[]>([]);
   const [solLoadE, setSolLoadE] = useState(false);
-  const loadSolicitantesEdit = async () => {
+
+  // Carga solicitantes desde API, filtrando por empresa
+  const loadSolicitantesEdit = async (empresaId: number | null, term: string) => {
+    if (empresaId == null) {
+      setSolOptsE([]);
+      return;
+    }
     setSolLoadE(true);
     try {
-      const data = await fetchSolicitantes(solSearchEDeb, 1, 20);
+      const resp = await fetchSolicitantes(term, 1, 50, empresaId);
       setSolOptsE(
-        data.items.map((it) => ({
+        resp.items.map((it) => ({
           id_solicitante: it.id_solicitante,
           nombre: it.nombre,
           empresa: it.empresa,
@@ -808,11 +778,12 @@ const EquiposPage: React.FC = () => {
       setSolLoadE(false);
     }
   };
+
+  // Reaccionar a cambios (cuando el modal está abierto)
   useEffect(() => {
     if (!editOpen) return;
-    loadSolicitantesEdit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editOpen, solSearchEDeb]);
+    loadSolicitantesEdit(editEmpresaId, solSearchEDeb);
+  }, [editOpen, editEmpresaId, solSearchEDeb]);
 
   const startEdit = (row: EquipoRow) => {
     setEditRow(row);
@@ -825,15 +796,18 @@ const EquiposPage: React.FC = () => {
       disco: row.disco || "",
       propiedad: row.propiedad || "",
     });
-    setEditSolicitanteId(row.idSolicitante || null);
+    setEditEmpresaId(row.empresaId ?? null);
+    setEditSolicitanteId(row.idSolicitante ?? null);
     setSolSearchE("");
     setEditOpen(true);
   };
+
   const cancelEdit = () => {
     if (editSaving) return;
     setEditOpen(false);
     setEditRow(null);
   };
+
   const saveEdit = async () => {
     if (!editRow) return;
 
@@ -842,6 +816,10 @@ const EquiposPage: React.FC = () => {
         alert(`El campo "${String(k).toUpperCase()}" es obligatorio.`);
         return;
       }
+    }
+    if (editEmpresaId == null) {
+      alert("Debes seleccionar una empresa.");
+      return;
     }
     if (!editSolicitanteId) {
       alert("Debes seleccionar un solicitante.");
@@ -859,7 +837,11 @@ const EquiposPage: React.FC = () => {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify({ ...editForm, idSolicitante: editSolicitanteId }),
+        body: JSON.stringify({
+          ...editForm,
+          idSolicitante: editSolicitanteId,
+          empresaId: editEmpresaId,
+        }),
       });
 
       if (!res.ok) {
@@ -883,10 +865,9 @@ const EquiposPage: React.FC = () => {
     }
   };
 
-
   /* ================== ELIMINAR ================== */
   async function deleteEquipo(row: EquipoRow) {
-    if (!confirm(`¿Eliminar equipo #${row.id_equipo} (${row.serial})?`)) return;
+    if (!confirm(`¿Eliminar equipo #${row.id_equipo} (${row.serial || ""})?`)) return;
 
     const token = localStorage.getItem("accessToken");
     try {
@@ -915,7 +896,6 @@ const EquiposPage: React.FC = () => {
       alert(getErrorMessage(err) || "No se pudo eliminar el equipo");
     }
   }
-
 
   /* =================== UI =================== */
   const headerCols = [
@@ -1000,72 +980,10 @@ const EquiposPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Orden */}
-              <div className="md:col-span-4 grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-700 shrink-0">
-                    <SwapOutlined className="mr-1" /> Orden
-                  </span>
-                  <select
-                    value={sortKey}
-                    onChange={(e) => {
-                      setSortKey(e.target.value as typeof sortKey);
-                      setSortDir("asc");
-                      setPage(1);
-                    }}
-                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                    aria-label="Ordenar por"
-                  >
-                    <option value="solicitante">Solicitante (A → Z)</option>
-                    <option value="empresa">Empresa (A → Z)</option>
-                    <option value="id_equipo">ID (asc)</option>
-                    <option value="serial">Serial (A → Z)</option>
-                    <option value="marca">Marca (A → Z)</option>
-                    <option value="modelo">Modelo (A → Z)</option>
-                    <option value="procesador">CPU (A → Z)</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-700 shrink-0">Dirección</span>
-                  <div className="flex w-full">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSortDir("asc");
-                        setPage(1);
-                      }}
-                      className={clsx(
-                        "w-1/2 inline-flex items-center justify-center gap-1 rounded-l-2xl border px-3 py-2 text-sm",
-                        "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50",
-                        sortDir === "asc" && "bg-cyan-600 text-white hover:bg-cyan-600"
-                      )}
-                      aria-pressed={sortDir === "asc"}
-                      title="Ascendente"
-                    >
-                      <UpOutlined /> Asc
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSortDir("desc");
-                        setPage(1);
-                      }}
-                      className={clsx(
-                        "w-1/2 inline-flex items-center justify-center gap-1 rounded-r-2xl border px-3 py-2 text-sm",
-                        "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50",
-                        sortDir === "desc" && "bg-cyan-600 text-white hover:bg-cyan-600"
-                      )}
-                      aria-pressed={sortDir === "desc"}
-                      title="Descendente"
-                    >
-                      <DownOutlined /> Desc
-                    </button>
-                  </div>
-                </div>
-              </div>
+              {/* (Se quitó Orden/Dirección) */}
 
               {/* Botones principales */}
-              <div className="md:col-span-4">
+              <div className="md:col-span-8">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 justify-end">
                   <button
                     onClick={startCreate}
@@ -1201,14 +1119,14 @@ const EquiposPage: React.FC = () => {
           {!loading && error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
           )}
-          {!loading && !error && sortedItems.length === 0 && (
+          {!loading && !error && rowsSorted.length === 0 && (
             <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">
               Sin resultados.
             </div>
           )}
           {!loading &&
             !error &&
-            sortedItems.map((e) => (
+            rowsSorted.map((e) => (
               <article key={`m-${e.id_equipo}`} className="rounded-2xl border border-cyan-200 bg-white p-4">
                 <header className="flex items-start justify-between gap-3">
                   <div>
@@ -1293,15 +1211,7 @@ const EquiposPage: React.FC = () => {
                             col.className
                           )}
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleSort(col.key as SortKey)}
-                            className="inline-flex items-center gap-1 hover:opacity-80"
-                            title="Ordenar"
-                          >
-                            <span>{col.label}</span>
-                            <span>{sortKey === col.key ? sortIcon(sortDir) : sortIcon(undefined)}</span>
-                          </button>
+                          <span>{col.label}</span>
                         </th>
                       ))}
                       <th className="text-left px-4 py-3 font-semibold text-slate-800 select-none rounded-tr-xl w-[160px]">
@@ -1333,7 +1243,7 @@ const EquiposPage: React.FC = () => {
                       </tr>
                     )}
 
-                    {!loading && !error && sortedItems.length === 0 && (
+                    {!loading && !error && rowsSorted.length === 0 && (
                       <tr>
                         <td colSpan={colsWithActions} className="px-4 py-12">
                           <div className="flex flex-col items-center gap-3 text-slate-600">
@@ -1361,7 +1271,7 @@ const EquiposPage: React.FC = () => {
 
                     {!loading &&
                       !error &&
-                      sortedItems.map((e) => {
+                      rowsSorted.map((e) => {
                         const brand = e.marca || "";
                         const isBrandActive =
                           marcaFilter && marcaFilter.toLowerCase() === brand.toLowerCase();
@@ -1512,7 +1422,7 @@ const EquiposPage: React.FC = () => {
                   onChange={(ev) => onChangePageSize(Number(ev.target.value))}
                   className="rounded-xl border border-cyan-200 bg-white px-2 py-1 text-sm"
                 >
-                  {[10, 20, 30].map((n) => (
+                  {[10, 20, 30, 50, 100].map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -1561,9 +1471,34 @@ const EquiposPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Solicitante (remote search) */}
-            <div className="px-5 pt-4">
-              <label className="text-sm block">
+            {/* Empresa -> Solicitante */}
+            <div className="px-5 pt-4 grid grid-cols-1 gap-3">
+              {/* 1) Empresa */}
+              <label className="text-sm">
+                <span className="block text-slate-700 mb-1">
+                  Empresa <span className="text-rose-500">*</span>
+                </span>
+                <select
+                  value={editEmpresaId ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setEditEmpresaId(val);
+                    setEditSolicitanteId(null);
+                    // Disparará loadSolicitantesEdit por efecto
+                  }}
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                >
+                  <option value="">— Selecciona empresa —</option>
+                  {empresaOptions.map((opt) => (
+                    <option key={opt.id ?? -1} value={opt.id ?? ""}>
+                      {opt.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {/* 2) Solicitante (filtrado por empresa) */}
+              <label className="text-sm">
                 <span className="block text-slate-700 mb-1">
                   Solicitante <span className="text-rose-500">*</span>
                 </span>
@@ -1571,8 +1506,9 @@ const EquiposPage: React.FC = () => {
                   <input
                     value={solSearchE}
                     onChange={(e) => setSolSearchE(e.target.value)}
-                    placeholder="Buscar por nombre o empresa…"
+                    placeholder="Buscar por nombre…"
                     className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    disabled={editEmpresaId == null}
                   />
                   {solLoadE ? (
                     <span className="inline-flex items-center px-2 text-slate-500"><LoadingOutlined /></span>
@@ -1582,14 +1518,24 @@ const EquiposPage: React.FC = () => {
                   value={editSolicitanteId ?? ""}
                   onChange={(e) => setEditSolicitanteId(e.target.value ? Number(e.target.value) : null)}
                   className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  disabled={editEmpresaId == null}
                 >
                   <option value="">{solLoadE ? "Cargando…" : "— Selecciona —"}</option>
-                  {solOptsE.map((s) => (
-                    <option key={s.id_solicitante} value={s.id_solicitante}>
-                      {s.nombre}{s.empresa?.nombre ? ` — ${s.empresa.nombre}` : ""}
-                    </option>
-                  ))}
+                  {solOptsE
+                    .filter((s) =>
+                      solSearchE.trim()
+                        ? s.nombre.toLowerCase().includes(solSearchE.trim().toLowerCase())
+                        : true
+                    )
+                    .map((s) => (
+                      <option key={s.id_solicitante} value={s.id_solicitante}>
+                        {s.nombre}{s.empresa?.nombre ? ` — ${s.empresa.nombre}` : ""}
+                      </option>
+                    ))}
                 </select>
+                <div className="text-[11px] text-slate-500 mt-1">
+                  Si el equipo cambió de empresa, primero selecciona la nueva empresa para listar sus solicitantes.
+                </div>
               </label>
             </div>
 
@@ -1604,7 +1550,7 @@ const EquiposPage: React.FC = () => {
               }}
             >
               {(() => {
-                type FieldKey = keyof typeof editForm; // "serial" | "marca" | ...
+                type FieldKey = keyof typeof editForm;
 
                 const FIELDS: Array<{ key: FieldKey; label: string; autoCap?: boolean }> = [
                   { key: "serial", label: "Serial", autoCap: true },
@@ -1648,7 +1594,6 @@ const EquiposPage: React.FC = () => {
                 Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
               </div>
             </div>
-
 
             <div className="px-5 py-4 border-t border-cyan-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end bg-slate-50">
               <button

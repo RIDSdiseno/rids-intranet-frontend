@@ -72,26 +72,81 @@ const toSiNo = (v?: boolean) => (v ? "Sí" : "No");
 /* ====== agregación para “Resumen” ====== */
 function ymd(dateIso: string): string { const d=new Date(dateIso); return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`; }
 function incCounter(map: Map<string, number>, key: string) { map.set(key,(map.get(key)??0)+1); }
-function asTrue(v: unknown): boolean { if (typeof v==="boolean") return v; if (typeof v==="number") return v===1; if (typeof v==="string") { const s=v.trim().toLowerCase(); return s==="sí"||s==="si"||s==="true"||s==="1"; } return false; }
+function asTrue(v: unknown): boolean {
+  if (typeof v==="boolean") return v;
+  if (typeof v==="number") return v===1;
+  if (typeof v==="string") { const s=v.trim().toLowerCase(); return s==="sí"||s==="si"||s==="true"||s==="1"; }
+  return false;
+}
 type Row2D = Array<string | number>;
+
+/* --- REGLA: categorías independientes --- */
+/* Cambia a true si quieres contar SOLO COMPLETADAS en todos los cuadros del resumen */
+const COUNT_ONLY_COMPLETADAS = false;
+
+function isElegible(row: VisitaRow) {
+  return COUNT_ONLY_COMPLETADAS ? (row.status||"").toUpperCase()==="COMPLETADA" : true;
+}
+function anyProgramada(v: VisitaRow) {
+  return (
+    asTrue(v.rendimientoEquipo) ||
+    asTrue(v.ccleaner) ||
+    asTrue(v.actualizaciones) ||
+    asTrue(v.licenciaOffice) ||
+    asTrue(v.antivirus) ||
+    asTrue(v.licenciaWindows) ||
+    asTrue(v.estadoDisco) ||
+    asTrue(v.mantenimientoReloj)
+  );
+}
+function anyAdicional(v: VisitaRow) {
+  return (
+    asTrue(v.confImpresoras) ||
+    asTrue(v.confTelefonos) ||
+    asTrue(v.confPiePagina) ||
+    asTrue(v.otros)
+  );
+}
+
 function aggregateForResumen(items: Array<VisitaRow>) {
-  const byDay = new Map<string, number>(); for (const v of items) incCounter(byDay, ymd(v.inicio));
-  const daily: Row2D[] = Array.from(byDay.entries()).sort(([a],[b])=>a.localeCompare(b)).map(([d,c])=>[d,c]);
+  /* Filtrar según regla (p.ej. solo COMPLETADAS si así se desea) */
+  const pool = items.filter(isElegible);
+
+  /* Por día (usando inicio) */
+  const byDay = new Map<string, number>();
+  for (const v of pool) incCounter(byDay, ymd(v.inicio));
+  const daily: Row2D[] = Array.from(byDay.entries())
+    .sort(([a],[b])=>a.localeCompare(b))
+    .map(([d,c])=>[d,c]);
+
+  /* Checklist (conteo de “Sí” por ítem) */
   const checklist: Row2D[] = [
-    ["Rendimiento del equipo", items.filter(x=>asTrue(x.rendimientoEquipo)).length],
-    ["CCleaner", items.filter(x=>asTrue(x.ccleaner)).length],
-    ["Actualizaciones", items.filter(x=>asTrue(x.actualizaciones)).length],
-    ["Licencia office", items.filter(x=>asTrue(x.licenciaOffice)).length],
-    ["Antivirus", items.filter(x=>asTrue(x.antivirus)).length],
-    ["Licencia Windows", items.filter(x=>asTrue(x.licenciaWindows)).length],
-    ["Estado del disco", items.filter(x=>asTrue(x.estadoDisco)).length],
-    ["Mantenimiento del reloj", items.filter(x=>asTrue(x.mantenimientoReloj)).length],
+    ["Rendimiento del equipo", pool.filter(x=>asTrue(x.rendimientoEquipo)).length],
+    ["CCleaner",               pool.filter(x=>asTrue(x.ccleaner)).length],
+    ["Actualizaciones",        pool.filter(x=>asTrue(x.actualizaciones)).length],
+    ["Licencia office",        pool.filter(x=>asTrue(x.licenciaOffice)).length],
+    ["Antivirus",              pool.filter(x=>asTrue(x.antivirus)).length],
+    ["Licencia Windows",       pool.filter(x=>asTrue(x.licenciaWindows)).length],
+    ["Estado del disco",       pool.filter(x=>asTrue(x.estadoDisco)).length],
+    ["Mantenimiento del reloj",pool.filter(x=>asTrue(x.mantenimientoReloj)).length],
   ];
-  const adicionales = items.filter(x=>asTrue(x.otros)).length;
-  const pie: Row2D[] = [["Solicitudes adicionales", adicionales],["Solicitud Programada", items.length - adicionales]];
+
+  /* Pie / Tipos (INDEPENDIENTES) */
+  const adicionalesCount = pool.filter(anyAdicional).length;
+  const programadasCount = pool.filter(anyProgramada).length;
+
+  const pie: Row2D[] = [
+    ["Solicitudes adicionales", adicionalesCount],
+    ["Solicitud Programada",    programadasCount],
+  ];
+
+  /* Por solicitante */
   const bySolicitanteAll = new Map<string, number>();
-  for (const v of items) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? "No especificado");
-  const bySolicitanteAllRows: Row2D[] = Array.from(bySolicitanteAll.entries()).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([u,n])=>[u,n]);
+  for (const v of pool) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? "No especificado");
+  const bySolicitanteAllRows: Row2D[] = Array.from(bySolicitanteAll.entries())
+    .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
+    .map(([u,n])=>[u,n]);
+
   return { daily, checklist, pie, bySolicitanteAllRows };
 }
 const asPairs = (rows: Row2D[]) => rows.map(r=>[String(r[0]), Number(r[1]||0)] as [string,number]);
@@ -567,7 +622,7 @@ const VisitasPage: React.FC = () => {
                   type="button"
                   className={clsx(
                     "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
-                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
+                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w/full min-w-[120px]",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                     (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
                   )}
@@ -587,7 +642,7 @@ const VisitasPage: React.FC = () => {
                     bg-gradient-to-tr from-emerald-600 to-cyan-600
                     shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
                     hover:brightness-110 active:scale-[0.98]
-                    transition duration-200 w-full min-w-[120px]
+                    transition duration-200 w/full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
                   title="Nueva visita"

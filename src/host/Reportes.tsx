@@ -889,6 +889,7 @@ const ReportesPage: React.FC = () => {
     });
 
   /* =============== Export DOCX =============== */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const MONTHS_NAMES = [
     "Enero","Febrero","Marzo","Abril","Mayo","Junio",
     "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
@@ -896,7 +897,7 @@ const ReportesPage: React.FC = () => {
   const periodoTexto = useMemo(() => {
     if (!selectedYear || !selectedMonth) return "";
     return `${MONTHS_NAMES[Number(selectedMonth) - 1]} ${selectedYear}`;
-  }, [selectedYear, selectedMonth]);
+  }, [selectedYear, selectedMonth, MONTHS_NAMES]);
 
   const exportDOCX = async () => {
     try {
