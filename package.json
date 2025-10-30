@@ -3,17 +3,23 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "check": "tsc -b --pretty false -v",
+    "build": "vite build",
+    "build:ci": "npm run check && npm run build",
     "lint": "eslint .",
+    "lint:ci": "eslint . --max-warnings=0",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^5.3.0",
     "@azure/msal-browser": "^4.25.1",
     "@azure/msal-react": "^3.0.20",
     "@microsoft/microsoft-graph-client": "^3.0.7",
-    "@ant-design/icons": "^5.3.0",
     "axios": "^1.12.2",
     "chart.js": "^4.5.1",
     "dayjs": "^1.11.18",
