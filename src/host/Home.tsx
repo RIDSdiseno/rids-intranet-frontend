@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
 import Header from "../components/Header";
 import {
   UserOutlined,
@@ -98,9 +98,9 @@ type VisitasMetrics = {
 
 type StatBase = {
   name: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  change: React.ReactNode;
+  value: ReactNode;
+  icon: ReactNode;
+  change: ReactNode;
 };
 type RefreshableStat = StatBase & { onRefresh: () => void; isLoading: boolean };
 type Stat = StatBase | RefreshableStat;
@@ -129,7 +129,7 @@ type TooltipProps = {
   label?: string | number;
   payload?: Array<{ value: number; payload: VisitaMetricRow }>;
 };
-const CustomTooltip: React.FC<TooltipProps> = React.memo(({ active, label, payload }) => {
+const CustomTooltip: FC<TooltipProps> = ({ active, label, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0].payload as VisitaMetricRow;
   const empresas = (row.empresas ?? [])
@@ -162,10 +162,14 @@ const CustomTooltip: React.FC<TooltipProps> = React.memo(({ active, label, paylo
       )}
     </div>
   );
-});
-CustomTooltip.displayName = "CustomTooltip";
+};
 
 /* ===== Hooks para breakpoint y truncado ===== */
+type LegacyMQL = MediaQueryList & {
+  addListener?: (listener: (e: MediaQueryListEvent) => void) => void;
+  removeListener?: (listener: (e: MediaQueryListEvent) => void) => void;
+};
+
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState<boolean>(() => {
     if (typeof window === "undefined" || !window.matchMedia) return false;
@@ -175,22 +179,25 @@ function useMediaQuery(query: string) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
 
-    const mql = window.matchMedia(query);
+    const mql: MediaQueryList = window.matchMedia(query);
     const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
 
-    // Suscribir
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange as EventListener);
-    } else if (typeof mql.addListener === "function") {
-      mql.addListener(onChange);
+    // Suscribir (API moderna con fallback)
+    if ("addEventListener" in mql) {
+      mql.addEventListener("change", onChange);
+    } else if ("addListener" in mql) {
+      (mql as LegacyMQL).addListener?.(onChange);
     }
+
+    // Estado inicial
+    setMatches(mql.matches);
 
     // Cleanup
     return () => {
-      if (typeof mql.removeEventListener === "function") {
-        mql.removeEventListener("change", onChange as EventListener);
-      } else if (typeof mql.removeListener === "function") {
-        mql.removeListener(onChange);
+      if ("removeEventListener" in mql) {
+        mql.removeEventListener("change", onChange);
+      } else if ("removeListener" in mql) {
+        (mql as LegacyMQL).removeListener?.(onChange);
       }
     };
   }, [query]);
@@ -198,14 +205,13 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
-
 function truncate(value: string, max: number) {
   if (!value) return "";
   return value.length <= max ? value : value.slice(0, Math.max(0, max - 1)) + "…";
 }
 
 /** Tick del XAxis que trunca por breakpoint */
-const ResponsiveTick: React.FC<{
+const ResponsiveTick: FC<{
   x?: number;
   y?: number;
   payload?: { value: string };
@@ -227,7 +233,7 @@ const ResponsiveTick: React.FC<{
 };
 
 /* =================== Page =================== */
-const Home: React.FC = () => {
+const Home: FC = () => {
   // total solicitantes
   const [totalSolicitantes, setTotalSolicitantes] = useState<number | null>(null);
   const [loadingSol, setLoadingSol] = useState<boolean>(false);
@@ -495,42 +501,42 @@ const Home: React.FC = () => {
             </button>
           </div>
 
-          <div className="h-64 sm:h-72">
-            {loadingVis ? (
-              <div className="h-full flex items-center justify-center text-neutral-500" role="status" aria-live="polite">
-                <LoadingOutlined /> &nbsp; Cargando…
-              </div>
-            ) : visitasByTech.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-neutral-400">
-                No hay visitas registradas en el rango ({from} → {to})
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={visitasByTech}
-                  margin={{ top: 8, right: 8, left: 8, bottom: isMobile ? 24 : 12 }}
-                  barCategoryGap={isMobile ? "20%" : "10%"}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="tecnico"
-                    height={isMobile ? 54 : 46}
-                    interval={isMobile ? "preserveStartEnd" : 0}
-                    minTickGap={isMobile ? 4 : 8}
-                    tickMargin={isMobile ? 6 : 10}
-                    tick={(props) => <ResponsiveTick {...props} isMobile={isMobile} isTablet={isTablet} />}
-                  />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip content={(props) => <CustomTooltip {...props} />} />
-                  <Bar dataKey="cantidad">
-                    {visitasByTech.map((row) => (
-                      <Cell key={row.tecnicoId} fill={colorForTech(row.tecnicoId, row.tecnico)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+        <div className="h-64 sm:h-72">
+          {loadingVis ? (
+            <div className="h-full flex items-center justify-center text-neutral-500" role="status" aria-live="polite">
+              <LoadingOutlined /> &nbsp; Cargando…
+            </div>
+          ) : visitasByTech.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-neutral-400">
+              No hay visitas registradas en el rango ({from} → {to})
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={visitasByTech}
+                margin={{ top: 8, right: 8, left: 8, bottom: isMobile ? 24 : 12 }}
+                barCategoryGap={isMobile ? "20%" : "10%"}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="tecnico"
+                  height={isMobile ? 54 : 46}
+                  interval={isMobile ? "preserveStartEnd" : 0}
+                  minTickGap={isMobile ? 4 : 8}
+                  tickMargin={isMobile ? 6 : 10}
+                  tick={(props) => <ResponsiveTick {...props} isMobile={isMobile} isTablet={isTablet} />}
+                />
+                <YAxis allowDecimals={false} />
+                <Tooltip content={(props) => <CustomTooltip {...props} />} />
+                <Bar dataKey="cantidad">
+                  {visitasByTech.map((row) => (
+                    <Cell key={row.tecnicoId} fill={colorForTech(row.tecnicoId, row.tecnico)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
           <div className="mt-2 text-xs text-neutral-500">
             Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
