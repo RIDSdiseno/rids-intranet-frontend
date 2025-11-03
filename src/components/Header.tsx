@@ -1,7 +1,6 @@
 import React from "react";
 import {
   LogOut,
-  Globe,
   Home,
   CalendarDays,
   Ticket,
@@ -250,10 +249,7 @@ const Header: React.FC = () => {
               <FileText className="h-6 w-6" />
             </Link>
 
-            {/* Idioma (placeholder) */}
-            <button className="p-2 hover:text-slate-900 transition rounded-xl hover:bg-slate-100" aria-label="Idioma" title="Idioma">
-              <Globe className="h-6 w-6" />
-            </button>
+           
 
             {/* Salir */}
             <button
