@@ -37,7 +37,7 @@ const API_URL =
 
 /* ====================== Tipos de página ====================== */
 interface EstadisticasEmpresa {
-  totalTickets: number; // mantenemos en el tipo por compatibilidad con la API, pero NO lo usamos
+  totalTickets: number;
   totalSolicitantes: number;
   totalEquipos: number;
   totalVisitas: number;
@@ -56,7 +56,92 @@ interface Empresa extends EmpresaLite {
   estadisticas: EstadisticasEmpresa;
 }
 
-/* ====================== Helpers ====================== */
+/* ====================== Type guards ====================== */
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+function isNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function isNullableString(v: unknown): v is string | null {
+  return v === null || typeof v === "string";
+}
+function asNumberOr(v: unknown, fallback: number): number {
+  return isNumber(v) ? v : fallback;
+}
+function asStringOr(v: unknown, fallback: string): string {
+  return isString(v) ? v : fallback;
+}
+function asNullableStringOr(v: unknown, fallback: string | null): string | null {
+  return isNullableString(v) ? v : fallback;
+}
+
+/* ====== Normalizadores estrictos (sin any) ====== */
+function normalizeSolicitante(input: unknown): Empresa["solicitantes"][number] {
+  const obj = isRecord(input) ? input : {};
+  const equiposArr = Array.isArray(obj.equipos) ? obj.equipos : [];
+  const equipos = equiposArr
+    .map((eq): { id_equipo: number } | null => {
+      const rec = isRecord(eq) ? eq : {};
+      const id_equipo = asNumberOr(rec.id_equipo, NaN);
+      return Number.isFinite(id_equipo) ? { id_equipo } : null;
+    })
+    .filter((x): x is { id_equipo: number } => x !== null);
+
+  const id = asNumberOr(obj.id_solicitante, NaN);
+  return {
+    id_solicitante: Number.isFinite(id) ? id : -1,
+    nombre: asStringOr(obj.nombre, ""),
+    email: asNullableStringOr(obj.email, null),
+    equipos,
+  };
+}
+
+function normalizeEstadisticas(input: unknown): EstadisticasEmpresa {
+  const s = isRecord(input) ? input : {};
+  return {
+    totalTickets: asNumberOr(s.totalTickets, 0),
+    totalSolicitantes: asNumberOr(s.totalSolicitantes, 0),
+    totalEquipos: asNumberOr(s.totalEquipos, 0),
+    totalVisitas: asNumberOr(s.totalVisitas, 0),
+    totalTrabajos: asNumberOr(s.totalTrabajos, 0),
+    visitasPendientes: asNumberOr(s.visitasPendientes, 0),
+    trabajosPendientes: asNumberOr(s.trabajosPendientes, 0),
+  };
+}
+
+function normalizeEmpresa(input: unknown): Empresa {
+  const e = isRecord(input) ? input : {};
+  const solicitantesRaw = Array.isArray(e.solicitantes) ? e.solicitantes : [];
+  const solicitantes = solicitantesRaw.map(normalizeSolicitante);
+
+  const id = asNumberOr(e.id_empresa, NaN);
+
+  // detalleEmpresa: mantener shape de EmpresaLite (puede ser null)
+  const detalleEmpresa =
+  isRecord(e.detalleEmpresa)
+    ? (e.detalleEmpresa as EmpresaLite["detalleEmpresa"])
+    : undefined;
+
+  return {
+    id_empresa: Number.isFinite(id) ? id : -1,
+    nombre: asStringOr(e.nombre, ""),
+    detalleEmpresa,
+    solicitantes,
+    estadisticas: normalizeEstadisticas(e.estadisticas),
+  };
+}
+
+function normalizeEmpresas(arr: unknown): Empresa[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(normalizeEmpresa);
+}
+
+/* ====================== Helpers UI ====================== */
 function formatNumber(n?: number | null) {
   if (typeof n !== "number") return "—";
   try {
@@ -183,8 +268,7 @@ const EmpresasPage: React.FC = () => {
 
       const token = localStorage.getItem("accessToken") ?? "";
 
-      // Empresas
-      const eRes = await fetch(`${API_URL}/empresas`, {
+      const eRes = await fetch(`${API_URL}/empresas${qs({ withStats: 1 })}`, {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -195,11 +279,17 @@ const EmpresasPage: React.FC = () => {
       });
       if (!eRes.ok)
         throw new Error(`HTTP ${eRes.status}: ${eRes.statusText}`);
-      const eJson: { data?: Empresa[]; items?: Empresa[] } = await eRes.json();
-      const empresasData = eJson.data ?? eJson.items ?? [];
-      if (!Array.isArray(empresasData))
-        throw new Error("Formato inválido de empresas");
-      setEmpresas(empresasData);
+
+      // El JSON del backend puede venir como {data: Empresa[]}
+      const raw: unknown = await eRes.json();
+
+      let items: unknown = [];
+      if (isRecord(raw)) {
+        if (Array.isArray(raw.data)) items = raw.data;
+        else if (Array.isArray(raw.items)) items = raw.items;
+      }
+
+      setEmpresas(normalizeEmpresas(items));
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError((err as Error)?.message || "Error al cargar datos");
@@ -220,14 +310,15 @@ const EmpresasPage: React.FC = () => {
         (acc, e) => ({
           totalEmpresas: acc.totalEmpresas + 1,
           totalSolicitantes:
-            acc.totalSolicitantes + e.estadisticas.totalSolicitantes,
-          totalEquipos: acc.totalEquipos + e.estadisticas.totalEquipos,
-          totalVisitas: acc.totalVisitas + e.estadisticas.totalVisitas,
-          totalTrabajos: acc.totalTrabajos + e.estadisticas.totalTrabajos,
+            acc.totalSolicitantes + (e.estadisticas.totalSolicitantes ?? 0),
+          totalEquipos: acc.totalEquipos + (e.estadisticas.totalEquipos ?? 0),
+          totalVisitas: acc.totalVisitas + (e.estadisticas.totalVisitas ?? 0),
+          totalTrabajos:
+            acc.totalTrabajos + (e.estadisticas.totalTrabajos ?? 0),
           visitasPendientes:
-            acc.visitasPendientes + e.estadisticas.visitasPendientes,
+            acc.visitasPendientes + (e.estadisticas.visitasPendientes ?? 0),
           trabajosPendientes:
-            acc.trabajosPendientes + e.estadisticas.trabajosPendientes,
+            acc.trabajosPendientes + (e.estadisticas.trabajosPendientes ?? 0),
         }),
         {
           totalEmpresas: 0,
@@ -395,12 +486,16 @@ const EmpresasPage: React.FC = () => {
         }
       );
       if (eqRes.ok) {
-        const eqJson: {
-          data?: EquipoLite[];
-          rows?: EquipoLite[];
-          items?: EquipoLite[];
-        } = await eqRes.json();
-        setEquiposSel(eqJson.data ?? eqJson.rows ?? eqJson.items ?? []);
+        const eqJson: unknown = await eqRes.json();
+        let equipos: EquipoLite[] = [];
+        if (isRecord(eqJson)) {
+          if (Array.isArray(eqJson.data)) equipos = eqJson.data as EquipoLite[];
+          else if (Array.isArray(eqJson.rows))
+            equipos = eqJson.rows as EquipoLite[];
+          else if (Array.isArray(eqJson.items))
+            equipos = eqJson.items as EquipoLite[];
+        }
+        setEquiposSel(equipos);
       }
 
       // Visitas por empresa
@@ -415,8 +510,13 @@ const EmpresasPage: React.FC = () => {
         }
       );
       if (vRes.ok) {
-        const vJson: { data?: Visita[]; rows?: Visita[] } = await vRes.json();
-        setVisitasSel(vJson.data ?? vJson.rows ?? []);
+        const vJson: unknown = await vRes.json();
+        let visitas: Visita[] = [];
+        if (isRecord(vJson)) {
+          if (Array.isArray(vJson.data)) visitas = vJson.data as Visita[];
+          else if (Array.isArray(vJson.rows)) visitas = vJson.rows as Visita[];
+        }
+        setVisitasSel(visitas);
       } else {
         setDetailsError(`No se pudieron cargar visitas (HTTP ${vRes.status})`);
       }
