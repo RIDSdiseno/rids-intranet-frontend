@@ -11,7 +11,8 @@ import {
   Factory,
   Menu,
   X,
-  FileText, // <-- nuevo icono para Documentos
+  FileText,
+  Briefcase // <-- nuevo icono para Documentos
 } from "lucide-react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -27,6 +28,9 @@ const HOME_PATH = "/home";
 const VISITAS_PATH = "/visitas";
 const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
+const ORDENESTALLER = "/OrdenesTaller";
+const COTIZACIONES = "/Cotizaciones";
+
 const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 const TICKETS_PATH = "/tickets";
@@ -65,8 +69,10 @@ const NAV: NavEntry[] = [
       { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
       { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
+      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <Factory size={20} /> },
+      { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ORDENESTALLER, COTIZACIONES],
   },
   {
     type: "group",
@@ -90,6 +96,8 @@ function hintFor(path: string): string {
     case EMPRESAS_PATH: return "Catálogo de empresas";
     case REPORTES_PATH: return "KPIs y reportes";
     case TICKETS_PATH: return "Mesa de ayuda";
+    case ORDENESTALLER: return "Administración de taller";
+    case COTIZACIONES: return "Generar cotizaciones";
     default: return "Abrir sección";
   }
 }
@@ -118,18 +126,18 @@ const MobileLink: React.FC<
 };
 
 const MobileGroup: React.FC<{ title: string; items: NavItem[]; onClickItem?: () => void; }> =
-({ title, items, onClickItem }) => (
-  <div className="my-1">
-    <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-    <div className="grid grid-cols-1">
-      {items.map((it) => (
-        <MobileLink key={it.label} to={it.to} icon={it.icon} onClick={onClickItem}>
-          {it.label}
-        </MobileLink>
-      ))}
+  ({ title, items, onClickItem }) => (
+    <div className="my-1">
+      <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="grid grid-cols-1">
+        {items.map((it) => (
+          <MobileLink key={it.label} to={it.to} icon={it.icon} onClick={onClickItem}>
+            {it.label}
+          </MobileLink>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
 
 /* ================== HEADER ================== */
 
@@ -249,7 +257,7 @@ const Header: React.FC = () => {
               <FileText className="h-6 w-6" />
             </Link>
 
-           
+
 
             {/* Salir */}
             <button
