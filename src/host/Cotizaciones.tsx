@@ -17,7 +17,9 @@ import {
     SettingOutlined,
     PhoneOutlined,
     EnvironmentOutlined,
-    InfoCircleOutlined
+    InfoCircleOutlined,
+    BuildOutlined, // ← NUEVO
+    PercentageOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import Header from "../components/Header";
@@ -69,6 +71,8 @@ interface CotizacionItemGestioo {
     descripcion: string;
     cantidad: number;
     precio: number;
+    precioCosto?: number;        // ← Agregar este campo
+    porcGanancia?: number;
     porcentaje?: number | null;
     createdAt: string;
     tieneIVA?: boolean;
@@ -143,7 +147,28 @@ const calcularTotales = (items: CotizacionItemGestioo[]) => {
 
     const total = subtotal + iva;
 
-    return { subtotalBruto, descuentos, subtotal, iva, total };
+    // REDONDEAR TODOS LOS VALORES
+    return {
+        subtotalBruto: Math.round(subtotalBruto),
+        descuentos: Math.round(descuentos),
+        subtotal: Math.round(subtotal),
+        iva: Math.round(iva),
+        total: Math.round(total)
+    };
+};
+
+// Función para calcular precio total basado en precio costo y porcentaje de ganancia
+const calcularPrecioTotal = (precio: number, porcGanancia: number): number => {
+    if (!precio || precio <= 0) return 0;
+    const total = precio * (1 + porcGanancia / 100);
+    return Number(total.toFixed(2));
+};
+
+// Función para calcular porcentaje de ganancia basado en precio costo y precio total
+const calcularPorcGanancia = (precio: number, precioTotal: number): number => {
+    if (!precio || precio <= 0) return 0;
+    const ganancia = ((precioTotal - precio) / precio) * 100;
+    return Number(ganancia.toFixed(2));
 };
 
 // === VALIDACIÓN DE FORMULARIOS ===
@@ -234,6 +259,33 @@ const Cotizaciones: React.FC = () => {
     const [telefono, setTelefono] = useState("");
     const [direccion, setDireccion] = useState("");
 
+    // === NUEVOS ESTADOS PARA CREACIÓN DE EMPRESAS Y PRODUCTOS ===
+    const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
+    const [showNewProductoModal, setShowNewProductoModal] = useState(false);
+
+    // Estados para formulario de empresa
+    const [empresaForm, setEmpresaForm] = useState({
+        nombre: "",
+        rut: "",
+        correo: "",
+        telefono: "",
+        direccion: "",
+        origen: "RIDS"
+    });
+
+    // Estados para formulario de producto
+    // Estados para formulario de producto - ACTUALIZADO
+    const [productoForm, setProductoForm] = useState({
+        nombre: "",
+        descripcion: "",
+        precio: 0,           // Precio costo
+        porcGanancia: 0,    // Porcentaje de ganancia
+        precioTotal: 0,      // Precio con ganancia (calculado automáticamente)
+        categoria: "",
+        stock: 0,
+        serie: ""
+    });
+
     // === HOOKS PERSONALIZADOS ===
     const { fetchApi: apiFetch, loading: apiLoading } = useApi();
 
@@ -261,11 +313,12 @@ const Cotizaciones: React.FC = () => {
             descripcion: string;
             cantidad: number;
             precio: number;
-            porcentaje?: number;
-            tieneIVA?: boolean; // ← AGREGAR ESTE CAMPO
+            precioCosto?: number;        // ← AGREGAR ESTE CAMPO
+            porcGanancia?: number;       // ← AGREGAR ESTE CAMPO
+            porcentaje?: number | null;
+            tieneIVA?: boolean;
         }[]
     >([]);
-
     // === FILTROS MEJORADOS ===
     const [filtroProductos, setFiltroProductos] = useState("");
     const [filtroServicios, setFiltroServicios] = useState("");
@@ -319,6 +372,9 @@ const Cotizaciones: React.FC = () => {
     const [productoAEditar, setProductoAEditar] = useState<any>(null);
     const [servicioAEditar, setServicioAEditar] = useState<any>(null);
 
+    // Agrega este estado en tu componente
+    const [filtroOrigen, setFiltroOrigen] = useState("TODOS");
+
     // === EFECTOS ===
     useEffect(() => {
         return () => {
@@ -356,6 +412,8 @@ const Cotizaciones: React.FC = () => {
                     tipo: "PRODUCTO" as const,
                     descripcion: p.nombre || p.descripcion || "Producto sin nombre",
                     precio: p.precio || p.precioBase || p.valor || 0,
+                    porcGanancia: p.porcGanancia || 0, // ← AGREGAR
+                    precioTotal: p.precioTotal || p.precio || 0, // ← AGREGAR
                     nombre: p.nombre,
                     codigo: p.codigo,
                     categoria: p.categoria
@@ -374,10 +432,6 @@ const Cotizaciones: React.FC = () => {
         } catch (error) {
             handleApiError(error, "Error al cargar catálogo");
         }
-        console.log(catalogo);
-        console.log(productosFiltrados);
-        console.log(serviciosFiltrados);
-
     };
 
     const cargarProductos = async () => {
@@ -389,7 +443,9 @@ const Cotizaciones: React.FC = () => {
                 id: p.id,
                 tipo: "PRODUCTO" as const,
                 descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0,
+                precio: p.precio || p.precioBase || p.valor || 0, // Precio costo
+                porcGanancia: p.porcGanancia || 0, // ← AGREGAR ESTE CAMPO
+                precioTotal: p.precioTotal || p.precio || 0, // ← AGREGAR ESTE CAMPO
                 nombre: p.nombre,
                 codigo: p.codigo,
                 categoria: p.categoria
@@ -444,7 +500,7 @@ const Cotizaciones: React.FC = () => {
             const coincideCodigo = !filtroCodigoProducto ||
                 producto.codigo?.toLowerCase().includes(filtroCodigoProducto.toLowerCase());
 
-            const precio = producto.precio || producto.precioBase || 0;
+            const precio = producto.precio || producto.precioBase;
             const precioMin = filtroPrecioMinProducto ? Number(filtroPrecioMinProducto) : 0;
             const precioMax = filtroPrecioMaxProducto ? Number(filtroPrecioMaxProducto) : Infinity;
             const coincidePrecio = precio >= precioMin && precio <= precioMax;
@@ -521,7 +577,8 @@ const Cotizaciones: React.FC = () => {
     // === FUNCIONES PARA EDITAR PRODUCTOS Y SERVICIOS ===
     const abrirEditarProducto = (producto: any) => {
         setProductoAEditar(producto);
-        setShowEditProductoModal(true);
+        setShowSelectorProducto(false); // Cerrar modal de selección
+        setShowEditProductoModal(true); // Abrir modal de edición
     };
 
     const abrirEditarServicio = (servicio: any) => {
@@ -529,27 +586,23 @@ const Cotizaciones: React.FC = () => {
         setShowEditServicioModal(true);
     };
 
+    // Función para manejar la edición del producto
     const handleEditarProducto = async (productoData: any) => {
         try {
-            if (!productoAEditar || !productoAEditar.id) {
-                throw new Error("No hay producto seleccionado para editar");
-            }
-
-            const responseData = await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
+            await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(productoData)
             });
 
-            const productoActualizado = responseData.data || productoData;
-
-            setProductosCatalogo(prev =>
-                prev.map(p => p.id === productoAEditar.id ? { ...p, ...productoActualizado } : p)
-            );
-
-            setShowEditProductoModal(false);
+            // Actualizar catálogo
+            await cargarProductos();
             showSuccess("Producto actualizado correctamente");
-        } catch (error: any) {
+
+            // Cerrar modales
+            setShowEditProductoModal(false);
+            setShowSelectorProducto(true);
+        } catch (error) {
             handleApiError(error, "Error al actualizar producto");
         }
     };
@@ -603,95 +656,66 @@ const Cotizaciones: React.FC = () => {
     // === FUNCIONES PARA AGREGAR ITEMS ===
     // En agregarProducto
     const agregarProducto = (producto: any) => {
-        const baseItem = {
+        // Usar precioTotal si existe, sino usar precio base
+        const precioFinal = producto.precioTotal || producto.precio;
+        const precioCosto = producto.precio;
+        const porcGanancia = producto.porcGanancia;
+
+        const newItem = {
             id: Date.now(),
             tipo: ItemTipoGestioo.PRODUCTO,
-            descripcion: producto.nombre || producto.descripcion || "Producto",
+            descripcion: producto.nombre,
             cantidad: 1,
-            precio: producto.precio || producto.precioBase || 0,
-            porcentaje: undefined,
+            precio: precioFinal,
+            precioCosto: precioCosto,        // ← Incluir precioCosto
+            porcGanancia: porcGanancia,      // ← Incluir porcGanancia
+            porcentaje: 0,
             tieneIVA: true,
         };
 
-        if (showEditModal) {
-            const nuevoItem: CotizacionItemGestioo = {
-                ...baseItem,
-                cotizacionId: selectedCotizacion!.id,
-                createdAt: new Date().toISOString(),
-            };
-
-            setSelectedCotizacion(prev => ({
-                ...prev!,
-                items: [...prev!.items, nuevoItem],
-            }));
-
-        } else {
-            // Crear cotizacion
-            setItems(prev => [...prev, baseItem]);
-        }
-
+        setItems(prev => [...prev, newItem]);
         setShowSelectorProducto(false);
-        showSuccess("Producto agregado a la cotización");
+        showSuccess("Producto agregado correctamente");
     };
 
     // En agregarServicio
     const agregarServicio = (servicio: any) => {
-        const baseItem = {
+        const newItem = {
             id: Date.now(),
             tipo: ItemTipoGestioo.SERVICIO,
-            descripcion: servicio.nombre || servicio.descripcion || "Servicio",
+            descripcion: servicio.nombre,
             cantidad: 1,
-            precio: servicio.precio || servicio.precioBase || 0,
-            porcentaje: undefined,
+            precio: servicio.precio || 0,
+            // No incluir precioCosto y porcGanancia para servicios
+            porcentaje: 0,
             tieneIVA: false,
         };
 
-        if (showEditModal) {
-            const nuevoItem: CotizacionItemGestioo = {
-                ...baseItem,
-                cotizacionId: selectedCotizacion!.id,
-                createdAt: new Date().toISOString(),
-            };
-
-            setSelectedCotizacion(prev => ({
-                ...prev!,
-                items: [...prev!.items, nuevoItem],
-            }));
-
-        } else {
-            setItems(prev => [...prev, baseItem]);
-        }
-
+        setItems(prev => [...prev, newItem]);
         setShowSelectorServicio(false);
-        showSuccess("Servicio agregado a la cotización");
+        showSuccess("Servicio agregado correctamente");
     };
-
-
 
     // En handleAddItem
     const handleAddItem = (tipo: ItemTipoGestioo) => {
-        setItems([
-            ...items,
-            {
-                id: Date.now(),
-                tipo,
-                descripcion: "",
-                cantidad: 1,
-                precio: 0,
-                porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 0 : undefined,
-                tieneIVA: tipo === ItemTipoGestioo.PRODUCTO // ← IVA solo para productos
-            },
-        ]);
+        const newItem = {
+            id: Date.now(),
+            tipo: tipo,
+            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : "Nuevo item",
+            cantidad: 1,
+            precio: 0,
+            // No incluir precioCosto y porcGanancia para descuentos
+            porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
+            tieneIVA: false,
+        };
+
+        setItems(prev => [...prev, newItem]);
     };
 
-    const handleUpdateItem = (
-        id: number,
-        field: keyof (typeof items)[0],
-        value: any
-    ) => {
-        setItems((prev) =>
-            prev.map((i) => (i.id === id ? { ...i, [field]: value } : i))
-        );
+    const handleUpdateItem = (id: number, field: string, value: any) => {
+        setItems(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
     };
 
     const handleRemoveItem = (id: number) => {
@@ -910,9 +934,9 @@ const Cotizaciones: React.FC = () => {
                     logo: `${window.location.origin}/img/splash.png`
                 },
                 ECCONET: {
-                    nombre: "ECCONET SPA",
+                    nombre: "ECONnET SPA",
                     direccion: "Santiago - Providencia, La Concepción 65",
-                    correo: "contacto@ecconet.cl",
+                    correo: "contacto@econnet.cl",
                     telefono: "+56 9 1111 1111",
                     logo: `${window.location.origin}/img/ecconetlogo.png`
                 },
@@ -1143,7 +1167,7 @@ const Cotizaciones: React.FC = () => {
                                 >
                                     <option value="">Todos los orígenes</option>
                                     <option value="RIDS">RIDS</option>
-                                    <option value="ECCONET">ECCONET</option>
+                                    <option value="ECCONET">ECONNET</option>
                                     <option value="OTRO">OTRO</option>
                                 </select>
                             </div>
@@ -1319,6 +1343,7 @@ const Cotizaciones: React.FC = () => {
             )}
 
             {/* MODAL: Crear Cotización MEJORADO */}
+            {/* MODAL: Crear Cotización MEJORADO */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
                     <motion.div
@@ -1381,39 +1406,45 @@ const Cotizaciones: React.FC = () => {
                                                 </select>
                                             </div>
 
-                                            {/* === Origen de Empresa === */}
+                                            {/* === FILTRO POR ORIGEN (SOLO PARA EMPRESAS) === */}
                                             {formData.tipoEntidad === "EMPRESA" && (
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                        Origen Empresa
+                                                        Filtrar por Origen
                                                     </label>
-
                                                     <select
-                                                        value={formData.origenEntidad}
-                                                        onChange={(e) => {
-                                                            const origen = e.target.value;
-
-                                                            setFormData((prev) => ({
-                                                                ...prev,
-                                                                origenEntidad: origen,
-                                                                entidadId: "",
-                                                            }));
-
-                                                            if (origen) {
-                                                                fetch(`${API_URL}/entidades?tipo=EMPRESA&origen=${origen}`, {
-                                                                    credentials: "include",
-                                                                })
-                                                                    .then((r) => r.json())
-                                                                    .then((res) => setEntidades(res.data ?? res));
-                                                            }
-                                                        }}
+                                                        value={filtroOrigen}
+                                                        onChange={(e) => setFiltroOrigen(e.target.value)}
                                                         className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm bg-white"
                                                     >
-                                                        <option value="">Seleccione…</option>
+                                                        <option value="TODOS">Todos los orígenes</option>
                                                         <option value="RIDS">RIDS</option>
-                                                        <option value="ECCONET">ECCONET</option>
+                                                        <option value="ECCONET">ECONNET</option>
                                                         <option value="OTRO">OTRO</option>
                                                     </select>
+                                                </div>
+                                            )}
+
+                                            {/* === Botón Crear Empresa === */}
+                                            {formData.tipoEntidad === "EMPRESA" && (
+                                                <div className="flex gap-2 mt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEmpresaForm({
+                                                                nombre: "",
+                                                                rut: "",
+                                                                correo: "",
+                                                                telefono: "",
+                                                                direccion: "",
+                                                                origen: "RIDS"
+                                                            });
+                                                            setShowNewEmpresaModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 transition"
+                                                    >
+                                                        <PlusOutlined /> Crear Empresa
+                                                    </button>
                                                 </div>
                                             )}
 
@@ -1459,8 +1490,7 @@ const Cotizaciones: React.FC = () => {
                                                 </div>
                                             )}
 
-
-                                            {/* === Selector Final de Entidad === */}
+                                            {/* === Selector Final de Entidad CON FILTRO DE ORIGEN === */}
                                             <div>
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">Entidad</label>
                                                 <select
@@ -1472,13 +1502,57 @@ const Cotizaciones: React.FC = () => {
                                                     className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm bg-white"
                                                 >
                                                     <option value="">Seleccione…</option>
-                                                    {entidades.map((ent) => (
-                                                        <option key={ent.id} value={ent.id}>
-                                                            {ent.nombre} {ent.rut ? `(${ent.rut})` : ""}
-                                                        </option>
-                                                    ))}
+                                                    {entidades
+                                                        .filter(entidad => {
+                                                            // Aplicar filtro por origen solo para empresas
+                                                            if (formData.tipoEntidad === "EMPRESA" && filtroOrigen !== "TODOS") {
+                                                                return entidad.origen === filtroOrigen;
+                                                            }
+                                                            return true;
+                                                        })
+                                                        .map((ent) => (
+                                                            <option key={ent.id} value={ent.id}>
+                                                                {ent.nombre} {ent.rut ? `(${ent.rut})` : ""}
+                                                            </option>
+                                                        ))}
                                                 </select>
+
+                                                {/* Contador de resultados */}
+                                                {formData.tipoEntidad === "EMPRESA" && (
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        Mostrando {entidades.filter(ent => {
+                                                            if (filtroOrigen !== "TODOS") {
+                                                                return ent.origen === filtroOrigen;
+                                                            }
+                                                            return true;
+                                                        }).length} de {entidades.length} empresas
+                                                        {filtroOrigen !== "TODOS"}
+                                                    </p>
+                                                )}
                                             </div>
+
+                                            {/* Información de la entidad seleccionada */}
+                                            {formData.entidadId && (
+                                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                                                    <div className="flex items-start gap-2">
+                                                        <InfoCircleOutlined className="text-blue-500 mt-0.5 text-sm" />
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-medium text-blue-700">Entidad seleccionada</p>
+                                                            {(() => {
+                                                                const entidadSeleccionada = entidades.find(e => e.id.toString() === formData.entidadId);
+                                                                return entidadSeleccionada ? (
+                                                                    <div className="text-xs text-blue-600 mt-1 space-y-1">
+                                                                        <p><strong>Nombre:</strong> {entidadSeleccionada.nombre}</p>
+                                                                        {entidadSeleccionada.rut && <p><strong>RUT:</strong> {entidadSeleccionada.rut}</p>}
+                                                                        {entidadSeleccionada.origen && <p><strong>Origen:</strong> {entidadSeleccionada.origen}</p>}
+                                                                        {entidadSeleccionada.correo && <p><strong>Email:</strong> {entidadSeleccionada.correo}</p>}
+                                                                    </div>
+                                                                ) : null;
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1521,7 +1595,27 @@ const Cotizaciones: React.FC = () => {
                                         onClick={cargarProductos}
                                         className="px-3 py-1.5 rounded-xl border border-cyan-300 text-cyan-700 hover:bg-cyan-50"
                                     >
-                                        + Producto
+                                        + Seleccionar Producto
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProductoForm({
+                                                nombre: "",
+                                                descripcion: "",
+                                                precio: 0,
+                                                porcGanancia: 30,
+                                                precioTotal: 0,
+                                                categoria: "",
+                                                stock: 0,
+                                                serie: ""
+                                            });
+                                            setShowNewProductoModal(true);
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl border border-purple-300 text-purple-700 hover:bg-purple-50"
+                                    >
+                                        + Crear Producto Nuevo
                                     </button>
 
                                     <button
@@ -1542,6 +1636,7 @@ const Cotizaciones: React.FC = () => {
                                 </div>
 
                                 {/* TABLA DE ÍTEMS */}
+                                {/* TABLA DE ÍTEMS MEJORADA CON INFORMACIÓN DE GANANCIA */}
                                 <div className="border border-cyan-200 rounded-2xl overflow-hidden">
                                     <table className="w-full text-sm">
                                         <thead className="bg-cyan-50 text-slate-700 border-b border-cyan-200">
@@ -1550,6 +1645,7 @@ const Cotizaciones: React.FC = () => {
                                                 <th className="px-3 py-2 text-left border-r border-cyan-200">Descripción</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">Cant.</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-28">P.Unitario</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Ganancia</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">IVA</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Desc</th>
                                                 <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Subtotal</th>
@@ -1559,7 +1655,7 @@ const Cotizaciones: React.FC = () => {
                                         <tbody>
                                             {items.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={8} className="text-center py-4 text-slate-400 border-b border-cyan-100">
+                                                    <td colSpan={9} className="text-center py-4 text-slate-400 border-b border-cyan-100">
                                                         No hay productos o servicios agregados.
                                                     </td>
                                                 </tr>
@@ -1571,6 +1667,15 @@ const Cotizaciones: React.FC = () => {
                                                     const baseFinal = base - descuento;
                                                     const ivaItem = item.tieneIVA ? baseFinal * 0.19 : 0;
                                                     const totalItem = baseFinal + ivaItem;
+
+                                                    // Calcular ganancia si es producto y tiene precioCosto
+                                                    const gananciaItem = item.tipo === ItemTipoGestioo.PRODUCTO && item.precioCosto
+                                                        ? (item.precio - item.precioCosto) * item.cantidad
+                                                        : 0;
+
+                                                    const margenGanancia = item.tipo === ItemTipoGestioo.PRODUCTO && item.precioCosto && item.precioCosto > 0
+                                                        ? ((item.precio - item.precioCosto) / item.precioCosto) * 100
+                                                        : item.porcGanancia || 0;
 
                                                     return (
                                                         <tr
@@ -1605,6 +1710,11 @@ const Cotizaciones: React.FC = () => {
                                                                         item.tipo === ItemTipoGestioo.ADICIONAL ? "Descripción del descuento" : "Descripción"
                                                                     }
                                                                 />
+                                                                {item.tipo === ItemTipoGestioo.PRODUCTO && item.precioCosto && item.precioCosto > 0 && (
+                                                                    <p className="text-xs text-slate-500 mt-1">
+                                                                        Costo: ${item.precioCosto.toLocaleString("es-CL")}
+                                                                    </p>
+                                                                )}
                                                             </td>
 
                                                             {/* CANTIDAD */}
@@ -1644,6 +1754,24 @@ const Cotizaciones: React.FC = () => {
                                                                 />
                                                             </td>
 
+                                                            {/* PORCENTAJE GANANCIA (SOLO PRODUCTOS) */}
+                                                            <td className="px-3 py-2 text-center border-r border-cyan-100">
+                                                                {item.tipo === ItemTipoGestioo.PRODUCTO ? (
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className={`text-xs font-medium ${margenGanancia > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                            {margenGanancia.toFixed(1)}%
+                                                                        </span>
+                                                                        {gananciaItem > 0 && (
+                                                                            <span className="text-xs text-emerald-600">
+                                                                                +${gananciaItem.toLocaleString("es-CL")}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-400 text-xs">—</span>
+                                                                )}
+                                                            </td>
+
                                                             {/* IVA - SOLO PARA PRODUCTOS */}
                                                             <td className="px-3 py-2 text-center border-r border-cyan-100">
                                                                 {item.tipo === ItemTipoGestioo.PRODUCTO ? (
@@ -1668,7 +1796,7 @@ const Cotizaciones: React.FC = () => {
                                                                     min={0}
                                                                     max={100}
                                                                     step={0.5}
-                                                                    value={item.porcentaje === 0 ? "" : item.porcentaje}
+                                                                    value={item.porcentaje === 0 ? "" : item.porcentaje ?? ""}
                                                                     onChange={(e) => {
                                                                         const value = e.target.value === "" ? 0 : Number(e.target.value);
                                                                         handleUpdateItem(item.id, "porcentaje", value);
@@ -1767,16 +1895,14 @@ const Cotizaciones: React.FC = () => {
                     </motion.div>
                 </div>
             )}
-
             {/* MODAL: Seleccionar Productos CON FILTROS MEJORADOS Y CATEGORÍAS REALES */}
             {showSelectorProducto && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[9999]">
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl relative max-h-[90vh] overflow-y-auto z-[10000]"
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl relative max-h-[90vh] overflow-y-auto z-[9999]"
                     >
-
                         <div className="p-6">
                             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-cyan-200 pb-3">
                                 <FilterOutlined className="text-cyan-600 mr-2" />
@@ -2032,7 +2158,6 @@ const Cotizaciones: React.FC = () => {
                                                         {producto.nombre || "Producto sin nombre"}
                                                     </h3>
 
-                                                    {/* ✅ MOSTRAR CATEGORÍA */}
                                                     {producto.categoria && (
                                                         <p className="text-xs text-cyan-600 mb-2">
                                                             <span className="font-medium">Categoría:</span> {producto.categoria}
@@ -2047,9 +2172,24 @@ const Cotizaciones: React.FC = () => {
                                                     )}
 
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-lg font-bold text-cyan-700">
-                                                            ${(producto.precio || 0).toLocaleString("es-CL")}
-                                                        </span>
+                                                        <div>
+                                                            {/* Mostrar SIEMPRE el precio final bien formateado */}
+                                                            <span className="text-lg font-bold text-cyan-700">
+                                                                ${Number(
+                                                                    producto.precioTotal !== null && producto.precioTotal !== undefined
+                                                                        ? producto.precioTotal
+                                                                        : producto.precio
+                                                                ).toLocaleString("es-CL")}
+                                                            </span>
+
+                                                            {/* Mostrar sección de ganancia SOLO si hay datos reales */}
+                                                            {(producto.porcGanancia !== null && producto.porcGanancia !== undefined) && producto.precio && (
+                                                                <div className="text-xs text-slate-500 mt-1">
+                                                                    <div>Ganancia: {Number(producto.porcGanancia)}%</div>
+                                                                    <div>Costo: ${Number(producto.precio).toLocaleString("es-CL")}</div>
+                                                                </div>
+                                                            )}
+                                                        </div>
 
                                                         <button
                                                             onClick={(e) => {
@@ -2082,8 +2222,6 @@ const Cotizaciones: React.FC = () => {
             )}
 
             {/* === MODAL: Editar Cotización (Completo ERP) === */}
-            {/* MODAL: Editar Cotización - VERSIÓN MEJORADA */}
-            {/* === MODAL: Editar Cotización (VERSIÓN COMPLETA) === */}
             {showEditModal && selectedCotizacion && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
                     <motion.div
@@ -2195,7 +2333,7 @@ const Cotizaciones: React.FC = () => {
                                             >
                                                 <option value="">Seleccionar origen</option>
                                                 <option value="RIDS">RIDS</option>
-                                                <option value="ECCONET">ECCONET</option>
+                                                <option value="ECCONET">ECONNET</option>
                                                 <option value="OTRO">OTRO</option>
                                             </select>
                                         </div>
@@ -2935,122 +3073,216 @@ const Cotizaciones: React.FC = () => {
 
             {/* MODAL: Editar Producto CON CATEGORÍA */}
             {showEditProductoModal && productoAEditar && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[10000] p-4 overflow-y-auto">
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative"
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative my-8 max-h-[90vh] overflow-y-auto"
                     >
-                        <div className="p-6">
-                            <h2 className="text-xl font-bold text-slate-800 mb-4">
-                                Editar Producto
-                            </h2>
-
-                            <button
-                                onClick={() => setShowEditProductoModal(false)}
-                                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                            >
-                                ✕
-                            </button>
-
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const formData = new FormData(e.currentTarget);
-                                    const productoData = {
-                                        nombre: formData.get('nombre') as string,
-                                        descripcion: formData.get('descripcion') as string,
-                                        precio: Number(formData.get('precio')),
-                                        codigo: formData.get('codigo') as string,
-                                        categoria: formData.get('categoria') as string, // ← AGREGAR CATEGORÍA
-                                    };
-                                    handleEditarProducto(productoData);
-                                }}
-                                className="space-y-4"
-                            >
+                        {/* Header mejorado */}
+                        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-t-2xl">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-cyan-500 rounded-xl text-white">
+                                    <EditOutlined className="text-lg" />
+                                </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Nombre del Producto
-                                    </label>
+                                    <h2 className="text-xl font-bold text-slate-800">Editar Producto</h2>
+                                    <p className="text-slate-600 text-sm mt-1">Actualice la información del producto</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                setShowEditProductoModal(false);
+                                setShowSelectorProducto(true);
+                            }}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const productoData = {
+                                    nombre: formData.get('nombre') as string,
+                                    descripcion: formData.get('descripcion') as string,
+                                    precio: Number(formData.get('precio')),
+                                    porcGanancia: Number(formData.get('porcGanancia')),
+                                    precioTotal: Number(formData.get('precioTotal')),
+                                    codigo: formData.get('codigo') as string,
+                                    categoria: formData.get('categoria') as string,
+                                };
+                                handleEditarProducto(productoData);
+                            }}
+                            className="p-6 space-y-4"
+                        >
+                            {/* Información Básica */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Nombre del Producto *</label>
                                     <input
                                         name="nombre"
                                         defaultValue={productoAEditar.nombre}
-                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                        placeholder="Nombre del producto"
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                        placeholder="Ej: Laptop Dell XPS 13"
                                         required
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Descripción
-                                    </label>
-                                    <textarea
-                                        name="descripcion"
-                                        defaultValue={productoAEditar.descripcion}
-                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 resize-none"
-                                        placeholder="Descripción del producto"
-                                        rows={3}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Precio
-                                    </label>
-                                    <input
-                                        name="precio"
-                                        type="number"
-                                        step="0.01"
-                                        defaultValue={productoAEditar.precio}
-                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                        placeholder="0"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Código
-                                    </label>
-                                    <input
-                                        name="codigo"
-                                        defaultValue={productoAEditar.codigo}
-                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                        placeholder="Código del producto"
-                                    />
-                                </div>
-
-                                {/* ✅ AGREGAR CAMPO CATEGORÍA */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Categoría
-                                    </label>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Categoría</label>
                                     <input
                                         name="categoria"
                                         defaultValue={productoAEditar.categoria}
-                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                        placeholder="Categoría del producto"
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                        placeholder="Ej: Electrónicos, Informática"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Descripción */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700">Descripción</label>
+                                <textarea
+                                    name="descripcion"
+                                    defaultValue={productoAEditar.descripcion}
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 resize-none"
+                                    placeholder="Descripción detallada del producto..."
+                                    rows={3}
+                                />
+                            </div>
+
+                            {/* CÁLCULO DE PRECIOS Y GANANCIA - ACTUALIZADO */}
+                            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-4">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                    <PercentageOutlined className="text-cyan-600" />
+                                    Cálculo de Precios y Ganancia
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Precio Costo */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Precio Costo ($) *</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            name="precio"
+                                            defaultValue={productoAEditar.precio}
+                                            className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 bg-white"
+                                            placeholder="0"
+                                            onChange={(e) => {
+                                                const precio = Number(e.target.value) || 0;
+                                                const porcGananciaInput = document.querySelector('input[name="porcGanancia"]') as HTMLInputElement;
+                                                const porcGanancia = Number(porcGananciaInput?.value) || 0;
+                                                const precioTotal = calcularPrecioTotal(precio, porcGanancia);
+                                                const precioTotalInput = document.querySelector('input[name="precioTotal"]') as HTMLInputElement;
+                                                if (precioTotalInput) precioTotalInput.value = precioTotal.toString();
+                                            }}
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Porcentaje Ganancia */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">% Ganancia</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                min="0"
+                                                max="1000"
+                                                name="porcGanancia"
+                                                defaultValue={productoAEditar.porcGanancia || 0}
+                                                className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 bg-white pr-12"
+                                                placeholder="0"
+                                                onChange={(e) => {
+                                                    const porcGanancia = Number(e.target.value) || 0;
+                                                    const precioInput = document.querySelector('input[name="precio"]') as HTMLInputElement;
+                                                    const precio = Number(precioInput?.value) || 0;
+                                                    const precioTotal = calcularPrecioTotal(precio, porcGanancia);
+                                                    const precioTotalInput = document.querySelector('input[name="precioTotal"]') as HTMLInputElement;
+                                                    if (precioTotalInput) precioTotalInput.value = precioTotal.toString();
+                                                }}
+                                            />
+                                            <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500">%</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Precio Venta */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Precio Venta ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            name="precioTotal"
+                                            defaultValue={productoAEditar.precioTotal || 0}
+                                            className="w-full border border-emerald-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-white font-semibold text-emerald-700"
+                                            placeholder="0"
+                                            onChange={(e) => {
+                                                const precioTotal = Number(e.target.value) || 0;
+                                                const precioInput = document.querySelector('input[name="precio"]') as HTMLInputElement;
+                                                const precio = Number(precioInput?.value) || 0;
+                                                const porcGanancia = calcularPorcGanancia(precio, precioTotal);
+                                                const porcGananciaInput = document.querySelector('input[name="porcGanancia"]') as HTMLInputElement;
+                                                if (porcGananciaInput) porcGananciaInput.value = porcGanancia.toString();
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Stock y Serie */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Stock</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        name="stock"
+                                        defaultValue={productoAEditar.stock}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                        placeholder="0"
                                     />
                                 </div>
 
-                                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowEditProductoModal(false)}
-                                        className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
-                                    >
-                                        Guardar Cambios
-                                    </button>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Código/Serie</label>
+                                    <input
+                                        name="codigo"
+                                        defaultValue={productoAEditar.codigo}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                        placeholder="Ej: PROD-001, SKU-123"
+                                    />
                                 </div>
-                            </form>
-                        </div>
+                            </div>
+
+                            {/* Botones de acción */}
+                            <div className="flex gap-3 pt-4 border-t border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowEditProductoModal(false);
+                                        setShowSelectorProducto(true);
+                                    }}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                                >
+                                    <CloseCircleOutlined />
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all duration-200 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircleOutlined />
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
                     </motion.div>
                 </div>
             )}
@@ -3164,11 +3396,11 @@ const Cotizaciones: React.FC = () => {
             )}
 
             {showEditEntidadModal && entidadParaEditar && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
                     <motion.div
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative"
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative my-8"
                     >
                         <h2 className="text-lg font-bold mb-4">Editar Persona</h2>
 
@@ -3608,6 +3840,476 @@ const Cotizaciones: React.FC = () => {
                                 >
                                     <CheckCircleOutlined />
                                     Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {showNewEmpresaModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative my-8"
+                    >
+                        {/* Header mejorado */}
+                        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-2xl">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500 rounded-xl text-white">
+                                    <BuildOutlined className="text-lg" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800">Crear Nueva Empresa</h2>
+                                    <p className="text-slate-600 text-sm mt-1">Complete la información de la empresa</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setShowNewEmpresaModal(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        <form
+                            onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const datos = {
+                                        ...empresaForm,
+                                        tipo: "EMPRESA"
+                                    };
+
+                                    const res = await apiFetch("/entidades", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(datos)
+                                    });
+
+                                    // Actualizar lista de entidades
+                                    await fetchEntidades();
+
+                                    // Setear empresa recién creada como seleccionada
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        entidadId: res.data.id.toString()
+                                    }));
+
+                                    setShowNewEmpresaModal(false);
+                                    showSuccess("Empresa creada correctamente");
+
+                                    // Limpiar formulario
+                                    setEmpresaForm({
+                                        nombre: "",
+                                        rut: "",
+                                        correo: "",
+                                        telefono: "",
+                                        direccion: "",
+                                        origen: "RIDS"
+                                    });
+                                } catch (error) {
+                                    handleApiError(error, "Error al crear empresa");
+                                }
+                            }}
+                            className="p-6 space-y-4"
+                        >
+                            {/* Campo Nombre */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <BuildOutlined className="text-blue-600 text-sm" />
+                                    Nombre de la Empresa *
+                                </label>
+                                <input
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200"
+                                    placeholder="Ej: Mi Empresa SpA"
+                                    value={empresaForm.nombre}
+                                    onChange={(e) => setEmpresaForm({ ...empresaForm, nombre: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            {/* Campo RUT */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <BarcodeOutlined className="text-cyan-600 text-sm" />
+                                    RUT
+                                </label>
+                                <input
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all duration-200"
+                                    placeholder="Ej: 12.345.678-9"
+                                    value={empresaForm.rut}
+                                    onChange={(e) => setEmpresaForm({ ...empresaForm, rut: formatearRut(e.target.value) })}
+                                />
+                                {empresaForm.rut && !validarRut(empresaForm.rut) && (
+                                    <p className="text-rose-600 text-xs flex items-center gap-1">
+                                        <CloseCircleOutlined />
+                                        RUT no válido
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Campo Origen */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <SettingOutlined className="text-indigo-600 text-sm" />
+                                    Origen *
+                                </label>
+                                <select
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 bg-white"
+                                    value={empresaForm.origen}
+                                    onChange={(e) => setEmpresaForm({ ...empresaForm, origen: e.target.value })}
+                                    required
+                                >
+                                    <option value="RIDS">RIDS</option>
+                                    <option value="ECCONET">ECONNET</option>
+                                    <option value="OTRO">OTRO</option>
+                                </select>
+                            </div>
+
+                            {/* Grid para Correo y Teléfono */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Campo Correo */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <FileTextOutlined className="text-green-600 text-sm" />
+                                        Correo Electrónico
+                                    </label>
+                                    <input
+                                        type="email"
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all duration-200"
+                                        placeholder="ejemplo@empresa.com"
+                                        value={empresaForm.correo}
+                                        onChange={(e) => setEmpresaForm({ ...empresaForm, correo: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* Campo Teléfono */}
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                        <PhoneOutlined className="text-purple-600 text-sm" />
+                                        Teléfono
+                                    </label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all duration-200"
+                                        placeholder="+56 9 1234 5678"
+                                        value={empresaForm.telefono}
+                                        onChange={(e) => setEmpresaForm({ ...empresaForm, telefono: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Campo Dirección */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                    <EnvironmentOutlined className="text-amber-600 text-sm" />
+                                    Dirección
+                                </label>
+                                <input
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all duration-200"
+                                    placeholder="Ej: Av. Principal 123, Santiago"
+                                    value={empresaForm.direccion}
+                                    onChange={(e) => setEmpresaForm({ ...empresaForm, direccion: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Información adicional */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <InfoCircleOutlined className="text-blue-500 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-medium text-blue-700">Información importante</p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            La empresa creada estará disponible inmediatamente para usar en cotizaciones.
+                                            El origen determina la información corporativa que aparecerá en los PDF.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botones de acción */}
+                            <div className="flex gap-3 pt-4 border-t border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewEmpresaModal(false)}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                                >
+                                    <CloseCircleOutlined />
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircleOutlined />
+                                    Crear Empresa
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {showNewProductoModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto"
+                    >
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-pink-50 rounded-t-2xl">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-500 rounded-xl text-white">
+                                    <BarcodeOutlined className="text-lg" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800">Crear Nuevo Producto</h2>
+                                    <p className="text-slate-600 text-sm mt-1">Complete la información del producto</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setShowNewProductoModal(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        <form
+                            onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    // Asegurar que precioTotal esté calculado
+                                    const datos = {
+                                        ...productoForm,
+                                        precioTotal: productoForm.precioTotal ||
+                                            calcularPrecioTotal(productoForm.precio, productoForm.porcGanancia)
+                                    };
+
+                                    await apiFetch("/productos-gestioo", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(datos)
+                                    });
+
+                                    // Actualizar catálogo
+                                    await cargarProductos();
+                                    showSuccess("Producto creado correctamente");
+                                    setShowNewProductoModal(false);
+
+                                    // Limpiar formulario
+                                    setProductoForm({
+                                        nombre: "",
+                                        descripcion: "",
+                                        precio: 0,
+                                        porcGanancia: 30,
+                                        precioTotal: 0,
+                                        categoria: "",
+                                        stock: 0,
+                                        serie: ""
+                                    });
+                                } catch (error) {
+                                    handleApiError(error, "Error al crear producto");
+                                }
+                            }}
+                            className="p-6 space-y-4"
+                        >
+                            {/* Información Básica */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Nombre del Producto *</label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                        placeholder="Ej: Laptop Dell XPS 13"
+                                        value={productoForm.nombre}
+                                        onChange={(e) => setProductoForm({ ...productoForm, nombre: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Categoría</label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                        placeholder="Ej: Electrónicos, Informática"
+                                        value={productoForm.categoria}
+                                        onChange={(e) => setProductoForm({ ...productoForm, categoria: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Descripción */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700">Descripción</label>
+                                <textarea
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 resize-none"
+                                    placeholder="Descripción detallada del producto..."
+                                    rows={3}
+                                    value={productoForm.descripcion}
+                                    onChange={(e) => setProductoForm({ ...productoForm, descripcion: e.target.value })}
+                                />
+                            </div>
+
+                            {/* CÁLCULO DE PRECIOS Y GANANCIA - ACTUALIZADO */}
+                            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-4">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                    <PercentageOutlined className="text-cyan-600" />
+                                    Cálculo de Precios y Ganancia
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Precio Costo */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Precio Costo ($) *</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 bg-white"
+                                            placeholder="0"
+                                            value={productoForm.precio || ""}
+                                            onChange={(e) => {
+                                                const precio = Number(e.target.value) || 0;
+                                                const precioTotal = calcularPrecioTotal(precio, productoForm.porcGanancia);
+                                                setProductoForm(prev => ({
+                                                    ...prev,
+                                                    precio,
+                                                    precioTotal
+                                                }));
+                                            }}
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Porcentaje Ganancia */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">% Ganancia</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                min="0"
+                                                max="1000"
+                                                className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 bg-white pr-12"
+                                                placeholder="0"
+                                                value={productoForm.porcGanancia || ""}
+                                                onChange={(e) => {
+                                                    const porcGanancia = Number(e.target.value) || 0;
+                                                    const precioTotal = calcularPrecioTotal(productoForm.precio, porcGanancia);
+                                                    setProductoForm(prev => ({
+                                                        ...prev,
+                                                        porcGanancia,
+                                                        precioTotal
+                                                    }));
+                                                }}
+                                            />
+                                            <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500">%</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Precio Venta */}
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-slate-700">Precio Venta ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            className="w-full border border-emerald-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 bg-white font-semibold text-emerald-700"
+                                            placeholder="0"
+                                            value={productoForm.precioTotal || ""}
+                                            onChange={(e) => {
+                                                const precioTotal = Number(e.target.value) || 0;
+                                                const porcGanancia = calcularPorcGanancia(productoForm.precio, precioTotal);
+                                                setProductoForm(prev => ({
+                                                    ...prev,
+                                                    precioTotal,
+                                                    porcGanancia
+                                                }));
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Resumen de ganancia */}
+                                {productoForm.precio > 0 && productoForm.precioTotal > 0 && (
+                                    <div className="mt-4 p-3 bg-white border border-emerald-200 rounded-lg">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-600">Ganancia por unidad:</span>
+                                                <span className="font-bold text-emerald-700">
+                                                    ${(productoForm.precioTotal - productoForm.precio).toLocaleString('es-CL')}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-600">Margen de ganancia:</span>
+                                                <span className="font-bold text-emerald-700">
+                                                    {productoForm.porcGanancia}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Stock y Serie */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Stock Inicial</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                        placeholder="0"
+                                        value={productoForm.stock || ""}
+                                        onChange={(e) => setProductoForm({ ...productoForm, stock: Number(e.target.value) })}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Código/Serie</label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                        placeholder="Ej: PROD-001, SKU-123"
+                                        value={productoForm.serie}
+                                        onChange={(e) => setProductoForm({ ...productoForm, serie: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Información adicional */}
+                            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <InfoCircleOutlined className="text-purple-500 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-medium text-purple-700">Información del producto</p>
+                                        <p className="text-xs text-purple-600 mt-1">
+                                            El precio de venta se calculará automáticamente basado en el costo y el porcentaje de ganancia.
+                                            Puede ajustar cualquiera de los tres valores y los demás se recalcularán automáticamente.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botones de acción */}
+                            <div className="flex gap-3 pt-4 border-t border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewProductoModal(false)}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                                >
+                                    <CloseCircleOutlined />
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all duration-200 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircleOutlined />
+                                    Crear Producto
                                 </button>
                             </div>
                         </form>
