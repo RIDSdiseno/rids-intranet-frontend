@@ -50,8 +50,22 @@ const PAGE_SIZE = 10;
 
 /* ========= Utils ========= */
 function clsx(...xs: Array<string | false | null | undefined>) { return xs.filter(Boolean).join(" "); }
-function useDebouncedValue<T>(value: T, delay = 400): T { const [debounced, setDebounced] = useState(value); useEffect(() => { const t = setTimeout(() => setDebounced(value), delay); return () => clearTimeout(t); }, [value, delay]); return debounced; }
-function formatDateTime(d: string | Date | null | undefined) { if (!d) return "—"; try { return new Date(d).toLocaleString("es-CL",{timeZone:"America/Santiago"});} catch { return String(d);} }
+function useDebouncedValue<T>(value: T, delay = 400): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+function formatDateTime(d: string | Date | null | undefined) {
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleString("es-CL", { timeZone: "America/Santiago" });
+  } catch {
+    return String(d);
+  }
+}
 function StatusBadge({ status }: { status: string }) {
   const norm = (status || "").toUpperCase();
   const styles: Record<string, string> = {
@@ -70,12 +84,20 @@ function StatusBadge({ status }: { status: string }) {
 const toSiNo = (v?: boolean) => (v ? "Sí" : "No");
 
 /* ====== agregación para “Resumen” ====== */
-function ymd(dateIso: string): string { const d=new Date(dateIso); return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`; }
-function incCounter(map: Map<string, number>, key: string) { map.set(key,(map.get(key)??0)+1); }
+function ymd(dateIso: string): string {
+  const d = new Date(dateIso);
+  return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
+}
+function incCounter(map: Map<string, number>, key: string) {
+  map.set(key, (map.get(key) ?? 0) + 1);
+}
 function asTrue(v: unknown): boolean {
-  if (typeof v==="boolean") return v;
-  if (typeof v==="number") return v===1;
-  if (typeof v==="string") { const s=v.trim().toLowerCase(); return s==="sí"||s==="si"||s==="true"||s==="1"; }
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    return s === "sí" || s === "si" || s === "true" || s === "1";
+  }
   return false;
 }
 type Row2D = Array<string | number>;
@@ -85,7 +107,7 @@ type Row2D = Array<string | number>;
 const COUNT_ONLY_COMPLETADAS = false;
 
 function isElegible(row: VisitaRow) {
-  return COUNT_ONLY_COMPLETADAS ? (row.status||"").toUpperCase()==="COMPLETADA" : true;
+  return COUNT_ONLY_COMPLETADAS ? (row.status || "").toUpperCase() === "COMPLETADA" : true;
 }
 function anyProgramada(v: VisitaRow) {
   return (
@@ -116,19 +138,19 @@ function aggregateForResumen(items: Array<VisitaRow>) {
   const byDay = new Map<string, number>();
   for (const v of pool) incCounter(byDay, ymd(v.inicio));
   const daily: Row2D[] = Array.from(byDay.entries())
-    .sort(([a],[b])=>a.localeCompare(b))
-    .map(([d,c])=>[d,c]);
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([d,c]) => [d, c]);
 
   /* Checklist (conteo de “Sí” por ítem) */
   const checklist: Row2D[] = [
-    ["Rendimiento del equipo", pool.filter(x=>asTrue(x.rendimientoEquipo)).length],
-    ["CCleaner",               pool.filter(x=>asTrue(x.ccleaner)).length],
-    ["Actualizaciones",        pool.filter(x=>asTrue(x.actualizaciones)).length],
-    ["Licencia office",        pool.filter(x=>asTrue(x.licenciaOffice)).length],
-    ["Antivirus",              pool.filter(x=>asTrue(x.antivirus)).length],
-    ["Licencia Windows",       pool.filter(x=>asTrue(x.licenciaWindows)).length],
-    ["Estado del disco",       pool.filter(x=>asTrue(x.estadoDisco)).length],
-    ["Mantenimiento del reloj",pool.filter(x=>asTrue(x.mantenimientoReloj)).length],
+    ["Rendimiento del equipo", pool.filter(x => asTrue(x.rendimientoEquipo)).length],
+    ["CCleaner",               pool.filter(x => asTrue(x.ccleaner)).length],
+    ["Actualizaciones",        pool.filter(x => asTrue(x.actualizaciones)).length],
+    ["Licencia office",        pool.filter(x => asTrue(x.licenciaOffice)).length],
+    ["Antivirus",              pool.filter(x => asTrue(x.antivirus)).length],
+    ["Licencia Windows",       pool.filter(x => asTrue(x.licenciaWindows)).length],
+    ["Estado del disco",       pool.filter(x => asTrue(x.estadoDisco)).length],
+    ["Mantenimiento del reloj",pool.filter(x => asTrue(x.mantenimientoReloj)).length],
   ];
 
   /* Pie / Tipos (INDEPENDIENTES) */
@@ -144,60 +166,84 @@ function aggregateForResumen(items: Array<VisitaRow>) {
   const bySolicitanteAll = new Map<string, number>();
   for (const v of pool) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? "No especificado");
   const bySolicitanteAllRows: Row2D[] = Array.from(bySolicitanteAll.entries())
-    .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))
-    .map(([u,n])=>[u,n]);
+    .sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([u,n]) => [u, n]);
 
   return { daily, checklist, pie, bySolicitanteAllRows };
 }
-const asPairs = (rows: Row2D[]) => rows.map(r=>[String(r[0]), Number(r[1]||0)] as [string,number]);
+const asPairs = (rows: Row2D[]) => rows.map(r => [String(r[0]), Number(r[1] || 0)] as [string, number]);
 
 /* ========= Excel helpers ========= */
 const HEADER = ["ID","Técnico","Empresa","Solicitante","Inicio","Estado","Impresoras","Teléfonos","Pie de página","Otros","Detalle otros","Actualizaciones","Antivirus","CCleaner","Estado disco","Lic. Office","Lic. Windows","Mant. reloj","Rend. equipo"] as const;
 
 const PALETTE = ["D9F99D","E0F2FE","FDE68A","FBCFE8","FCA5A5","DDD6FE","A7F3D0","FDE2E2","FFE4E6","F5F5F4"];
-function colorFor(key: string): string { let h=0; for (let i=0;i<key.length;i++) h=(h*31+key.charCodeAt(i))>>>0; return PALETTE[h%PALETTE.length]; }
+function colorFor(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
 const COLOR_BORDER = "111827";
 const COLOR_TEXT = "111827";
 const COLOR_HEADER_TEXT = "0B4266";
 
 function setAllBorders(ws: WorksheetLike, r1: number, c1: number, r2: number, c2: number) {
-  ws.range(r1,c1,r2,c2).style({ border: true, borderColor: COLOR_BORDER });
+  ws.range(r1, c1, r2, c2).style({ border: true, borderColor: COLOR_BORDER });
 }
 function fillBlock(ws: WorksheetLike, startCellA1: string, rows: Array<[string, number]>, maxRows = 2000) {
   const start = ws.cell(startCellA1);
   const n = Math.min(rows.length, maxRows);
-  for (let i=0;i<maxRows;i++) if (i>=n) { start.relativeCell(i,0).value(null); start.relativeCell(i,1).value(null); }
-  for (let i=0;i<n;i++) { start.relativeCell(i,0).value(rows[i][0]); start.relativeCell(i,1).value(rows[i][1]); }
+  for (let i = 0; i < maxRows; i++) {
+    if (i >= n) {
+      start.relativeCell(i, 0).value(null);
+      start.relativeCell(i, 1).value(null);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    start.relativeCell(i, 0).value(rows[i][0]);
+    start.relativeCell(i, 1).value(rows[i][1]);
+  }
 }
 function excelColWidthSetup(ws: WorksheetLike) {
   const widths = [8,22,26,30,22,14,12,12,14,10,36,14,12,10,14,14,14,14,14];
-  widths.forEach((w,i)=>ws.column(i+1).width(w));
+  widths.forEach((w,i) => ws.column(i + 1).width(w));
 }
-function safeSheetName(raw: string) { const base=(raw||"Empresa").replace(/[\\/:*?"[\]]/g,"_").slice(0,31); return base.length?base:"Empresa"; }
-function ensureUniqueSheetName(wb: WorkbookLike, desired: string) { let name=desired, i=2; while (wb.sheet(name)) { const s=`_${i}`; name=(desired.slice(0,31-s.length)+s).replace(/[\\/:*?"[\]]/g,"_"); i++; } return name; }
+function safeSheetName(raw: string) {
+  const base = (raw || "Empresa").replace(/[\\/:*?"[\]]/g,"_").slice(0,31);
+  return base.length ? base : "Empresa";
+}
+function ensureUniqueSheetName(wb: WorkbookLike, desired: string) {
+  let name = desired, i = 2;
+  while (wb.sheet(name)) {
+    const s = `_${i}`;
+    name = (desired.slice(0, 31 - s.length) + s).replace(/[\\/:*?"[\]]/g,"_");
+    i++;
+  }
+  return name;
+}
 
 function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
   const byEmpresa = new Map<string, VisitaRow[]>();
   for (const v of items) {
-    const emp = v.empresa?.nombre ?? `#${v.empresaId}`; const key = emp || "Sin empresa";
+    const emp = v.empresa?.nombre ?? `#${v.empresaId}`;
+    const key = emp || "Sin empresa";
     (byEmpresa.get(key) ?? byEmpresa.set(key, []).get(key)!)!.push(v);
   }
   for (const [empresa, rows] of byEmpresa.entries()) {
     const ws = wb.addSheet(ensureUniqueSheetName(wb, safeSheetName(empresa)));
     ws.cell("A1").value(`Visitas — ${empresa}`).style({
-      bold:true, fontFamily:"Calibri", fontSize:16, fontColor:COLOR_HEADER_TEXT,
-      horizontalAlignment:"center", verticalAlignment:"center", fill:colorFor(empresa),
+      bold: true, fontFamily: "Calibri", fontSize: 16, fontColor: COLOR_HEADER_TEXT,
+      horizontalAlignment: "center", verticalAlignment: "center", fill: colorFor(empresa),
     });
     ws.range(1,1,1,HEADER.length).merged(true);
     ws.row(1).height(28);
-    for (let c=0;c<HEADER.length;c++){
-      ws.cell(3,c+1).value(HEADER[c]).style({
-        bold:true, fontFamily:"Calibri", fontSize:11, fontColor:COLOR_HEADER_TEXT,
-        fill:"F1F5F9", horizontalAlignment:"left", verticalAlignment:"center",
+    for (let c = 0; c < HEADER.length; c++) {
+      ws.cell(3, c + 1).value(HEADER[c]).style({
+        bold: true, fontFamily: "Calibri", fontSize: 11, fontColor: COLOR_HEADER_TEXT,
+        fill: "F1F5F9", horizontalAlignment: "left", verticalAlignment: "center",
       });
     }
     ws.row(3).height(22);
-    let r=4; const startRow=r, endCol=HEADER.length;
+    let r = 4; const startRow = r, endCol = HEADER.length;
     for (const v of rows) {
       const tecnico = v.tecnico?.nombre ?? `#${v.tecnicoId}`;
       const solicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
@@ -210,15 +256,17 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
         toSiNo(!!v.estadoDisco), toSiNo(!!v.licenciaOffice), toSiNo(!!v.licenciaWindows),
         toSiNo(!!v.mantenimientoReloj), toSiNo(!!v.rendimientoEquipo),
       ];
-      for (let c=0;c<rowValues.length;c++){
-        ws.cell(r,c+1).value(rowValues[c]).style({ fontFamily:"Calibri", fontSize:11, fontColor:COLOR_TEXT, verticalAlignment:"center" });
+      for (let c = 0; c < rowValues.length; c++) {
+        ws.cell(r, c + 1).value(rowValues[c]).style({
+          fontFamily: "Calibri", fontSize: 11, fontColor: COLOR_TEXT, verticalAlignment: "center",
+        });
       }
-      if ((r-4)%2===1) ws.range(r,1,r,endCol).style({ fill:"F9FAFB" });
+      if ((r - 4) % 2 === 1) ws.range(r,1,r,endCol).style({ fill: "F9FAFB" });
       r++;
     }
-    const endRow = Math.max(startRow, r-1);
+    const endRow = Math.max(startRow, r - 1);
     excelColWidthSetup(ws);
-    if (rows.length>0){
+    if (rows.length > 0) {
       ws.range(startRow,5,endRow,5).style({ numberFormat:"dd-mm-yyyy hh:mm" });
       setAllBorders(ws, 3, 1, endRow, endCol);
       ws.range(1,1,1,endCol).style({ border:true, borderColor:COLOR_BORDER });
@@ -228,7 +276,11 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
 
 /* ========= Resumen ========= */
 function setupResumenSheet(ws: WorksheetLike) {
-  const hdr = { bold:true, fill:"F1F5F9", fontColor:COLOR_HEADER_TEXT, border:true, borderColor:COLOR_BORDER, horizontalAlignment:"center", verticalAlignment:"center" } as Record<string, ValueT>;
+  const hdr = {
+    bold:true, fill:"F1F5F9", fontColor:COLOR_HEADER_TEXT,
+    border:true, borderColor:COLOR_BORDER,
+    horizontalAlignment:"center", verticalAlignment:"center",
+  } as Record<string, ValueT>;
   ws.cell("A1").value("Fecha").style(hdr); ws.cell("B1").value("Cantidad").style(hdr);
   ws.cell("F1").value("Ítem").style(hdr);  ws.cell("G1").value("Cantidad").style(hdr);
   ws.cell("K1").value("Tipo").style(hdr);  ws.cell("L1").value("Cantidad").style(hdr);
@@ -245,10 +297,10 @@ function setupResumenSheet(ws: WorksheetLike) {
   ws.freezePanes?.(2,1);
 }
 function styleResumenBlocks(ws: WorksheetLike, s:{daily:number; checklist:number; pie:number; users:number;}) {
-  if (s.daily>0) setAllBorders(ws,1,1,1+s.daily,2);
+  if (s.daily>0)     setAllBorders(ws,1,1,1+s.daily,2);
   if (s.checklist>0) setAllBorders(ws,1,6,1+s.checklist,7);
-  if (s.pie>0) setAllBorders(ws,1,11,1+s.pie,12);
-  if (s.users>0) setAllBorders(ws,1,16,1+s.users,17);
+  if (s.pie>0)       setAllBorders(ws,1,11,1+s.pie,12);
+  if (s.users>0)     setAllBorders(ws,1,16,1+s.users,17);
 }
 function mirrorResumenToHoja1(
   wb: WorkbookLike,
@@ -268,7 +320,10 @@ function mirrorResumenToHoja1(
   const clearAndCopyBlock = (srcA1: string, dstA1: string, rows: number, maxRows = 10000) => {
     const s = wsResumen.cell(srcA1);
     const d = ws1!.cell(dstA1);
-    for (let i = 0; i < maxRows; i++) { d.relativeCell(i, 0).value(null); d.relativeCell(i, 1).value(null); }
+    for (let i = 0; i < maxRows; i++) {
+      d.relativeCell(i, 0).value(null);
+      d.relativeCell(i, 1).value(null);
+    }
     for (let i = 0; i < rows; i++) {
       d.relativeCell(i, 0).value(s.relativeCell(i, 0).value());
       d.relativeCell(i, 1).value(s.relativeCell(i, 1).value());
@@ -288,161 +343,287 @@ function mirrorResumenToHoja1(
   ws1.range(2,12,10000,12).style({ numberFormat:"#,##0" });
   ws1.range(2,17,10000,17).style({ numberFormat:"#,##0" });
   const s = counts;
-  if (s.daily>0) setAllBorders(ws1,1,1,1+s.daily,2);
+  if (s.daily>0)     setAllBorders(ws1,1,1,1+s.daily,2);
   if (s.checklist>0) setAllBorders(ws1,1,6,1+s.checklist,7);
-  if (s.pie>0) setAllBorders(ws1,1,11,1+s.pie,12);
-  if (s.users>0) setAllBorders(ws1,1,16,1+s.users,17);
+  if (s.pie>0)       setAllBorders(ws1,1,11,1+s.pie,12);
+  if (s.users>0)     setAllBorders(ws1,1,16,1+s.users,17);
 }
 
 /* ========= Carga de plantilla robusta ========= */
 async function loadTemplateArrayBuffer(): Promise<ArrayBuffer> {
   const tryFetch = async (url:string): Promise<ArrayBuffer|null> => {
     try {
-      const resp=await fetch(url,{cache:"no-store"});
+      const resp = await fetch(url,{cache:"no-store"});
       if(!resp.ok) return null;
-      const buf=await resp.arrayBuffer();
-      const sig=new Uint8Array(buf.slice(0,2));
+      const buf = await resp.arrayBuffer();
+      const sig = new Uint8Array(buf.slice(0,2));
       if(!(sig[0]===0x50&&sig[1]===0x4B)) return null;
       return buf;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
-  const base=(BASE_URL||"/").replace(/\/+$/,"");
-  const a=await tryFetch(`${base}/visitas_template.xlsx`); if(a) return a;
-  const b=await tryFetch(`/visitas_template.xlsx`); if(b) return b;
-  const c=await tryFetch(`/assets/visitas_template.xlsx`); if(c) return c;
-  const wb=(await (XlsxPopulate as unknown as {fromBlankAsync():Promise<WorkbookLike>}).fromBlankAsync()) as WorkbookLike;
-  wb.addSheet("Resumen"); return wb.outputAsync();
+  const base = (BASE_URL||"/").replace(/\/+$/,"");
+  const a = await tryFetch(`${base}/visitas_template.xlsx`); if(a) return a;
+  const b = await tryFetch(`/visitas_template.xlsx`); if(b) return b;
+  const c = await tryFetch(`/assets/visitas_template.xlsx`); if(c) return c;
+  const wb = (await (XlsxPopulate as unknown as {fromBlankAsync():Promise<WorkbookLike>}).fromBlankAsync()) as WorkbookLike;
+  wb.addSheet("Resumen");
+  return wb.outputAsync();
+}
+
+/* ========= Helper: traer TODAS las visitas para export ========= */
+async function fetchAllVisitasForExport(
+  baseApiUrl: string,
+  q: string,
+  tecnicoId: number | "",
+  empresaId: number | "",
+  monthFilter: string,
+  yearFilter: string
+): Promise<VisitaRow[]> {
+  const token = localStorage.getItem("accessToken");
+  const all: VisitaRow[] = [];
+  let page = 1;
+  const pageSize = 100; // coincide con el límite del backend
+
+  while (true) {
+    const url = new URL(`${baseApiUrl}/visitas`);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(pageSize));
+
+    if (q.trim()) url.searchParams.set("q", q.trim());
+    if (tecnicoId) url.searchParams.set("tecnicoId", String(tecnicoId));
+    if (empresaId) url.searchParams.set("empresaId", String(empresaId));
+    if (monthFilter) url.searchParams.set("month", monthFilter);
+    if (yearFilter)  url.searchParams.set("year", yearFilter);
+
+    url.searchParams.set("_ts", String(Date.now()));
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (!res.ok && res.status !== 204) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    if (res.status === 204) break;
+
+    const json = (await res.json()) as ApiList<VisitaRow>;
+    const items = json.items ?? [];
+    all.push(...items);
+
+    const reachedEnd =
+      page >= (json.totalPages ?? 1) ||
+      all.length >= (json.total ?? all.length) ||
+      items.length === 0;
+
+    if (reachedEnd) break;
+
+    page += 1;
+  }
+
+  return all;
 }
 
 /* ========= Página ========= */
 const VisitasPage: React.FC = () => {
-  const [q,setQ]=useState(""); const qDebounced=useDebouncedValue(q,400);
-  const [tecnicoId,setTecnicoId]=useState<number| "">(""); const [empresaId,setEmpresaId]=useState<number| "">("");
+  const [q, setQ] = useState("");
+  const qDebounced = useDebouncedValue(q, 400);
+  const [tecnicoId, setTecnicoId] = useState<number | "">("");
+  const [empresaId, setEmpresaId] = useState<number | "">("");
+  const [monthFilter, setMonthFilter] = useState<string>("");
+  const [yearFilter, setYearFilter] = useState<string>("");
 
-  const [page,setPage]=useState(1);
-  const [data,setData]=useState<ApiList<VisitaRow>|null>(null);
-  const totalPages=useMemo(()=>Math.max(1,data?.totalPages??1),[data]);
-  const canPrev=page>1; const canNext=page<totalPages;
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<ApiList<VisitaRow> | null>(null);
+  const totalPages = useMemo(() => Math.max(1, data?.totalPages ?? 1), [data]);
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState<string|null>(null);
-  const [tecnicos,setTecnicos]=useState<TecnicoMini[]>([]);
-  const [empresas,setEmpresas]=useState<EmpresaMini[]>([]);
-  const [openDetail,setOpenDetail]=useState(false);
-  const [selected,setSelected]=useState<VisitaDetail|null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tecnicos, setTecnicos] = useState<TecnicoMini[]>([]);
+  const [empresas, setEmpresas] = useState<EmpresaMini[]>([]);
+  const [openDetail, setOpenDetail] = useState(false);
+  const [selected, setSelected] = useState<VisitaDetail | null>(null);
 
   // crear
-  const [openCreate,setOpenCreate]=useState(false);
+  const [openCreate, setOpenCreate] = useState(false);
 
   // editar con CreateVisitaModal
   const [openEdit, setOpenEdit] = useState(false);
   const [editVisita, setEditVisita] = useState<VisitaForEdit | null>(null);
 
-  const [deletingId,setDeletingId]=useState<number|null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const reqSeqRef=useRef(0);
+  const reqSeqRef = useRef(0);
 
-  const showingRange=useMemo(()=>{ if(!data||data.total===0) return null; const start=(data.page-1)*data.pageSize+1; const end=Math.min(data.page*data.pageSize,data.total); return {start,end}; },[data]);
+  const showingRange = useMemo(() => {
+    if (!data || data.total === 0) return null;
+    const start = (data.page - 1) * data.pageSize + 1;
+    const end = Math.min(data.page * data.pageSize, data.total);
+    return { start, end };
+  }, [data]);
 
   /* === useCallback para cumplir exhaustive-deps === */
   const fetchFilters = useCallback(async (signal?: AbortSignal) => {
     try {
-      const url=new URL(`${API_URL}/visitas/filters`);
-      const token=localStorage.getItem("accessToken");
-      const r=await fetch(url.toString(),{
-        headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},
-        credentials:"include",
-        cache:"no-store",
-        signal
+      const url = new URL(`${API_URL}/visitas/filters`);
+      const token = localStorage.getItem("accessToken");
+      const r = await fetch(url.toString(), {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+        signal,
       });
-      if(!r.ok) throw new Error(`HTTP ${r.status}`);
-      const json=await r.json() as {tecnicos:TecnicoMini[]; empresas:EmpresaMini[]};
-      setTecnicos(json.tecnicos||[]);
-      setEmpresas(json.empresas||[]);
-    } catch { /* noop */ }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const json = await r.json() as { tecnicos: TecnicoMini[]; empresas: EmpresaMini[] };
+      setTecnicos(json.tecnicos || []);
+      setEmpresas(json.empresas || []);
+    } catch {
+      /* noop */
+    }
   }, []);
 
   const fetchList = useCallback(async (signal?: AbortSignal) => {
-    const seq=++reqSeqRef.current;
+    const seq = ++reqSeqRef.current;
     try {
-      setLoading(true); setError(null);
-      const url=new URL(`${API_URL}/visitas`);
-      url.searchParams.set("page",String(page)); url.searchParams.set("pageSize",String(PAGE_SIZE));
-      if(qDebounced.trim()) url.searchParams.set("q",qDebounced.trim());
-      if(tecnicoId) url.searchParams.set("tecnicoId",String(tecnicoId));
-      if(empresaId) url.searchParams.set("empresaId",String(empresaId));
-      url.searchParams.set("_ts",String(Date.now()));
-      const token=localStorage.getItem("accessToken");
-      const res=await fetch(url.toString(),{
-        method:"GET",
-        headers:{
-          "Content-Type":"application/json",
-          "Cache-Control":"no-cache",
-          Pragma:"no-cache",
-          ...(token?{Authorization:`Bearer ${token}`}:{})
+      setLoading(true);
+      setError(null);
+      const url = new URL(`${API_URL}/visitas`);
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("pageSize", String(PAGE_SIZE));
+      if (qDebounced.trim()) url.searchParams.set("q", qDebounced.trim());
+      if (tecnicoId)        url.searchParams.set("tecnicoId", String(tecnicoId));
+      if (empresaId)        url.searchParams.set("empresaId", String(empresaId));
+      if (monthFilter)      url.searchParams.set("month", monthFilter);
+      if (yearFilter)       url.searchParams.set("year", yearFilter);
+      url.searchParams.set("_ts", String(Date.now()));
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        cache:"no-store",
-        credentials:"include",
-        signal
+        cache: "no-store",
+        credentials: "include",
+        signal,
       });
-      if(seq!==reqSeqRef.current) return;
-      if(!res.ok&&res.status!==204){
-        let apiErr=`HTTP ${res.status}`;
-        try{ const payload=await res.json() as { error?: string }; apiErr=payload?.error||apiErr; }catch{
+      if (seq !== reqSeqRef.current) return;
+      if (!res.ok && res.status !== 204) {
+        let apiErr = `HTTP ${res.status}`;
+        try {
+          const payload = await res.json() as { error?: string };
+          apiErr = payload?.error || apiErr;
+        } catch {
           //
         }
         throw new Error(apiErr);
       }
-      if(res.status===204){ setData({page,pageSize:PAGE_SIZE,total:0,totalPages:1,items:[]}); return; }
-      const ct=res.headers.get("content-type")||"";
-      if(ct.includes("application/json")) setData(await res.json() as ApiList<VisitaRow>);
-      else {
-        const text=await res.text();
-        const json=text?(JSON.parse(text) as ApiList<VisitaRow>):null;
-        setData(json??{page,pageSize:PAGE_SIZE,total:0,totalPages:1,items:[]});
+      if (res.status === 204) {
+        setData({ page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
+        return;
       }
-    } catch(err){
-      if((err as Error).name!=="AbortError") setError((err as Error)?.message||"Error al cargar visitas");
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        setData(await res.json() as ApiList<VisitaRow>);
+      } else {
+        const text = await res.text();
+        const json = text ? (JSON.parse(text) as ApiList<VisitaRow>) : null;
+        setData(json ?? { page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setError((err as Error)?.message || "Error al cargar visitas");
+      }
     } finally {
-      if(seq===reqSeqRef.current) setLoading(false);
+      if (seq === reqSeqRef.current) setLoading(false);
     }
-  }, [page, qDebounced, tecnicoId, empresaId]);
+  }, [page, qDebounced, tecnicoId, empresaId, monthFilter, yearFilter]);
 
   const refreshNow = useCallback(() => {
-    const c=new AbortController();
+    const c = new AbortController();
     void fetchList(c.signal);
   }, [fetchList]);
 
   /* === Efectos usando las funciones memorizadas === */
-  useEffect(()=>{ const c=new AbortController(); fetchFilters(c.signal); return ()=>c.abort(); },[fetchFilters]);
-  useEffect(()=>{ const c=new AbortController(); fetchList(c.signal); return ()=>c.abort(); },[fetchList]);
+  useEffect(() => {
+    const c = new AbortController();
+    fetchFilters(c.signal);
+    return () => c.abort();
+  }, [fetchFilters]);
+  useEffect(() => {
+    const c = new AbortController();
+    fetchList(c.signal);
+    return () => c.abort();
+  }, [fetchList]);
 
-  const clearAll=()=>{ setQ(""); setTecnicoId(""); setEmpresaId(""); setPage(1); };
+  const clearAll = () => {
+    setQ("");
+    setTecnicoId("");
+    setEmpresaId("");
+    setMonthFilter("");
+    setYearFilter("");
+    setPage(1);
+  };
 
-  const openRow=(row:VisitaRow)=>{ const visita:VisitaDetail={
-      id_visita:row.id_visita, empresaId:row.empresaId, tecnicoId:row.tecnicoId,
+  const openRow = (row: VisitaRow) => {
+    const visita: VisitaDetail = {
+      id_visita: row.id_visita,
+      empresaId: row.empresaId,
+      tecnicoId: row.tecnicoId,
       solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? "",
-      inicio:row.inicio, fin:row.fin??null,
-      confImpresoras:row.confImpresoras, confTelefonos:row.confTelefonos, confPiePagina:row.confPiePagina,
-      otros:row.otros, otrosDetalle:row.otrosDetalle??null, status:row.status,
-      empresa:row.empresa?{id_empresa:row.empresa.id_empresa, nombre:row.empresa.nombre}:undefined,
-      tecnico:row.tecnico?{id_tecnico:row.tecnico.id_tecnico, nombre:row.tecnico.nombre}:undefined,
-      actualizaciones:row.actualizaciones, antivirus:row.antivirus, ccleaner:row.ccleaner,
-      estadoDisco:row.estadoDisco, licenciaOffice:row.licenciaOffice, licenciaWindows:row.licenciaWindows,
-      mantenimientoReloj:row.mantenimientoReloj, rendimientoEquipo:row.rendimientoEquipo
-    }; setSelected(visita); setOpenDetail(true); };
+      inicio: row.inicio,
+      fin: row.fin ?? null,
+      confImpresoras: row.confImpresoras,
+      confTelefonos: row.confTelefonos,
+      confPiePagina: row.confPiePagina,
+      otros: row.otros,
+      otrosDetalle: row.otrosDetalle ?? null,
+      status: row.status,
+      empresa: row.empresa ? { id_empresa: row.empresa.id_empresa, nombre: row.empresa.nombre } : undefined,
+      tecnico: row.tecnico ? { id_tecnico: row.tecnico.id_tecnico, nombre: row.tecnico.nombre } : undefined,
+      actualizaciones: row.actualizaciones,
+      antivirus: row.antivirus,
+      ccleaner: row.ccleaner,
+      estadoDisco: row.estadoDisco,
+      licenciaOffice: row.licenciaOffice,
+      licenciaWindows: row.licenciaWindows,
+      mantenimientoReloj: row.mantenimientoReloj,
+      rendimientoEquipo: row.rendimientoEquipo,
+    };
+    setSelected(visita);
+    setOpenDetail(true);
+  };
 
   async function apiDeleteVisita(id: number) {
-    const token=localStorage.getItem("accessToken");
-    const r=await fetch(`${API_URL}/visitas/${id}`,{
-      method:"DELETE",
-      headers:{...(token?{Authorization:`Bearer ${token}`}:{})},
-      credentials:"include",
-      cache:"no-store",
+    const token = localStorage.getItem("accessToken");
+    const r = await fetch(`${API_URL}/visitas/${id}`, {
+      method: "DELETE",
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      credentials: "include",
+      cache: "no-store",
     });
-    if(!(r.ok || r.status===204)) {
-      let msg=`HTTP ${r.status}`;
-      try { const j=await r.json() as { error?: string }; msg=j?.error||msg; } catch { /* noop */ }
+    if (!(r.ok || r.status === 204)) {
+      let msg = `HTTP ${r.status}`;
+      try {
+        const j = await r.json() as { error?: string };
+        msg = j?.error || msg;
+      } catch {
+        /* noop */
+      }
       throw new Error(msg);
     }
   }
@@ -488,35 +669,69 @@ const VisitasPage: React.FC = () => {
     }
   };
 
-  const onExportEmpresas=async()=>{ try{
-      const total=data?.total??0; if(total<=0) return;
-      const listUrl=new URL(`${API_URL}/visitas`); listUrl.searchParams.set("page","1"); listUrl.searchParams.set("pageSize",String(Math.max(1,total)));
-      if(qDebounced.trim()) listUrl.searchParams.set("q",qDebounced.trim());
-      if(tecnicoId) listUrl.searchParams.set("tecnicoId",String(tecnicoId));
-      if(empresaId) listUrl.searchParams.set("empresaId",String(empresaId));
-      listUrl.searchParams.set("_ts",String(Date.now()));
-      const token=localStorage.getItem("accessToken");
-      const r=await fetch(listUrl.toString(),{headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},credentials:"include",cache:"no-store"});
-      if(!r.ok) throw new Error(`HTTP ${r.status}`);
-      const full=await r.json() as ApiList<VisitaRow>; const items=full.items??[];
-      const tplArrayBuf=await loadTemplateArrayBuffer();
-      const wb=await (XlsxPopulate as unknown as {fromDataAsync(buf:ArrayBuffer):Promise<WorkbookLike>}).fromDataAsync(tplArrayBuf) as WorkbookLike;
-      let ws=wb.sheet("Resumen"); if(!ws) ws=wb.addSheet("Resumen");
+  const onExportEmpresas = async () => {
+    try {
+      const total = data?.total ?? 0;
+      if (total <= 0) return;
+
+      // Traemos TODAS las visitas respetando los mismos filtros que la tabla
+      const items = await fetchAllVisitasForExport(
+        API_URL,
+        qDebounced,
+        tecnicoId,
+        empresaId,
+        monthFilter,
+        yearFilter
+      );
+
+      const tplArrayBuf = await loadTemplateArrayBuffer();
+      const wb = await (XlsxPopulate as unknown as {
+        fromDataAsync(buf:ArrayBuffer):Promise<WorkbookLike>;
+      }).fromDataAsync(tplArrayBuf) as WorkbookLike;
+
+      let ws = wb.sheet("Resumen");
+      if (!ws) ws = wb.addSheet("Resumen");
       setupResumenSheet(ws);
-      const {daily,checklist,pie,bySolicitanteAllRows}=aggregateForResumen(items);
-      fillBlock(ws,"A2",asPairs(daily),2000);
-      fillBlock(ws,"F2",asPairs(checklist),2000);
-      fillBlock(ws,"K2",asPairs(pie),2000);
-      fillBlock(ws,"P2",asPairs(bySolicitanteAllRows),2000);
-      styleResumenBlocks(ws,{daily:daily.length,checklist:checklist.length,pie:pie.length,users:bySolicitanteAllRows.length});
-      mirrorResumenToHoja1(wb, ws, { daily: daily.length, checklist: checklist.length, pie: pie.length, users: bySolicitanteAllRows.length });
-      addDetallePorEmpresaSheets(wb,items);
-      const out=await wb.outputAsync();
-      const blob=new Blob([out as ArrayBuffer],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-      const urlBlob=URL.createObjectURL(blob);
-      const a=document.createElement("a"); a.href=urlBlob; a.download=`Visitas_${new Date().toISOString().slice(0,10)}.xlsx`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(urlBlob);
-    } catch(e){ console.error("[Export Excel] Error:",e); alert("No se pudo exportar el Excel. Revisa consola (plantilla/rutas/permiso)."); } };
+
+      const { daily, checklist, pie, bySolicitanteAllRows } = aggregateForResumen(items);
+      fillBlock(ws,"A2", asPairs(daily), 2000);
+      fillBlock(ws,"F2", asPairs(checklist), 2000);
+      fillBlock(ws,"K2", asPairs(pie), 2000);
+      fillBlock(ws,"P2", asPairs(bySolicitanteAllRows), 2000);
+
+      styleResumenBlocks(ws, {
+        daily: daily.length,
+        checklist: checklist.length,
+        pie: pie.length,
+        users: bySolicitanteAllRows.length,
+      });
+
+      mirrorResumenToHoja1(wb, ws, {
+        daily: daily.length,
+        checklist: checklist.length,
+        pie: pie.length,
+        users: bySolicitanteAllRows.length,
+      });
+
+      addDetallePorEmpresaSheets(wb, items);
+
+      const out = await wb.outputAsync();
+      const blob = new Blob([out as ArrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const urlBlob = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlBlob;
+      a.download = `Visitas_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(urlBlob);
+    } catch (e) {
+      console.error("[Export Excel] Error:", e);
+      alert("No se pudo exportar el Excel. Revisa consola (plantilla/rutas/permiso).");
+    }
+  };
 
   return (
   <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -541,13 +756,13 @@ const VisitasPage: React.FC = () => {
             </span>
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-slate-600">
-            Filtra por técnico, empresa o texto libre. Exporta y gestiona en tiempo real.
+            Filtra por técnico, empresa, mes o texto libre. Exporta y gestiona en tiempo real.
           </p>
 
           {/* Toolbar: búsqueda + filtros + acciones */}
           <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
             {/* Búsqueda */}
-            <div className="relative md:col-span-5">
+            <div className="relative md:col-span-4">
               <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
               <input
                 value={q}
@@ -573,7 +788,7 @@ const VisitasPage: React.FC = () => {
             <div className="md:col-span-3">
               <select
                 value={tecnicoId}
-                onChange={(e)=>{ const v=e.target.value; setTecnicoId(v?Number(v):""); setPage(1); }}
+                onChange={(e)=>{ const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
                 className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                 aria-label="Filtrar por técnico"
               >
@@ -583,15 +798,54 @@ const VisitasPage: React.FC = () => {
             </div>
 
             {/* Filtro empresa */}
-            <div className="md:col-span-4">
+            <div className="md:col-span-3">
               <select
                 value={empresaId}
-                onChange={(e)=>{ const v=e.target.value; setEmpresaId(v?Number(v):""); setPage(1); }}
+                onChange={(e)=>{ const v = e.target.value; setEmpresaId(v ? Number(v) : ""); setPage(1); }}
                 className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                 aria-label="Filtrar por empresa"
               >
                 <option value="">Todas las empresas</option>
                 {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
+              </select>
+            </div>
+
+            {/* Filtro mes */}
+            <div className="md:col-span-1">
+              <select
+                value={monthFilter}
+                onChange={(e)=>{ setMonthFilter(e.target.value); setPage(1); }}
+                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                aria-label="Filtrar por mes"
+              >
+                <option value="">Mes</option>
+                <option value="1">Ene</option>
+                <option value="2">Feb</option>
+                <option value="3">Mar</option>
+                <option value="4">Abr</option>
+                <option value="5">May</option>
+                <option value="6">Jun</option>
+                <option value="7">Jul</option>
+                <option value="8">Ago</option>
+                <option value="9">Sep</option>
+                <option value="10">Oct</option>
+                <option value="11">Nov</option>
+                <option value="12">Dic</option>
+              </select>
+            </div>
+
+            {/* Filtro año */}
+            <div className="md:col-span-1">
+              <select
+                value={yearFilter}
+                onChange={(e)=>{ setYearFilter(e.target.value); setPage(1); }}
+                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                aria-label="Filtrar por año"
+              >
+                <option value="">Año</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
               </select>
             </div>
 
@@ -622,7 +876,7 @@ const VisitasPage: React.FC = () => {
                   type="button"
                   className={clsx(
                     "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
-                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w/full min-w-[120px]",
+                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                     (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
                   )}
@@ -642,7 +896,7 @@ const VisitasPage: React.FC = () => {
                     bg-gradient-to-tr from-emerald-600 to-cyan-600
                     shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
                     hover:brightness-110 active:scale-[0.98]
-                    transition duration-200 w/full min-w-[120px]
+                    transition duration-200 w-full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
                   title="Nueva visita"
