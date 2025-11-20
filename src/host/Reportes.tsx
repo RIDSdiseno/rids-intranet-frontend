@@ -23,7 +23,6 @@ import * as XLSX from "xlsx-js-style";
 
 import type { ITableBordersOptions } from "docx";
 
-
 // DOCX + saveAs
 import {
   AlignmentType,

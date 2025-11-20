@@ -13,6 +13,9 @@ const TicketsPage    = lazy(() => import("./host/Ticket"));
 const EmpresasPage   = lazy(() => import("./host/EmpresasPage"));
 const ReportesPage   = lazy(() => import("./host/Reportes"));
 const DocumentosPage = lazy(() => import("./host/DocumentosPage")); // 👈 NUEVO
+const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
+const Cotizaciones = lazy(() => import("./host/Cotizaciones"));
+
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
@@ -51,6 +54,24 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <EquiposPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/OrdenesTaller"
+            element={
+              <PrivateRoute>
+                <OrdenesTallerPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/Cotizaciones"
+            element={
+              <PrivateRoute>
+                <Cotizaciones />
               </PrivateRoute>
             }
           />
