@@ -49,6 +49,12 @@ const ItemTipoGestioo = {
     ADICIONAL: "ADICIONAL"
 } as const;
 
+const MonedaCotizacion = {
+    CLP: "CLP",
+    USD: "USD",
+} as const;
+
+type MonedaCotizacion = typeof MonedaCotizacion[keyof typeof MonedaCotizacion];
 type EstadoCotizacionGestioo = typeof EstadoCotizacionGestioo[keyof typeof EstadoCotizacionGestioo];
 type TipoCotizacionGestioo = typeof TipoCotizacionGestioo[keyof typeof TipoCotizacionGestioo];
 type ItemTipoGestioo = typeof ItemTipoGestioo[keyof typeof ItemTipoGestioo];
@@ -76,6 +82,7 @@ interface CotizacionItemGestioo {
     porcentaje?: number | null;
     createdAt: string;
     tieneIVA?: boolean;
+    sku?: string;
 }
 
 interface CotizacionGestioo {
@@ -86,6 +93,8 @@ interface CotizacionGestioo {
     entidadId: number | null;
     entidad: EntidadGestioo | null;
     total: number;
+    moneda: MonedaCotizacion;
+    tasaCambio: number | null;
     items: CotizacionItemGestioo[];
     createdAt: string;
     updatedAt: string;
@@ -317,6 +326,7 @@ const Cotizaciones: React.FC = () => {
             porcGanancia?: number;       // ← AGREGAR ESTE CAMPO
             porcentaje?: number | null;
             tieneIVA?: boolean;
+            sku?: string | null;
         }[]
     >([]);
     // === FILTROS MEJORADOS ===
@@ -350,11 +360,20 @@ const Cotizaciones: React.FC = () => {
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // === FORMULARIO ===
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{
+        tipoEntidad: "EMPRESA" | "PERSONA";
+        origenEntidad: string;
+        entidadId: string;
+        moneda: MonedaCotizacion;
+        tasaCambio: number;
+    }>({
         tipoEntidad: "EMPRESA",
         origenEntidad: "",
         entidadId: "",
+        moneda: "CLP",   // por defecto
+        tasaCambio: 1,   // 1 = sin conversión
     });
+
 
     const [catalogo, setCatalogo] = useState<
         { id: number; tipo: "PRODUCTO" | "SERVICIO"; descripcion: string; precio: number }[]
@@ -384,17 +403,32 @@ const Cotizaciones: React.FC = () => {
         };
     }, []);
 
+    const formatearPrecio = (precioCLP: number, moneda: MonedaCotizacion, tasaCambio: number = 1): string => {
+        if (moneda === "USD") {
+            const precioUSD = precioCLP / tasaCambio;
+            return `US$ ${precioUSD.toFixed(2)}`;
+        }
+        return `$ ${Math.round(precioCLP).toLocaleString("es-CL")}`;
+    };
+
     // === FUNCIONES PRINCIPALES MEJORADAS ===
     const fetchCotizaciones = async () => {
         try {
             const data = await apiFetch('/cotizaciones');
-            setCotizaciones(data.data || []);
+            const rows = (data.data || []) as CotizacionGestioo[];
+
+            const normalizadas = rows.map(c => ({
+                ...c,
+                moneda: c.moneda || "CLP",
+                tasaCambio: c.tasaCambio ?? 1,
+            }));
+
+            setCotizaciones(normalizadas);
         } catch (err) {
             handleApiError(err, "Error al cargar cotizaciones");
-            console.log(entidadSeleccionada);
-
         }
     };
+
 
     const fetchCatalogo = async () => {
         try {
@@ -415,7 +449,7 @@ const Cotizaciones: React.FC = () => {
                     porcGanancia: p.porcGanancia || 0, // ← AGREGAR
                     precioTotal: p.precioTotal || p.precio || 0, // ← AGREGAR
                     nombre: p.nombre,
-                    codigo: p.codigo,
+                    sku: p.serie,
                     categoria: p.categoria
                 })),
                 ...servicios.map((s: any) => ({
@@ -424,7 +458,7 @@ const Cotizaciones: React.FC = () => {
                     descripcion: s.nombre || s.descripcion || "Servicio sin nombre",
                     precio: s.precio || s.precioBase || s.valor || 0,
                     nombre: s.nombre,
-                    codigo: s.codigo
+                    sku: s.serie
                 }))
             ];
 
@@ -434,7 +468,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const cargarProductos = async () => {
+    const cargarProductos = async (mostrarSelector = true) => {
         try {
             const data = await apiFetch('/productos-gestioo');
             const productos = data.data || data.items || data.rows || data || [];
@@ -443,25 +477,34 @@ const Cotizaciones: React.FC = () => {
                 id: p.id,
                 tipo: "PRODUCTO" as const,
                 descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0, // Precio costo
-                porcGanancia: p.porcGanancia || 0, // ← AGREGAR ESTE CAMPO
-                precioTotal: p.precioTotal || p.precio || 0, // ← AGREGAR ESTE CAMPO
+                precio: p.precio || p.precioBase || p.valor || 0,
+                porcGanancia: p.porcGanancia || 0,
+                precioTotal: p.precioTotal || p.precio || 0,
                 nombre: p.nombre,
-                codigo: p.codigo,
+                sku: p.serie,
                 categoria: p.categoria
             }));
 
             setProductosCatalogo(productosMapeados);
             setProductosFiltrados(productosMapeados);
 
-            const categoriasUnicas = [...new Set(productosMapeados
-                .map((p: any) => p.categoria)
-                .filter(Boolean)
-                .sort()
-            )] as string[];
+            const categoriasUnicas = Array.from(
+                new Set(
+                    productosMapeados
+                        .map((p: any) => String(p.categoria ?? "")) // aseguramos string
+                        .filter((c: string) => c.trim() !== "")
+                )
+            ) as string[];
 
             setCategoriasDisponibles(categoriasUnicas);
-            setShowSelectorProducto(true);
+
+
+
+            // ⛔ Solo abre el selector si mostrarSelector = true
+            if (mostrarSelector) {
+                setShowSelectorProducto(true);
+            }
+
         } catch (e) {
             handleApiError(e, "Error al cargar productos");
         }
@@ -671,6 +714,7 @@ const Cotizaciones: React.FC = () => {
             porcGanancia: porcGanancia,      // ← Incluir porcGanancia
             porcentaje: 0,
             tieneIVA: true,
+            sku: producto.sku
         };
 
         setItems(prev => [...prev, newItem]);
@@ -747,22 +791,40 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
+            // Calcula totales SIEMPRE en CLP (para almacenamiento)
             const { total } = calcularTotales(items as CotizacionItemGestioo[]);
 
-            // En handleCreateCotizacion, actualizar el mapeo de items:
+            // CONVERTIR PRECIOS DE ITEMS SI LA COTIZACIÓN ES EN USD
+            const itemsParaEnviar = items.map(item => {
+                let precioParaEnviar = item.precio;
+
+                // Si la cotización es en USD, convertir precios a USD
+                if (formData.moneda === "USD") {
+                    precioParaEnviar = item.precio;   // EN CLP SIEMPRE
+                }
+
+                return {
+                    tipo: item.tipo,
+                    descripcion: item.descripcion,
+                    cantidad: item.cantidad,
+                    precio: precioParaEnviar, // En la moneda de la cotización
+                    porcentaje: item.porcentaje || null,
+                    tieneIVA: item.tieneIVA || false,
+                    sku: item.sku || null,
+                    // Mantener referencia del precio original en CLP
+                    precioCosto: item.precioCosto,
+                    porcGanancia: item.porcGanancia
+                };
+            });
+
             const cotizacionData = {
                 tipo: TipoCotizacionGestioo.CLIENTE,
                 estado: EstadoCotizacionGestioo.BORRADOR,
                 entidadId: Number(formData.entidadId),
-                total: total,
-                items: items.map(item => ({
-                    tipo: item.tipo,
-                    descripcion: item.descripcion,
-                    cantidad: item.cantidad,
-                    precio: item.precio,
-                    porcentaje: item.porcentaje || null,
-                    tieneIVA: item.tieneIVA || false // ← AGREGAR ESTE CAMPO
-                }))
+                total: total, // Total en CLP (siempre)
+                moneda: formData.moneda,
+                tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
+                items: itemsParaEnviar
             };
 
             const data = await apiFetch('/cotizaciones', {
@@ -788,22 +850,46 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
-            // Validación mejorada
             const errores = validarCotizacion(selectedCotizacion);
             if (errores.length > 0) {
-                handleApiError({ message: errores.join('\n') }, "Errores de validación");
+                handleApiError({ message: errores.join("\n") }, "Errores de validación");
                 return;
             }
 
-            // Recalcular totales usando la función utilitaria
             const { total: totalCalculado } = calcularTotales(selectedCotizacion.items);
+            const moneda = selectedCotizacion.moneda || "CLP";
+            const tasaCambio = moneda === "USD" ? Number(selectedCotizacion.tasaCambio) || 1 : 1;
+
+            // CONVERTIR ITEMS SEGÚN MONEDA
+            const itemsConvertidos = selectedCotizacion.items.map(item => {
+                let precioFinal = Number(item.precio);
+
+                // Si la cotización es en USD, convertir precios de CLP a USD
+                if (moneda === "USD") {
+                    precioFinal = Number(item.precio) / tasaCambio;
+                }
+
+                return {
+                    tipo: item.tipo,
+                    descripcion: item.descripcion.trim(),
+                    cantidad: Number(item.cantidad),
+                    precio: precioFinal,  // ← EN LA MONEDA CORRECTA
+                    porcentaje: item.porcentaje !== null && item.porcentaje !== undefined
+                        ? Number(item.porcentaje)
+                        : null,
+                    tieneIVA: item.tieneIVA || false,
+                    sku: item.sku || null
+                };
+            });
 
             const cotizacionData = {
                 tipo: selectedCotizacion.tipo,
                 estado: selectedCotizacion.estado,
                 entidadId: selectedCotizacion.entidadId,
-                total: totalCalculado,
+                total: totalCalculado,  // Siempre en CLP
                 fecha: selectedCotizacion.fecha,
+                moneda: moneda,
+                tasaCambio: tasaCambio,
                 entidad: {
                     id: selectedCotizacion.entidad!.id,
                     nombre: selectedCotizacion.entidad!.nombre.trim(),
@@ -813,33 +899,31 @@ const Cotizaciones: React.FC = () => {
                     direccion: selectedCotizacion.entidad!.direccion?.trim() || null,
                     origen: selectedCotizacion.entidad!.origen
                 },
-                items: selectedCotizacion.items.map(item => ({
-                    tipo: item.tipo,
-                    descripcion: item.descripcion.trim(),
-                    cantidad: Number(item.cantidad),
-                    precio: Number(item.precio),
-                    porcentaje: item.porcentaje !== null && item.porcentaje !== undefined
-                        ? Number(item.porcentaje)
-                        : null,
-                    tieneIVA: item.tieneIVA || false
-                }))
+                items: itemsConvertidos  // ← USAR ITEMS CONVERTIDOS
             };
 
-            const cotizacionActualizada = await apiFetch(`/cotizaciones/${selectedCotizacion.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(cotizacionData)
-            });
+            const cotizacionActualizada = await apiFetch(
+                `/cotizaciones/${selectedCotizacion.id}`,
+                {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(cotizacionData)
+                }
+            );
 
-            setCotizaciones(prev => prev.map(c =>
-                c.id === selectedCotizacion.id ? cotizacionActualizada.data || cotizacionActualizada : c
-            ));
+            setCotizaciones(prev =>
+                prev.map(c =>
+                    c.id === selectedCotizacion.id
+                        ? cotizacionActualizada.data || cotizacionActualizada
+                        : c
+                )
+            );
 
             setShowEditModal(false);
             showSuccess("Cotización actualizada correctamente");
-
             await fetchCotizaciones();
-        } catch (error: any) {
+
+        } catch (error) {
             handleApiError(error, "Error al actualizar cotización");
         }
     };
@@ -852,8 +936,11 @@ const Cotizaciones: React.FC = () => {
             tipoEntidad: "EMPRESA",
             origenEntidad: "",
             entidadId: "",
+            moneda: "CLP",
+            tasaCambio: 1,
         });
     };
+
 
     // Función para recargar los items de una cotización
     const recargarItemsCotizacion = async (cotizacionId: number) => {
@@ -896,6 +983,8 @@ const Cotizaciones: React.FC = () => {
 
             const nuevaCotizacion = {
                 ...cotizacion,
+                moneda: cotizacion.moneda || "CLP",
+                tasaCambio: cotizacion.tasaCambio ?? 1,
                 items: itemsMapeados,
             };
 
@@ -930,14 +1019,14 @@ const Cotizaciones: React.FC = () => {
                     nombre: "RIDS LTDA",
                     direccion: "Santiago - Providencia, La Concepción 65",
                     correo: "soporte@rids.cl",
-                    telefono: "+56 9 0000 0000",
+                    telefono: "+56 9 8823 1976",
                     logo: `${window.location.origin}/img/splash.png`
                 },
                 ECCONET: {
-                    nombre: "ECONnET SPA",
+                    nombre: "ECONNET SPA",
                     direccion: "Santiago - Providencia, La Concepción 65",
-                    correo: "contacto@econnet.cl",
-                    telefono: "+56 9 1111 1111",
+                    correo: "ventas@econnet.cl",
+                    telefono: "+56 9 8807 6593",
                     logo: `${window.location.origin}/img/ecconetlogo.png`
                 },
                 OTRO: {
@@ -949,20 +1038,103 @@ const Cotizaciones: React.FC = () => {
                 }
             };
 
+            // ====== CALCULO DE IVA Y TOTALES EN PDF ======
+            const subtotalBruto = cot.items
+                .filter(item => item.tipo !== "ADICIONAL")
+                .reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+
+            // Descuentos
+            const descuentos = cot.items
+                .filter(item => item.tipo === "ADICIONAL")
+                .reduce((acc, item) => {
+                    if (item.porcentaje && item.porcentaje > 0) {
+                        return acc + (subtotalBruto * item.porcentaje) / 100;
+                    }
+                    return acc + (item.precio * item.cantidad);
+                }, 0);
+
+            // Subtotal neto sin IVA
+            const subtotal = Math.max(0, subtotalBruto - descuentos);
+
+            // IVA por ítem (solo si tieneIVA=true)
+            const iva = cot.items
+                .filter(item => item.tieneIVA === true)
+                .reduce((acc, item) => {
+                    const subtotalItem = item.precio * item.cantidad;
+
+                    const descuentoItem = item.porcentaje
+                        ? (subtotalItem * item.porcentaje) / 100
+                        : 0;
+
+                    const subtotalNetoItem = subtotalItem - descuentoItem;
+
+                    return acc + subtotalNetoItem * 0.19;
+                }, 0);
+
+            const totalFinal = subtotal + iva;
+
+            const totalUSD =
+                cot.moneda === "USD" && cot.tasaCambio
+                    ? totalFinal / cot.tasaCambio
+                    : null;
+
             const origen = (cot.entidad?.origen ?? "OTRO") as OrigenGestioo;
             const origenInfo = ORIGEN_DATA[origen];
 
-            const itemsHtml = cot.items.map(item => `
-            <tr>
-                <td style="padding:6px; border-bottom:1px solid #ddd;">${item.descripcion}</td>
-                <td style="padding:6px; border-bottom:1px solid #ddd; text-align:center;">${item.cantidad}</td>
-                <td style="padding:6px; border-bottom:1px solid #ddd; text-align:right;">$${item.precio.toLocaleString("es-CL")}</td>
-                <td style="padding:6px; border-bottom:1px solid #ddd; text-align:right;">$${(item.precio * item.cantidad).toLocaleString("es-CL")}</td>
-            </tr>
-        `).join("");
+            // === FORMATEO UNIVERSAL DE MONEDA PARA PDF ===
+            const formatPDF = (valorCLP: number) => {
+                if (cot.moneda === "USD") {
+                    const usd = valorCLP / (cot.tasaCambio || 1);
+                    return `US$ ${usd.toFixed(2)}`;
+                }
+                return `$${Math.round(valorCLP).toLocaleString("es-CL")}`;
+            };
+
+            const subtotalFmt = formatPDF(subtotal);
+            const ivaFmt = formatPDF(iva);
+            const totalFmt = formatPDF(totalFinal);
+
+            const itemsHtml = cot.items.map(item => {
+                const precioTotalCLP = item.precio * item.cantidad;
+
+                return `
+<tr>
+    <td style="padding:6px; border-bottom:1px solid #ddd;">
+        ${item.descripcion}
+    </td>
+
+    <td style="padding:6px; border-bottom:1px solid #ddd; text-align:center;">
+        ${item.sku || ""}
+    </td>
+
+    <td style="padding:6px; border-bottom:1px solid #ddd; text-align:center;">
+        ${item.cantidad}
+    </td>
+
+    <td style="padding:6px; border-bottom:1px solid #ddd; text-align:right;">
+        ${formatPDF(item.precio)}
+    </td>
+
+    <td style="padding:6px; border-bottom:1px solid #ddd; text-align:right;">
+        ${formatPDF(precioTotalCLP)}
+    </td>
+</tr>`;
+            }).join("");
+
 
             const html = `
-<div style="width:790px; padding:32px; font-family:Arial; border:1px solid #ccc;">
+<div style="
+    width: 1500px;
+    height: 2000px;
+    padding: 32px;
+    margin: 0 auto;
+    font-family: Arial;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+">
+
 
     <!-- ENCABEZADO -->
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #444; padding-bottom:12px;">
@@ -976,13 +1148,28 @@ const Cotizaciones: React.FC = () => {
             </div>
         </div>
         <div style="text-align:right;">
-            <p style="margin:0; font-size:12px;">Fecha impresión: ${fechaActual}</p>
+            <p style="margin:0; font-size:12px;">Fecha impresión:${fechaActual}</p>
             <h3 style="margin:0; font-size:16px;">Cotización Nº ${codigo}</h3>
         </div>
     </div>
 
+   <!-- DATOS CLIENTE + EMPRESA (ORIGEN) LADO A LADO -->
+<div style="
+    margin-top:20px;
+    display:flex;
+    gap:20px;
+    width:100%;
+">
+
     <!-- CLIENTE -->
-    <div style="margin-top:20px; background:#f7f7f7; padding:14px; border-radius:10px; border:1px solid #ddd;">
+    <div style="
+        flex:1;
+        background:#f7f7f7;
+        padding:14px;
+        border-radius:10px;
+        border:1px solid #ddd;
+        font-size:13px;
+    ">
         <h3 style="margin:0 0 10px 0;">Datos del Cliente</h3>
         <p><b>Entidad:</b> ${cot.entidad?.nombre ?? "—"}</p>
         <p><b>RUT:</b> ${cot.entidad?.rut ?? "—"}</p>
@@ -993,7 +1180,14 @@ const Cotizaciones: React.FC = () => {
     </div>
 
     <!-- EMPRESA ORIGEN -->
-    <div style="margin-top:20px; background:#eef6ff; padding:14px; border-radius:10px; border:1px solid #c7ddf8;">
+    <div style="
+        flex:1;
+        background:#eef6ff;
+        padding:14px;
+        border-radius:10px;
+        border:1px solid #c7ddf8;
+        font-size:13px;
+    ">
         <h3 style="margin:0 0 10px 0;">Datos de la Empresa (Origen)</h3>
         <p><b>Empresa:</b> ${origenInfo.nombre}</p>
         <p><b>Dirección:</b> ${origenInfo.direccion}</p>
@@ -1002,6 +1196,8 @@ const Cotizaciones: React.FC = () => {
         <p><b>Origen seleccionado:</b> ${cot.entidad?.origen ?? "OTRO"}</p>
     </div>
 
+</div>
+
     <!-- ITEMS -->
     <div style="margin-top:20px;">
         <h3 style="margin-bottom:8px;">Detalle de la Cotización</h3>
@@ -1009,6 +1205,7 @@ const Cotizaciones: React.FC = () => {
             <thead>
                 <tr style="background:#e5e7eb;">
                     <th style="padding:6px; text-align:left;">Descripción</th>
+                    <th style="padding:6px; text-align:center; width:90px;">SKU</th>
                     <th style="padding:6px; text-align:center;">Cant.</th>
                     <th style="padding:6px; text-align:right;">Precio unit.</th>
                     <th style="padding:6px; text-align:right;">Total</th>
@@ -1018,36 +1215,114 @@ const Cotizaciones: React.FC = () => {
         </table>
     </div>
 
-    <!-- TOTAL -->
-    <div style="margin-top:20px; text-align:right; font-size:16px; font-weight:bold;">
-        Total: $${Math.round(cot.total).toLocaleString("es-CL")}
+        <!-- TOTAL -->
+<div style="margin-top:30px; text-align:right; font-size:14px; line-height:1.4;">
+    <div>Subtotal: ${subtotalFmt}</div>
+    <div>IVA (19%): ${ivaFmt}</div>
+
+    <div style="margin-top:8px; font-size:17px; font-weight:bold;">
+        Total Final: ${totalFmt}
     </div>
-    <br><br><br><br>
-    <!-- FIRMAS -->
-    <div style="margin-top:60px; display:flex; justify-content:space-between;">
-        <div style="width:45%; border-top:1px dashed #666; padding-top:5px; text-align:center;">
-            Firma Cliente
-        </div>
-        <div style="width:45%; border-top:1px solid #000; padding-top:5px; text-align:center;">
-            Firma Empresa
+
+    ${cot.moneda === "USD"
+                    ? `<div style="margin-top:4px; font-size:13px; color:#555;">
+                (Equivalente aprox: <b>$${Math.round(totalFinal).toLocaleString("es-CL")}</b> CLP)
+           </div>`
+                    : ""
+                }
+</div> <!-- Cierre del bloque DERECHA -->
+
+
+<!-- FORMAS DE PAGO (AHORA ALINEADO A LA IZQUIERDA) -->
+<div style="
+    margin-top:40px;
+    padding:20px;
+    border:1px solid #ccc;
+    border-radius:10px;
+    background:#fafafa;
+    font-size:13px;
+    line-height:1.45;
+    text-align:left;        /* ← AGREGADO */
+">
+    <p><b>Pago por transferencia electrónica o depósito en cuenta corriente RIDS - ECONNET</b></p>
+    <p><b>Tiempo de validez:</b> 5 días</p>
+    <p><b>Tiempo de entrega:</b> 5 días hábiles</p>
+    <p><b>Forma de pago:</b> NOMBRE: ECONNET SPA<br>
+    <b>RUT:</b> 76.758.352-4<br>
+    <b>E-mail:</b> ventas@rids.cl<br>
+    <b>Tipo de cuenta:</b> Cuenta Corriente<br>
+    <b>Banco:</b> Itaú<br>
+    <b>Número:</b> 0213150814<br>
+    <b>Pagos:</b> pagos@rids.cl
+    </p>
+
+    <p><b>Pago con tarjeta:</b> Disponible (crédito bancaria)</p>
+    <p><b>Link de pago Productos:</b> micrositios.getnet.cl/econnet_f</p>
+    <p><b>Notas:</b> Se inicia previa confirmación con el cliente, aceptación y depósito del 50%.</p>
+</div>
+
+    <br><br><br><br><br>
+    <!-- FIRMA -->
+    <div style="
+        margin-top:60px;
+        display:flex;
+        justify-content:flex-end;
+    ">
+        <div style="
+            width:260px;
+            border-top:1px solid #000;
+            padding-top:6px;
+            text-align:center;
+            font-size:13px;
+        ">
+            Firma y aclaración
         </div>
     </div>
 
-</div>
+</div> <!-- cierre del contenedor -->
+
 `;
 
             const container = document.createElement("div");
             container.innerHTML = html;
             document.body.appendChild(container);
 
-            const canvas = await html2canvas(container, { scale: 2 });
-            const pdf = new jsPDF("p", "mm", "a4");
+            const canvas = await html2canvas(container, {
+                scale: 3,              // mayor nitidez
+                useCORS: true
+            });
 
-            const width = pdf.internal.pageSize.getWidth();
-            const height = (canvas.height * width) / canvas.width;
+            // Crear PDF tamaño carta o A4 (elige uno):
 
-            pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, width, height);
+            // A4:
+
+            // O si quieres tamaño carta exacto:
+            const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+
+            // tamaño real del pdf
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+
+            // proporción correcta
+            const ratio = Math.min(pdfWidth / canvasWidth, pdfHeight / canvasHeight);
+
+            const imgWidth = canvasWidth * ratio;
+            const imgHeight = canvasHeight * ratio;
+
+            // centrar verticalmente
+            const marginX = (pdfWidth - imgWidth) / 2;
+            const marginY = (pdfHeight - imgHeight) / 2;
+
+            const imgData = canvas.toDataURL("image/png");
+
+            pdf.addImage(imgData, "PNG", marginX, marginY, imgWidth, imgHeight);
+
+
             pdf.save(`Cotizacion_${codigo}.pdf`);
+
 
             document.body.removeChild(container);
 
@@ -1057,16 +1332,31 @@ const Cotizaciones: React.FC = () => {
     };
 
     // === FUNCIONES AUXILIARES ===
-    const filtered = cotizaciones.filter(
-        (c) =>
-            (c.entidad?.nombre?.toLowerCase().includes(query.toLowerCase()) ||
-                c.estado.toLowerCase().includes(query.toLowerCase()) ||
-                c.tipo.toLowerCase().includes(query.toLowerCase()) ||
-                String(c.id).includes(query)) &&
-            (filtroHistorialOrigen ? c.entidad?.origen === filtroHistorialOrigen : true) &&
-            (filtroHistorialEstado ? c.estado === filtroHistorialEstado : true) &&
-            (filtroHistorialTipo ? c.tipo === filtroHistorialTipo : true)
-    );
+    const q = query.toLowerCase();
+
+    const filtered = cotizaciones.filter((c) => {
+        const nombre = c.entidad?.nombre?.toLowerCase() || "";
+        const estado = c.estado?.toLowerCase() || "";
+        const tipo = c.tipo?.toLowerCase() || "";
+
+        const matchSearch =
+            nombre.includes(q) ||
+            estado.includes(q) ||
+            tipo.includes(q) ||
+            String(c.id).includes(query);
+
+        const matchOrigen =
+            filtroHistorialOrigen ? c.entidad?.origen === filtroHistorialOrigen : true;
+
+        const matchEstado =
+            filtroHistorialEstado ? c.estado === filtroHistorialEstado : true;
+
+        const matchTipo =
+            filtroHistorialTipo ? c.tipo === filtroHistorialTipo : true;
+
+        return matchSearch && matchOrigen && matchEstado && matchTipo;
+    });
+
 
     const formatEstado = (estado: EstadoCotizacionGestioo) => {
         const estados: { [key in EstadoCotizacionGestioo]: string } = {
@@ -1343,7 +1633,6 @@ const Cotizaciones: React.FC = () => {
             )}
 
             {/* MODAL: Crear Cotización MEJORADO */}
-            {/* MODAL: Crear Cotización MEJORADO */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
                     <motion.div
@@ -1385,10 +1674,11 @@ const Cotizaciones: React.FC = () => {
                                                     onChange={(e) => {
                                                         const tipo = e.target.value;
                                                         setFormData((prev) => ({
-                                                            ...prev,
-                                                            tipoEntidad: tipo,
-                                                            entidadId: "",
+                                                            tipoEntidad: "EMPRESA",
                                                             origenEntidad: "",
+                                                            entidadId: "",
+                                                            moneda: "CLP",
+                                                            tasaCambio: 1,
                                                         }));
 
                                                         if (tipo === "PERSONA") {
@@ -1557,13 +1847,16 @@ const Cotizaciones: React.FC = () => {
                                     </div>
 
                                     {/* === Información de Cotización === */}
+                                    {/* Información de Cotización - CON MONEDA */}
                                     <div className="p-4 border rounded-2xl bg-slate-50">
                                         <h3 className="font-semibold text-slate-700 mb-3">Configuración</h3>
-                                        <div className="space-y-3">
+                                        <div className="space-y-4">
+
+                                            {/* Tipo */}
                                             <div>
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
                                                 <select
-                                                    className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                                    className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                                     defaultValue={TipoCotizacionGestioo.CLIENTE}
                                                 >
                                                     <option value={TipoCotizacionGestioo.CLIENTE}>Cliente</option>
@@ -1571,10 +1864,12 @@ const Cotizaciones: React.FC = () => {
                                                     <option value={TipoCotizacionGestioo.PROVEEDOR}>Proveedor</option>
                                                 </select>
                                             </div>
+
+                                            {/* Estado */}
                                             <div>
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
                                                 <select
-                                                    className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                                    className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                                     defaultValue={EstadoCotizacionGestioo.BORRADOR}
                                                 >
                                                     <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
@@ -1584,6 +1879,59 @@ const Cotizaciones: React.FC = () => {
                                                     <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
                                                 </select>
                                             </div>
+
+                                            {/* MONEDA - NUEVO CAMPO */}
+                                            <div className="border-t border-slate-200 pt-3">
+                                                <label className="block text-xs font-medium text-slate-600 mb-2">
+                                                    Moneda de Cotización
+                                                </label>
+
+                                                <select
+                                                    value={formData.moneda}
+                                                    onChange={(e) =>
+                                                        setFormData((prev) => ({
+                                                            ...prev,
+                                                            moneda: e.target.value as MonedaCotizacion,
+                                                            tasaCambio: e.target.value === "USD" ? (prev.tasaCambio || 950) : 1
+                                                        }))
+                                                    }
+                                                    className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                                >
+                                                    <option value="CLP">CLP - Pesos chilenos</option>
+                                                    <option value="USD">USD - Dólares americanos</option>
+                                                </select>
+
+                                                {formData.moneda === "USD" && (
+                                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                        <label className="block text-xs font-medium text-blue-700 mb-1">
+                                                            Tasa de Cambio (CLP → USD)
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="1"
+                                                            value={formData.tasaCambio}
+                                                            onChange={(e) => {
+                                                                const tasa = Number(e.target.value);
+                                                                if (tasa < 1) {
+                                                                    setToast({ type: "error", message: "La tasa de cambio debe ser mayor o igual a 1" });
+                                                                    return;
+                                                                }
+                                                                setFormData((prev) => ({
+                                                                    ...prev,
+                                                                    tasaCambio: tasa
+                                                                }));
+                                                            }}
+                                                            className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400"
+                                                            placeholder="Ej: 950"
+                                                        />
+                                                        <p className="text-xs text-blue-600 mt-1">
+                                                            <strong>Equivalencia:</strong> 1 USD = {formData.tasaCambio.toLocaleString("es-CL")} CLP
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                         </div>
                                     </div>
                                 </div>
@@ -1592,7 +1940,7 @@ const Cotizaciones: React.FC = () => {
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
-                                        onClick={cargarProductos}
+                                        onClick={() => cargarProductos(true)} // <-- ahora sí
                                         className="px-3 py-1.5 rounded-xl border border-cyan-300 text-cyan-700 hover:bg-cyan-50"
                                     >
                                         + Seleccionar Producto
@@ -1600,7 +1948,9 @@ const Cotizaciones: React.FC = () => {
 
                                     <button
                                         type="button"
-                                        onClick={() => {
+                                        onClick={async () => {
+                                            cargarProductos(false);   // ⬅️ Cargar datos SIN mostrar lista
+
                                             setProductoForm({
                                                 nombre: "",
                                                 descripcion: "",
@@ -1611,6 +1961,7 @@ const Cotizaciones: React.FC = () => {
                                                 stock: 0,
                                                 serie: ""
                                             });
+
                                             setShowNewProductoModal(true);
                                         }}
                                         className="px-3 py-1.5 rounded-xl border border-purple-300 text-purple-700 hover:bg-purple-50"
@@ -1734,7 +2085,7 @@ const Cotizaciones: React.FC = () => {
                                                                 />
                                                             </td>
 
-                                                            {/* PRECIO UNITARIO */}
+                                                            {/* PRECIO UNITARIO CONVERSION */}
                                                             <td className="px-3 py-2 text-center border-r border-cyan-100">
                                                                 <input
                                                                     type="number"
@@ -1752,6 +2103,10 @@ const Cotizaciones: React.FC = () => {
                                                                         }`}
                                                                     placeholder="$"
                                                                 />
+                                                                {/* MOSTRAR PRECIO CONVERTIDO */}
+                                                                <div className="text-xs text-slate-500 mt-1">
+                                                                    {formatearPrecio(item.precio, formData.moneda, formData.tasaCambio)}
+                                                                </div>
                                                             </td>
 
                                                             {/* PORCENTAJE GANANCIA (SOLO PRODUCTOS) */}
@@ -1810,7 +2165,7 @@ const Cotizaciones: React.FC = () => {
                                                                 />
                                                             </td>
 
-                                                            {/* SUBTOTAL */}
+                                                            {/* SUBTOTAL CON CONVERSIÓN */}
                                                             <td className="px-3 py-2 text-right border-r border-cyan-100">
                                                                 <span className={
                                                                     item.tipo === ItemTipoGestioo.ADICIONAL
@@ -1818,9 +2173,9 @@ const Cotizaciones: React.FC = () => {
                                                                         : 'text-slate-800 font-medium'
                                                                 }>
                                                                     {item.tipo === ItemTipoGestioo.ADICIONAL ? (
-                                                                        <>-${descuento.toLocaleString("es-CL")}</>
+                                                                        <>{formatearPrecio(descuento, formData.moneda, formData.tasaCambio)}</>
                                                                     ) : (
-                                                                        <>${totalItem.toLocaleString("es-CL")}</>
+                                                                        <>{formatearPrecio(totalItem, formData.moneda, formData.tasaCambio)}</>
                                                                     )}
                                                                 </span>
                                                             </td>
@@ -1843,23 +2198,29 @@ const Cotizaciones: React.FC = () => {
                                     </table>
                                 </div>
 
-                                {/* TOTALES */}
+                                {/* TOTALES CON CONVERSIÓN */}
                                 <div className="flex justify-end text-sm text-slate-700">
                                     <div className="text-right space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                        <p>Subtotal bruto: ${Math.round(subtotalBruto).toLocaleString("es-CL")}</p>
+                                        <p>Subtotal bruto: {formatearPrecio(subtotalBruto, formData.moneda, formData.tasaCambio)}</p>
 
                                         <p className="text-rose-600">
-                                            Descuentos: -${Math.round(descuentos).toLocaleString("es-CL")}
+                                            Descuentos: -{formatearPrecio(descuentos, formData.moneda, formData.tasaCambio)}
                                         </p>
 
-                                        <p>Subtotal: ${Math.round(subtotal).toLocaleString("es-CL")}</p>
+                                        <p>Subtotal: {formatearPrecio(subtotal, formData.moneda, formData.tasaCambio)}</p>
 
-                                        <p>IVA (19%): ${Math.round(iva).toLocaleString("es-CL")}</p>
+                                        <p>IVA (19%): {formatearPrecio(iva, formData.moneda, formData.tasaCambio)}</p>
 
                                         <p className="font-bold text-slate-900 border-t pt-1">
-                                            Total final: ${Math.round(total).toLocaleString("es-CL")}
+                                            Total final: {formatearPrecio(total, formData.moneda, formData.tasaCambio)}
                                         </p>
 
+                                        {/* MOSTRAR EQUIVALENCIA SI ES USD */}
+                                        {formData.moneda === "USD" && (
+                                            <p className="text-xs text-slate-500 border-t pt-1 mt-1">
+                                                Equivalente en CLP: ${Math.round(total).toLocaleString("es-CL")}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -2164,10 +2525,10 @@ const Cotizaciones: React.FC = () => {
                                                         </p>
                                                     )}
 
-                                                    {producto.codigo && (
+                                                    {producto.sku && (
                                                         <p className="text-xs text-slate-500 mb-2">
                                                             <BarcodeOutlined className="mr-1" />
-                                                            Código: {producto.codigo}
+                                                            Código: {producto.sku}
                                                         </p>
                                                     )}
 
@@ -2484,6 +2845,24 @@ const Cotizaciones: React.FC = () => {
                                                 required
                                             />
                                         </div>
+                                        <select
+                                            value={selectedCotizacion.moneda}
+                                            onChange={(e) =>
+                                                setSelectedCotizacion({
+                                                    ...selectedCotizacion,
+                                                    moneda: e.target.value as MonedaCotizacion,
+                                                    tasaCambio:
+                                                        e.target.value === "USD"
+                                                            ? selectedCotizacion.tasaCambio || 1
+                                                            : 1
+                                                })
+                                            }
+                                            className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                        >
+                                            <option value="CLP">CLP — Pesos chilenos</option>
+                                            <option value="USD">USD — Dólares americanos</option>
+                                        </select>
+
                                     </div>
                                 </div>
                             </div>
@@ -2492,7 +2871,8 @@ const Cotizaciones: React.FC = () => {
                             <div className="flex flex-wrap gap-3 mb-4 p-4 border border-slate-200 rounded-xl bg-white">
                                 <span className="text-sm font-medium text-slate-700 mr-2">Agregar items:</span>
                                 <button
-                                    onClick={cargarProductos}
+                                    type="button"
+                                    onClick={() => cargarProductos(true)}  // ⬅️ ahora sí funciona
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm"
                                 >
                                     <PlusOutlined />
@@ -2631,25 +3011,29 @@ const Cotizaciones: React.FC = () => {
                                                             </td>
 
                                                             {/* PRECIO UNITARIO */}
-                                                            <td className="px-4 py-3 border-r border-slate-100 text-right">
+                                                            <td className="px-3 py-2 text-center border-r border-cyan-100">
                                                                 <input
                                                                     type="number"
-                                                                    min="0"
-                                                                    step="100"
-                                                                    value={item.precio}
-                                                                    onChange={(e) => {
-                                                                        const value = Math.max(0, Number(e.target.value));
-                                                                        const newItems = [...selectedCotizacion.items];
-                                                                        newItems[index].precio = value;
-                                                                        setSelectedCotizacion({ ...selectedCotizacion, items: newItems });
-                                                                    }}
+                                                                    min={0}
+                                                                    step={100}
+                                                                    value={item.precio === 0 ? "" : item.precio}
                                                                     disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
-                                                                    className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-cyan-400 ${item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                                        : 'bg-white'
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                                                        handleUpdateItem(item.id, "precio", value);
+                                                                    }}
+                                                                    className={`w-24 border border-cyan-200 rounded-lg px-2 py-1 text-center focus:ring-2 focus:ring-cyan-400 focus:outline-none ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                                        : "bg-white"
                                                                         }`}
-                                                                    required
+                                                                    placeholder="$"
                                                                 />
+                                                                {/* Mostrar conversión si es USD */}
+                                                                {formData.moneda === "USD" && item.precio > 0 && (
+                                                                    <div className="text-xs text-slate-500 mt-1">
+                                                                        ≈ {formatearPrecio(item.precio, "USD", formData.tasaCambio)}
+                                                                    </div>
+                                                                )}
                                                             </td>
 
                                                             {/* IVA */}
@@ -2728,67 +3112,86 @@ const Cotizaciones: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-slate-700 mb-4">Resumen Financiero</h3>
 
                                 {(() => {
+                                    const moneda = selectedCotizacion.moneda || "CLP";
+                                    const tasa = selectedCotizacion.tasaCambio || 1;
+
+                                    // Función para convertir CLP -> moneda seleccionada
+                                    const convertir = (valorCLP: number) =>
+                                        moneda === "USD" ? valorCLP / tasa : valorCLP;
+
+                                    const formatear = (valor: number) =>
+                                        moneda === "USD"
+                                            ? valor.toLocaleString("en-US", { style: "currency", currency: "USD" })
+                                            : valor.toLocaleString("es-CL", { style: "currency", currency: "CLP" });
+
                                     // 1. Subtotal bruto (sin IVA)
-                                    const subtotalBruto = selectedCotizacion.items
+                                    const subtotalBrutoCLP = selectedCotizacion.items
                                         .filter(item => item.tipo !== ItemTipoGestioo.ADICIONAL)
-                                        .reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+                                        .reduce((acc, item) => acc + item.precio * item.cantidad, 0);
 
                                     // 2. Descuentos
-                                    const descuentos = selectedCotizacion.items
+                                    const descuentosCLP = selectedCotizacion.items
                                         .filter(item => item.tipo === ItemTipoGestioo.ADICIONAL)
                                         .reduce((acc, item) => {
                                             if (item.porcentaje && item.porcentaje > 0) {
-                                                return acc + (subtotalBruto * item.porcentaje) / 100;
+                                                return acc + (subtotalBrutoCLP * item.porcentaje) / 100;
                                             }
-                                            return acc + (item.precio * item.cantidad);
+                                            return acc + item.precio * item.cantidad;
                                         }, 0);
 
                                     // 3. Subtotal neto sin IVA
-                                    const subtotal = Math.max(0, subtotalBruto - descuentos);
+                                    const subtotalCLP = Math.max(0, subtotalBrutoCLP - descuentosCLP);
 
-                                    // 4. IVA solo por ítems con tieneIVA = true
-                                    const iva = selectedCotizacion.items
-                                        .filter(item => item.tieneIVA === true)  // 🔥 solo a productos con IVA
+                                    // 4. IVA por ítems con IVA
+                                    const ivaCLP = selectedCotizacion.items
+                                        .filter(item => item.tieneIVA === true)
                                         .reduce((acc, item) => {
-                                            const subtotalItem = item.precio * item.cantidad;
-
-                                            // Si tiene descuento porcentual, aplícalo antes del IVA
-                                            const descuentoItem = item.porcentaje
-                                                ? (subtotalItem * item.porcentaje) / 100
-                                                : 0;
-
-                                            const subtotalNetoItem = subtotalItem - descuentoItem;
-
-                                            return acc + subtotalNetoItem * 0.19; // aplicar IVA por ítem
+                                            const base = item.precio * item.cantidad;
+                                            const desc = item.porcentaje ? (base * item.porcentaje) / 100 : 0;
+                                            const neto = base - desc;
+                                            return acc + neto * 0.19;
                                         }, 0);
 
                                     // 5. Total final
-                                    const total = subtotal + iva;
+                                    const totalCLP = subtotalCLP + ivaCLP;
 
                                     return (
-                                        // Reemplazar el resumen actual con este:
                                         <div className="flex justify-end text-sm text-slate-700">
-                                            <div className="text-right space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[200px]">
+                                            <div className="text-right space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[230px]">
+
                                                 <div className="flex justify-between">
                                                     <span>Subtotal bruto:</span>
-                                                    <span className="font-medium">${subtotalBruto.toLocaleString("es-CL")}</span>
+                                                    <span className="font-medium">{formatear(convertir(subtotalBrutoCLP))}</span>
                                                 </div>
+
                                                 <div className="flex justify-between text-rose-600">
                                                     <span>Descuentos:</span>
-                                                    <span className="font-medium">-${descuentos.toLocaleString("es-CL")}</span>
+                                                    <span className="font-medium">
+                                                        -{formatear(convertir(descuentosCLP))}
+                                                    </span>
                                                 </div>
+
                                                 <div className="flex justify-between border-t border-slate-200 pt-1">
                                                     <span>Subtotal neto:</span>
-                                                    <span className="font-medium">${subtotal.toLocaleString("es-CL")}</span>
+                                                    <span className="font-medium">{formatear(convertir(subtotalCLP))}</span>
                                                 </div>
+
                                                 <div className="flex justify-between">
                                                     <span>IVA (19%):</span>
-                                                    <span className="font-medium">${iva.toLocaleString("es-CL")}</span>
+                                                    <span className="font-medium">{formatear(convertir(ivaCLP))}</span>
                                                 </div>
+
                                                 <div className="flex justify-between border-t border-slate-300 pt-2 font-bold text-slate-900">
                                                     <span>Total final:</span>
-                                                    <span>${total.toLocaleString("es-CL")}</span>
+                                                    <span>{formatear(convertir(totalCLP))}</span>
                                                 </div>
+
+                                                {/* Si está en USD, mostrar nota del tipo de cambio */}
+                                                {moneda === "USD" && (
+                                                    <p className="text-xs text-slate-500 mt-2 text-right">
+                                                        Cambio usado: 1 USD = {tasa.toLocaleString("es-CL")} CLP
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -4133,13 +4536,22 @@ const Cotizaciones: React.FC = () => {
 
                                 <div className="space-y-2">
                                     <label className="block text-sm font-semibold text-slate-700">Categoría</label>
-                                    <input
-                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
-                                        placeholder="Ej: Electrónicos, Informática"
-                                        value={productoForm.categoria}
-                                        onChange={(e) => setProductoForm({ ...productoForm, categoria: e.target.value })}
-                                    />
+
+                                    <select
+                                        value={filtroCategoriaProducto}
+                                        onChange={(e) => setFiltroCategoriaProducto(e.target.value)}
+                                        className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todas las categorías</option>
+                                        {categoriasDisponibles.map((categoria, index) => (
+                                            <option key={index} value={categoria}>
+                                                {categoria}
+                                            </option>
+                                        ))}
+                                    </select>
+
                                 </div>
+
                             </div>
 
                             {/* Descripción */}
