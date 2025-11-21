@@ -17,7 +17,7 @@ type RefreshResponse = { accessToken: string };
 /* =========== Axios (en el mismo archivo) =========== */
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL, // ej: http://localhost:4000/api
-  withCredentials: true,                 // para cookie httpOnly "rt"
+  withCredentials: true, // para cookie httpOnly "rt"
 });
 
 // token en memoria (persistido en localStorage)
@@ -45,11 +45,21 @@ type RetriableConfig = AxiosRequestConfig & { _retried?: boolean };
 let isRefreshing = false;
 let queue: Array<() => void> = [];
 
+// Interceptor de respuesta con control para login/refresh
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError<ErrorResponse>) => {
-    const originalConfig = (error.config ?? {}) as RetriableConfig;
+    const originalConfig = error.config as RetriableConfig | undefined;
     const status = error.response?.status;
+
+    // Si no hay config o es login/refresh, NO intentes refrescar
+    if (
+      !originalConfig ||
+      originalConfig.url?.includes("/auth/login") ||
+      originalConfig.url?.includes("/auth/refresh")
+    ) {
+      return Promise.reject(error);
+    }
 
     if (status === 401 && !originalConfig._retried) {
       originalConfig._retried = true;
@@ -68,7 +78,7 @@ api.interceptors.response.use(
         } catch (e) {
           setAccessToken(null);
           queue = [];
-          throw e;
+          return Promise.reject(e);
         } finally {
           isRefreshing = false;
         }
@@ -82,9 +92,13 @@ api.interceptors.response.use(
       });
     }
 
-    throw error;
+    return Promise.reject(error);
   }
 );
+
+/* =========== Utils de validación =========== */
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 /* =========== Componente =========== */
 const LoginRids: React.FC = () => {
@@ -114,10 +128,20 @@ const LoginRids: React.FC = () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Validaciones front
+    if (!form.usuario || !form.password) {
+      setError("Completa usuario y contraseña");
+      return;
+    }
+
+    if (!isValidEmail(form.usuario.trim())) {
+      setError("Ingresa un correo electrónico válido");
+      return;
+    }
+
     setLoading(true);
     try {
-      if (!form.usuario || !form.password) throw new Error("Completa usuario y contraseña");
-
       // LOGIN (POST)
       const { data } = await api.post<LoginResponse>("/auth/login", {
         email: form.usuario.trim(),
@@ -130,6 +154,14 @@ const LoginRids: React.FC = () => {
       // Redirigir al Home
       navigate("/home", { replace: true });
     } catch (err: unknown) {
+      // Manejo específico para 401 (credenciales malas)
+      if (axios.isAxiosError<ErrorResponse>(err)) {
+        if (err.response?.status === 401) {
+          setError(err.response.data?.error ?? "Usuario o contraseña incorrectos");
+          setLoading(false);
+          return;
+        }
+      }
       setError(extractApiError(err));
     } finally {
       setLoading(false);
