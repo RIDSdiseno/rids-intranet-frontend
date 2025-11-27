@@ -19,12 +19,12 @@ import html2canvas from "html2canvas";
 
 /* ======= Tipos Gestioo ======= */
 // Reemplazamos el enum por tipos union para mayor compatibilidad
-type OrigenGestioo = "RIDS" | "ECCONET" | "OTRO";
+type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
 
 // Objeto constante para usar como referencia
 const OrigenGestioo = {
     RIDS: "RIDS" as OrigenGestioo,
-    ECCONET: "ECCONET" as OrigenGestioo,
+    ECONNET: "ECONNET" as OrigenGestioo,
     OTRO: "OTRO" as OrigenGestioo,
 };
 
@@ -121,12 +121,12 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
                 telefono: "+56 9 0000 0000",
                 logo: `${window.location.origin}/img/splash.png`
             },
-            ECCONET: {
-                nombre: "ECCONET SPA",
+            ECONNET: {
+                nombre: "ECONNET SPA",
                 direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "contacto@ecconet.cl",
+                correo: "contacto@econnet.cl",
                 telefono: "+56 9 1111 1111",
-                logo: `${window.location.origin}/img/ecconetlogo.png` // usa tu logo real si lo tienes
+                logo: `${window.location.origin}/img/econnetlogo.png` // usa tu logo real si lo tienes
             },
             OTRO: {
                 nombre: orden.entidad?.nombre ?? "Empresa",
@@ -304,7 +304,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
       1) Para retirar el equipo es indispensable presentar esta orden.<br>
       2) El equipo deberá ser retirado dentro de los 30 días desde la notificación.<br>
       3) Al dejar el equipo en reparación, el cliente acepta estas condiciones.<br>
-      4) RIDS/ECCONET no se responsabiliza por accesorios no declarados.
+      4) RIDS/ECONNET no se responsabiliza por accesorios no declarados.
   </div>
 
 </div>
@@ -765,7 +765,7 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Origen */}
                         <div className="flex flex-wrap gap-2">
-                            {["todas", "RIDS", "ECCONET", "OTRO"].map((origen) => (
+                            {["todas", "RIDS", "ECONNET", "OTRO"].map((origen) => (
                                 <button
                                     key={origen}
                                     onClick={() => setOrigenFiltro(origen === "todas" ? "todas" : origen as OrigenGestioo)}
@@ -857,7 +857,7 @@ const OrdenesTaller: React.FC = () => {
                                             <td className="px-4 py-3 w-28">
                                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
                                                     ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
-                                                    : o.entidad?.origen === "ECCONET"
+                                                    : o.entidad?.origen === "ECONNET"
                                                         ? "bg-purple-50 text-purple-700 ring-purple-200"
                                                         : "bg-slate-50 text-slate-700 ring-slate-200"
                                                     }`}>
@@ -1285,7 +1285,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                                                 >
                                                     <option value="">Seleccionar origen…</option>
                                                     <option value="RIDS">RIDS</option>
-                                                    <option value="ECCONET">ECCONET</option>
+                                                    <option value="ECONNET">ECONNET</option>
                                                     <option value="OTRO">OTRO</option>
                                                 </select>
                                             </div>
@@ -1603,7 +1603,7 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                                     className="w-full border border-slate-300 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-cyan-400"
                                 >
                                     <option value="RIDS">RIDS</option>
-                                    <option value="ECCONET">ECCONET</option>
+                                    <option value="ECONNET">ECONNET</option>
                                     <option value="OTRO">OTRO</option>
                                 </select>
                             </div>
@@ -1814,7 +1814,7 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
                                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                             >
                                 <option value="RIDS">RIDS</option>
-                                <option value="ECCONET">ECCONET</option>
+                                <option value="ECONNET">ECONNET</option>
                                 <option value="OTRO">OTRO</option>
                             </select>
                         </div>
