@@ -36,7 +36,6 @@ import type {
     FiltrosProductos,
     FiltrosServicios,
     FiltrosHistorial,
-    MonedaCotizacion,
     Toast
 } from "../components/modals/types";
 import {
@@ -88,6 +87,7 @@ const Cotizaciones: React.FC = () => {
         entidadId: "",
         moneda: "CLP",
         tasaCambio: 1,
+        comentariosCotizacion: "",
         secciones: [{
             id: 1,
             nombre: "Sección Principal",
@@ -397,6 +397,7 @@ const Cotizaciones: React.FC = () => {
                 moneda: formData.moneda,
                 tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
                 items: itemsParaEnviar,
+                comentariosCotizacion: formData.comentariosCotizacion.trim() || null,
                 secciones: formData.secciones // Incluir información de secciones
             };
 
@@ -468,7 +469,8 @@ const Cotizaciones: React.FC = () => {
                     direccion: selectedCotizacion.entidad!.direccion?.trim() || null,
                     origen: selectedCotizacion.entidad!.origen
                 },
-                items: itemsConvertidos
+                items: itemsConvertidos,
+                comentariosCotizacion: selectedCotizacion.comentariosCotizacion?.trim() || null,
             };
 
             const cotizacionActualizada = await apiFetch(
@@ -505,6 +507,7 @@ const Cotizaciones: React.FC = () => {
             entidadId: "",
             moneda: "CLP",
             tasaCambio: 1,
+            comentariosCotizacion: "",
             secciones: [{
                 id: 1,
                 nombre: "Sección Principal",
@@ -743,6 +746,7 @@ const Cotizaciones: React.FC = () => {
                 ...cotizacion,
                 moneda: cotizacion.moneda || "CLP",
                 tasaCambio: cotizacion.tasaCambio ?? 1,
+                comentariosCotizacion: cotizacion.comentariosCotizacion ?? "",
                 items: itemsMapeados,
             };
 
@@ -783,12 +787,14 @@ const Cotizaciones: React.FC = () => {
                 correo: string;
                 telefono: string;
                 logo: string;
+                rut: string;
             }> = {
                 RIDS: {
                     nombre: "RIDS LTDA",
                     direccion: "Santiago - Providencia, La Concepción 65",
                     correo: "soporte@rids.cl",
                     telefono: "+56 9 8823 1976",
+                    rut: "76.758.352-4",
                     logo: "/img/splash.png"
                 },
                 ECONNET: {
@@ -796,6 +802,7 @@ const Cotizaciones: React.FC = () => {
                     direccion: "Santiago - Providencia, La Concepción 65",
                     correo: "ventas@econnet.cl",
                     telefono: "+56 9 8807 6593",
+                    rut: "76.758.352-4",
                     logo: "/img/ecconetlogo.png"
                 },
                 OTRO: {
@@ -803,6 +810,7 @@ const Cotizaciones: React.FC = () => {
                     direccion: cot.entidad?.direccion ?? "",
                     correo: cot.entidad?.correo ?? "",
                     telefono: cot.entidad?.telefono ?? "",
+                    rut: cot.entidad?.rut ?? "",
                     logo: "/img/splash.png"
                 }
             };
@@ -937,7 +945,7 @@ const Cotizaciones: React.FC = () => {
                 <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc.</th>
                 <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
                 <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
-                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Subtotal</th>
             </tr>
         </thead>
         <tbody>
@@ -958,7 +966,7 @@ const Cotizaciones: React.FC = () => {
     <title>Cotización ${codigo}</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
-        .container { width: 874px; margin: 0 auto; }
+        .container { width: 874px; margin: 0 auto;  padding-bottom: 40px;}
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 12px; }
         .info-section { display: flex; gap: 20px; margin-top: 20px; }
         .info-box { flex: 1; padding: 14px; border-radius: 10px; font-size: 12px; }
@@ -969,28 +977,99 @@ const Cotizaciones: React.FC = () => {
         thead th { background: #e9ecef; }
         tfoot td { font-weight: bold; }
         .payment-info { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #fafafa; font-size: 13px; }
-        .signature { margin-top: 60px; display: flex; justify-content: flex-end; }
-        .signature-line { width: 260px; border-top: 1px solid #000; padding-top: 6px; text-align: center; font-size: 13px; }
+        .footer-section {
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+    margin-top: 40px;
+}
+
+.comentarios-box {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #f9fafb;
+    font-size: 12px;
+}
+
+.comentarios-box h4 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    color: #111827;
+    font-weight: bold;
+}
+
+.comentarios-box p {
+    margin: 0;
+    font-size: 12px;
+    color: #374151;
+    white-space: pre-wrap; /* permite saltos de línea */
+}
+
+.signature {
+    width: 260px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+}
+
+.signature-line {
+    width: 100%;
+    border-top: 1px solid #000;
+    padding-top: 8px;
+    padding-bottom: 6px;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Encabezado -->
+        <br><br><br>
         <div class="header">
             <div style="display:flex;align-items:center;gap:12px;">
                 <img src="${origenInfo.logo}" style="height:55px;" onerror="this.style.display='none'" />
                 <div>
                     <h2 style="margin:0;font-size:20px;">${origenInfo.nombre}</h2>
                     <p style="margin:0;font-size:12px;color:#555;">
+                        <b>RUT:</b> ${origenInfo.rut}<br>
                         ${origenInfo.direccion}<br>
                         ${origenInfo.correo} · ${origenInfo.telefono}
                     </p>
                 </div>
             </div>
-            <div style="text-align:right;">
-                <p style="margin:0;font-size:13px;">Fecha impresión: ${fechaActual}</p>
-                <h3 style="margin:0;font-size:18px;">Cotización Nº ${codigo}</h3>
-            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+    <!-- Fecha -->
+    <p style="margin:0;font-size:11px;color:#4b5563;">
+        Fecha impresión: ${fechaActual}
+    </p>
+
+    <!-- Timbre tipo SII -->
+    <div style="
+        border:1.5px solid #000;
+        padding:6px 14px;
+        text-align:center;
+        font-family: Arial, sans-serif;
+        min-width:150px;
+    ">
+        <div style="font-size:11px; font-weight:bold; color:#b91c1c;">
+            R.U.T.: ${origenInfo.rut}
+        </div>
+        <div style="font-size:11px; font-weight:bold; color:#b91c1c; margin-top:2px;">
+            FACTURA ELECTRÓNICA
+            <!-- o 'ORDEN DE TALLER' / 'COTIZACIÓN' según corresponda -->
+        </div>
+        <div style="font-size:12px; font-weight:bold; color:#b91c1c; margin-top:4px;">
+            N° ${codigo}
+        </div>
+    </div>
+</div>
+
         </div>
 
         <br>
@@ -1010,6 +1089,7 @@ const Cotizaciones: React.FC = () => {
             <div class="info-box company-info">
                 <h3 style="margin:0 0 10px 0;">Empresa (Origen)</h3>
                 <p><b>Empresa:</b> ${origenInfo.nombre}</p>
+                <p><b>RUT:</b> ${origenInfo.rut}</p>
                 <p><b>Dirección:</b> ${origenInfo.direccion}</p>
                 <p><b>Correo:</b> ${origenInfo.correo}</p>
                 <p><b>Teléfono:</b> ${origenInfo.telefono}</p>
@@ -1037,12 +1117,22 @@ const Cotizaciones: React.FC = () => {
             <p><b>Notas:</b> Se inicia previa aceptación y abono del 50%.</p>
         </div>
         <br><br><br>
-        <!-- Firma -->
-        <div class="signature">
-            <div class="signature-line">
-                Firma y aclaración
-            </div>
+        <!-- Comentarios + Firma -->
+<div class="footer-section">
+    <!-- Caja comentarios -->
+    <div class="comentarios-box">
+        <h4>Comentarios de la cotización</h4>
+        <p>${cot.comentariosCotizacion || "—"}</p>
+    </div>
+
+    <!-- Firma -->
+    <div class="signature">
+        <div class="signature-line">
+            Firma y aclaración
         </div>
+    </div>
+</div>
+
     </div>
 </body>
 </html>`;

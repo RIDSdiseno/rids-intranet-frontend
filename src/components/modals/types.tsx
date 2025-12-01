@@ -98,6 +98,8 @@ export interface CotizacionGestioo {
   items: CotizacionItemGestioo[];
   createdAt: string;
   updatedAt: string;
+
+  comentariosCotizacion?: string | null;
 }
 
 export interface ProductoForm {
@@ -129,6 +131,8 @@ export interface FormData {
 
   secciones: SeccionCotizacion[];
   seccionActiva: number;
+
+  comentariosCotizacion: string;
 }
 
 export interface Toast {

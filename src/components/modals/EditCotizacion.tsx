@@ -662,6 +662,19 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                         </div>
                     </div>
 
+                    <textarea
+                        className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        placeholder="Comentarios o notas adicionales..."
+                        rows={3}
+                        value={cotizacion.comentariosCotizacion ?? ""}
+                        onChange={(e) =>
+                            onUpdateCotizacion({
+                                ...cotizacion,
+                                comentariosCotizacion: e.target.value
+                            })
+                        }
+                    />
+
                     {/* BOTONES DE ACCIÓN MEJORADOS */}
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-200">
                         <div className="text-sm text-slate-500">

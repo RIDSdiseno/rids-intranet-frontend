@@ -832,6 +832,25 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                             </div>
                         )}
 
+                        {/* COMENTARIOS DE LA COTIZACIÓN */}
+                        <div className="mt-2">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Comentarios de la cotización
+                            </label>
+                            <textarea
+                                value={formData.comentariosCotizacion}
+                                onChange={(e) =>
+                                    setFormData({
+                                        ...formData,
+                                        comentariosCotizacion: e.target.value,
+                                    })
+                                }
+                                rows={3}
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                placeholder="Notas internas, condiciones especiales, indicaciones para el cliente, etc."
+                            />
+                        </div>
+
                         {/* TOTALES GENERALES */}
                         <div className="flex justify-end text-sm text-slate-700">
                             <div className="text-right space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-200">

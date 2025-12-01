@@ -1,14 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-    FilterOutlined,
     SearchOutlined,
     BarcodeOutlined,
     EditOutlined,
-    DeleteOutlined,
-    ReloadOutlined,
     PlusOutlined,
-    InfoCircleOutlined,
     PercentageOutlined,
     ShoppingCartOutlined,
     TableOutlined,
