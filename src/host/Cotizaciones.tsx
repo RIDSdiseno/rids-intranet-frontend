@@ -9,6 +9,7 @@ import {
     ReloadOutlined,
     CloseCircleOutlined,
     FileTextOutlined,
+    PrinterOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import Header from "../components/Header";
@@ -54,6 +55,10 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 const Cotizaciones: React.FC = () => {
+
+    // === REF PARA IMPRESIÓN ===
+    const printRef = useRef<HTMLDivElement | null>(null);
+
     // === ESTADOS PRINCIPALES ===
     const [cotizaciones, setCotizaciones] = useState<CotizacionGestioo[]>([]);
     const [query, setQuery] = useState("");
@@ -83,6 +88,14 @@ const Cotizaciones: React.FC = () => {
         entidadId: "",
         moneda: "CLP",
         tasaCambio: 1,
+        secciones: [{
+            id: 1,
+            nombre: "Sección Principal",
+            descripcion: '',
+            items: [],
+            orden: 0
+        }],
+        seccionActiva: 1
     });
 
     // === ESTADOS PARA CREACIÓN ===
@@ -159,7 +172,7 @@ const Cotizaciones: React.FC = () => {
         let userMessage = defaultMessage;
 
         if (raw.includes("ECONNET") && raw.includes("enum")) {
-            userMessage = "El origen seleccionado no es válido. Intente usar: RIDS, ECCONET o OTRO.";
+            userMessage = "El origen seleccionado no es válido. Intente usar: RIDS, ECONNET o OTRO.";
         }
 
         if (raw.includes("Unique constraint") || raw.includes("unique")) {
@@ -308,7 +321,9 @@ const Cotizaciones: React.FC = () => {
     };
 
     // === FUNCIONES PARA ITEMS ===
-    const handleAddItem = (tipo: ItemTipoGestioo) => {
+    const handleAddItem = (tipo: ItemTipoGestioo, seccionId?: number) => {
+        const targetSeccionId = seccionId || formData.seccionActiva;
+
         const newItem = {
             id: Date.now(),
             tipo,
@@ -317,6 +332,7 @@ const Cotizaciones: React.FC = () => {
             precio: 0,
             porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
             tieneIVA: false,
+            seccionId: targetSeccionId
         };
         setItems(prev => [...prev, newItem]);
     };
@@ -349,13 +365,17 @@ const Cotizaciones: React.FC = () => {
             return;
         }
 
-        if (items.length === 0) {
-            handleApiError(null, "Debe agregar al menos un item");
+        // Verificar que haya al menos un item en alguna sección
+        const totalItems = items.length;
+        if (totalItems === 0) {
+            handleApiError(null, "Debe agregar al menos un item en alguna sección");
             return;
         }
 
         try {
             const { total } = calcularTotales(items as any[]);
+
+            // Preparar items para enviar, incluyendo información de sección
             const itemsParaEnviar = items.map(item => ({
                 tipo: item.tipo,
                 descripcion: item.descripcion,
@@ -365,7 +385,8 @@ const Cotizaciones: React.FC = () => {
                 tieneIVA: item.tieneIVA || false,
                 sku: item.sku || null,
                 precioCosto: item.precioCosto,
-                porcGanancia: item.porcGanancia
+                porcGanancia: item.porcGanancia,
+                seccionId: item.seccionId // Incluir secciónId
             }));
 
             const cotizacionData = {
@@ -375,7 +396,8 @@ const Cotizaciones: React.FC = () => {
                 total,
                 moneda: formData.moneda,
                 tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
-                items: itemsParaEnviar
+                items: itemsParaEnviar,
+                secciones: formData.secciones // Incluir información de secciones
             };
 
             const data = await apiFetch("/cotizaciones", {
@@ -474,6 +496,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // === FUNCIONES AUXILIARES ===
     const resetForm = () => {
         setItems([]);
         setFormData({
@@ -482,6 +505,14 @@ const Cotizaciones: React.FC = () => {
             entidadId: "",
             moneda: "CLP",
             tasaCambio: 1,
+            secciones: [{
+                id: 1,
+                nombre: "Sección Principal",
+                descripcion: '',
+                items: [],
+                orden: 0
+            }],
+            seccionActiva: 1
         });
     };
 
@@ -501,7 +532,8 @@ const Cotizaciones: React.FC = () => {
             porcGanancia,
             porcentaje: 0,
             tieneIVA: true,
-            sku: producto.sku
+            sku: producto.sku,
+            seccionId: formData.seccionActiva
         };
 
         setItems(prev => [...prev, newItem]);
@@ -518,6 +550,7 @@ const Cotizaciones: React.FC = () => {
             precio: servicio.precio || 0,
             porcentaje: 0,
             tieneIVA: false,
+            seccionId: formData.seccionActiva
         };
 
         setItems(prev => [...prev, newItem]);
@@ -631,6 +664,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Crear empresa
     const handleCrearEmpresa = async (datos: any) => {
         try {
             const res = await apiFetch("/entidades", {
@@ -642,7 +676,7 @@ const Cotizaciones: React.FC = () => {
             await fetchEntidades();
             setFormData(prev => ({
                 ...prev,
-                entidadId: res.data.id.toString()
+                entidadId: (res.data?.id ?? res.id).toString()
             }));
             setShowNewEmpresaModal(false);
             showSuccess("Empresa creada correctamente");
@@ -733,9 +767,330 @@ const Cotizaciones: React.FC = () => {
     // === FUNCIÓN PARA PDF (placeholder) ===
     const handlePrint = async (cot: CotizacionGestioo) => {
         try {
-            // Implementación original de PDF (omitida aquí por extensión)
-            console.log("Generar PDF para cotización", cot.id);
+
+            const fechaActual = new Date().toLocaleString("es-CL", {
+                dateStyle: "short",
+                timeStyle: "short",
+            });
+
+            const codigo = `COT-${String(cot.id).padStart(6, "0")}`;
+
+            type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+
+            const ORIGEN_DATA: Record<OrigenGestioo, {
+                nombre: string;
+                direccion: string;
+                correo: string;
+                telefono: string;
+                logo: string;
+            }> = {
+                RIDS: {
+                    nombre: "RIDS LTDA",
+                    direccion: "Santiago - Providencia, La Concepción 65",
+                    correo: "soporte@rids.cl",
+                    telefono: "+56 9 8823 1976",
+                    logo: "/img/splash.png"
+                },
+                ECONNET: {
+                    nombre: "ECONNET SPA",
+                    direccion: "Santiago - Providencia, La Concepción 65",
+                    correo: "ventas@econnet.cl",
+                    telefono: "+56 9 8807 6593",
+                    logo: "/img/ecconetlogo.png"
+                },
+                OTRO: {
+                    nombre: cot.entidad?.nombre ?? "Empresa",
+                    direccion: cot.entidad?.direccion ?? "",
+                    correo: cot.entidad?.correo ?? "",
+                    telefono: cot.entidad?.telefono ?? "",
+                    logo: "/img/splash.png"
+                }
+            };
+
+            // Función para formatear moneda
+            const formatPDF = (valorCLP: number) => {
+                if (cot.moneda === "USD") {
+                    const usd = valorCLP / (cot.tasaCambio || 1);
+                    return `US$ ${usd.toFixed(2)}`;
+                }
+                return `$${Math.round(valorCLP).toLocaleString("es-CL")}`;
+            };
+
+            // VERIFICAR SI HAY ITEMS
+            if (!cot.items || cot.items.length === 0) {
+                alert("No hay items en esta cotización para generar el PDF");
+                return;
+            }
+
+            // ESTRATEGIA: Si hay secciones, agrupar por secciones, sino mostrar todos los items juntos
+            let seccionesHtml = '';
+            let totalGeneral = 0;
+
+            if (cot.secciones && cot.secciones.length > 0) {
+                console.log("✅ Usando secciones definidas");
+                // Ordenar secciones por orden
+                const seccionesOrdenadas = [...cot.secciones].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+                for (const seccion of seccionesOrdenadas) {
+                    // Filtrar items por sección
+                    const itemsSeccion = cot.items.filter(item => item.seccionId === seccion.id);
+
+                    if (itemsSeccion.length === 0) continue;
+
+                    // Calcular totales por sección
+                    const { subtotalBruto, descuentos, subtotal, iva, total } = calcularTotales(itemsSeccion);
+                    totalGeneral += total;
+
+                    // Generar HTML de items para esta sección
+                    const itemsHtml = itemsSeccion.map((item) => {
+                        const precioTotal = item.precio * item.cantidad;
+                        const descuentoPorcentaje = item.porcentaje || 0;
+                        const ivaPorcentaje = item.tieneIVA ? 19 : 0;
+                        const ivaMonto = item.tieneIVA ? (precioTotal * 0.19) : 0;
+
+                        return `
+    <tr>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.sku || ""}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;">${item.descripcion}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(item.precio)}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.cantidad}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${descuentoPorcentaje}%</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${ivaPorcentaje}%</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(ivaMonto)}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(precioTotal)}</td>
+    </tr>`;
+                    }).join("");
+
+                    // HTML de la sección
+                    seccionesHtml += `
+    <div style="margin-bottom: 30px;">
+        <!-- Encabezado de sección -->
+        <div style="background:#f8f9fa; padding:10px 15px; border-radius:6px; margin-bottom:15px; border-left:4px solid #007bff;">
+            <h3 style="margin:0; font-size:18px; font-weight:bold; color:#333;">${seccion.nombre.toUpperCase()}</h3>
+            ${seccion.descripcion ? `<p style="margin:4px 0 0 0; font-size:14px; color:#666;">${seccion.descripcion}</p>` : ''}
+        </div>
+        
+        <!-- Tabla de items de la sección -->
+        <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
+            <thead>
+                <tr style="background:#e9ecef;">
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+                    <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc.</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${itemsHtml}
+            </tbody>
+            <!-- Total de la sección -->
+            <tfoot>
+                <tr>
+                    <td colspan="7" style="padding:8px; text-align:right; border:1px solid #dee2e6; font-weight:bold;">
+                        Total ${seccion.nombre}:
+                    </td>
+                    <td style="padding:8px; text-align:right; border:1px solid #dee2e6; font-weight:bold;">
+                        ${formatPDF(total)}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>`;
+                }
+            } else {
+                console.log("No hay secciones, mostrando todos los items juntos");
+                // Si no hay secciones, mostrar todos los items en una sola tabla
+                const { subtotalBruto, descuentos, subtotal, iva, total } = calcularTotales(cot.items);
+                totalGeneral = total;
+
+                const itemsHtml = cot.items.map((item) => {
+                    const precioTotal = item.precio * item.cantidad;
+                    const descuentoPorcentaje = item.porcentaje || 0;
+                    const ivaPorcentaje = item.tieneIVA ? 19 : 0;
+                    const ivaMonto = item.tieneIVA ? (precioTotal * 0.19) : 0;
+
+                    return `
+    <tr>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.sku || ""}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;">${item.descripcion}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(item.precio)}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.cantidad}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${descuentoPorcentaje}%</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${ivaPorcentaje}%</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(ivaMonto)}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(precioTotal)}</td>
+    </tr>`;
+                }).join("");
+
+                seccionesHtml = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
+        <thead>
+            <tr style="background:#e9ecef;">
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+                <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc.</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsHtml}
+        </tbody>
+    </table>`;
+            }
+
+            const origen = (cot.entidad?.origen ?? "OTRO") as OrigenGestioo;
+            const origenInfo = ORIGEN_DATA[origen];
+
+            // === HTML del PDF ===
+            const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cotización ${codigo}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #000; }
+        .container { width: 874px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 12px; }
+        .info-section { display: flex; gap: 20px; margin-top: 20px; }
+        .info-box { flex: 1; padding: 14px; border-radius: 10px; font-size: 12px; }
+        .client-info { background: #f7f7f7; border: 1px solid #ddd; }
+        .company-info { background: #eef6ff; border: 1px solid #c7ddf8; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 8px; border: 1px solid #dee2e6; }
+        thead th { background: #e9ecef; }
+        tfoot td { font-weight: bold; }
+        .payment-info { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #fafafa; font-size: 13px; }
+        .signature { margin-top: 60px; display: flex; justify-content: flex-end; }
+        .signature-line { width: 260px; border-top: 1px solid #000; padding-top: 6px; text-align: center; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Encabezado -->
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <img src="${origenInfo.logo}" style="height:55px;" onerror="this.style.display='none'" />
+                <div>
+                    <h2 style="margin:0;font-size:20px;">${origenInfo.nombre}</h2>
+                    <p style="margin:0;font-size:12px;color:#555;">
+                        ${origenInfo.direccion}<br>
+                        ${origenInfo.correo} · ${origenInfo.telefono}
+                    </p>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <p style="margin:0;font-size:13px;">Fecha impresión: ${fechaActual}</p>
+                <h3 style="margin:0;font-size:18px;">Cotización Nº ${codigo}</h3>
+            </div>
+        </div>
+
+        <br>
+
+        <!-- Cliente + Empresa -->
+        <div class="info-section">
+            <div class="info-box client-info">
+                <h3 style="margin:0 0 10px 0;">Datos del Cliente</h3>
+                <p><b>Entidad:</b> ${cot.entidad?.nombre ?? "—"}</p>
+                <p><b>RUT:</b> ${cot.entidad?.rut ?? "—"}</p>
+                <p><b>Correo:</b> ${cot.entidad?.correo ?? "—"}</p>
+                <p><b>Teléfono:</b> ${cot.entidad?.telefono ?? "—"}</p>
+                <p><b>Dirección:</b> ${cot.entidad?.direccion ?? "—"}</p>
+                <p><b>Origen:</b> ${cot.entidad?.origen ?? "—"}</p>
+            </div>
+
+            <div class="info-box company-info">
+                <h3 style="margin:0 0 10px 0;">Empresa (Origen)</h3>
+                <p><b>Empresa:</b> ${origenInfo.nombre}</p>
+                <p><b>Dirección:</b> ${origenInfo.direccion}</p>
+                <p><b>Correo:</b> ${origenInfo.correo}</p>
+                <p><b>Teléfono:</b> ${origenInfo.telefono}</p>
+            </div>
+        </div>
+
+        <!-- Items -->
+        <h3 style="margin-top:30px; margin-bottom:15px;">Detalle de la cotización</h3>
+        ${seccionesHtml}
+
+        <!-- Total General -->
+        <div style="margin-top:30px; padding:15px; background:#f8f9fa; border-radius:8px; border:2px solid #dee2e6;">
+            <div style="text-align:right; font-size:18px; font-weight:bold;">
+                Total General: ${formatPDF(totalGeneral)}
+            </div>
+        </div>
+
+        <!-- Formas de pago -->
+        <div class="payment-info">
+            <p><b>Pago por transferencia electrónica o depósito</b></p>
+            <p><b>Tiempo de validez:</b> 5 días</p>
+            <p><b>Tiempo de entrega:</b> 5 días hábiles</p>
+            <p><b>Banco:</b> Itaú · <b>Cuenta Corriente:</b> 0213150814 · <b>RUT:</b> 76.758.352-4</p>
+            <p><b>Correo de pagos:</b> pagos@rids.cl</p>
+            <p><b>Notas:</b> Se inicia previa aceptación y abono del 50%.</p>
+        </div>
+        <br><br><br>
+        <!-- Firma -->
+        <div class="signature">
+            <div class="signature-line">
+                Firma y aclaración
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+
+            // === Render temporal ===
+            const container = document.createElement("div");
+            container.style.position = "fixed";
+            container.style.left = "-9999px";
+            container.style.top = "-9999px";
+            container.style.width = "874px";
+            container.style.backgroundColor = "#ffffff";
+            container.innerHTML = html;
+            document.body.appendChild(container);
+
+            // Esperar un momento para que se renderice
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // === Convertir a Canvas ===
+            const canvas = await html2canvas(container, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: "#FFFFFF",
+                logging: true,
+                width: 874,
+                windowWidth: 874
+            });
+
+            // === Crear PDF ===
+            const pdf = new jsPDF({
+                orientation: "portrait",
+                unit: "pt",
+                format: "a4"
+            });
+
+            const imgData = canvas.toDataURL("image/png");
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Cotizacion_${codigo}.pdf`);
+
+            // Limpiar
+            document.body.removeChild(container);
+
+            showSuccess("PDF generado correctamente");
+
         } catch (e) {
+            console.error("Error al generar PDF:", e);
             handleApiError(e, "Error al generar PDF");
         }
     };
@@ -776,7 +1131,7 @@ const Cotizaciones: React.FC = () => {
 
             <main className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-8 pb-10">
                 {/* CARD PRINCIPAL - TÍTULO, BUSCADOR Y FILTROS */}
-                <section className="bg-white/80 border border-cyan-100 rounded-2xl shadow-sm px-6 py-6">
+                <section className="bg-white border border-cyan-200 rounded-2xl shadow-sm px-6 py-6">
                     {/* Encabezado */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                         <div className="flex items-center gap-3">
@@ -809,11 +1164,19 @@ const Cotizaciones: React.FC = () => {
                                     resetForm();
                                     setShowCreateModal(true);
                                 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-600 text-white text-sm shadow-sm hover:bg-emerald-700 transition"
+                                className="
+        inline-flex items-center gap-2 px-6 py-2.5
+        rounded-full text-white font-semibold text-sm
+        bg-gradient-to-r from-emerald-600 to-cyan-600
+        shadow-[0_3px_10px_rgba(0,0,0,0.15)]
+        hover:from-emerald-700 hover:to-cyan-700
+        transition-all duration-200
+    "
                             >
-                                <PlusOutlined />
-                                <span>Crear</span>
+                                <PlusOutlined className="text-base" />
+                                Crear
                             </button>
+
                         </div>
                     </div>
 
@@ -898,29 +1261,29 @@ const Cotizaciones: React.FC = () => {
 
                 {/* TABLA DE COTIZACIONES */}
                 <section className="mt-6">
-                    <div className="border border-cyan-100 rounded-2xl bg-white/80 overflow-hidden">
+                    <div className="border border-cyan-200 rounded-2xl bg-white shadow-sm overflow-hidden">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-cyan-50">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         N°
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Fecha Cotización
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Estado
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Tipo
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cliente
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Origen
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Total
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
@@ -993,6 +1356,15 @@ const Cotizaciones: React.FC = () => {
                                                     className="text-blue-600 hover:text-blue-800 text-sm"
                                                 >
                                                     <EyeOutlined />
+                                                </button>
+
+                                                {/* Imprimir */}
+                                                <button
+                                                    onClick={() => handlePrint(c)}
+                                                    className="text-indigo-600 hover:text-indigo-800 text-sm"
+                                                    title="Imprimir cotización"
+                                                >
+                                                    <PrinterOutlined />
                                                 </button>
 
                                                 {/* Editar */}
@@ -1232,6 +1604,24 @@ const Cotizaciones: React.FC = () => {
                     <span>{toast.message}</span>
                 </motion.div>
             )}
+
+            {/* === CONTENEDOR OCULTO PARA PDF === */}
+            <div
+                ref={printRef}
+                style={{
+                    all: "unset",
+                    display: "block",
+                    position: "absolute",
+                    left: "-9999px",
+                    top: "-9999px",
+                    backgroundColor: "#ffffff",
+                    color: "#000000",
+                    padding: "20px",
+                }}
+            >
+            </div>
+
+
         </div>
     );
 };

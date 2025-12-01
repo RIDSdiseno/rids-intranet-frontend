@@ -81,6 +81,7 @@ export interface CotizacionItemGestioo {
   createdAt: string;
   tieneIVA?: boolean;
   sku?: string;
+  seccionId: number;
 }
 
 export interface CotizacionGestioo {
@@ -91,6 +92,7 @@ export interface CotizacionGestioo {
   entidadId: number | null;
   entidad: EntidadGestioo | null;
   total: number;
+  secciones?: SeccionCotizacion[];
   moneda: MonedaCotizacion;
   tasaCambio: number | null;
   items: CotizacionItemGestioo[];
@@ -124,6 +126,9 @@ export interface FormData {
   entidadId: string;
   moneda: MonedaCotizacion;
   tasaCambio: number;
+
+  secciones: SeccionCotizacion[];
+  seccionActiva: number;
 }
 
 export interface Toast {
@@ -151,4 +156,12 @@ export interface FiltrosHistorial {
   origen: string;
   estado: string;
   tipo: string;
+}
+
+export interface SeccionCotizacion {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  items: any[];
+  orden: number;
 }

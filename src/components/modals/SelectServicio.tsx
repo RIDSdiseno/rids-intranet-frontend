@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-    FilterOutlined,
     SearchOutlined,
-    BarcodeOutlined,
     EditOutlined,
-    CloseCircleOutlined,
-    ReloadOutlined,
+    AppstoreOutlined,
+    TableOutlined,
+    PlusOutlined,
+    BarcodeOutlined,
 } from "@ant-design/icons";
 
 interface SelectServicioModalProps {
@@ -34,32 +34,27 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
     orden,
     onOrdenChange,
 }) => {
+
     if (!show) return null;
 
-    const filtrarServiciosAvanzado = (servicios: any[]) => {
-        return servicios.filter(servicio => {
-            const coincideTexto =
-                servicio.nombre?.toLowerCase().includes(filtros.texto.toLowerCase()) ||
-                servicio.descripcion?.toLowerCase().includes(filtros.texto.toLowerCase()) ||
-                servicio.codigo?.toLowerCase().includes(filtros.texto.toLowerCase());
+    // Vista gráfica: tabla o tarjetas
+    const [vista, setVista] = useState<"tabla" | "tarjetas">("tabla");
 
-            const coincideCodigo = !filtros.codigo ||
-                servicio.codigo?.toLowerCase().includes(filtros.codigo.toLowerCase());
-
-            const precio = servicio.precio || servicio.precioBase || 0;
-            const precioMin = filtros.precioMin ? Number(filtros.precioMin) : 0;
-            const precioMax = filtros.precioMax ? Number(filtros.precioMax) : Infinity;
-            const coincidePrecio = precio >= precioMin && precio <= precioMax;
-
-            const coincideCategoria = !filtros.categoria ||
-                servicio.categoria?.toLowerCase().includes(filtros.categoria.toLowerCase());
-
-            return coincideTexto && coincideCodigo && coincidePrecio && coincideCategoria;
+    // Filtrar servicios
+    const filtrarServicios = (lista: any[]) => {
+        return lista.filter((s) => {
+            const texto = filtros.texto.toLowerCase();
+            return (
+                s.nombre?.toLowerCase().includes(texto) ||
+                s.descripcion?.toLowerCase().includes(texto) ||
+                s.codigo?.toLowerCase().includes(texto)
+            );
         });
     };
 
-    const ordenarServicios = (servicios: any[]) => {
-        return servicios.sort((a, b) => {
+    // Ordenar servicios
+    const ordenarServicios = (lista: any[]) => {
+        return lista.sort((a, b) => {
             switch (orden) {
                 case "asc":
                     return a.nombre.localeCompare(b.nombre);
@@ -75,237 +70,197 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
         });
     };
 
-    const serviciosMostrar = ordenarServicios(filtrarServiciosAvanzado(servicios));
-    const hayFiltrosActivos = filtros.texto || filtros.codigo || filtros.precioMin || filtros.precioMax || filtros.categoria;
+    const serviciosMostrar = ordenarServicios(filtrarServicios(servicios));
+
+    // ======= VISTA TABLA =======
+    const VistaTabla = () => (
+        <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+            <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th className="p-4 text-left text-sm font-semibold text-slate-700">Código</th>
+                        <th className="p-4 text-left text-sm font-semibold text-slate-700">Servicio</th>
+                        <th className="p-4 text-left text-sm font-semibold text-slate-700">Descripción</th>
+                        <th className="p-4 text-right text-sm font-semibold text-slate-700">Precio</th>
+                        <th className="p-4 text-center text-sm font-semibold text-slate-700">Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-200">
+                    {serviciosMostrar.map((s) => (
+                        <tr key={s.id} className="hover:bg-slate-50 transition">
+                            <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                    <BarcodeOutlined className="text-slate-400 text-sm" />
+                                    <span className="font-mono text-sm text-slate-600">
+                                        {s.codigo || "N/A"}
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td className="p-4">
+                                <span className="font-semibold text-slate-800">{s.nombre}</span>
+                            </td>
+
+                            <td className="p-4 text-slate-600 text-sm">
+                                {s.descripcion || "—"}
+                            </td>
+
+                            <td className="p-4 text-right font-semibold text-emerald-600">
+                                ${(s.precio || 0).toLocaleString("es-CL")}
+                            </td>
+
+                            <td className="p-4">
+                                <div className="flex justify-center gap-2">
+                                    <button
+                                        onClick={() => onAgregarServicio(s)}
+                                        className="flex items-center gap-2 px-3 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm"
+                                    >
+                                        <PlusOutlined />
+                                        Agregar
+                                    </button>
+
+                                    <button
+                                        onClick={() => onEditarServicio(s)}
+                                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"
+                                    >
+                                        <EditOutlined />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+
+            {serviciosMostrar.length === 0 && (
+                <div className="text-center py-10 text-slate-500">
+                    No se encontraron servicios
+                </div>
+            )}
+        </div>
+    );
+
+    // ======= VISTA TARJETAS =======
+    const VistaTarjetas = () => (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {serviciosMostrar.map((s) => (
+                <div
+                    key={s.id}
+                    className="bg-white rounded-2xl border border-slate-200 hover:border-cyan-300 transition-all duration-300 hover:shadow-xl p-5"
+                >
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">
+                        {s.nombre}
+                    </h3>
+
+                    {s.descripcion && (
+                        <p className="text-sm text-slate-600 mb-3 line-clamp-2">
+                            {s.descripcion}
+                        </p>
+                    )}
+
+                    <p className="text-xs text-slate-500 mb-3">
+                        <BarcodeOutlined className="mr-1" />
+                        Código: {s.codigo || "N/A"}
+                    </p>
+
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-2xl font-bold text-emerald-600">
+                            ${(s.precio || 0).toLocaleString("es-CL")}
+                        </span>
+
+                        <button
+                            onClick={() => onEditarServicio(s)}
+                            className="p-2 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition"
+                        >
+                            <EditOutlined />
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => onAgregarServicio(s)}
+                        className="w-full py-3 bg-gradient-to-r from-cyan-600 to-cyan-700 text-white rounded-xl flex items-center justify-center gap-2 font-semibold hover:from-cyan-700 hover:to-cyan-800 transition shadow"
+                    >
+                        <PlusOutlined />
+                        Agregar
+                    </button>
+                </div>
+            ))}
+
+            {serviciosMostrar.length === 0 && (
+                <div className="col-span-full text-center text-slate-500 py-10">
+                    No se encontraron servicios
+                </div>
+            )}
+        </div>
+    );
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[9999]">
             <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl relative max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative max-h-[95vh] overflow-y-auto"
             >
-                <div className="p-6">
-                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-emerald-200 pb-3">
-                        <FilterOutlined className="text-emerald-600 mr-2" />
-                        Seleccionar Servicios
-                    </h2>
-
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                    >
-                        ✕
-                    </button>
-
-                    {/* FILTROS AVANZADOS */}
-                    <div className="mb-6 p-4 border border-emerald-200 rounded-2xl bg-emerald-50/30">
-                        {/* Búsqueda principal */}
-                        <div className="relative mb-4">
-                            <SearchOutlined className="absolute left-3 top-3 text-emerald-600" />
-                            <input
-                                type="text"
-                                placeholder="Buscar servicios por nombre, descripción o código..."
-                                value={filtros.texto}
-                                onChange={(e) => onFiltroChange("texto", e.target.value)}
-                                className="w-full border border-emerald-200 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
-                            />
-                        </div>
-
-                        {/* Búsqueda rápida por código */}
-                        <div className="mb-4 p-3 border border-green-200 rounded-xl bg-green-50">
-                            <label className="block text-xs font-medium text-green-700 mb-2">
-                                <BarcodeOutlined className="mr-1" />
-                                Búsqueda Rápida por Código
-                            </label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="Ingresa código de servicio..."
-                                    value={filtros.codigo}
-                                    onChange={(e) => onFiltroChange("codigo", e.target.value)}
-                                    className="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                                />
-                                <button
-                                    onClick={() => onFiltroChange("codigo", "")}
-                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                                >
-                                    Limpiar
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Filtros avanzados en grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                            {/* Filtro por precio mínimo */}
-                            <div>
-                                <label className="block text-xs font-medium text-emerald-700 mb-1">
-                                    Precio Mín.
-                                </label>
-                                <input
-                                    type="number"
-                                    placeholder="Mínimo"
-                                    value={filtros.precioMin}
-                                    onChange={(e) => onFiltroChange("precioMin", e.target.value)}
-                                    className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                />
-                            </div>
-
-                            {/* Filtro por precio máximo */}
-                            <div>
-                                <label className="block text-xs font-medium text-emerald-700 mb-1">
-                                    Precio Máx.
-                                </label>
-                                <input
-                                    type="number"
-                                    placeholder="Máximo"
-                                    value={filtros.precioMax}
-                                    onChange={(e) => onFiltroChange("precioMax", e.target.value)}
-                                    className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                />
-                            </div>
-
-                            {/* Filtro por categoría */}
-                            <div>
-                                <label className="block text-xs font-medium text-emerald-700 mb-1">
-                                    Categoría
-                                </label>
-                                <select
-                                    value={filtros.categoria}
-                                    onChange={(e) => onFiltroChange("categoria", e.target.value)}
-                                    className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                >
-                                    <option value="">Todas</option>
-                                    <option value="consultoria">Consultoría</option>
-                                    <option value="soporte">Soporte Técnico</option>
-                                    <option value="mantenimiento">Mantenimiento</option>
-                                    <option value="desarrollo">Desarrollo</option>
-                                </select>
-                            </div>
-
-                            {/* Ordenamiento */}
-                            <div>
-                                <label className="block text-xs font-medium text-emerald-700 mb-1">
-                                    Ordenar por
-                                </label>
-                                <select
-                                    value={orden}
-                                    onChange={(e) => onOrdenChange(e.target.value)}
-                                    className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                >
-                                    <option value="asc">A-Z</option>
-                                    <option value="desc">Z-A</option>
-                                    <option value="precio-asc">Precio: Menor a Mayor</option>
-                                    <option value="precio-desc">Precio: Mayor a Menor</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Contador y botones de acción */}
-                        <div className="flex justify-between items-center mt-4">
-                            <div className="text-sm text-emerald-700">
-                                {serviciosMostrar.length} de {servicios.length} servicios encontrados
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={onLimpiarFiltros}
-                                    className="px-3 py-1.5 text-xs border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-1"
-                                >
-                                    <ReloadOutlined />
-                                    Limpiar Todos los Filtros
-                                </button>
-                            </div>
-                        </div>
+                {/* Header */}
+                <div className="sticky top-0 bg-white border-b border-slate-200 p-6 z-10 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-900">Catálogo de Servicios</h2>
+                        <p className="text-sm text-slate-500">Selecciona servicios para agregar</p>
                     </div>
 
-                    <div className="space-y-4">
-                        {serviciosMostrar.length === 0 ? (
-                            <div className="text-center py-8 text-slate-500 border border-emerald-200 rounded-2xl bg-emerald-50/30 p-6">
-                                {hayFiltrosActivos ? (
-                                    <>
-                                        <p>No se encontraron servicios que coincidan con los filtros aplicados</p>
-                                        <button
-                                            onClick={onLimpiarFiltros}
-                                            className="mt-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
-                                        >
-                                            Mostrar todos los servicios
-                                        </button>
-                                    </>
-                                ) : (
-                                    <p>No hay servicios disponibles</p>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {serviciosMostrar.map((servicio) => (
-                                    <div
-                                        key={servicio.id}
-                                        className="border border-emerald-200 rounded-2xl p-4 hover:shadow-md transition-all cursor-pointer bg-white hover:border-emerald-300 relative group"
-                                    >
-                                        {/* BOTONES EDITAR */}
-                                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onEditarServicio(servicio);
-                                                }}
-                                                className="p-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-                                                title="Editar servicio"
-                                            >
-                                                <EditOutlined className="text-xs" />
-                                            </button>
-                                        </div>
+                    {/* Switch tabla / tarjetas */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex bg-slate-100 rounded-lg p-1">
+                            <button
+                                onClick={() => setVista("tabla")}
+                                className={`px-3 py-2 rounded-md text-sm flex items-center gap-2 transition ${vista === "tabla" ? "bg-white shadow text-cyan-600" : "text-slate-500"
+                                    }`}
+                            >
+                                <TableOutlined /> Tabla
+                            </button>
+                            <button
+                                onClick={() => setVista("tarjetas")}
+                                className={`px-3 py-2 rounded-md text-sm flex items-center gap-2 transition ${vista === "tarjetas" ? "bg-white shadow text-cyan-600" : "text-slate-500"
+                                    }`}
+                            >
+                                <AppstoreOutlined /> Tarjetas
+                            </button>
+                        </div>
 
-                                        {/* CARD ITEM */}
-                                        <div onClick={() => onAgregarServicio(servicio)}>
-                                            <h3 className="font-semibold text-slate-800 mb-2 pr-8">
-                                                {servicio.nombre || "Servicio sin nombre"}
-                                            </h3>
-
-                                            {servicio.descripcion && (
-                                                <p className="text-sm text-slate-600 mb-2 line-clamp-2">
-                                                    {servicio.descripcion}
-                                                </p>
-                                            )}
-
-                                            {servicio.codigo && (
-                                                <p className="text-xs text-slate-500 mb-2">
-                                                    <BarcodeOutlined className="mr-1" />
-                                                    Código: {servicio.codigo}
-                                                </p>
-                                            )}
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-lg font-bold text-emerald-700">
-                                                    ${(servicio.precio || 0).toLocaleString("es-CL")}
-                                                </span>
-
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onAgregarServicio(servicio);
-                                                    }}
-                                                    className="px-3 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm transition-colors"
-                                                >
-                                                    Agregar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="mt-6 flex justify-end border-t border-emerald-200 pt-4">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 border border-emerald-200 text-emerald-700 rounded-xl hover:bg-emerald-50 transition-colors"
-                        >
-                            Cerrar
+                        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl p-2">
+                            ✕
                         </button>
                     </div>
+                </div>
+
+                {/* Buscador */}
+                <div className="p-6 border-b border-slate-200">
+                    <div className="relative">
+                        <SearchOutlined className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={filtros.texto}
+                            onChange={(e) => onFiltroChange("texto", e.target.value)}
+                            placeholder="Buscar servicios por nombre, descripción o código..."
+                            className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200"
+                        />
+                    </div>
+                </div>
+
+                {/* Vista dinámica */}
+                <div className="p-6">
+                    {vista === "tabla" ? <VistaTabla /> : <VistaTarjetas />}
+                </div>
+
+                {/* Footer */}
+                <div className="p-5 border-t border-slate-200 text-right">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-2 border border-slate-300 rounded-lg hover:bg-slate-50"
+                    >
+                        Cerrar
+                    </button>
                 </div>
             </motion.div>
         </div>

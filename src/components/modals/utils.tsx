@@ -127,6 +127,26 @@ export const formatearRut = (rut: string) => {
   return `${formateado}-${dv}`;
 };
 
+export const validarNombre = (nombre: string) =>
+  nombre.trim().length >= 3;
+
+export const validarEmail = (email: string) => {
+  if (!email) return true; // opcional
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email.toLowerCase());
+};
+
+export const validarTelefono = (telefono: string) => {
+  if (!telefono) return true; // opcional
+  const regex = /^(\+?56)?\s?9\d{8}$/;
+  return regex.test(telefono.replace(/\s+/g, ""));
+};
+
+export const validarDireccion = (direccion: string) => {
+  if (!direccion) return true; // opcional
+  return direccion.trim().length >= 5;
+};
+
 export const formatEstado = (estado: EstadoCotizacionGestioo) => {
   const estados: { [key in EstadoCotizacionGestioo]: string } = {
     [EstadoCotizacionGestioo.BORRADOR]: "Borrador",

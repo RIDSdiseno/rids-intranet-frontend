@@ -313,7 +313,7 @@ const generateBarChart = async (
               size: CHART_CONFIG.fonts.size,
               family: CHART_CONFIG.fonts.family
             },
-            color: '#374151'
+            color: '#ccd0d8ff'
           }
         },
         title: {
@@ -324,7 +324,7 @@ const generateBarChart = async (
             weight: 'bold',
             family: CHART_CONFIG.fonts.family
           },
-          color: '#111827',
+          color: '#ccd0d8ff',
           padding: 20
         },
         tooltip: {
@@ -352,7 +352,7 @@ const generateBarChart = async (
               size: 12,
               family: CHART_CONFIG.fonts.family
             },
-            color: '#6B7280',
+            color: '#ccd0d8ff',
             maxRotation: 45,
             minRotation: 0
           }
@@ -367,7 +367,7 @@ const generateBarChart = async (
               size: 12,
               family: CHART_CONFIG.fonts.family
             },
-            color: '#6B7280',
+            color: '#ccd0d8ff',
             precision: 0
           }
         }
@@ -429,7 +429,7 @@ const generatePieChart = async (
               size: 12,
               family: CHART_CONFIG.fonts.family
             },
-            color: '#374151',
+            color: '#d2d8e0ff',
             padding: 20
           }
         },
@@ -441,7 +441,7 @@ const generatePieChart = async (
             weight: 'bold',
             family: CHART_CONFIG.fonts.family
           },
-          color: '#111827',
+          color: '#ccd0d8ff',
           padding: 20
         },
         tooltip: {
@@ -504,7 +504,8 @@ const generateLineChart = async (
             font: {
               size: CHART_CONFIG.fonts.size,
               family: CHART_CONFIG.fonts.family
-            }
+            },
+            color: '#d2d8e0ff',
           }
         },
         title: {
@@ -524,6 +525,9 @@ const generateLineChart = async (
         x: {
           grid: {
             display: false
+          },
+          ticks: {
+            color: "#FFFFFF",
           }
         },
         y: {
@@ -612,34 +616,55 @@ const contarExtras = (visitas: VisitaRow[]) => {
 };
 
 /** ===== Helpers extra para los nuevos gráficos ===== */
-
 const contarTiposVisita = (visitas: VisitaRow[]) => {
-  let programada = 0;
-  let adicional = 0;
+  let programadas = 0;
+  let adicionales = 0;
 
   for (const v of visitas) {
-    const tipoBase = v.tipo?.trim() ?? "";
-    const status = v.status?.toLowerCase() ?? "";
+    const rawTipo = (v.tipo ?? "").trim().toLowerCase();
+    const rawOtros = (v.otrosDetalle ?? "").trim().toLowerCase();
+    const rawStatus = (v.status ?? "").trim().toLowerCase();
 
-    const tipo =
-      tipoBase.length > 0
-        ? tipoBase
-        : status.includes("program")
-          ? "Solicitud Programada"
-          : "Solicitudes adicionales";
+    let esProgramada = false;
 
-    if (tipo.toLowerCase().includes("program")) {
-      programada++;
-    } else {
-      adicional++;
+    // 1) Si el backend ya trae un tipo definido
+    if (rawTipo.includes("program")) {
+      esProgramada = true;
     }
+
+    // 2) Casos conocidos desde RIDS
+    else if (rawOtros.includes("program") || rawOtros.includes("mantención programada")) {
+      esProgramada = true;
+    }
+
+    // 3) Inferencia: si NO tiene extras, suele ser visita programada de mantenimiento
+    else if (
+      v.actualizaciones ||
+      v.antivirus ||
+      v.ccleaner ||
+      v.estadoDisco ||
+      v.mantenimientoReloj ||
+      v.rendimientoEquipo
+    ) {
+      esProgramada = true;
+    }
+
+    // 4) Clasificación de fallback
+    else if (rawStatus.includes("pendiente") || rawStatus.includes("completada")) {
+      // Muchas visitas adicionales carecen de flags de mantenimiento
+      esProgramada = false;
+    }
+
+    if (esProgramada) programadas++;
+    else adicionales++;
   }
 
   return [
-    { Tipo: "Solicitud Programada", Cantidad: programada },
-    { Tipo: "Solicitudes adicionales", Cantidad: adicional },
+    { Tipo: "Solicitud Programada", Cantidad: programadas },
+    { Tipo: "Solicitudes adicionales", Cantidad: adicionales },
   ];
 };
+
 
 const tieneMantenimiento = (v: VisitaRow) =>
   asBool(v.rendimientoEquipo) ||
@@ -656,19 +681,29 @@ const contarMantenimientosPorFecha = (visitas: VisitaRow[]) => {
 
   for (const v of visitas) {
     if (!tieneMantenimiento(v) || !v.inicio) continue;
+
     const d = new Date(v.inicio);
     if (Number.isNaN(d.getTime())) continue;
-    const key = d.toISOString().slice(0, 10); // yyyy-mm-dd
+
+    // Clave usando FECHA LOCAL
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+
+    const key = `${y}-${m}-${day}`; // yyyy-mm-dd en hora local
+
     map.set(key, (map.get(key) || 0) + 1);
   }
 
   return Array.from(map.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([iso, Cantidad]) => ({
-      Fecha: new Date(iso).toLocaleDateString("es-CL"),
+      // Mostrar en formato chileno pero SIN volver a pasar por UTC
+      Fecha: iso.split("-").reverse().join("-"), // dd-mm-yyyy
       Cantidad,
     }));
 };
+
 
 const contarMantenimientosPorUsuario = (visitas: VisitaRow[]) => {
   const map: Record<string, number> = {};
@@ -755,7 +790,7 @@ const KPICards: React.FC<{ data: ReporteGeneralData }> = ({ data }) => {
     {
       title: 'Tickets Resueltos',
       value: data.tickets.length,
-      change: '+12%',
+      change: '',
       trend: 'up' as const,
       color: 'green',
       icon: <CheckCircleOutlined />,
@@ -764,7 +799,7 @@ const KPICards: React.FC<{ data: ReporteGeneralData }> = ({ data }) => {
     {
       title: 'Visitas Realizadas',
       value: data.visitas.length,
-      change: '+5%',
+      change: '',
       trend: 'up' as const,
       color: 'blue',
       icon: <ToolOutlined />,
@@ -773,7 +808,7 @@ const KPICards: React.FC<{ data: ReporteGeneralData }> = ({ data }) => {
     {
       title: 'Usuarios Atendidos',
       value: data.solicitantes.length,
-      change: '+8%',
+      change: '',
       trend: 'up' as const,
       color: 'purple',
       icon: <TeamOutlined />,
@@ -782,7 +817,7 @@ const KPICards: React.FC<{ data: ReporteGeneralData }> = ({ data }) => {
     {
       title: 'Equipos Registrados',
       value: data.equipos.length,
-      change: '+3%',
+      change: '',
       trend: 'up' as const,
       color: 'orange',
       icon: <BuildOutlined />,
@@ -1541,9 +1576,7 @@ const ReportesPage: React.FC = () => {
       }));
 
       // En exportDOCX, reemplaza el mapeo de visitas con esto:
-      // REEMPLAZA el mapeo de visitasRows con esta versión mejorada:
       const visitasRows = data.visitas.map((v) => {
-        console.log('Procesando visita:', v); // Para debug
 
         // Formatear fecha CORREGIDO - manejar casos donde v.inicio es null/undefined
         let fechaVisita = "—";
@@ -2046,7 +2079,7 @@ const ReportesPage: React.FC = () => {
         H2("Visitas Técnicas"),
         ...tablePro(
           "Visitas técnicas realizadas.",
-          ["Técnico", "Fecha de Visita", "Horario", "Usuario", "Estado"],
+          ["Técnico", "Fecha", "Horario", "Usuario", "Estado"],
           visitasRows
         ),
 
@@ -2628,34 +2661,7 @@ const ReportesPage: React.FC = () => {
             {/* KPIs Mejorados */}
             <KPICards data={dataPrev} />
 
-            {/* Gráficos en grid responsivo */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Gráfico de tendencias */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-4">Tendencias Mensuales</h4>
-                <canvas id="preview-tendencias" width={400} height={250} />
-              </div>
-
-              {/* Distribución de servicios */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-4">Distribución de Servicios</h4>
-                <canvas id="preview-distribucion" width={400} height={250} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Actividades de mantenimiento */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-4">Actividades de Mantenimiento</h4>
-                <canvas id="preview-mantenimientos" width={400} height={250} />
-              </div>
-
-              {/* Top usuarios */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="font-medium text-slate-700 mb-4">Top Usuarios</h4>
-                <canvas id="preview-top-usuarios" width={400} height={250} />
-              </div>
-            </div>
+            {/* APARTADOS ELIMINADOS - Se deja limpio */}
           </motion.div>
         )}
 
@@ -2781,23 +2787,6 @@ const ReportesPage: React.FC = () => {
           {/* Nuevos gráficos mejorados */}
           <canvas id="chart-tendencias-docx" width={800} height={400} />
           <canvas id="chart-distribucion-docx" width={800} height={400} />
-        </div>
-
-        {/* ===== CANVAS para previsualización ===== */}
-        <div
-          style={{
-            position: "fixed",
-            left: -10000,
-            top: -10000,
-            opacity: 0,
-            pointerEvents: "none",
-            zIndex: -1,
-          }}
-        >
-          <canvas id="preview-tendencias" width={400} height={250} />
-          <canvas id="preview-distribucion" width={400} height={250} />
-          <canvas id="preview-mantenimientos" width={400} height={250} />
-          <canvas id="preview-top-usuarios" width={400} height={250} />
         </div>
 
         {/* ===== Contenedor oculto para generar el PDF ===== */}

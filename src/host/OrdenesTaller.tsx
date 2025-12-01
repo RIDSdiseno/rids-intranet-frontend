@@ -104,233 +104,194 @@ const getDateTimeLocalCL = () => {
 };
 
 //PDF 
+// ==============================
+//   PDF ORDEN DE TALLER - FULL
+// ==============================
 const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     try {
         const fechaActual = new Date().toLocaleString("es-CL", {
             dateStyle: "short",
             timeStyle: "short",
         });
-        const codigoSeguimiento = `${String(orden.id).padStart(6, "0")}`;
 
-        // Datos corporativos por origen
+        const codigo = String(orden.id).padStart(6, "0");
+
+        // Datos corporativos
         const ORIGEN_DATA = {
             RIDS: {
                 nombre: "RIDS LTDA",
                 direccion: "Santiago - Providencia, La Concepción 65",
                 correo: "soporte@rids.cl",
-                telefono: "+56 9 0000 0000",
-                logo: `${window.location.origin}/img/splash.png`
+                telefono: "+56 9 8823 1976",
+                logo: "/img/splash.png"
             },
             ECONNET: {
                 nombre: "ECONNET SPA",
                 direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "contacto@econnet.cl",
-                telefono: "+56 9 1111 1111",
-                logo: `${window.location.origin}/img/econnetlogo.png` // usa tu logo real si lo tienes
+                correo: "ventas@econnet.cl",
+                telefono: "+56 9 8807 6593",
+                logo: "/img/ecconetlogo.png"
             },
             OTRO: {
                 nombre: orden.entidad?.nombre ?? "Empresa",
                 direccion: orden.entidad?.direccion ?? "",
                 correo: orden.entidad?.correo ?? "",
                 telefono: orden.entidad?.telefono ?? "",
-                logo: `${window.location.origin}/img/splash.png`
+                logo: "/img/splash.png"
             }
         };
 
-        // Seleccionar según origen de la entidad
         const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
 
-
+        // ======================
+        //     HTML DEL PDF
+        // ======================
         const html = `
-<div style="
-    width: 790px;
-    font-family: 'Arial', sans-serif;
-    color: #1f2937;
-    padding: 32px;
-    border: 1px solid #d1d5db;
+<div class="pdf-container" style="
+    width: 1700px;
     margin: 0 auto;
+    padding: 40px;
+    font-family: Arial, sans-serif;
+    color: #000;
 ">
 
-  <!-- ENCABEZADO MODERNO -->
-  <div style="
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 3px solid #4b5563;;
-      padding-bottom: 12px;
-  ">
-      <div style="display: flex; align-items: center; gap: 14px;">
-          <img src="${origenInfo.logo}" style="height: 55px;" />
-          <div>
-              <h2 style="margin: 0; font-size: 20px; font-weight: bold;">
-                  ${origenInfo.nombre}
-              </h2>
-              <p style="margin: 0; font-size: 12px; color: #4b5563;">
-                  ${origenInfo.direccion} · ${origenInfo.correo} · <br>${origenInfo.telefono}
-              </p>
-          </div>
-      </div>
+<!-- HEADER -->
+<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 15px; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+        <img src="${origenInfo.logo}" style="height: 55px;" />
+        <div>
+            <h2 style="margin: 0; font-size: 22px; font-weight: bold;">${origenInfo.nombre}</h2>
+            <p style="margin: 0; font-size: 12px; color: #4b5563;">
+                ${origenInfo.direccion} · ${origenInfo.correo}<br>${origenInfo.telefono}
+            </p>
+        </div>
+    </div>
 
-      <div style="text-align: right;">
-          <p style="margin: 0; font-size: 12px; color: #6b7280;">
-              Fecha impresión: ${fechaActual}
-          </p>
-          <h3 style="margin: 4px 0 0; color: #4b5563;">
-              Orden Nº <span style="font-weight: bold;">${codigoSeguimiento}</span>
-          </h3>
-      </div>
-  </div>
+    <div style="text-align: right;">
+        <p style="margin: 0; font-size: 12px;">Fecha impresión: ${fechaActual}</p>
+        <h3 style="margin: 4px 0 0;">Orden de Taller N° <b>${codigo}</b></h3>
+    </div>
+</div>
 
-  <!-- DATOS CLIENTE + PRODUCTO -->
-  <div style="margin-top: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;">
-      <div style="
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          border-bottom: 1px solid #e5e7eb;
-          background: #f3f4f6;
-          border-radius: 10px 10px 0 0;
-      ">
-          <div style="padding: 10px 14px; font-weight: bold; color: #111827; border-right: 1px solid #e5e7eb;">
-              Datos del Cliente
-          </div>
-          <div style="padding: 10px 14px; font-weight: bold; color: #111827;">
-              Datos del Producto
-          </div>
-      </div>
+<!-- CLIENTE / PRODUCTO -->
+<div style="display: flex; gap: 20px; margin-bottom: 25px;">
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr;">
-          <div style="padding: 12px 14px; border-right: 1px solid #e5e7eb;">
-              <p><b>Entidad:</b> ${orden.entidad?.nombre ?? "—"}</p>
-              <p><b>RUT:</b> ${orden.entidad?.rut ?? "—"}</p>
-              <p><b>Teléfono:</b> ${orden.entidad?.telefono ?? "—"}</p>
-              <p><b>Correo:</b> ${orden.entidad?.correo ?? "—"}</p>
-              <p><b>Dirección:</b> ${orden.entidad?.direccion ?? "—"}</p>
-          </div>
+    <!-- CLIENTE -->
+    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #f9fafb;">
+        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Cliente</h3>
+        <p><b>Entidad:</b> ${orden.entidad?.nombre ?? "—"}</p>
+        <p><b>RUT:</b> ${orden.entidad?.rut ?? "—"}</p>
+        <p><b>Teléfono:</b> ${orden.entidad?.telefono ?? "—"}</p>
+        <p><b>Correo:</b> ${orden.entidad?.correo ?? "—"}</p>
+        <p><b>Dirección:</b> ${orden.entidad?.direccion ?? "—"}</p>
+    </div>
 
-          <div style="padding: 12px 14px;">
-              <p><b>Producto:</b> ${orden.producto?.nombre ?? "—"}</p>
-              <p><b>Categoría:</b> ${orden.producto?.categoria ?? "—"}</p>
-              <p><b>Serie:</b> ${orden.producto?.serie ?? "—"}</p>
-              <p><b>Área:</b> ${orden.area ?? "—"}</p>
-              <p><b>Fecha ingreso:</b> ${new Date(orden.fecha).toLocaleString("es-CL")}</p>
-          </div>
-      </div>
-  </div>
+    <!-- PRODUCTO -->
+    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
+        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Producto</h3>
+        <p><b>Producto:</b> ${orden.producto?.nombre ?? "—"}</p>
+        <p><b>Categoría:</b> ${orden.producto?.categoria ?? "—"}</p>
+        <p><b>Serie:</b> ${orden.producto?.serie ?? "—"}</p>
+        <p><b>Área:</b> ${orden.area ?? "—"}</p>
+        <p><b>Fecha ingreso:</b> ${new Date(orden.fecha).toLocaleString("es-CL")}</p>
+    </div>
+</div>
 
-  <!-- SECCIONES DE TEXTO -->
-  <div style="margin-top: 20px;">
-      <h3 style="font-size: 14px; color: #111827; margin-bottom: 6px;">Trabajo solicitado:</h3>
-      <div style="
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 10px;
-          font-size: 13px;
-      ">
-          ${orden.tipoTrabajo}
-      </div>
-  </div>
+<!-- SECCIONES DE TEXTO -->
+<div style="margin-bottom: 15px;">
+    <h3 style="font-size: 14px;">Trabajo solicitado:</h3>
+    <br>
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+        ${orden.tipoTrabajo ?? "—"}
+    </div>
+</div>
 
-  <div style="margin-top: 16px;">
-      <h3 style="font-size: 14px; color: #111827; margin-bottom: 6px;">Descripción:</h3>
-      <div style="
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 10px;
-          font-size: 13px;
-      ">
-          ${orden.descripcion || "Sin descripción adicional."}
-      </div>
-  </div>
+<div style="margin-bottom: 15px;">
+    <h3 style="font-size: 14px;">Descripción del problema:</h3>
+    <br>
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+        ${orden.descripcion ?? "Sin descripción adicional."}
+    </div>
+</div>
 
-  <div style="margin-top: 16px;">
-      <h3 style="font-size: 14px; color: #111827; margin-bottom: 6px;">Notas / Observaciones:</h3>
-      <div style="
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          padding: 10px;
-          font-size: 13px;
-      ">
-          ${orden.notas || "Sin observaciones adicionales."}
-      </div>
-  </div>
+<div style="margin-bottom: 15px;">
+    <h3 style="font-size: 14px;">Notas del técnico:</h3>
+    <br>
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+        ${orden.notas ?? "Sin observaciones."}
+    </div>
+</div>
 
-  <!-- SEGUIMIENTO -->
-  <div style="
-      margin-top: 24px;
-      background: #eef6ff;
-      border: 1px solid #bfdbfe;
-      padding: 12px;
-      text-align: center;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #4b5563;
-  ">
-      Consulte el estado de esta orden en:<br>
-      <strong>https://rids-intranet.netlify.app/home</strong><br>
-      Código: <strong>${codigoSeguimiento}</strong>
-  </div>
-   <br><br><br><br><br><br>
-  <!-- FIRMAS -->
-  <div style="margin-top: 40px; display: flex; justify-content: space-between; text-align: center;">
-      <div style="width: 45%;">
-          <div style="border-top: 1px dashed #6b7280; padding-top: 6px;">
-              Firma Cliente<br>
-              <span style="font-size: 11px; color: #6b7280;">Nombre y RUT</span>
-          </div>
-      </div>
+<!-- SEGUIMIENTO -->
+<div style="background: #e0f2fe; border: 1px solid #93c5fd; padding: 12px; text-align: center; border-radius: 10px; margin-top: 25px; font-size: 14px;">
+    Consulte el estado de la orden en:<br>
+    <b>https://rids-intranet.netlify.app/home</b><br>
+    Código: <b>${codigo}</b>
+</div>
 
-      <div style="width: 45%;">
-          <div style="border-top: 1px solid #111827; padding-top: 6px;">
-              Firma Empresa<br>
-              <span style="font-size: 11px; color: #6b7280;">Representante autorizado</span>
-          </div>
-      </div>
-  </div>
+<!-- FIRMAS -->
+<div style="margin-top: 60px; display: flex; justify-content: space-between;">
 
-  <!-- TÉRMINOS -->
-  <div style="
-      margin-top: 25px;
-      padding-top: 12px;
-      border-top: 1px solid #d1d5db;
-      font-size: 10px;
-      color: #4b5563;
-      text-align: justify;
-  ">
-      <strong>Términos y condiciones:</strong><br>
-      1) Para retirar el equipo es indispensable presentar esta orden.<br>
-      2) El equipo deberá ser retirado dentro de los 30 días desde la notificación.<br>
-      3) Al dejar el equipo en reparación, el cliente acepta estas condiciones.<br>
-      4) RIDS/ECONNET no se responsabiliza por accesorios no declarados.
-  </div>
+    <div style="width: 45%; text-align: center;">
+        <br><br><br><br><br><br><br>
+        <div style="border-top: 1px dashed #555; padding-top: 6px;">
+            Firma Cliente<br>
+            <span style="font-size: 11px;">Nombre y RUT</span>
+        </div>
+    </div>
+
+    <div style="width: 45%; text-align: center;">
+        <br><br><br><br><br><br><br>
+        <div style="border-top: 1px solid #333; padding-top: 6px;">
+            Firma Empresa<br>
+            <span style="font-size: 11px;">Representante autorizado</span>
+        </div>
+    </div>
+</div>
+
+<!-- TERMINOS -->
+<div style="margin-top: 30px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 11px; color: #444; line-height: 1.4;">
+<b>Términos y condiciones:</b><br>
+1) Para retirar el equipo es indispensable presentar esta orden.<br>
+2) El equipo deberá ser retirado dentro de 30 días desde la notificación.<br>
+3) Al dejar el equipo en reparación, el cliente acepta estas condiciones.<br>
+4) La empresa no se responsabiliza por accesorios no declarados.
+</div>
 
 </div>
 `;
 
-
+        // ======================
+        //   GENERAR CANVAS
+        // ======================
         const container = document.createElement("div");
         container.innerHTML = html;
         document.body.appendChild(container);
 
-        const canvas = await html2canvas(container, { scale: 2.2 });
+        const canvas = await html2canvas(container, {
+            scale: 2,
+            width: container.scrollWidth,
+            height: container.scrollHeight,
+            windowWidth: container.scrollWidth
+        });
+
         const pdf = new jsPDF("p", "mm", "a4");
-        const imgData = canvas.toDataURL("image/png");
+        const img = canvas.toDataURL("image/png");
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        const proportionalHeight = (canvas.height * pdfWidth) / canvas.width;
 
-        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`Orden_${codigoSeguimiento}.pdf`);
+        pdf.addImage(img, "PNG", 0, 0, pdfWidth, proportionalHeight);
+        pdf.save(`Orden_${codigo}.pdf`);
 
         document.body.removeChild(container);
+
     } catch (err) {
-        console.error("Error al generar PDF:", err);
-        alert("Error al generar el PDF de la orden.");
+        console.error(err);
+        alert("Error al generar PDF");
     }
 };
+
 
 const OrdenesTaller: React.FC = () => {
     const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
