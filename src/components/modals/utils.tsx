@@ -1,42 +1,48 @@
 import type {
   CotizacionItemGestioo,
-  MonedaCotizacion
+  MonedaCotizacion,
 } from "./types";
 import { EstadoCotizacionGestioo, TipoCotizacionGestioo } from "./types";
 
+import { ItemTipoGestioo } from "./types";
+
 export const calcularTotales = (items: CotizacionItemGestioo[]) => {
-  const subtotalBruto = items
-    .filter(item => item.tipo !== "ADICIONAL")
-    .reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+  let subtotalBruto = 0;
+  let descuentos = 0;
+  let subtotal = 0;
+  let iva = 0;
+  let total = 0;
 
-  const descuentos = items
-    .filter(item => item.tipo === "ADICIONAL")
-    .reduce((acc, item) => {
-      if (item.porcentaje && item.porcentaje > 0) {
-        return acc + (subtotalBruto * item.porcentaje) / 100;
-      }
-      return acc + (item.precio * item.cantidad);
-    }, 0);
+  items.forEach(item => {
+    const base = Number(item.precio || 0) * Number(item.cantidad || 1);
+    subtotalBruto += base;
 
-  const subtotal = Math.max(0, subtotalBruto - descuentos);
+    // Calcular porcentaje seguro
+    const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
 
-  const iva = items
-    .filter(item => item.tieneIVA)
-    .reduce((acc, item) => {
-      const base = item.precio * item.cantidad;
-      const descuentoItem = item.porcentaje ? (base * item.porcentaje) / 100 : 0;
-      return acc + (base - descuentoItem) * 0.19;
-    }, 0);
+    // Descuento solo si aplica
+    const descuentoItem =
+      (item.tieneDescuento && porcentaje > 0 && item.tipo !== ItemTipoGestioo.ADICIONAL)
+        ? (base * porcentaje) / 100
+        : 0;
 
-  const total = subtotal + iva;
+    descuentos += descuentoItem;
+    const baseConDescuento = base - descuentoItem;
 
-  return {
-    subtotalBruto: Math.round(subtotalBruto),
-    descuentos: Math.round(descuentos),
-    subtotal: Math.round(subtotal),
-    iva: Math.round(iva),
-    total: Math.round(total)
-  };
+    // Calcular IVA
+    const ivaItem =
+      (item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL)
+        ? baseConDescuento * 0.19
+        : 0;
+
+    iva += ivaItem;
+    const totalItem = baseConDescuento + ivaItem;
+
+    subtotal += baseConDescuento;
+    total += totalItem;
+  });
+
+  return { subtotalBruto, descuentos, subtotal, iva, total };
 };
 
 export const calcularPrecioTotal = (precio: number, porcGanancia: number): number => {

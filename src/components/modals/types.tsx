@@ -77,7 +77,10 @@ export interface CotizacionItemGestioo {
   precio: number;
   precioCosto?: number;
   porcGanancia?: number;
+
   porcentaje?: number | null;
+  tieneDescuento?: boolean;
+  
   createdAt: string;
   tieneIVA?: boolean;
   sku?: string;

@@ -145,12 +145,53 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
         return calcularTotales(itemsSeccion);
     };
 
+    // === CALCULAR LÍNEA INDIVIDUAL (BASE, DESCUENTO, NETO, IVA, TOTAL) ===
+    const calcularLinea = (item: any) => {
+        const base = item.precio * item.cantidad;
+        const porcentaje = Number(item.porcentaje ?? 0);
+
+        const descuento =
+            item.tipo !== ItemTipoGestioo.ADICIONAL &&
+                item.tieneDescuento &&
+                porcentaje > 0
+                ? (base * porcentaje) / 100
+                : 0;
+
+        const baseFinal = base - descuento;
+
+        const iva =
+            item.tipo !== ItemTipoGestioo.ADICIONAL && item.tieneIVA
+                ? baseFinal * 0.19
+                : 0;
+
+        const neto = baseFinal + iva;
+
+        return { base, descuento, baseFinal, iva, neto };
+    };
+
     // Renderizar item individual
     const renderItem = (item: any, index: number) => {
+        // BASE DEL ÍTEM
         const base = item.precio * item.cantidad;
-        const descuento = item.porcentaje ? (base * item.porcentaje) / 100 : 0;
+
+        // Descuento SOLO si tieneDescuento está marcado (y no es ADICIONAL)
+        const porcentaje = Number(item.porcentaje ?? 0);
+
+        const descuento =
+            item.tipo !== ItemTipoGestioo.ADICIONAL &&
+                item.tieneDescuento &&
+                porcentaje > 0
+                ? (base * porcentaje) / 100
+                : 0;
+
         const baseFinal = base - descuento;
-        const ivaItem = item.tieneIVA ? baseFinal * 0.19 : 0;
+
+        // IVA solo si tieneIVA
+        const ivaItem =
+            item.tipo !== ItemTipoGestioo.ADICIONAL && item.tieneIVA
+                ? baseFinal * 0.19
+                : 0;
+
         const totalItem = baseFinal + ivaItem;
 
         const gananciaItem = item.tipo === ItemTipoGestioo.PRODUCTO && item.precioCosto
@@ -286,23 +327,75 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                 {/* PORCENTAJE DESCUENTO */}
                 <td className="px-3 py-2 text-center border-r border-cyan-100">
-                    <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        value={item.porcentaje === 0 ? "" : item.porcentaje ?? ""}
-                        onChange={(e) => {
-                            const value = e.target.value === "" ? 0 : Number(e.target.value);
-                            handleUpdateItem(item.id, "porcentaje", value);
-                        }}
-                        disabled={item.tipo !== ItemTipoGestioo.ADICIONAL}
-                        className={`w-20 border rounded-lg px-2 py-1 text-center focus:outline-none ${item.tipo === ItemTipoGestioo.ADICIONAL
-                            ? "border-cyan-200 focus:ring-2 focus:ring-cyan-400 bg-white"
-                            : "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
-                            }`}
-                        placeholder="%"
-                    />
+                    {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
+                        <div className="flex flex-col items-center gap-1">
+                            {/* Checkbox */}
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={item.tieneDescuento || false}
+                                    onChange={(e) => {
+                                        handleUpdateItem(item.id, "tieneDescuento", e.target.checked);
+
+                                        // Si desactiva el descuento → porcentaje = 0
+                                        if (!e.target.checked) {
+                                            handleUpdateItem(item.id, "porcentaje", 0);
+                                        }
+                                    }}
+                                    className="rounded focus:ring-cyan-400"
+                                />
+                                Desc.
+                            </label>
+
+                            {/* Input del % */}
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.5}
+                                value={
+                                    item.tieneDescuento
+                                        ? item.porcentaje ?? ""
+                                        : ""
+                                }
+                                onChange={(e) => {
+                                    const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                    handleUpdateItem(item.id, "porcentaje", value);
+                                }}
+                                disabled={!item.tieneDescuento}
+                                className={`w-20 border rounded-lg px-2 py-1 text-center 
+          ${item.tieneDescuento
+                                        ? "border-cyan-200 focus:ring-2 focus:ring-cyan-400 bg-white"
+                                        : "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                                    }`}
+                                placeholder="%"
+                            />
+                        </div>
+                    ) : (
+                        // Para ADICIONAL (descuento global) queda como siempre
+                        <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={item.porcentaje ?? ""}
+                            onChange={(e) => {
+                                const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                handleUpdateItem(item.id, "porcentaje", value);
+                            }}
+                            className="w-20 border rounded-lg px-2 py-1 text-center 
+        border-cyan-200 focus:ring-2 focus:ring-cyan-400 bg-white"
+                            placeholder="%"
+                        />
+                    )}
+                </td>
+
+                {/* PRECIO NETO (base final sin IVA y con descuento) */}
+                <td className="px-3 py-2 text-right border-r border-cyan-100 font-semibold text-slate-700">
+                    {(() => {
+                        const { baseFinal } = calcularLinea(item);
+                        return formatearPrecio(baseFinal, formData.moneda, formData.tasaCambio);
+                    })()}
                 </td>
 
                 {/* SUBTOTAL */}
@@ -774,6 +867,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                             <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Ganancia</th>
                                             <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">IVA</th>
                                             <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Desc</th>
+                                            <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Neto</th>
                                             <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Subtotal</th>
                                             <th className="px-3 py-2 text-right w-16"></th>
                                         </tr>

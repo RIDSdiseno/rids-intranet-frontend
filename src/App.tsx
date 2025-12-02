@@ -7,15 +7,17 @@ import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
 // Páginas lazy
-const VisitasPage    = lazy(() => import("./host/VisitasPage"));
-const EquiposPage    = lazy(() => import("./host/EquiposPage"));
-const TicketsPage    = lazy(() => import("./host/Ticket"));
-const EmpresasPage   = lazy(() => import("./host/EmpresasPage"));
-const ReportesPage   = lazy(() => import("./host/Reportes"));
+const VisitasPage = lazy(() => import("./host/VisitasPage"));
+const EquiposPage = lazy(() => import("./host/EquiposPage"));
+const TicketsPage = lazy(() => import("./host/Ticket"));
+const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
+const ReportesPage = lazy(() => import("./host/Reportes"));
 const DocumentosPage = lazy(() => import("./host/DocumentosPage")); // 👈 NUEVO
 const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const Cotizaciones = lazy(() => import("./host/Cotizaciones"));
 
+const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
+const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
@@ -72,6 +74,24 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <Cotizaciones />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/clientes"
+            element={
+              <PrivateRoute>
+                <ClientesPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/productos"
+            element={
+              <PrivateRoute>
+                <ProductosPage />
               </PrivateRoute>
             }
           />

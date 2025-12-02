@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   FileText,
-  Briefcase // <-- nuevo icono para Documentos
+  Briefcase, // <-- nuevo icono para Documentos
+  Package
 } from "lucide-react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -69,14 +70,23 @@ const NAV: NavEntry[] = [
       { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
       { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
-      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <Factory size={20} /> },
-      { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
     ],
     match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ORDENESTALLER, COTIZACIONES],
   },
   {
     type: "group",
     label: "Gestión",
+    items: [
+      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <Factory size={20} /> },
+      { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
+      { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
+      { label: "Productos", to: "/productos", icon: <Package size={20} /> },
+    ],
+    match: [ORDENESTALLER, COTIZACIONES],
+  },
+  {
+    type: "group",
+    label: "Informes",
     items: [
       { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
       { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },

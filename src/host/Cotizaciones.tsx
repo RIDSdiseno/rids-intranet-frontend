@@ -330,10 +330,12 @@ const Cotizaciones: React.FC = () => {
             descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : "Nuevo item",
             cantidad: 1,
             precio: 0,
-            porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
+            porcentaje: 0,                 // Siempre 0 al inicio
             tieneIVA: false,
+            tieneDescuento: false,         // 👈 nuevo campo
             seccionId: targetSeccionId
         };
+
         setItems(prev => [...prev, newItem]);
     };
 
@@ -386,7 +388,8 @@ const Cotizaciones: React.FC = () => {
                 sku: item.sku || null,
                 precioCosto: item.precioCosto,
                 porcGanancia: item.porcGanancia,
-                seccionId: item.seccionId // Incluir secciónId
+                seccionId: item.seccionId, // Incluir secciónId
+                tieneDescuento: item.tieneDescuento || false,
             }));
 
             const cotizacionData = {
@@ -437,6 +440,7 @@ const Cotizaciones: React.FC = () => {
                 let precioFinal = Number(item.precio);
                 if (moneda === "USD") {
                     precioFinal = Number(item.precio) / tasaCambio;
+
                 }
 
                 return {
@@ -448,7 +452,8 @@ const Cotizaciones: React.FC = () => {
                         ? Number(item.porcentaje)
                         : null,
                     tieneIVA: item.tieneIVA || false,
-                    sku: item.sku || null
+                    sku: item.sku || null,
+                    tieneDescuento: item.tieneDescuento || false,
                 };
             });
 
@@ -535,6 +540,7 @@ const Cotizaciones: React.FC = () => {
             porcGanancia,
             porcentaje: 0,
             tieneIVA: true,
+            tieneDescuento: false,          // 👈 nuevo
             sku: producto.sku,
             seccionId: formData.seccionActiva
         };
@@ -553,6 +559,7 @@ const Cotizaciones: React.FC = () => {
             precio: servicio.precio || 0,
             porcentaje: 0,
             tieneIVA: false,
+            tieneDescuento: false,         // 👈 nuevo
             seccionId: formData.seccionActiva
         };
 
@@ -851,23 +858,71 @@ const Cotizaciones: React.FC = () => {
 
                     // Generar HTML de items para esta sección
                     const itemsHtml = itemsSeccion.map((item) => {
-                        const precioTotal = item.precio * item.cantidad;
-                        const descuentoPorcentaje = item.porcentaje || 0;
-                        const ivaPorcentaje = item.tieneIVA ? 19 : 0;
-                        const ivaMonto = item.tieneIVA ? (precioTotal * 0.19) : 0;
+                        // Asegurar que porcentaje es número
+                        const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
+
+                        // Base del item
+                        const base = Number(item.precio) * Number(item.cantidad);
+
+                        // Descuento solo si aplica
+                        const descuentoItem =
+                            (item.tieneDescuento && porcentaje > 0 && item.tipo !== ItemTipoGestioo.ADICIONAL)
+                                ? (base * porcentaje) / 100
+                                : 0;
+
+                        // Precio después del descuento
+                        const baseConDescuento = base - descuentoItem;
+
+                        // IVA solo si aplica
+                        const ivaMonto =
+                            (item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL)
+                                ? baseConDescuento * 0.19
+                                : 0;
+
+                        // Total final
+                        const totalItem = baseConDescuento + ivaMonto;
+
 
                         return `
-    <tr>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.sku || ""}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;">${item.descripcion}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(item.precio)}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.cantidad}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${descuentoPorcentaje}%</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${ivaPorcentaje}%</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(ivaMonto)}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(precioTotal)}</td>
-    </tr>`;
+<tr>
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+        ${item.sku || ""}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;">
+        ${item.descripcion}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+        ${formatPDF(item.precio)}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+        ${item.cantidad}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+  ${item.tieneDescuento && item.tipo !== ItemTipoGestioo.ADICIONAL ? item.porcentaje : 0}%
+</td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+        ${formatPDF(descuentoItem)}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+        ${item.tieneIVA ? 19 : 0}%
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+        ${formatPDF(ivaMonto)}
+    </td>
+
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+        ${formatPDF(totalItem)}
+    </td>
+</tr>`;
                     }).join("");
+
 
                     // HTML de la sección
                     seccionesHtml += `
@@ -881,17 +936,19 @@ const Cotizaciones: React.FC = () => {
         <!-- Tabla de items de la sección -->
         <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
             <thead>
-                <tr style="background:#e9ecef;">
-                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-                    <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
-                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
-                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
-                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc.</th>
-                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
-                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
-                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
-                </tr>
-            </thead>
+    <tr style="background:#e9ecef;">
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+        <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+    </tr>
+</thead>
+
             <tbody>
                 ${itemsHtml}
             </tbody>
@@ -916,38 +973,83 @@ const Cotizaciones: React.FC = () => {
                 totalGeneral = total;
 
                 const itemsHtml = cot.items.map((item) => {
-                    const precioTotal = item.precio * item.cantidad;
-                    const descuentoPorcentaje = item.porcentaje || 0;
-                    const ivaPorcentaje = item.tieneIVA ? 19 : 0;
-                    const ivaMonto = item.tieneIVA ? (precioTotal * 0.19) : 0;
+                    // Asegurar que porcentaje es número seguro
+                    const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
+
+                    // Base del producto
+                    const base = Number(item.precio) * Number(item.cantidad);
+
+                    // Descuento solo si aplica
+                    const descuentoItem =
+                        item.tieneDescuento && porcentaje > 0
+                            ? (base * porcentaje) / 100
+                            : 0;
+
+                    // Precio luego de descuento
+                    const baseConDescuento = base - descuentoItem;
+
+                    // IVA calculado solo si aplica
+                    const ivaMonto = item.tieneIVA ? baseConDescuento * 0.19 : 0;
+
+                    // Total final por ítem
+                    const totalItem = baseConDescuento + ivaMonto;
 
                     return `
     <tr>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.sku || ""}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;">${item.descripcion}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(item.precio)}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.cantidad}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${descuentoPorcentaje}%</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${ivaPorcentaje}%</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(ivaMonto)}</td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${formatPDF(precioTotal)}</td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    ${item.sku || ""}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;">
+    ${item.descripcion}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    ${formatPDF(item.precio)}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    ${item.cantidad}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    ${item.tieneDescuento ? item.porcentaje : 0}%
+</td>
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    ${formatPDF(descuentoItem)}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    ${item.tieneIVA ? 19 : 0}%
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    ${formatPDF(ivaMonto)}
+</td>
+
+<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    ${formatPDF(totalItem)}
+</td>
+
     </tr>`;
                 }).join("");
 
                 seccionesHtml = `
     <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
         <thead>
-            <tr style="background:#e9ecef;">
-                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-                <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
-                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
-                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
-                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc.</th>
-                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
-                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
-                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Subtotal</th>
-            </tr>
-        </thead>
+    <tr style="background:#e9ecef;">
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+        <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
+        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+    </tr>
+</thead>
+
         <tbody>
             ${itemsHtml}
         </tbody>
@@ -1061,7 +1163,7 @@ const Cotizaciones: React.FC = () => {
             R.U.T.: ${origenInfo.rut}
         </div>
         <div style="font-size:11px; font-weight:bold; color:#b91c1c; margin-top:2px;">
-            FACTURA ELECTRÓNICA
+            COTIZACIÓN
             <!-- o 'ORDEN DE TALLER' / 'COTIZACIÓN' según corresponda -->
         </div>
         <div style="font-size:12px; font-weight:bold; color:#b91c1c; margin-top:4px;">

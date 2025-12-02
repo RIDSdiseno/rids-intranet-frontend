@@ -458,6 +458,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     <tr>
                                         <th className="px-4 py-3 text-left font-semibold border-r border-slate-200">Tipo</th>
                                         <th className="px-4 py-3 text-left font-semibold border-r border-slate-200">Descripción *</th>
+                                        <th className="px-4 py-3 text-center font-semibold border-r border-slate-200 w-32">Código</th>
                                         <th className="px-4 py-3 text-center font-semibold border-r border-slate-200 w-24">Cantidad *</th>
                                         <th className="px-4 py-3 text-right font-semibold border-r border-slate-200 w-32">P. Unitario *</th>
                                         <th className="px-4 py-3 text-right font-semibold border-r border-slate-200 w-32">IVA *</th>
@@ -518,6 +519,20 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             placeholder="Descripción del item"
                                                             required
                                                         />
+                                                    </td>
+
+                                                    {/* SKU */}
+                                                    <td className="px-4 py-3 border-r border-slate-100 text-center">
+                                                        <span className="font-mono text-xs">
+                                                            {item.sku || "—"}
+                                                        </span>
+
+                                                        {/* INDICADOR AUTOMÁTICO */}
+                                                        {item.sku?.startsWith("SKU-") && (
+                                                            <span className="ml-1 text-[10px] text-blue-500 font-semibold">
+                                                                (auto)
+                                                            </span>
+                                                        )}
                                                     </td>
 
                                                     {/* CANTIDAD */}
