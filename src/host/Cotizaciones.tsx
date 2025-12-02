@@ -95,7 +95,10 @@ const Cotizaciones: React.FC = () => {
             items: [],
             orden: 0
         }],
-        seccionActiva: 1
+        seccionActiva: 1,
+        personaResponsable: "",
+        imagenFile: undefined,
+        imagen: ""
     });
 
     // === ESTADOS PARA CREACIÓN ===
@@ -375,6 +378,23 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
+
+            let imagenUrl = null;
+
+            // === 1️⃣ SUBIR IMAGEN SI EXISTE ===
+            if (formData.imagenFile) {
+                const form = new FormData();
+                form.append("imagen", formData.imagenFile);
+
+                const uploadResp = await apiFetch("/upload-imagenes/upload", {
+                    method: "POST",
+                    body: form
+                });
+
+                // Cloudinary responde con secure_url casi siempre
+                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+            }
+
             const { total } = calcularTotales(items as any[]);
 
             // Preparar items para enviar, incluyendo información de sección
@@ -401,7 +421,9 @@ const Cotizaciones: React.FC = () => {
                 tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
                 items: itemsParaEnviar,
                 comentariosCotizacion: formData.comentariosCotizacion.trim() || null,
-                secciones: formData.secciones // Incluir información de secciones
+                secciones: formData.secciones, // Incluir información de secciones
+                personaResponsable: formData.personaResponsable || null,
+                imagen: imagenUrl
             };
 
             const data = await apiFetch("/cotizaciones", {
@@ -1208,6 +1230,13 @@ const Cotizaciones: React.FC = () => {
                 Total General: ${formatPDF(totalGeneral)}
             </div>
         </div>
+
+        <!-- Imagen subida por el usuario -->
+${cot.imagen ? `
+<div style="margin: 10px 0; text-align:center;">
+    <img src="${cot.imagen}"
+         style="max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;" />
+</div>` : ''}
 
         <!-- Formas de pago -->
         <div class="payment-info">

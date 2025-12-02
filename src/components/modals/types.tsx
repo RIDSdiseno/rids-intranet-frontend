@@ -80,7 +80,7 @@ export interface CotizacionItemGestioo {
 
   porcentaje?: number | null;
   tieneDescuento?: boolean;
-  
+
   createdAt: string;
   tieneIVA?: boolean;
   sku?: string;
@@ -103,6 +103,9 @@ export interface CotizacionGestioo {
   updatedAt: string;
 
   comentariosCotizacion?: string | null;
+
+  personaResponsable?: string | null;
+  imagen?: string | null;
 }
 
 export interface ProductoForm {
@@ -136,6 +139,11 @@ export interface FormData {
   seccionActiva: number;
 
   comentariosCotizacion: string;
+
+  personaResponsable?: string;
+
+  imagenFile?: File;
+  imagen?: string;
 }
 
 export interface Toast {
