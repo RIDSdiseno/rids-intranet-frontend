@@ -123,7 +123,10 @@ const Cotizaciones: React.FC = () => {
         precioTotal: 0,
         categoria: "",
         stock: 0,
-        serie: ""
+        serie: "",
+
+        imagen: "",
+        imagenFile: null,
     });
 
     // === ESTADOS PARA FILTROS ===
@@ -257,7 +260,8 @@ const Cotizaciones: React.FC = () => {
                 precioTotal: p.precioTotal || p.precio || 0,
                 nombre: p.nombre,
                 sku: p.serie,
-                categoria: p.categoria
+                categoria: p.categoria,
+                imagen: p.imagen || null,
             }));
 
             setProductosCatalogo(productosMapeados);
@@ -290,7 +294,8 @@ const Cotizaciones: React.FC = () => {
                 precioTotal: p.precioTotal || p.precio || 0,
                 nombre: p.nombre,
                 sku: p.serie,
-                categoria: p.categoria
+                categoria: p.categoria,
+                imagen: p.imagen || null,
             }));
 
             setProductosCatalogo(productosMapeados);
@@ -378,26 +383,26 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
-
             let imagenUrl = null;
 
-            // === 1️⃣ SUBIR IMAGEN SI EXISTE ===
+            // === 1️⃣ SUBIR IMAGEN DE LA COTIZACIÓN SI EXISTE ===
             if (formData.imagenFile) {
-                const form = new FormData();
-                form.append("imagen", formData.imagenFile);
+                const formDataToSend = new FormData();
+                formDataToSend.append("imagen", formData.imagenFile);
 
                 const uploadResp = await apiFetch("/upload-imagenes/upload", {
                     method: "POST",
-                    body: form
+                    body: formDataToSend
                 });
 
-                // Cloudinary responde con secure_url casi siempre
+                // Cloudinary devuelve 'url' o 'secure_url'
                 imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+                console.log("✅ Imagen de cotización subida:", imagenUrl);
             }
 
             const { total } = calcularTotales(items as any[]);
 
-            // Preparar items para enviar, incluyendo información de sección
+            // Preparar items para enviar, incluyendo información de sección E IMAGEN
             const itemsParaEnviar = items.map(item => ({
                 tipo: item.tipo,
                 descripcion: item.descripcion,
@@ -408,8 +413,9 @@ const Cotizaciones: React.FC = () => {
                 sku: item.sku || null,
                 precioCosto: item.precioCosto,
                 porcGanancia: item.porcGanancia,
-                seccionId: item.seccionId, // Incluir secciónId
+                seccionId: item.seccionId,
                 tieneDescuento: item.tieneDescuento || false,
+                imagen: item.imagen || null,  // <-- INCLUIR IMAGEN DEL PRODUCTO
             }));
 
             const cotizacionData = {
@@ -421,10 +427,12 @@ const Cotizaciones: React.FC = () => {
                 tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
                 items: itemsParaEnviar,
                 comentariosCotizacion: formData.comentariosCotizacion.trim() || null,
-                secciones: formData.secciones, // Incluir información de secciones
+                secciones: formData.secciones,
                 personaResponsable: formData.personaResponsable || null,
-                imagen: imagenUrl
+                imagen: imagenUrl  // <-- IMAGEN DE LA COTIZACIÓN
             };
+
+            console.log("Enviando cotización:", cotizacionData);
 
             const data = await apiFetch("/cotizaciones", {
                 method: "POST",
@@ -547,30 +555,39 @@ const Cotizaciones: React.FC = () => {
     };
 
     // === FUNCIONES PARA PRODUCTOS ===
-    const agregarProducto = (producto: any) => {
-        const precioFinal = producto.precioTotal || producto.precio;
-        const precioCosto = producto.precio;
-        const porcGanancia = producto.porcGanancia;
+    const agregarProducto = async (producto: any) => {
+        try {
+            // 1️⃣ Traer el producto REAL desde el backend (SIEMPRE incluye imagen correcta)
+            const resp = await apiFetch(`/productos-gestioo/${producto.id}`);
+            const productoReal = resp.data;
 
-        const newItem = {
-            id: Date.now(),
-            tipo: ItemTipoGestioo.PRODUCTO,
-            descripcion: producto.nombre,
-            cantidad: 1,
-            precio: precioFinal,
-            precioCosto,
-            porcGanancia,
-            porcentaje: 0,
-            tieneIVA: true,
-            tieneDescuento: false,          // 👈 nuevo
-            sku: producto.sku,
-            seccionId: formData.seccionActiva
-        };
+            const newItem = {
+                id: Date.now(),
+                tipo: ItemTipoGestioo.PRODUCTO,
+                descripcion: productoReal.nombre,
+                cantidad: 1,
+                precio: productoReal.precioTotal || productoReal.precio,
+                precioCosto: productoReal.precio,
+                porcGanancia: productoReal.porcGanancia,
+                porcentaje: 0,
+                tieneIVA: true,
+                tieneDescuento: false,
+                sku: productoReal.serie,
+                seccionId: formData.seccionActiva,
 
-        setItems(prev => [...prev, newItem]);
-        setShowSelectorProducto(false);
-        showSuccess("Producto agregado correctamente");
+                // 2️⃣ AHORA SIEMPRE TENDRÁS LA IMAGEN CORRECTA
+                imagen: productoReal.imagen || null,
+            };
+
+            setItems(prev => [...prev, newItem]);
+            setShowSelectorProducto(false);
+            showSuccess("Producto agregado correctamente");
+
+        } catch (error) {
+            handleApiError(error, "No se pudo cargar la imagen del producto");
+        }
     };
+
 
     const agregarServicio = (servicio: any) => {
         const newItem = {
@@ -598,16 +615,37 @@ const Cotizaciones: React.FC = () => {
 
     const handleEditarProducto = async (productoData: any) => {
         try {
-            await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
+            // 1️⃣ Guardar cambios
+            const updated = await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(productoData)
             });
 
-            await cargarProductos();
+            // 2️⃣ Volver a cargar el producto actualizado desde el backend
+            const resp = await apiFetch(`/productos-gestioo/${productoAEditar.id}`);
+            const productoReal = resp.data;
+
+            // 3️⃣ Actualizamos el catálogo
+            setProductosCatalogo(prev =>
+                prev.map(p => p.id === productoReal.id ? {
+                    ...p,
+                    imagen: productoReal.imagen
+                } : p)
+            );
+
+            setItems(prev =>
+                prev.map(i =>
+                    i.sku === productoReal.serie
+                        ? { ...i, imagen: productoReal.imagen }
+                        : i
+                )
+            );
+
             showSuccess("Producto actualizado correctamente");
             setShowEditProductoModal(false);
             setShowSelectorProducto(true);
+
         } catch (error) {
             handleApiError(error, "Error al actualizar producto");
         }
@@ -744,7 +782,9 @@ const Cotizaciones: React.FC = () => {
                 precioTotal: 0,
                 categoria: "",
                 stock: 0,
-                serie: ""
+                serie: "",
+                imagen: "",
+                imagenFile: null,
             });
         } catch (error) {
             handleApiError(error, "Error al crear producto");
@@ -797,10 +837,94 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    // === FUNCIÓN PARA PDF (placeholder) ===
     const handlePrint = async (cot: CotizacionGestioo) => {
         try {
+            // ================================
+            // FUNCIÓN MEJORADA PARA CONVERTIR IMÁGENES
+            // ================================
+            async function urlToBase64(url: string | null): Promise<string | null> {
+                try {
+                    // Verificar si la URL es válida
+                    if (!url || !url.startsWith('http')) {
+                        console.warn("URL de imagen inválida:", url);
+                        return null;
+                    }
 
+                    // Crear timeout para evitar bloqueos
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                    // Intentar fetch con diferentes estrategias
+                    let response;
+
+                    // Estrategia 1: Intentar con CORS primero
+                    try {
+                        response = await fetch(url, {
+                            signal: controller.signal,
+                            mode: 'cors',
+                            cache: 'no-cache',
+                            headers: {
+                                'Accept': 'image/*'
+                            }
+                        });
+                    } catch (corsError) {
+                        console.log("CORS falló, intentando sin CORS...");
+                        // Estrategia 2: Usar proxy CORS
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                        response = await fetch(proxyUrl, {
+                            signal: controller.signal,
+                            cache: 'no-cache'
+                        });
+                    }
+
+                    clearTimeout(timeoutId);
+
+                    if (!response || !response.ok) {
+                        console.warn("No se pudo cargar la imagen:", url, response?.status);
+                        return null;
+                    }
+
+                    const blob = await response.blob();
+
+                    if (blob.size === 0) {
+                        console.warn("Blob vacío para imagen:", url);
+                        return null;
+                    }
+
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            resolve(reader.result as string);
+                        };
+                        reader.onerror = () => {
+                            console.warn("Error leyendo blob");
+                            resolve(null);
+                        };
+                        reader.readAsDataURL(blob);
+                    });
+
+                } catch (error) {
+                    console.warn("Error en urlToBase64 para:", url, error);
+                    return null;
+                }
+            }
+
+            // ================================
+            // VALIDACIONES
+            // ================================
+            if (!cot) {
+                alert("No hay datos de cotización");
+                return;
+            }
+
+            if (!cot.items || cot.items.length === 0) {
+                alert("No hay items en esta cotización para generar el PDF");
+                return;
+            }
+
+            // ================================
+            // DATOS BASE
+            // ================================
             const fechaActual = new Date().toLocaleString("es-CL", {
                 dateStyle: "short",
                 timeStyle: "short",
@@ -808,9 +932,9 @@ const Cotizaciones: React.FC = () => {
 
             const codigo = `COT-${String(cot.id).padStart(6, "0")}`;
 
-            type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+            type OrigenGestiooLocal = "RIDS" | "ECONNET" | "OTRO";
 
-            const ORIGEN_DATA: Record<OrigenGestioo, {
+            const ORIGEN_DATA: Record<OrigenGestiooLocal, {
                 nombre: string;
                 direccion: string;
                 correo: string;
@@ -824,7 +948,7 @@ const Cotizaciones: React.FC = () => {
                     correo: "soporte@rids.cl",
                     telefono: "+56 9 8823 1976",
                     rut: "76.758.352-4",
-                    logo: "/img/splash.png"
+                    logo: "/img/splash.png",
                 },
                 ECONNET: {
                     nombre: "ECONNET SPA",
@@ -832,7 +956,7 @@ const Cotizaciones: React.FC = () => {
                     correo: "ventas@econnet.cl",
                     telefono: "+56 9 8807 6593",
                     rut: "76.758.352-4",
-                    logo: "/img/ecconetlogo.png"
+                    logo: "/img/ecconetlogo.png",
                 },
                 OTRO: {
                     nombre: cot.entidad?.nombre ?? "Empresa",
@@ -840,148 +964,178 @@ const Cotizaciones: React.FC = () => {
                     correo: cot.entidad?.correo ?? "",
                     telefono: cot.entidad?.telefono ?? "",
                     rut: cot.entidad?.rut ?? "",
-                    logo: "/img/splash.png"
-                }
+                    logo: "/img/splash.png",
+                },
             };
 
-            // Función para formatear moneda
+            const origen = (cot.entidad?.origen ?? "OTRO") as OrigenGestiooLocal;
+            const origenInfo = ORIGEN_DATA[origen];
+
+            // ================================
+            // FORMATO MONEDA
+            // ================================
             const formatPDF = (valorCLP: number) => {
+                if (isNaN(valorCLP)) return "$0";
+
                 if (cot.moneda === "USD") {
-                    const usd = valorCLP / (cot.tasaCambio || 1);
+                    const tasa = cot.tasaCambio || 1;
+                    const usd = valorCLP / tasa;
                     return `US$ ${usd.toFixed(2)}`;
                 }
                 return `$${Math.round(valorCLP).toLocaleString("es-CL")}`;
             };
 
-            // VERIFICAR SI HAY ITEMS
-            if (!cot.items || cot.items.length === 0) {
-                alert("No hay items en esta cotización para generar el PDF");
-                return;
-            }
+            // ================================
+            // FUNCIÓN PARA CALCULAR VALORES
+            // ================================
+            const calcularValoresItem = (item: any) => {
+                const precio = Number(item.precio) || 0;
+                const cantidad = Number(item.cantidad) || 0;
+                const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
 
-            // ESTRATEGIA: Si hay secciones, agrupar por secciones, sino mostrar todos los items juntos
-            let seccionesHtml = '';
+                const base = precio * cantidad;
+
+                const tieneDescuentoValido = item.tieneDescuento && porcentaje > 0;
+                const esAdicional = item.tipo === "ADICIONAL";
+                const descuentoItem =
+                    tieneDescuentoValido && !esAdicional ? (base * porcentaje) / 100 : 0;
+
+                const baseConDescuento = base - descuentoItem;
+
+                const ivaMonto =
+                    item.tieneIVA && !esAdicional ? baseConDescuento * 0.19 : 0;
+
+                const totalItem = baseConDescuento + ivaMonto;
+
+                return {
+                    base,
+                    descuentoItem,
+                    baseConDescuento,
+                    ivaMonto,
+                    totalItem,
+                    porcentajeMostrar: tieneDescuentoValido ? porcentaje : 0,
+                    ivaPorcentajeMostrar: item.tieneIVA ? 19 : 0,
+                };
+            };
+
+            // ================================
+            // CONVERTIR IMÁGENES A BASE64
+            // ================================
+
+            // Convertir imagen principal de la cotización
+            const imagenBase64 = await urlToBase64(cot.imagen ?? null);
+
+            // Preparar caché para imágenes de productos (evitar conversiones duplicadas)
+            const imagenesCache = new Map<string, string | null>();
+
+            // ================================
+            // PROCESAR ÍTEMS CON IMÁGENES
+            // ================================
+            let seccionesHtml = "";
             let totalGeneral = 0;
 
+            // Función auxiliar para obtener imagen en base64 desde caché
+            const obtenerImagenBase64 = async (url: string | null | undefined): Promise<string | null> => {
+                if (!url) return null;
+                if (imagenesCache.has(url)) return imagenesCache.get(url) || null;
+
+                const base64 = await urlToBase64(url ?? null);
+                imagenesCache.set(url, base64);
+                return base64;
+            };
+
+
+            // Con secciones
             if (cot.secciones && cot.secciones.length > 0) {
-                console.log("✅ Usando secciones definidas");
-                // Ordenar secciones por orden
-                const seccionesOrdenadas = [...cot.secciones].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+                const seccionesOrdenadas = [...cot.secciones].sort(
+                    (a, b) => (a.orden || 0) - (b.orden || 0)
+                );
 
                 for (const seccion of seccionesOrdenadas) {
-                    // Filtrar items por sección
-                    const itemsSeccion = cot.items.filter(item => item.seccionId === seccion.id);
-
+                    const itemsSeccion = cot.items.filter(
+                        (item) => item.seccionId === seccion.id
+                    );
                     if (itemsSeccion.length === 0) continue;
 
-                    // Calcular totales por sección
-                    const { subtotalBruto, descuentos, subtotal, iva, total } = calcularTotales(itemsSeccion);
-                    totalGeneral += total;
+                    let totalSeccion = 0;
 
-                    // Generar HTML de items para esta sección
-                    const itemsHtml = itemsSeccion.map((item) => {
-                        // Asegurar que porcentaje es número
-                        const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
+                    const itemsHtmlPromises = itemsSeccion.map(async (item) => {
+                        const valores = calcularValoresItem(item);
 
-                        // Base del item
-                        const base = Number(item.precio) * Number(item.cantidad);
+                        // Obtener imagen en base64 desde caché
+                        const imagenItemBase64 = await obtenerImagenBase64(item.imagen ?? null);
 
-                        // Descuento solo si aplica
-                        const descuentoItem =
-                            (item.tieneDescuento && porcentaje > 0 && item.tipo !== ItemTipoGestioo.ADICIONAL)
-                                ? (base * porcentaje) / 100
-                                : 0;
-
-                        // Precio después del descuento
-                        const baseConDescuento = base - descuentoItem;
-
-                        // IVA solo si aplica
-                        const ivaMonto =
-                            (item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL)
-                                ? baseConDescuento * 0.19
-                                : 0;
-
-                        // Total final
-                        const totalItem = baseConDescuento + ivaMonto;
-
+                        totalSeccion += valores.totalItem;
 
                         return `
 <tr>
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
         ${item.sku || ""}
     </td>
-
-    <td style="padding:8px;border-bottom:1px solid #ddd;">
-        ${item.descripcion}
+    <td style="padding:8px;border-bottom:1px solid #ddd; display:flex; align-items:center; gap:8px;">
+        <span>${item.descripcion}</span>
     </td>
-
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-        ${formatPDF(item.precio)}
+        ${formatPDF(Number(item.precio) || 0)}
     </td>
-
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
         ${item.cantidad}
     </td>
-
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-  ${item.tieneDescuento && item.tipo !== ItemTipoGestioo.ADICIONAL ? item.porcentaje : 0}%
-</td>
-
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-        ${formatPDF(descuentoItem)}
+        ${valores.porcentajeMostrar}%
     </td>
-
+    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+        ${formatPDF(valores.descuentoItem)}
+    </td>
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-        ${item.tieneIVA ? 19 : 0}%
+        ${valores.ivaPorcentajeMostrar}%
     </td>
-
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-        ${formatPDF(ivaMonto)}
+        ${formatPDF(valores.ivaMonto)}
     </td>
-
     <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-        ${formatPDF(totalItem)}
+        ${formatPDF(valores.totalItem)}
     </td>
 </tr>`;
-                    }).join("");
+                    });
 
+                    const itemsHtml = (await Promise.all(itemsHtmlPromises)).join("");
+                    totalGeneral += totalSeccion;
 
-                    // HTML de la sección
                     seccionesHtml += `
     <div style="margin-bottom: 30px;">
-        <!-- Encabezado de sección -->
         <div style="background:#f8f9fa; padding:10px 15px; border-radius:6px; margin-bottom:15px; border-left:4px solid #007bff;">
             <h3 style="margin:0; font-size:18px; font-weight:bold; color:#333;">${seccion.nombre.toUpperCase()}</h3>
-            ${seccion.descripcion ? `<p style="margin:4px 0 0 0; font-size:14px; color:#666;">${seccion.descripcion}</p>` : ''}
+            ${seccion.descripcion
+                            ? `<p style="margin:4px 0 0 0; font-size:14px; color:#666;">${seccion.descripcion}</p>`
+                            : ""
+                        }
         </div>
         
-        <!-- Tabla de items de la sección -->
         <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
             <thead>
-    <tr style="background:#e9ecef;">
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-        <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
-    </tr>
-</thead>
-
+                <tr style="background:#e9ecef;">
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+                    <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
+                    <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+                    <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+                </tr>
+            </thead>
             <tbody>
                 ${itemsHtml}
             </tbody>
-            <!-- Total de la sección -->
             <tfoot>
                 <tr>
-                    <td colspan="7" style="padding:8px; text-align:right; border:1px solid #dee2e6; font-weight:bold;">
+                    <td colspan="8" style="padding:8px; text-align:right; border:1px solid #dee2e6; font-weight:bold;">
                         Total ${seccion.nombre}:
                     </td>
                     <td style="padding:8px; text-align:right; border:1px solid #dee2e6; font-weight:bold;">
-                        ${formatPDF(total)}
+                        ${formatPDF(totalSeccion)}
                     </td>
                 </tr>
             </tfoot>
@@ -989,99 +1143,73 @@ const Cotizaciones: React.FC = () => {
     </div>`;
                 }
             } else {
-                console.log("No hay secciones, mostrando todos los items juntos");
-                // Si no hay secciones, mostrar todos los items en una sola tabla
-                const { subtotalBruto, descuentos, subtotal, iva, total } = calcularTotales(cot.items);
-                totalGeneral = total;
+                // SIN secciones
+                const itemsHtmlPromises = cot.items.map(async (item) => {
+                    const valores = calcularValoresItem(item);
 
-                const itemsHtml = cot.items.map((item) => {
-                    // Asegurar que porcentaje es número seguro
-                    const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
+                    // Obtener imagen en base64 desde caché
+                    const imagenItemBase64 = await obtenerImagenBase64(item.imagen);
 
-                    // Base del producto
-                    const base = Number(item.precio) * Number(item.cantidad);
-
-                    // Descuento solo si aplica
-                    const descuentoItem =
-                        item.tieneDescuento && porcentaje > 0
-                            ? (base * porcentaje) / 100
-                            : 0;
-
-                    // Precio luego de descuento
-                    const baseConDescuento = base - descuentoItem;
-
-                    // IVA calculado solo si aplica
-                    const ivaMonto = item.tieneIVA ? baseConDescuento * 0.19 : 0;
-
-                    // Total final por ítem
-                    const totalItem = baseConDescuento + ivaMonto;
+                    totalGeneral += valores.totalItem;
 
                     return `
     <tr>
         <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-    ${item.sku || ""}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;">
-    ${item.descripcion}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-    ${formatPDF(item.precio)}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-    ${item.cantidad}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-    ${item.tieneDescuento ? item.porcentaje : 0}%
-</td>
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-    ${formatPDF(descuentoItem)}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-    ${item.tieneIVA ? 19 : 0}%
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-    ${formatPDF(ivaMonto)}
-</td>
-
-<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-    ${formatPDF(totalItem)}
-</td>
-
+            ${item.sku || ""}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd; display:flex; align-items:center; gap:8px;">
+            <span>${item.descripcion}</span>
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+            ${formatPDF(Number(item.precio) || 0)}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+            ${item.cantidad}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+            ${valores.porcentajeMostrar}%
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+            ${formatPDF(valores.descuentoItem)}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+            ${valores.ivaPorcentajeMostrar}%
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+            ${formatPDF(valores.ivaMonto)}
+        </td>
+        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+            ${formatPDF(valores.totalItem)}
+        </td>
     </tr>`;
-                }).join("");
+                });
+                // Obtener imagen en base64 desde caché
+                const itemsHtml = (await Promise.all(itemsHtmlPromises)).join("");
 
                 seccionesHtml = `
     <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
         <thead>
-    <tr style="background:#e9ecef;">
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-        <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
-        <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
-        <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
-    </tr>
-</thead>
-
+            <tr style="background:#e9ecef;">
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
+                <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Desc ($)</th>
+                <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">IVA (%)</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">IVA ($)</th>
+                <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">Total</th>
+            </tr>
+        </thead>
         <tbody>
             ${itemsHtml}
         </tbody>
     </table>`;
             }
 
-            const origen = (cot.entidad?.origen ?? "OTRO") as OrigenGestioo;
-            const origenInfo = ORIGEN_DATA[origen];
-
-            // === HTML del PDF ===
+            // ================================
+            // HTML COMPLETO
+            // ================================
             const html = `
 <!DOCTYPE html>
 <html>
@@ -1102,53 +1230,58 @@ const Cotizaciones: React.FC = () => {
         tfoot td { font-weight: bold; }
         .payment-info { margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #fafafa; font-size: 13px; }
         .footer-section {
-    display: flex;
-    justify-content: space-between;
-    gap: 40px;
-    margin-top: 40px;
-}
-
-.comentarios-box {
-    flex: 1;
-    padding: 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    background: #f9fafb;
-    font-size: 12px;
-}
-
-.comentarios-box h4 {
-    margin: 0 0 6px 0;
-    font-size: 13px;
-    color: #111827;
-    font-weight: bold;
-}
-
-.comentarios-box p {
-    margin: 0;
-    font-size: 12px;
-    color: #374151;
-    white-space: pre-wrap; /* permite saltos de línea */
-}
-
-.signature {
-    width: 260px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-}
-
-.signature-line {
-    width: 100%;
-    border-top: 1px solid #000;
-    padding-top: 8px;
-    padding-bottom: 6px;
-    text-align: center;
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+            margin-top: 40px;
+        }
+        .comentarios-box {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            background: #f9fafb;
+            font-size: 12px;
+        }
+        .comentarios-box h4 {
+            margin: 0 0 6px 0;
+            font-size: 13px;
+            color: #111827;
+            font-weight: bold;
+        }
+        .comentarios-box p {
+            margin: 0;
+            font-size: 12px;
+            color: #374151;
+            white-space: pre-wrap;
+        }
+        .signature {
+            width: 260px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+        .signature-line {
+            width: 100%;
+            border-top: 1px solid #000;
+            padding-top: 8px;
+            padding-bottom: 6px;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        @media print {
+            body { padding: 0; }
+            .container { width: 100%; }
+        }
+        /* Estilos para imágenes en PDF */
+        .product-image {
+            width: 45px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -1168,32 +1301,15 @@ const Cotizaciones: React.FC = () => {
                 </div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-    <!-- Fecha -->
-    <p style="margin:0;font-size:11px;color:#4b5563;">
-        Fecha impresión: ${fechaActual}
-    </p>
-
-    <!-- Timbre tipo SII -->
-    <div style="
-        border:1.5px solid #000;
-        padding:6px 14px;
-        text-align:center;
-        font-family: Arial, sans-serif;
-        min-width:150px;
-    ">
-        <div style="font-size:11px; font-weight:bold; color:#b91c1c;">
-            R.U.T.: ${origenInfo.rut}
-        </div>
-        <div style="font-size:11px; font-weight:bold; color:#b91c1c; margin-top:2px;">
-            COTIZACIÓN
-            <!-- o 'ORDEN DE TALLER' / 'COTIZACIÓN' según corresponda -->
-        </div>
-        <div style="font-size:12px; font-weight:bold; color:#b91c1c; margin-top:4px;">
-            N° ${codigo}
-        </div>
-    </div>
-</div>
-
+                <p style="margin:0;font-size:11px;color:#4b5563;">
+                    Fecha impresión: ${fechaActual}
+                </p>
+                <div style="border:1.5px solid #000; padding:6px 14px; text-align:center; font-family: Arial, sans-serif; min-width:150px;">
+                    <div style="font-size:11px; font-weight:bold; color:#b91c1c;">R.U.T.: ${origenInfo.rut}</div>
+                    <div style="font-size:11px; font-weight:bold; color:#b91c1c; margin-top:2px;">COTIZACIÓN</div>
+                    <div style="font-size:12px; font-weight:bold; color:#b91c1c; margin-top:4px;">N° ${codigo}</div>
+                </div>
+            </div>
         </div>
 
         <br>
@@ -1230,13 +1346,40 @@ const Cotizaciones: React.FC = () => {
                 Total General: ${formatPDF(totalGeneral)}
             </div>
         </div>
+        <br>
+         <!-- Imágenes en fila horizontal -->
+<div style="
+    display:flex;
+    flex-direction:row;
+    gap:12px;
+    margin-top:15px;
+    flex-wrap:nowrap;       /* ⬅ evita que se vayan hacia abajo */
+    overflow-x:auto;        /* ⬅ si son muchas, aparece scroll horizontal */
+    padding-bottom:10px;
+">
+    ${(
+                    await Promise.all(
+                        cot.items.map(async (item) => {
+                            const img = await obtenerImagenBase64(item.imagen);
+                            if (!img) return "";
+                            return `
+                        <img src="${img}"
+                            style="
+                                width:110px;
+                                height:110px;
+                                object-fit:cover;
+                                border-radius:10px;
+                                border:1px solid #ccc;
+                                flex-shrink:0;  /* ⬅ evita que se achiquen */
+                            "
+                        />
+                    `;
+                        })
+                    )
+                ).join("")
+                }
+</div>
 
-        <!-- Imagen subida por el usuario -->
-${cot.imagen ? `
-<div style="margin: 10px 0; text-align:center;">
-    <img src="${cot.imagen}"
-         style="max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;" />
-</div>` : ''}
 
         <!-- Formas de pago -->
         <div class="payment-info">
@@ -1247,28 +1390,24 @@ ${cot.imagen ? `
             <p><b>Correo de pagos:</b> pagos@rids.cl</p>
             <p><b>Notas:</b> Se inicia previa aceptación y abono del 50%.</p>
         </div>
-        <br><br><br>
+        <br>
         <!-- Comentarios + Firma -->
-<div class="footer-section">
-    <!-- Caja comentarios -->
-    <div class="comentarios-box">
-        <h4>Comentarios de la cotización</h4>
-        <p>${cot.comentariosCotizacion || "—"}</p>
-    </div>
-
-    <!-- Firma -->
-    <div class="signature">
-        <div class="signature-line">
-            Firma y aclaración
+        <div class="footer-section">
+            <div class="comentarios-box">
+                <h4>Comentarios de la cotización</h4>
+                <p>${cot.comentariosCotizacion || "—"}</p>
+            </div>
+            <div class="signature">
+                <div class="signature-line">Firma y aclaración</div>
+            </div>
         </div>
-    </div>
-</div>
-
     </div>
 </body>
 </html>`;
 
-            // === Render temporal ===
+            // ================================
+            // RENDER INVISIBLE + HTML2CANVAS
+            // ================================
             const container = document.createElement("div");
             container.style.position = "fixed";
             container.style.left = "-9999px";
@@ -1278,36 +1417,95 @@ ${cot.imagen ? `
             container.innerHTML = html;
             document.body.appendChild(container);
 
-            // Esperar un momento para que se renderice
+            // Esperar a que todas las imágenes se carguen
+            const images = container.querySelectorAll("img");
+            const imagePromises = Array.from(images).map((img) => {
+                return new Promise<void>((resolve) => {
+                    if (img.complete) {
+                        resolve();
+                        return;
+                    }
+
+                    img.onload = () => {
+                        console.log("Imagen cargada:", img.src.substring(0, 50));
+                        resolve();
+                    };
+
+                    img.onerror = () => {
+                        console.warn("Error cargando imagen en PDF");
+                        // Si falla, intentar cargar una imagen placeholder
+                        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='45' height='45' viewBox='0 0 45 45'%3E%3Crect width='45' height='45' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'%3ESin imagen%3C/text%3E%3C/svg%3E";
+                        resolve();
+                    };
+
+                    // Timeout para imágenes que tardan demasiado
+                    setTimeout(() => {
+                        if (img.src && !img.complete) {
+                            console.log("Timeout para imagen:", img.src.substring(0, 50));
+                            resolve();
+                        }
+                    }, 5000);
+                });
+            });
+
+            await Promise.all(imagePromises);
+
+            // Esperar un poco más para asegurar renderizado
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // === Convertir a Canvas ===
+            // ================================
+            // CONVERTIR A CANVAS CON MEJORES OPCIONES
+            // ================================
             const canvas = await html2canvas(container, {
                 scale: 2,
                 useCORS: true,
+                allowTaint: true,  // Permitir taint para imágenes base64
                 backgroundColor: "#FFFFFF",
-                logging: true,
+                logging: false,
                 width: 874,
-                windowWidth: 874
+                windowWidth: 874,
+                scrollY: 0,
+                scrollX: 0,
+                onclone: (clonedDoc) => {
+                    // Asegurar que todas las imágenes tengan dimensiones explícitas
+                    const clonedImages = clonedDoc.querySelectorAll("img");
+                    clonedImages.forEach(img => {
+                        if (!img.style.width) img.style.width = "auto";
+                        if (!img.style.height) img.style.height = "auto";
+                    });
+                }
             });
 
-            // === Crear PDF ===
+            // ================================
+            // CREAR PDF
+            // ================================
             const pdf = new jsPDF({
                 orientation: "portrait",
                 unit: "pt",
-                format: "a4"
+                format: "a4",
             });
 
-            const imgData = canvas.toDataURL("image/png");
+            const imgData = canvas.toDataURL("image/jpeg", 0.95); // JPEG con mejor compresión
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            let position = 0;
+
+            // Manejar múltiples páginas
+            while (position < pdfHeight) {
+                if (position > 0) {
+                    pdf.addPage();
+                }
+
+                pdf.addImage(imgData, "JPEG", 0, -position, pdfWidth, pdfHeight);
+                position += pageHeight;
+            }
+
             pdf.save(`Cotizacion_${codigo}.pdf`);
 
             // Limpiar
             document.body.removeChild(container);
-
             showSuccess("PDF generado correctamente");
 
         } catch (e) {
@@ -1315,6 +1513,7 @@ ${cot.imagen ? `
             handleApiError(e, "Error al generar PDF");
         }
     };
+
 
     // === FILTROS ===
     const q = query.toLowerCase();

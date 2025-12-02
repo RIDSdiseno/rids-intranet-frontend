@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     EditOutlined,
@@ -7,6 +7,7 @@ import {
     PercentageOutlined,
 } from "@ant-design/icons";
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
+import { useApi } from "./UseApi";
 
 interface EditProductoModalProps {
     show: boolean;
@@ -17,6 +18,20 @@ interface EditProductoModalProps {
     apiLoading: boolean;
 }
 
+// Interfaz para el estado del formulario
+interface FormDataState {
+    nombre: string;
+    descripcion: string;
+    precio: number;
+    porcGanancia: number;
+    precioTotal: number;
+    categoria: string;
+    stock: number;
+    codigo: string;
+    imagen: string | null;
+    imagenFile: File | null;
+}
+
 const EditProductoModal: React.FC<EditProductoModalProps> = ({
     show,
     producto,
@@ -25,22 +40,87 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
     onBackToSelector,
     apiLoading,
 }) => {
-    if (!show || !producto) return null;
 
-    const [formData, setFormData] = React.useState({
-        nombre: producto.nombre || "",
-        descripcion: producto.descripcion || "",
-        precio: producto.precio || 0,
-        porcGanancia: producto.porcGanancia || 0,
-        precioTotal: producto.precioTotal || producto.precio || 0,
-        categoria: producto.categoria || "",
-        stock: producto.stock || 0,
-        codigo: producto.codigo || producto.sku || "",
+    const [formData, setFormData] = React.useState<FormDataState>({
+        nombre: "",
+        descripcion: "",
+        precio: 0,
+        porcGanancia: 0,
+        precioTotal: 0,
+        categoria: "",
+        stock: 0,
+        codigo: "",
+        imagen: null,
+        imagenFile: null,
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const { fetchApi: apiFetch } = useApi();
+
+    // Cuando el modal se abre o cambia producto
+    React.useEffect(() => {
+        if (show && producto) {
+            setFormData({
+                nombre: producto.nombre || "",
+                descripcion: producto.descripcion || "",
+                precio: producto.precio || 0,
+                porcGanancia: producto.porcGanancia || 0,
+                precioTotal: producto.precioTotal || producto.precio || 0,
+                categoria: producto.categoria || "",
+                stock: producto.stock || 0,
+                codigo: producto.codigo || producto.sku || "",
+                imagen: producto.imagen ?? null,
+                imagenFile: null,
+            });
+        }
+    }, [show, producto]);
+
+    useEffect(() => {
+        console.log("Producto recibido:", producto);
+    }, [producto]);
+
+    // -------------------------
+    // 2. Return DESPUÉS de hooks
+    // -------------------------
+    if (!show || !producto) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+
+        let imagenUrl = formData.imagen;
+
+        // Si el usuario seleccionó una nueva imagen → subirla
+        if (formData.imagenFile) {
+            const form = new FormData();
+            form.append("imagen", formData.imagenFile);
+
+            console.log("Subiendo nueva imagen...", formData.imagenFile.name);
+
+            const uploadResp = await apiFetch("/upload-imagenes/upload", {
+                method: "POST",
+                body: form
+            });
+
+            console.log("Respuesta de Cloudinary:", uploadResp);
+
+            imagenUrl = uploadResp.secure_url || uploadResp.url || uploadResp.data?.url || null;
+
+            if (!imagenUrl) {
+                console.warn("Cloudinary no devolvió URL válida:", uploadResp);
+            }
+        }
+
+        // Enviar datos al back
+        onSave({
+            nombre: formData.nombre,
+            descripcion: formData.descripcion,
+            precio: formData.precio,
+            porcGanancia: formData.porcGanancia,
+            precioTotal: formData.precioTotal,
+            categoria: formData.categoria,
+            stock: formData.stock,
+            serie: formData.codigo,
+            imagen: imagenUrl,
+        });
     };
 
     const handlePrecioChange = (precio: number) => {
@@ -238,6 +318,54 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                                 placeholder="Ej: PROD-001, SKU-123"
                             />
                         </div>
+                    </div>
+
+                    {/* Imagen del producto */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
+                            Imagen del Producto
+                        </label>
+
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setFormData(prev => ({
+                                    ...prev,
+                                    imagenFile: file
+                                }));
+                            }}
+                            className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm"
+                        />
+
+                        {/* Miniatura si existe imagen actual */}
+                        {formData.imagen && (
+                            <div className="mt-3">
+                                <p className="text-xs text-slate-500 mb-1">Imagen actual:</p>
+                                <img
+                                    src={formData.imagen}
+                                    alt="Imagen del producto"
+                                    className="h-32 w-32 object-cover rounded-lg border"
+                                    onError={(e) => {
+                                        // Si falla la imagen, ocultar
+                                        e.currentTarget.style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Preview de nueva imagen si se selecciona */}
+                        {formData.imagenFile && (
+                            <div className="mt-3">
+                                <p className="text-xs text-emerald-600 mb-1">Nueva imagen seleccionada:</p>
+                                <img
+                                    src={URL.createObjectURL(formData.imagenFile)}
+                                    alt="Preview"
+                                    className="h-32 w-32 object-cover rounded-lg border"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Botones de acción */}

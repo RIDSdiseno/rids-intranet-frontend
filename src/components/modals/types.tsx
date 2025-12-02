@@ -85,6 +85,8 @@ export interface CotizacionItemGestioo {
   tieneIVA?: boolean;
   sku?: string;
   seccionId: number;
+
+  imagen?: string | null;
 }
 
 export interface CotizacionGestioo {
@@ -117,6 +119,9 @@ export interface ProductoForm {
   categoria: string;
   stock: number;
   serie: string;
+
+  imagen: string | null;
+  imagenFile: File | null;
 }
 
 export interface EmpresaForm {

@@ -10,6 +10,8 @@ import {
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import type { ProductoForm } from "./types";
 
+import { useApi } from "./UseApi";
+
 interface NewProductoModalProps {
     show: boolean;
     onClose: () => void;
@@ -31,15 +33,52 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 }) => {
     if (!show) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const { fetchApi: apiFetch } = useApi();
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Asegurar que precioTotal esté calculado
-        const datos = {
-            ...formData,
-            precioTotal: formData.precioTotal || calcularPrecioTotal(formData.precio, formData.porcGanancia)
-        };
-        onSubmit(datos);
+
+        try {
+            let imagenUrl: string | null = null;
+
+            // 1. Subir imagen si existe
+            if (formData.imagenFile) {
+                const data = new FormData();
+                data.append("imagen", formData.imagenFile);
+
+                // Usar apiFetch (que ya tiene la URL base configurada)
+                const uploadResp = await apiFetch("/upload-imagenes/upload", {
+                    method: "POST",
+                    body: data
+                });
+
+                // Cloudinary devuelve 'url' o 'secure_url'
+                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+                console.log("✅ Imagen subida:", imagenUrl);
+            }
+
+            // 2. Preparar datos para enviar al backend
+            const datos = {
+                nombre: formData.nombre,
+                descripcion: formData.descripcion,
+                precio: formData.precio,
+                porcGanancia: formData.porcGanancia,
+                precioTotal: formData.precioTotal || calcularPrecioTotal(formData.precio, formData.porcGanancia),
+                categoria: formData.categoria,
+                stock: formData.stock,
+                serie: formData.serie,
+                imagen: imagenUrl,  // string o null
+            };
+
+            console.log("Creando producto con datos:", datos);
+            onSubmit(datos);
+
+        } catch (error) {
+            console.error("❌ Error completo al crear producto:", error);
+            alert("Error al subir la imagen. Verifica la consola para más detalles.");
+        }
     };
+
 
     const handlePrecioChange = (precio: number) => {
         const precioTotal = calcularPrecioTotal(precio, formData.porcGanancia);
@@ -243,6 +282,28 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                                 </p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Imagen del Producto */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
+                            Imagen del Producto
+                        </label>
+
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm bg-white"
+                            onChange={(e) => onFormChange("imagenFile", e.target.files?.[0] || null)}
+                        />
+
+                        {formData.imagenFile && (
+                            <img
+                                src={URL.createObjectURL(formData.imagenFile)}
+                                alt="preview"
+                                className="mt-2 w-32 h-32 object-cover rounded-xl border"
+                            />
+                        )}
                     </div>
 
                     {/* Botones de acción */}

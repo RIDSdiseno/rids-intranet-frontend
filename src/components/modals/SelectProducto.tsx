@@ -136,15 +136,26 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
 
                             {/* Nombre */}
                             <td className="p-4">
-                                <div>
-                                    <h3 className="font-medium text-slate-800 group-hover:text-cyan-700 transition-colors">
-                                        {producto.nombre}
-                                    </h3>
-                                    {producto.descripcion && (
-                                        <p className="text-sm text-slate-500 mt-1 line-clamp-1">
-                                            {producto.descripcion}
-                                        </p>
+                                <div className="flex items-center gap-3">
+                                    {producto.imagen && (
+                                        <img
+                                            src={producto.imagen}
+                                            className="w-12 h-12 rounded-md border object-cover"
+                                            alt="img"
+                                        />
                                     )}
+
+                                    <div>
+                                        <h3 className="font-medium text-slate-800 group-hover:text-cyan-700 transition-colors">
+                                            {producto.nombre}
+                                        </h3>
+
+                                        {producto.descripcion && (
+                                            <p className="text-sm text-slate-500 mt-1 line-clamp-1">
+                                                {producto.descripcion}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </td>
 
@@ -256,6 +267,15 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
 
                     {/* Contenido principal */}
                     <div className="p-4">
+
+                        {producto.imagen && (
+                            <img
+                                src={producto.imagen}
+                                alt="producto"
+                                className="w-full h-40 object-cover rounded-xl mb-4 border"
+                            />
+                        )}
+
                         {/* Nombre del producto */}
                         <h3 className="font-semibold text-slate-800 text-base leading-tight mb-2 line-clamp-2 group-hover:text-cyan-700 transition-colors min-h-[2.5rem]">
                             {producto.nombre || "Producto sin nombre"}

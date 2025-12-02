@@ -706,31 +706,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                             </div>
                                         )}
                                     </div>
-                                    {/* Imagen opcional para la cotización */}
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Imagen (opcional)
-                                        </label>
-
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    setFormData({ ...formData, imagenFile: file });
-                                                }
-                                            }}
-                                            className="w-full px-3 py-2 border border-cyan-200 rounded-xl text-sm"
-                                        />
-
-                                        {formData.imagen && (
-                                            <p className="text-xs text-green-600 mt-1">
-                                                Imagen subida correctamente ✔
-                                            </p>
-                                        )}
-                                    </div>
-
                                 </div>
                             </div>
                         </div>
