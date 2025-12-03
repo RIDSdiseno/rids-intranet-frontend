@@ -87,26 +87,22 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         e.preventDefault();
 
         let imagenUrl = formData.imagen;
+        let newPublicId = producto.publicId; // mantener publicId existente
+        let uploadResp: any = null; // declarar 1 vez
 
         // Si el usuario seleccionó una nueva imagen → subirla
         if (formData.imagenFile) {
             const form = new FormData();
+            form.append("productoId", String(producto.id));
             form.append("imagen", formData.imagenFile);
 
-            console.log("Subiendo nueva imagen...", formData.imagenFile.name);
-
-            const uploadResp = await apiFetch("/upload-imagenes/upload", {
+            uploadResp = await apiFetch("/upload-imagenes/upload", {
                 method: "POST",
                 body: form
             });
 
-            console.log("Respuesta de Cloudinary:", uploadResp);
-
-            imagenUrl = uploadResp.secure_url || uploadResp.url || uploadResp.data?.url || null;
-
-            if (!imagenUrl) {
-                console.warn("Cloudinary no devolvió URL válida:", uploadResp);
-            }
+            imagenUrl = uploadResp?.producto?.imagen || imagenUrl;
+            newPublicId = uploadResp?.producto?.publicId || newPublicId;
         }
 
         // Enviar datos al back
@@ -120,8 +116,10 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
             stock: formData.stock,
             serie: formData.codigo,
             imagen: imagenUrl,
+            publicId: newPublicId,
         });
     };
+
 
     const handlePrecioChange = (precio: number) => {
         const precioTotal = calcularPrecioTotal(precio, formData.porcGanancia);

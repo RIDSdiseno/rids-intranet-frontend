@@ -763,17 +763,26 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const handleCrearProducto = async (datos: any) => {
+    const handleCrearProducto = async (productoFinal: any) => {
         try {
-            await apiFetch("/productos-gestioo", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(datos)
-            });
+            // 1️⃣ Agregar al catálogo local
+            setProductosCatalogo(prev => [...prev, {
+                id: productoFinal.id,
+                tipo: "PRODUCTO",
+                descripcion: productoFinal.descripcion || productoFinal.nombre,
+                precio: productoFinal.precioTotal || productoFinal.precio,
+                porcGanancia: productoFinal.porcGanancia,
+                precioTotal: productoFinal.precioTotal,
+                nombre: productoFinal.nombre,
+                sku: productoFinal.serie,
+                categoria: productoFinal.categoria,
+                imagen: productoFinal.imagen || null
+            }]);
 
-            await cargarProductos();
-            showSuccess("Producto creado correctamente");
+            // 2️⃣ Cerrar modal
             setShowNewProductoModal(false);
+
+            // 3️⃣ Reset formulario
             setProductoForm({
                 nombre: "",
                 descripcion: "",
@@ -786,8 +795,12 @@ const Cotizaciones: React.FC = () => {
                 imagen: "",
                 imagenFile: null,
             });
+
+            // 4️⃣ Mostrar éxito
+            showSuccess("Producto creado correctamente");
+
         } catch (error) {
-            handleApiError(error, "Error al crear producto");
+            handleApiError(error, "Error al procesar el nuevo producto");
         }
     };
 

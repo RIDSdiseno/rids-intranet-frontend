@@ -39,46 +39,68 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
         e.preventDefault();
 
         try {
-            let imagenUrl: string | null = null;
+            // 1️⃣ Crear producto SIN imagen
+            console.log("📦 Creando producto en BD...");
 
-            // 1. Subir imagen si existe
+            const nuevoProductoResp = await apiFetch("/productos-gestioo", {
+                method: "POST",
+                body: JSON.stringify({
+                    nombre: formData.nombre,
+                    descripcion: formData.descripcion,
+                    precio: formData.precio,
+                    porcGanancia: formData.porcGanancia,
+                    precioTotal:
+                        formData.precioTotal ||
+                        calcularPrecioTotal(formData.precio, formData.porcGanancia),
+                    categoria: formData.categoria,
+                    stock: formData.stock,
+                    serie: formData.serie,
+                }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            const nuevoProducto = nuevoProductoResp.data; // 🔥 tu backend devuelve {data: {...}}
+
+            console.log("✅ Producto creado:", nuevoProducto);
+
+            let imagenUrl = nuevoProducto.imagen;
+            let publicId = nuevoProducto.publicId;
+
+            // 2️⃣ Si hay imagen → subirla
             if (formData.imagenFile) {
-                const data = new FormData();
-                data.append("imagen", formData.imagenFile);
+                console.log("🖼️ Subiendo imagen con productId =", nuevoProducto.id);
 
-                // Usar apiFetch (que ya tiene la URL base configurada)
+                const form = new FormData();
+                form.append("productoId", String(nuevoProducto.id));
+                form.append("imagen", formData.imagenFile);
+
                 const uploadResp = await apiFetch("/upload-imagenes/upload", {
                     method: "POST",
-                    body: data
+                    body: form,
                 });
 
-                // Cloudinary devuelve 'url' o 'secure_url'
-                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
-                console.log("✅ Imagen subida:", imagenUrl);
+                console.log("📸 Respuesta Cloudinary:", uploadResp);
+
+                imagenUrl = uploadResp.imagen || imagenUrl;
+                publicId = uploadResp.publicId || publicId;
             }
 
-            // 2. Preparar datos para enviar al backend
-            const datos = {
-                nombre: formData.nombre,
-                descripcion: formData.descripcion,
-                precio: formData.precio,
-                porcGanancia: formData.porcGanancia,
-                precioTotal: formData.precioTotal || calcularPrecioTotal(formData.precio, formData.porcGanancia),
-                categoria: formData.categoria,
-                stock: formData.stock,
-                serie: formData.serie,
-                imagen: imagenUrl,  // string o null
-            };
+            // 3️⃣ Enviar el producto completo al padre
+            onSubmit({
+                ...nuevoProducto,
+                imagen: imagenUrl,
+                publicId: publicId,
+            });
 
-            console.log("Creando producto con datos:", datos);
-            onSubmit(datos);
+            console.log("🎉 Producto creado COMPLETO con imagen");
 
         } catch (error) {
             console.error("❌ Error completo al crear producto:", error);
-            alert("Error al subir la imagen. Verifica la consola para más detalles.");
+            alert("Error al crear el producto. Revisa la consola.");
         }
     };
-
 
     const handlePrecioChange = (precio: number) => {
         const precioTotal = calcularPrecioTotal(precio, formData.porcGanancia);
