@@ -8,8 +8,22 @@ import {
     SettingOutlined,
     PlusOutlined,
     FileTextOutlined,
+    DollarOutlined,
+    PercentageOutlined,
+    TagOutlined,
+    InfoCircleOutlined
 } from "@ant-design/icons";
-import { type CotizacionGestioo, EstadoCotizacionGestioo, TipoCotizacionGestioo, ItemTipoGestioo, MonedaCotizacion } from "./types";
+import {
+    type CotizacionGestioo,
+    EstadoCotizacionGestioo,
+    TipoCotizacionGestioo,
+    ItemTipoGestioo,
+    MonedaCotizacion,
+} from "./types";
+
+import { formatearPrecio, normalizarCLP } from "./utils";
+
+import type { CotizacionItemGestioo } from "./types";
 
 interface EditCotizacionModalProps {
     show: boolean;
@@ -21,6 +35,7 @@ interface EditCotizacionModalProps {
     onCargarServicios: () => void;
     onUpdateCotizacion: (cotizacion: CotizacionGestioo) => void;
     apiLoading: boolean;
+    onCrearProducto: () => void;
 }
 
 const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
@@ -33,13 +48,63 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     onCargarServicios,
     onUpdateCotizacion,
     apiLoading,
+    onCrearProducto
 }) => {
     if (!show || !cotizacion) return null;
 
-    const handleItemChange = (index: number, field: string, value: any) => {
-        const newItems = [...cotizacion.items];
-        newItems[index] = { ...newItems[index], [field]: value };
-        onUpdateCotizacion({ ...cotizacion, items: newItems });
+    // ==========================
+    // MANEJO DE MONEDA
+    // ==========================
+    const moneda: MonedaCotizacion = cotizacion.moneda || "CLP";
+    const tasa = cotizacion.tasaCambio || 1;
+
+    const handleCambioMoneda = (nuevaMoneda: "CLP" | "USD") => {
+        const tasa = cotizacion.tasaCambio || 1;
+
+        const itemsActualizados = cotizacion.items.map((item) => {
+            const realCLP = normalizarCLP(item.precioOriginalCLP);
+
+            return {
+                ...item,
+                precio: nuevaMoneda === "USD" ? realCLP / tasa : realCLP
+            };
+        });
+
+        onUpdateCotizacion({
+            ...cotizacion,
+            moneda: nuevaMoneda,
+            items: itemsActualizados,
+        });
+    };
+
+    const handleItemChange = (index: number, campo: keyof CotizacionItemGestioo, valor: any) => {
+        const items = [...cotizacion.items];
+        const item = items[index];
+
+
+        // Si se edita el precio
+        if (campo === "precio") {
+            const precioNum = Number(valor) || 0;
+
+            let precioCLP = precioNum;
+
+            if (cotizacion.moneda === "USD") {
+                precioCLP = precioNum * (cotizacion.tasaCambio || 1);
+            }
+
+            item.precioOriginalCLP = precioCLP; // SIEMPRE CLP REAL
+            item.precio = precioNum;           // precio mostrado
+
+        } else {
+            (item as any)[campo] = valor;
+        }
+
+        items[index] = item;
+
+        onUpdateCotizacion({
+            ...cotizacion,
+            items
+        });
     };
 
     const handleRemoveItem = (index: number) => {
@@ -48,679 +113,1051 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     };
 
     const handleAddItem = (tipo: ItemTipoGestioo) => {
+        const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
         const newItem: any = {
-            id: Date.now(),
+            id: tempId,
             cotizacionId: cotizacion.id,
-            tipo: tipo,
-            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : "Nuevo item",
+            tipo,
+            descripcion:
+                tipo === ItemTipoGestioo.ADICIONAL
+                    ? "Descuento adicional"
+                    : "Nuevo item",
             cantidad: 1,
             precio: 0,
             porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
-            createdAt: new Date().toISOString()
+            tieneDescuento: tipo === ItemTipoGestioo.ADICIONAL ? true : false,
+            createdAt: new Date().toISOString(),
         };
+
         if (tipo === ItemTipoGestioo.PRODUCTO) {
             newItem.tieneIVA = true;
         }
+
         const newItems = [...cotizacion.items, newItem];
         onUpdateCotizacion({ ...cotizacion, items: newItems });
     };
 
-    const moneda = cotizacion.moneda || "CLP";
-    const tasa = cotizacion.tasaCambio || 1;
-
-    // Función para convertir CLP -> moneda seleccionada
-    const convertir = (valorCLP: number) =>
-        moneda === "USD" ? valorCLP / tasa : valorCLP;
-
-    const formatear = (valor: number) =>
-        moneda === "USD"
-            ? valor.toLocaleString("en-US", { style: "currency", currency: "USD" })
-            : valor.toLocaleString("es-CL", { style: "currency", currency: "CLP" });
-
-    // 1. Subtotal bruto (sin IVA)
+    // ==========================
+    // CÁLCULOS EN CLP REAL
+    // ==========================
     const subtotalBrutoCLP = cotizacion.items
-        .filter(item => item.tipo !== ItemTipoGestioo.ADICIONAL)
-        .reduce((acc, item) => acc + item.precio * item.cantidad, 0);
-
-    // 2. Descuentos
-    const descuentosCLP = cotizacion.items
-        .filter(item => item.tipo === ItemTipoGestioo.ADICIONAL)
+        .filter((item) => item.tipo !== ItemTipoGestioo.ADICIONAL)
         .reduce((acc, item) => {
-            if (item.porcentaje && item.porcentaje > 0) {
-                return acc + (subtotalBrutoCLP * item.porcentaje) / 100;
-            }
-            return acc + item.precio * item.cantidad;
+            const precioBaseCLP = normalizarCLP(item.precioOriginalCLP);
+            return acc + precioBaseCLP * (item.cantidad || 0);
         }, 0);
 
-    // 3. Subtotal neto sin IVA
+    const descuentosCLP = cotizacion.items
+        .filter((item) => item.tipo === ItemTipoGestioo.ADICIONAL)
+        .reduce((acc, item) => {
+            const base = subtotalBrutoCLP;
+            if (item.porcentaje && item.porcentaje > 0) {
+                return acc + (base * item.porcentaje) / 100;
+            }
+            return acc + (Number(item.precio || 0) * (item.cantidad || 0));
+        }, 0);
+
     const subtotalCLP = Math.max(0, subtotalBrutoCLP - descuentosCLP);
 
-    // 4. IVA por ítems con IVA
     const ivaCLP = cotizacion.items
-        .filter(item => item.tieneIVA === true)
+        .filter((item) => item.tieneIVA === true && item.tipo !== ItemTipoGestioo.ADICIONAL)
         .reduce((acc, item) => {
-            const base = item.precio * item.cantidad;
-            const desc = item.porcentaje ? (base * item.porcentaje) / 100 : 0;
-            const neto = base - desc;
-            return acc + neto * 0.19;
+            const baseCLP = normalizarCLP(item.precioOriginalCLP) * (item.cantidad || 0);
+            const descCLP = item.porcentaje ? (baseCLP * item.porcentaje) / 100 : 0;
+            const netoCLP = baseCLP - descCLP;
+            return acc + netoCLP * 0.19;
         }, 0);
 
-    // 5. Total final
     const totalCLP = subtotalCLP + ivaCLP;
 
-    return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl relative max-h-[95vh] overflow-y-auto"
-            >
-                <div className="p-6">
-                    {/* HEADER MEJORADO */}
-                    <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-800">
-                                Editar Cotización #{cotizacion.id}
-                            </h2>
-                            <p className="text-slate-600 text-sm mt-1">
-                                Estado actual:
-                                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
-                                    ? "bg-amber-100 text-amber-800"
-                                    : cotizacion.estado === EstadoCotizacionGestioo.APROBADA
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-blue-100 text-blue-800"
-                                    }`}>
-                                    {cotizacion.estado}
-                                </span>
-                            </p>
-                        </div>
+    // ==========================
+    // FECHA
+    // ==========================
+    const fechaInputValue = (() => {
+        try {
+            const d = new Date(cotizacion.fecha);
+            const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+            return local.toISOString().slice(0, 16);
+        } catch {
+            return "";
+        }
+    })();
 
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative max-h-[90vh] overflow-hidden flex flex-col"
+            >
+                {/* HEADER */}
+                <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white px-8 py-6 border-b border-slate-200">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg">
+                                <FileTextOutlined className="text-xl" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-800">
+                                    Editar Cotización{" "}
+                                    <span className="text-blue-600">#{cotizacion.id}</span>
+                                </h1>
+                                <div className="flex items-center gap-3 mt-2">
+                                    <div
+                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
+                                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                            : cotizacion.estado === EstadoCotizacionGestioo.APROBADA
+                                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                                : "bg-blue-100 text-blue-800 border border-blue-200"
+                                            }`}
+                                    >
+                                        <div
+                                            className={`w-2 h-2 rounded-full ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
+                                                ? "bg-amber-500"
+                                                : cotizacion.estado === EstadoCotizacionGestioo.APROBADA
+                                                    ? "bg-emerald-500"
+                                                    : "bg-blue-500"
+                                                }`}
+                                        />
+                                        {cotizacion.estado}
+                                    </div>
+                                    <div className="text-slate-500 text-sm">
+                                        <DollarOutlined className="mr-1" />
+                                        {moneda === "USD" ? "Dólares (USD)" : "Pesos Chilenos (CLP)"}
+                                    </div>
+                                    <div className="text-slate-500 text-sm">
+                                        <TagOutlined className="mr-1" />
+                                        {cotizacion.tipo}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <button
                             onClick={onClose}
-                            className="text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-3 hover:bg-slate-100 rounded-xl transition-all duration-200 text-slate-500 hover:text-slate-700"
                         >
-                            ✕
+                            <div className="text-xl font-light">×</div>
                         </button>
                     </div>
+                </div>
 
-                    {/* INFORMACIÓN PRINCIPAL EN GRID */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                        {/* DATOS DEL CLIENTE MEJORADO CON ORIGEN */}
-                        <div className="lg:col-span-2 p-4 border border-slate-200 rounded-xl bg-slate-50">
-                            <h3 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                                <UserOutlined />
-                                Datos del Cliente
-                            </h3>
+                {/* CONTENIDO PRINCIPAL - SCROLLABLE */}
+                <div className="flex-1 overflow-y-auto">
+                    <div className="p-8">
+                        {/* GRID PRINCIPAL */}
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+                            {/* DATOS DEL CLIENTE */}
+                            <div className="xl:col-span-2">
+                                <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-lg bg-cyan-100 text-cyan-700">
+                                                <UserOutlined className="text-lg" />
+                                            </div>
+                                            <h3 className="text-xl font-bold text-slate-800">
+                                                Datos del Cliente
+                                            </h3>
+                                        </div>
+                                        <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
+                                            Cliente ID: {cotizacion.entidad?.id || "N/A"}
+                                        </div>
+                                    </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* ENTIDAD */}
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Entidad *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={cotizacion.entidad?.nombre || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    nombre: e.target.value
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Entidad / Razón Social{" "}
+                                                <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={cotizacion.entidad?.nombre || ""}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        entidad: {
+                                                            ...cotizacion.entidad!,
+                                                            nombre: e.target.value,
+                                                        },
+                                                    })
                                                 }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                        placeholder="Nombre de la entidad"
-                                        required
-                                    />
-                                </div>
+                                                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                placeholder="Ingrese nombre de la entidad"
+                                                required
+                                            />
+                                        </div>
 
-                                {/* RUT */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        RUT
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={cotizacion.entidad?.rut || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    rut: e.target.value
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                RUT
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={cotizacion.entidad?.rut || ""}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        entidad: {
+                                                            ...cotizacion.entidad!,
+                                                            rut: e.target.value,
+                                                        },
+                                                    })
                                                 }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                        placeholder="RUT"
-                                    />
-                                </div>
+                                                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                placeholder="00.000.000-0"
+                                            />
+                                        </div>
 
-                                {/* ORIGEN */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Origen *
-                                    </label>
-                                    <select
-                                        value={cotizacion.entidad?.origen || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    origen: e.target.value
-                                                }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                        required
-                                    >
-                                        <option value="">Seleccionar origen</option>
-                                        <option value="RIDS">RIDS</option>
-                                        <option value="ECONNET">ECONNET</option>
-                                        <option value="OTRO">OTRO</option>
-                                    </select>
-                                </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Origen <span className="text-rose-500">*</span>
+                                            </label>
+                                            <div className="relative">
+                                                <select
+                                                    value={cotizacion.entidad?.origen || ""}
+                                                    onChange={(e) =>
+                                                        onUpdateCotizacion({
+                                                            ...cotizacion,
+                                                            entidad: {
+                                                                ...cotizacion.entidad!,
+                                                                origen: e.target.value,
+                                                            },
+                                                        })
+                                                    }
+                                                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all appearance-none bg-white"
+                                                    required
+                                                >
+                                                    <option value="">Seleccionar origen</option>
+                                                    <option value="RIDS">RIDS</option>
+                                                    <option value="ECONNET">ECONNET</option>
+                                                    <option value="OTRO">OTRO</option>
+                                                </select>
+                                                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400">
+                                                    ▼
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                {/* CORREO */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Correo
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={cotizacion.entidad?.correo || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    correo: e.target.value
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Correo Electrónico
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={cotizacion.entidad?.correo || ""}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        entidad: {
+                                                            ...cotizacion.entidad!,
+                                                            correo: e.target.value,
+                                                        },
+                                                    })
                                                 }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                        placeholder="Correo electrónico"
-                                    />
-                                </div>
+                                                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                placeholder="cliente@empresa.com"
+                                            />
+                                        </div>
 
-                                {/* TELÉFONO */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Teléfono
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={cotizacion.entidad?.telefono || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    telefono: e.target.value
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Teléfono
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={cotizacion.entidad?.telefono || ""}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        entidad: {
+                                                            ...cotizacion.entidad!,
+                                                            telefono: e.target.value,
+                                                        },
+                                                    })
                                                 }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                        placeholder="Teléfono"
-                                    />
-                                </div>
+                                                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                placeholder="+56 9 1234 5678"
+                                            />
+                                        </div>
 
-                                {/* DIRECCIÓN */}
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Dirección
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={cotizacion.entidad?.direccion || ""}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                entidad: {
-                                                    ...cotizacion.entidad!,
-                                                    direccion: e.target.value
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Dirección
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={cotizacion.entidad?.direccion || ""}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        entidad: {
+                                                            ...cotizacion.entidad!,
+                                                            direccion: e.target.value,
+                                                        },
+                                                    })
                                                 }
-                                            })
-                                        }
-                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                        placeholder="Dirección"
-                                    />
+                                                className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                placeholder="Av. Principal 123, Ciudad"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* BADGE VISUAL DEL ORIGEN */}
-                            {cotizacion.entidad?.origen && (
-                                <div className="mt-4 p-3 border rounded-lg bg-white">
-                                    <p className="text-xs font-medium text-slate-600 mb-1">Origen seleccionado:</p>
-                                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${cotizacion.entidad.origen === "RIDS"
-                                        ? "bg-blue-100 text-blue-800 border border-blue-200"
-                                        : cotizacion.entidad.origen === "ECONNET"
-                                            ? "bg-green-100 text-green-800 border border-green-200"
-                                            : "bg-gray-100 text-gray-800 border border-gray-200"
-                                        }`}>
-                                        {cotizacion.entidad.origen}
-                                    </span>
+                            {/* CONFIGURACIÓN */}
+                            <div>
+                                <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl border border-blue-100 p-6 shadow-sm h-full">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700">
+                                            <SettingOutlined className="text-lg" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-slate-800">
+                                            Configuración
+                                        </h3>
+                                    </div>
+
+                                    <div className="space-y-5">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Estado <span className="text-rose-500">*</span>
+                                            </label>
+                                            <select
+                                                value={cotizacion.estado}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        estado: e.target.value as EstadoCotizacionGestioo,
+                                                    })
+                                                }
+                                                className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all appearance-none bg-white"
+                                                required
+                                            >
+                                                <option value={EstadoCotizacionGestioo.BORRADOR}>
+                                                    {" "}
+                                                    Borrador
+                                                </option>
+                                                <option value={EstadoCotizacionGestioo.GENERADA}>
+                                                    {" "}
+                                                    Generada
+                                                </option>
+                                                <option value={EstadoCotizacionGestioo.ENVIADA}>
+                                                    {" "}
+                                                    Enviada
+                                                </option>
+                                                <option value={EstadoCotizacionGestioo.APROBADA}>
+                                                    {" "}
+                                                    Aprobada
+                                                </option>
+                                                <option value={EstadoCotizacionGestioo.RECHAZADA}>
+                                                    {" "}
+                                                    Rechazada
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Tipo de Cotización{" "}
+                                                <span className="text-rose-500">*</span>
+                                            </label>
+                                            <select
+                                                value={cotizacion.tipo}
+                                                onChange={(e) =>
+                                                    onUpdateCotizacion({
+                                                        ...cotizacion,
+                                                        tipo: e.target.value as TipoCotizacionGestioo,
+                                                    })
+                                                }
+                                                className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all appearance-none bg-white"
+                                                required
+                                            >
+                                                <option value={TipoCotizacionGestioo.CLIENTE}>
+                                                    {" "}
+                                                    Cliente
+                                                </option>
+                                                <option value={TipoCotizacionGestioo.INTERNA}>
+                                                    {" "}
+                                                    Interna
+                                                </option>
+                                                <option value={TipoCotizacionGestioo.PROVEEDOR}>
+                                                    {" "}
+                                                    Proveedor
+                                                </option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                Fecha de Cotización{" "}
+                                                <span className="text-rose-500">*</span>
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="datetime-local"
+                                                    value={fechaInputValue}
+                                                    onChange={(e) =>
+                                                        onUpdateCotizacion({
+                                                            ...cotizacion,
+                                                            fecha: e.target.value,
+                                                        })
+                                                    }
+                                                    className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                    Moneda
+                                                </label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={cotizacion.moneda}
+                                                        onChange={(e) =>
+                                                            handleCambioMoneda(
+                                                                e.target.value as MonedaCotizacion
+                                                            )
+                                                        }
+                                                        className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all appearance-none bg-white"
+                                                    >
+                                                        <option value="CLP">
+                                                            🇨🇱 CLP - Pesos Chilenos
+                                                        </option>
+                                                        <option value="USD">
+                                                            🇺🇸 USD - Dólares Americanos
+                                                        </option>
+                                                    </select>
+                                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400">
+                                                        ▼
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {cotizacion.moneda === "USD" && (
+                                                <div>
+                                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                                        Tasa de Cambio
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="1"
+                                                            value={cotizacion.tasaCambio || 1}
+                                                            onChange={(e) =>
+                                                                onUpdateCotizacion({
+                                                                    ...cotizacion,
+                                                                    tasaCambio: Number(e.target.value),
+                                                                })
+                                                            }
+                                                            className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white pr-12"
+                                                            placeholder="0.00"
+                                                        />
+                                                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500 text-sm">
+                                                            CLP
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {cotizacion.moneda === "USD" && (
+                                            <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                                <div className="flex items-center gap-2 text-blue-700 mb-2">
+                                                    <InfoCircleOutlined />
+                                                    <span className="font-medium">
+                                                        Información de cambio
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-blue-600">
+                                                    Tasa actual:{" "}
+                                                    <strong>
+                                                        1 USD ={" "}
+                                                        {tasa.toLocaleString("es-CL")} CLP
+                                                    </strong>
+                                                </p>
+                                                <p className="text-xs text-blue-500 mt-1">
+                                                    {moneda === "USD"
+                                                        ? "Mostrando valores en dólares (USD)"
+                                                        : "Mostrando valores en pesos chilenos (CLP)"}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
 
-                        {/* CONFIGURACIÓN DE COTIZACIÓN */}
-                        <div className="p-4 border border-cyan-200 rounded-xl bg-cyan-50/30">
-                            <h3 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                                <SettingOutlined />
-                                Configuración
-                            </h3>
-                            <div className="space-y-3">
+                        {/* SECCIÓN DE ITEMS */}
+                        <div className="mb-8">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Estado *</label>
-                                    <select
-                                        value={cotizacion.estado}
-                                        onChange={(e) => onUpdateCotizacion({
-                                            ...cotizacion,
-                                            estado: e.target.value as EstadoCotizacionGestioo
-                                        })}
-                                        className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                        required
-                                    >
-                                        <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                        <option value={EstadoCotizacionGestioo.GENERADA}>Generada</option>
-                                        <option value={EstadoCotizacionGestioo.ENVIADA}>Enviada</option>
-                                        <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
-                                        <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                    </select>
+                                    <h3 className="text-2xl font-bold text-slate-800">
+                                        Ítems de la Cotización
+                                    </h3>
+                                    <p className="text-slate-600 mt-2">
+                                        Agregue productos, servicios o descuentos
+                                    </p>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Tipo *</label>
-                                    <select
-                                        value={cotizacion.tipo}
-                                        onChange={(e) => onUpdateCotizacion({
-                                            ...cotizacion,
-                                            tipo: e.target.value as TipoCotizacionGestioo
-                                        })}
-                                        className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                        required
+                                <div className="flex flex-wrap gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={onCargarProductos}
+                                        className="inline-flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-cyan-600 to-cyan-700 text-white rounded-xl hover:from-cyan-700 hover:to-cyan-800 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
                                     >
-                                        <option value={TipoCotizacionGestioo.CLIENTE}>Cliente</option>
-                                        <option value={TipoCotizacionGestioo.INTERNA}>Interna</option>
-                                        <option value={TipoCotizacionGestioo.PROVEEDOR}>Proveedor</option>
-                                    </select>
+                                        <PlusOutlined />
+                                        <span>Productos</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onCrearProducto}
+                                        className="inline-flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                                    >
+                                        <PlusOutlined />
+                                        <span>Crear Producto</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onCargarServicios}
+                                        className="inline-flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                                    >
+                                        <PlusOutlined />
+                                        <span>Servicios</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* TABLA DE ITEMS */}
+                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
+                                <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-4 border-b border-slate-200">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <h4 className="text-lg font-bold text-slate-800">
+                                                Sección General
+                                            </h4>
+                                            <span className="bg-cyan-100 text-cyan-800 text-sm font-medium px-3 py-1 rounded-full">
+                                                {cotizacion.items.length} ítems
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm text-slate-600">
+                                                Total estimado
+                                            </div>
+                                            <div className="text-2xl font-bold text-slate-900">
+                                                {formatearPrecio(totalCLP, moneda, tasa)}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* FECHA DE COTIZACIÓN */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Fecha de Cotización *
-                                    </label>
-                                    <input
-                                        type="datetime-local"
-                                        value={new Date(cotizacion.fecha).toISOString().slice(0, 16)}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                fecha: e.target.value
-                                            })
-                                        }
-                                        className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                        required
-                                    />
-                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-slate-100 border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 w-32">
+                                                    Tipo
+                                                </th>
+                                                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 min-w-[200px]">
+                                                    Descripción
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-24">
+                                                    Cant.
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-40">
+                                                    P. Unitario ({moneda === "USD" ? "US$" : "$"})
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
+                                                    % Ganancia
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
+                                                    IVA
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
+                                                    % Desc
+                                                </th>
+                                                <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
+                                                    Neto
+                                                </th>
+                                                <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
+                                                    Subtotal
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-20">
+                                                    Acción
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {cotizacion.items.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={10} className="px-6 py-12 text-center">
+                                                        <div className="flex flex-col items-center justify-center">
+                                                            <div className="p-4 rounded-full bg-slate-100 mb-4">
+                                                                <FileTextOutlined className="text-3xl text-slate-400" />
+                                                            </div>
+                                                            <h4 className="text-lg font-medium text-slate-700 mb-2">
+                                                                No hay ítems en esta cotización
+                                                            </h4>
+                                                            <p className="text-slate-500 mb-6">
+                                                                Agregue productos, servicios o descuentos para comenzar
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                cotizacion.items.map((item, index) => {
+                                                    // === CÁLCULOS EN CLP REAL PARA ESTE ÍTEM ===
+                                                    const precioBaseCLP = normalizarCLP(item.precioOriginalCLP);
+                                                    const cantidad = item.cantidad || 0;
+                                                    const baseCLP = precioBaseCLP * cantidad;
 
-                                {/* MONEDA */}
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Moneda
-                                    </label>
-                                    <select
-                                        value={cotizacion.moneda}
-                                        onChange={(e) =>
-                                            onUpdateCotizacion({
-                                                ...cotizacion,
-                                                moneda: e.target.value as MonedaCotizacion,
-                                                tasaCambio:
-                                                    e.target.value === "USD"
-                                                        ? cotizacion.tasaCambio || 1
-                                                        : 1
-                                            })
-                                        }
-                                        className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
-                                    >
-                                        <option value="CLP">CLP — Pesos chilenos</option>
-                                        <option value="USD">USD — Dólares americanos</option>
-                                    </select>
-                                </div>
+                                                    const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
 
-                                {/* TASA DE CAMBIO */}
-                                {cotizacion.moneda === "USD" && (
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Tasa de Cambio
-                                        </label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="1"
-                                            value={cotizacion.tasaCambio || 1}
-                                            onChange={(e) =>
-                                                onUpdateCotizacion({
-                                                    ...cotizacion,
-                                                    tasaCambio: Number(e.target.value)
+                                                    // Descuento por ítem (NO global)
+                                                    let descuentoCLP = 0;
+                                                    if (
+                                                        item.tipo !== ItemTipoGestioo.ADICIONAL &&
+                                                        item.tieneDescuento &&
+                                                        porcentaje > 0
+                                                    ) {
+                                                        descuentoCLP = (baseCLP * porcentaje) / 100;
+                                                    }
+
+                                                    const baseFinalCLP = baseCLP - descuentoCLP;
+
+                                                    // IVA del ítem
+                                                    let ivaItemCLP = 0;
+                                                    if (
+                                                        item.tipo !== ItemTipoGestioo.ADICIONAL &&
+                                                        item.tieneIVA
+                                                    ) {
+                                                        ivaItemCLP = baseFinalCLP * 0.19;
+                                                    }
+
+                                                    const totalItemCLP = baseFinalCLP + ivaItemCLP;
+
+                                                    // Descuento global (ítems tipo ADICIONAL)
+                                                    let descuentoGlobalCLP = 0;
+                                                    if (item.tipo === ItemTipoGestioo.ADICIONAL) {
+                                                        const porcGlobal = item.porcentaje ? Number(item.porcentaje) : 0;
+                                                        if (porcGlobal > 0) {
+                                                            descuentoGlobalCLP = (subtotalBrutoCLP * porcGlobal) / 100;
+                                                        }
+                                                    }
+
+                                                    // === GANANCIA EN CLP REAL ===
+                                                    const precioCosto = item.precioCosto || 0;
+                                                    const precioVentaCLP = precioBaseCLP;
+
+                                                    const gananciaItemCLP =
+                                                        item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto
+                                                            ? (precioVentaCLP - precioCosto) * cantidad
+                                                            : 0;
+
+                                                    const margenGanancia =
+                                                        item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0
+                                                            ? ((precioVentaCLP - precioCosto) / precioCosto) * 100
+                                                            : item.porcGanancia || 0;
+
+                                                    return (
+                                                        <tr
+                                                            key={item.id}
+                                                            className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                ? "bg-rose-50/30 hover:bg-rose-50/50"
+                                                                : ""
+                                                                }`}
+                                                        >
+                                                            {/* TIPO */}
+                                                            <td className="px-6 py-4">
+                                                                <span
+                                                                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo === ItemTipoGestioo.PRODUCTO
+                                                                        ? "bg-cyan-100 text-cyan-800"
+                                                                        : item.tipo === ItemTipoGestioo.SERVICIO
+                                                                            ? "bg-emerald-100 text-emerald-800"
+                                                                            : "bg-amber-100 text-amber-800"
+                                                                        }`}
+                                                                >
+                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO
+                                                                        ? "Producto"
+                                                                        : item.tipo === ItemTipoGestioo.SERVICIO
+                                                                            ? "Servicio"
+                                                                            : "Descuento"}
+                                                                </span>
+                                                            </td>
+
+                                                            {/* DESCRIPCIÓN */}
+                                                            <td className="px-6 py-4 min-w-[200px]">
+                                                                <input
+                                                                    value={item.descripcion || ""}
+                                                                    onChange={(e) =>
+                                                                        handleItemChange(index, "descripcion", e.target.value)
+                                                                    }
+                                                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                                    placeholder="Descripción del ítem"
+                                                                />
+                                                                {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
+                                                                    <div className="text-xs text-slate-500 mt-1 truncate">
+                                                                        Costo: {formatearPrecio(precioCosto, moneda, tasa)}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* CANTIDAD */}
+                                                            <td className="px-6 py-4 text-center">
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    value={item.cantidad || 1}
+                                                                    disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
+                                                                    onChange={(e) =>
+                                                                        handleItemChange(
+                                                                            index,
+                                                                            "cantidad",
+                                                                            Math.max(1, Number(e.target.value))
+                                                                        )
+                                                                    }
+                                                                    className={`w-20 border border-slate-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                        : "bg-white"
+                                                                        }`}
+                                                                />
+                                                            </td>
+                                                            {/* PRECIO UNITARIO */}
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-col items-center space-y-1">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        step={0.01}
+                                                                        value={item.precio === 0 ? "" : item.precio}
+                                                                        disabled={item.tipo !== ItemTipoGestioo.ADICIONAL}  // ← BLOQUEADO PARA PRODUCTOS Y SERVICIOS
+                                                                        onChange={(e) => {
+                                                                            const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                                                            handleItemChange(index, "precio", value);
+                                                                        }}
+                                                                        className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-center transition-all${item.tipo !== ItemTipoGestioo.ADICIONAL
+                                                                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                            : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                                                                            }`}
+                                                                        placeholder={moneda === "USD" ? "US$" : "$"}
+                                                                    />
+
+                                                                    {/* Precio en CLP formateado debajo */}
+                                                                    <div className="text-xs text-slate-500">
+                                                                        {formatearPrecio(precioBaseCLP, moneda, tasa)}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            {/* % GANANCIA */}
+                                                            <td className="px-6 py-4 text-center">
+                                                                {item.tipo === ItemTipoGestioo.PRODUCTO ? (
+                                                                    <div className="flex flex-col items-center">
+                                                                        <div
+                                                                            className={`text-sm font-semibold ${margenGanancia > 0
+                                                                                ? "text-emerald-600"
+                                                                                : "text-slate-500"
+                                                                                }`}
+                                                                        >
+                                                                            {margenGanancia.toFixed(1)}%
+                                                                        </div>
+                                                                        {gananciaItemCLP > 0 && (
+                                                                            <div className="text-xs text-emerald-500 mt-1">
+                                                                                +{formatearPrecio(gananciaItemCLP, moneda, tasa)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-300">—</span>
+                                                                )}
+                                                            </td>
+
+                                                            {/* IVA CHECKBOX */}
+                                                            <td className="px-6 py-4 text-center">
+                                                                {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={item.tieneIVA || false}
+                                                                        onChange={(e) =>
+                                                                            handleItemChange(index, "tieneIVA", e.target.checked)
+                                                                        }
+                                                                        className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-2 focus:ring-cyan-500"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-slate-300">—</span>
+                                                                )}
+                                                            </td>
+
+                                                            {/* % DESCUENTO */}
+                                                            <td className="px-6 py-4 text-center">
+                                                                {item.tipo === ItemTipoGestioo.ADICIONAL ? (
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={100}
+                                                                            step={0.1}
+                                                                            value={item.porcentaje || 0}
+                                                                            onChange={(e) =>
+                                                                                handleItemChange(
+                                                                                    index,
+                                                                                    "porcentaje",
+                                                                                    Number(e.target.value)
+                                                                                )
+                                                                            }
+                                                                            className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                                                                        />
+                                                                        <span className="text-sm text-slate-600">%</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={item.tieneDescuento || false}
+                                                                            onChange={(e) =>
+                                                                                handleItemChange(index, "tieneDescuento", e.target.checked)
+                                                                            }
+                                                                            className="w-4 h-4"
+                                                                        />
+                                                                        {item.tieneDescuento && (
+                                                                            <>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min={0}
+                                                                                    max={100}
+                                                                                    step={0.1}
+                                                                                    value={item.porcentaje || 0}
+                                                                                    onChange={(e) =>
+                                                                                        handleItemChange(
+                                                                                            index,
+                                                                                            "porcentaje",
+                                                                                            Number(e.target.value)
+                                                                                        )
+                                                                                    }
+                                                                                    className="w-16 border border-slate-200 rounded px-2 py-1 text-sm"
+                                                                                />
+                                                                                <span className="text-xs">%</span>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* NETO */}
+                                                            <td className="px-6 py-4 text-right">
+                                                                <div className="font-medium text-slate-900">
+                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL ? (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    ) : (
+                                                                        formatearPrecio(baseFinalCLP, moneda, tasa)
+                                                                    )}
+                                                                </div>
+                                                            </td>
+
+                                                            {/* SUBTOTAL */}
+                                                            <td className="px-6 py-4 text-right">
+                                                                <div
+                                                                    className={`font-bold ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                        ? "text-rose-600"
+                                                                        : "text-slate-900"
+                                                                        }`}
+                                                                >
+                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL ? (
+                                                                        <span className="flex items-center justify-end gap-1">
+                                                                            -{formatearPrecio(descuentoGlobalCLP, moneda, tasa)}
+                                                                        </span>
+                                                                    ) : (
+                                                                        formatearPrecio(totalItemCLP, moneda, tasa)
+                                                                    )}
+                                                                </div>
+                                                            </td>
+
+                                                            {/* ACCIÓN */}
+                                                            <td className="px-6 py-4 text-center">
+                                                                <button
+                                                                    onClick={() => handleRemoveItem(index)}
+                                                                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors duration-200"
+                                                                    title="Eliminar ítem"
+                                                                >
+                                                                    <DeleteOutlined className="text-lg" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
                                                 })
-                                            }
-                                            className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                        />
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {cotizacion.items.length > 0 && (
+                                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-sm text-slate-600">
+                                                Mostrando{" "}
+                                                {cotizacion.items.length} ítem
+                                                {cotizacion.items.length !== 1
+                                                    ? "s"
+                                                    : ""}
+                                            </div>
+                                            <div className="text-sm font-medium text-slate-700">
+                                                Moneda:{" "}
+                                                {moneda === "USD"
+                                                    ? "Dólares (USD)"
+                                                    : "Pesos Chilenos (CLP)"}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
-                    </div>
 
-                    {/* BOTONES PARA AGREGAR ITEMS */}
-                    <div className="flex flex-wrap gap-3 mb-4 p-4 border border-slate-200 rounded-xl bg-white">
-                        <span className="text-sm font-medium text-slate-700 mr-2">Agregar items:</span>
-                        <button
-                            type="button"
-                            onClick={onCargarProductos}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm"
-                        >
-                            <PlusOutlined />
-                            Producto
-                        </button>
-                        <button
-                            onClick={onCargarServicios}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors text-sm"
-                        >
-                            <PlusOutlined />
-                            Servicio
-                        </button>
-                        <button
-                            onClick={() => handleAddItem(ItemTipoGestioo.ADICIONAL)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors text-sm"
-                        >
-                            <PlusOutlined />
-                            Descuento
-                        </button>
-                    </div>
-
-                    {/* TABLA DE ITEMS MEJORADA */}
-                    <div className="mb-6 border border-slate-200 rounded-xl overflow-hidden">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                            <h3 className="text-lg font-semibold text-slate-700">
-                                Items de la Cotización ({cotizacion.items.length})
-                            </h3>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100 text-slate-700">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left font-semibold border-r border-slate-200">Tipo</th>
-                                        <th className="px-4 py-3 text-left font-semibold border-r border-slate-200">Descripción *</th>
-                                        <th className="px-4 py-3 text-center font-semibold border-r border-slate-200 w-32">Código</th>
-                                        <th className="px-4 py-3 text-center font-semibold border-r border-slate-200 w-24">Cantidad *</th>
-                                        <th className="px-4 py-3 text-right font-semibold border-r border-slate-200 w-32">P. Unitario *</th>
-                                        <th className="px-4 py-3 text-right font-semibold border-r border-slate-200 w-32">IVA *</th>
-                                        <th className="px-4 py-3 text-center font-semibold border-r border-slate-200 w-28">% Desc.</th>
-                                        <th className="px-4 py-3 text-right font-semibold border-r border-slate-200 w-32">Subtotal</th>
-                                        <th className="px-4 py-3 text-center font-semibold w-20">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {cotizacion.items.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="text-center py-8 text-slate-500">
-                                                <FileTextOutlined className="text-3xl text-slate-300 mb-2" />
-                                                <p>No hay items en esta cotización</p>
-                                                <p className="text-xs text-rose-600 mt-2">
-                                                    Debe agregar al menos un item para guardar la cotización
-                                                </p>
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        cotizacion.items.map((item, index) => {
-                                            const base = item.precio * item.cantidad;
-                                            const descuento = item.porcentaje ? (base * item.porcentaje) / 100 : 0;
-                                            const baseFinal = base - descuento;
-
-                                            let totalItem = baseFinal;
-
-                                            // SOLO PRODUCTOS: aplicar IVA
-                                            if (item.tipo === ItemTipoGestioo.PRODUCTO && item.tieneIVA) {
-                                                totalItem = baseFinal * 1.19;
-                                            }
-
-                                            return (
-                                                <tr
-                                                    key={item.id}
-                                                    className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${item.tipo === ItemTipoGestioo.ADICIONAL ? 'bg-rose-50/50' : ''
-                                                        }`}
-                                                >
-                                                    {/* TIPO */}
-                                                    <td className="px-4 py-3 border-r border-slate-100">
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${item.tipo === ItemTipoGestioo.PRODUCTO
-                                                            ? 'bg-cyan-100 text-cyan-800'
-                                                            : item.tipo === ItemTipoGestioo.SERVICIO
-                                                                ? 'bg-emerald-100 text-emerald-800'
-                                                                : 'bg-amber-100 text-amber-800'
-                                                            }`}>
-                                                            {item.tipo === ItemTipoGestioo.PRODUCTO ? 'Producto' :
-                                                                item.tipo === ItemTipoGestioo.SERVICIO ? 'Servicio' : 'Descuento'}
-                                                        </span>
-                                                    </td>
-
-                                                    {/* DESCRIPCIÓN */}
-                                                    <td className="px-4 py-3 border-r border-slate-100">
-                                                        <input
-                                                            value={item.descripcion}
-                                                            onChange={(e) => handleItemChange(index, "descripcion", e.target.value)}
-                                                            className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                                            placeholder="Descripción del item"
-                                                            required
-                                                        />
-                                                    </td>
-
-                                                    {/* SKU */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-center">
-                                                        <span className="font-mono text-xs">
-                                                            {item.sku || "—"}
-                                                        </span>
-
-                                                        {/* INDICADOR AUTOMÁTICO */}
-                                                        {item.sku?.startsWith("SKU-") && (
-                                                            <span className="ml-1 text-[10px] text-blue-500 font-semibold">
-                                                                (auto)
-                                                            </span>
-                                                        )}
-                                                    </td>
-
-                                                    {/* CANTIDAD */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-center">
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            value={item.cantidad}
-                                                            onChange={(e) => {
-                                                                const value = Math.max(1, Number(e.target.value));
-                                                                handleItemChange(index, "cantidad", value);
-                                                            }}
-                                                            disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
-                                                            className={`w-20 border border-slate-200 rounded-lg px-2 py-2 text-center focus:outline-none focus:ring-2 focus:ring-cyan-400 ${item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                                : 'bg-white'
-                                                                }`}
-                                                            required
-                                                        />
-                                                    </td>
-
-                                                    {/* PRECIO UNITARIO */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-right">
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            step="100"
-                                                            value={item.precio}
-                                                            onChange={(e) => handleItemChange(index, "precio", Number(e.target.value))}
-                                                            disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
-                                                            className={`w-32 border border-slate-200 rounded-lg px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-cyan-400 ${item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                                : 'bg-white'
-                                                                }`}
-                                                            required
-                                                        />
-                                                    </td>
-
-                                                    {/* IVA */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-center">
-                                                        {item.tipo === ItemTipoGestioo.PRODUCTO ? (
-                                                            <label className="flex items-center justify-center gap-2 text-sm">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={item.tieneIVA || false}
-                                                                    onChange={(e) => handleItemChange(index, "tieneIVA", e.target.checked)}
-                                                                />
-                                                                IVA
-                                                            </label>
-                                                        ) : (
-                                                            <span className="text-slate-400 text-xs">—</span>
-                                                        )}
-                                                    </td>
-
-                                                    {/* PORCENTAJE DESCUENTO */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-center">
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="100"
-                                                            step="0.5"
-                                                            value={item.porcentaje || 0}
-                                                            onChange={(e) => {
-                                                                const value = Math.min(100, Math.max(0, Number(e.target.value)));
-                                                                handleItemChange(index, "porcentaje", value);
-                                                            }}
-                                                            className="w-20 border border-slate-200 rounded-lg px-2 py-2 text-center focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white"
-                                                        />
-                                                    </td>
-
-                                                    {/* SUBTOTAL */}
-                                                    <td className="px-4 py-3 border-r border-slate-100 text-right font-semibold">
-                                                        <span className={
-                                                            item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                ? 'text-rose-600'
-                                                                : 'text-slate-800'
-                                                        }>
-                                                            {formatear(totalItem)}
-                                                        </span>
-                                                    </td>
-
-                                                    {/* ACCIONES */}
-                                                    <td className="px-4 py-3 text-center">
-                                                        <button
-                                                            onClick={() => handleRemoveItem(index)}
-                                                            className="text-rose-500 hover:text-rose-700 p-2 rounded-lg hover:bg-rose-50 transition-colors"
-                                                            title="Eliminar item"
-                                                        >
-                                                            <DeleteOutlined />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* RESUMEN FINANCIERO MEJORADO */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
-                        <h3 className="text-lg font-semibold text-slate-700 mb-4">Resumen Financiero</h3>
-
-                        <div className="flex justify-end text-sm text-slate-700">
-                            <div className="text-right space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[230px]">
-
-                                <div className="flex justify-between">
-                                    <span>Subtotal bruto:</span>
-                                    <span className="font-medium">{formatear(convertir(subtotalBrutoCLP))}</span>
+                        {/* RESUMEN FINANCIERO Y COMENTARIOS */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                            {/* RESUMEN FINANCIERO */}
+                            <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-xl font-bold text-slate-800">
+                                        Resumen Financiero
+                                    </h3>
+                                    <div className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                                        {moneda === "USD"
+                                            ? "USD - Dólares"
+                                            : "CLP - Pesos Chilenos"}
+                                    </div>
                                 </div>
 
-                                <div className="flex justify-between text-rose-600">
-                                    <span>Descuentos:</span>
-                                    <span className="font-medium">
-                                        -{formatear(convertir(descuentosCLP))}
-                                    </span>
+                                <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                    <div className="text-slate-700">Subtotal Bruto</div>
+                                    <div className="font-medium text-slate-900">
+                                        {formatearPrecio(subtotalBrutoCLP, moneda, tasa)}
+                                    </div>
                                 </div>
 
-                                <div className="flex justify-between border-t border-slate-200 pt-1">
-                                    <span>Subtotal neto:</span>
-                                    <span className="font-medium">{formatear(convertir(subtotalCLP))}</span>
-                                </div>
-
-                                <div className="flex justify-between">
-                                    <span>IVA (19%):</span>
-                                    <span className="font-medium">{formatear(convertir(ivaCLP))}</span>
-                                </div>
-
-                                <div className="flex justify-between border-t border-slate-300 pt-2 font-bold text-slate-900">
-                                    <span>Total final:</span>
-                                    <span>{formatear(convertir(totalCLP))}</span>
-                                </div>
-
-                                {/* Si está en USD, mostrar nota del tipo de cambio */}
-                                {moneda === "USD" && (
-                                    <p className="text-xs text-slate-500 mt-2 text-right">
-                                        Cambio usado: 1 USD = {tasa.toLocaleString("es-CL")} CLP
-                                    </p>
+                                {descuentosCLP > 0 && (
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                        <div className="text-rose-600 font-medium">Descuentos Aplicados</div>
+                                        <div className="font-bold text-rose-600">
+                                            - {formatearPrecio(descuentosCLP, moneda, tasa)}
+                                        </div>
+                                    </div>
                                 )}
+
+                                <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                    <div className="text-slate-700">Subtotal Neto</div>
+                                    <div className="font-semibold text-slate-900">
+                                        {formatearPrecio(subtotalCLP, moneda, tasa)}
+                                    </div>
+                                </div>
+
+                                {ivaCLP > 0 && (
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                        <div className="text-slate-700">IVA (19%)</div>
+                                        <div className="font-semibold text-slate-900">
+                                            {formatearPrecio(ivaCLP, moneda, tasa)}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between items-center pt-4 border-t border-slate-300">
+                                    <div className="text-lg font-bold text-slate-900">TOTAL FINAL</div>
+                                    <div className="text-2xl font-bold text-blue-700">
+                                        {formatearPrecio(totalCLP, moneda, tasa)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COMENTARIOS */}
+                            <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700">
+                                        <FileTextOutlined className="text-lg" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800">
+                                        Comentarios y Notas
+                                    </h3>
+                                </div>
+
+                                <textarea
+                                    className="w-full h-48 border-2 border-slate-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all resize-none bg-white"
+                                    placeholder="Agregue comentarios, notas o instrucciones especiales para esta cotización..."
+                                    value={cotizacion.comentariosCotizacion ?? ""}
+                                    onChange={(e) =>
+                                        onUpdateCotizacion({
+                                            ...cotizacion,
+                                            comentariosCotizacion: e.target.value,
+                                        })
+                                    }
+                                />
+
+                                <div className="mt-4 text-sm text-slate-500">
+                                    <InfoCircleOutlined className="mr-2" />
+                                    Estos comentarios serán visibles en el documento
+                                    PDF generado
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <textarea
-                        className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                        placeholder="Comentarios o notas adicionales..."
-                        rows={3}
-                        value={cotizacion.comentariosCotizacion ?? ""}
-                        onChange={(e) =>
-                            onUpdateCotizacion({
-                                ...cotizacion,
-                                comentariosCotizacion: e.target.value
-                            })
-                        }
-                    />
-
-                    {/* BOTONES DE ACCIÓN MEJORADOS */}
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-200">
+                {/* FOOTER */}
+                <div className="sticky bottom-0 bg-white border-t border-slate-200 px-8 py-6 shadow-lg">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                         <div className="text-sm text-slate-500">
-                            Última actualización: {new Date(cotizacion.updatedAt).toLocaleString('es-CL')}
+                            <div>
+                                Última actualización:{" "}
+                                {new Date(
+                                    cotizacion.updatedAt
+                                ).toLocaleString("es-CL")}
+                            </div>
+                            <div className="mt-1">
+                                ID: {cotizacion.id} • Creada:{" "}
+                                {new Date(
+                                    cotizacion.createdAt
+                                ).toLocaleDateString("es-CL")}
+                            </div>
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-4">
                             <button
+                                type="button"
                                 onClick={onClose}
-                                className="px-6 py-3 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-colors font-medium"
+                                className="px-8 py-3.5 rounded-xl bg-white text-slate-700 border-2 border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 font-semibold shadow-sm"
                             >
                                 Cancelar
                             </button>
 
                             <button
-                                onClick={() => {
-                                    onPrint(cotizacion);
-                                }}
-                                className="px-6 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2"
+                                type="button"
+                                onClick={() => onPrint(cotizacion)}
+                                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
                             >
-                                <PrinterOutlined />
-                                Generar PDF
+                                <PrinterOutlined className="text-lg" />
+                                <span>Generar PDF</span>
                             </button>
 
                             <button
+                                type="button"
                                 onClick={onUpdate}
-                                disabled={cotizacion.items.length === 0 || apiLoading}
-                                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 transition-all duration-200 font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={
+                                    cotizacion.items.length === 0 || apiLoading
+                                }
+                                className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                             >
-                                <CheckCircleOutlined />
-                                {apiLoading ? "Guardando..." : "Guardar Cambios"}
+                                {apiLoading ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Guardando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircleOutlined className="text-lg" />
+                                        <span>Guardar Cambios</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

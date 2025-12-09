@@ -1,12 +1,23 @@
 import type {
   CotizacionItemGestioo,
   MonedaCotizacion,
+  ItemCotizacionFrontend
 } from "./types";
 import { EstadoCotizacionGestioo, TipoCotizacionGestioo } from "./types";
 
 import { ItemTipoGestioo } from "./types";
 
-export const calcularTotales = (items: CotizacionItemGestioo[]) => {
+type ItemParaTotales = CotizacionItemGestioo | ItemCotizacionFrontend;
+
+// =====================================================
+//  NORMALIZAR CLP  (quita puntos, convierte a número)
+// =====================================================
+export function normalizarCLP(valor: any): number {
+  if (valor == null || valor === "" || isNaN(Number(valor))) return 0;
+  return Number(String(valor).replace(/\./g, ""));
+}
+
+export const calcularTotales = (items: ItemParaTotales[]) => {
   let subtotalBruto = 0;
   let descuentos = 0;
   let subtotal = 0;
@@ -14,32 +25,39 @@ export const calcularTotales = (items: CotizacionItemGestioo[]) => {
   let total = 0;
 
   items.forEach(item => {
-    const base = Number(item.precio || 0) * Number(item.cantidad || 1);
+    // 👇 PRECAUCIÓN: siempre usar CLP real
+    const precioCLP =
+      item.precioOriginalCLP != null
+        ? normalizarCLP(item.precioOriginalCLP)
+        : normalizarCLP(item.precio || 0);
+
+    const cantidad = Number(item.cantidad || 1);
+
+    const base = precioCLP * cantidad;
     subtotalBruto += base;
 
-    // Calcular porcentaje seguro
+    // Descuento
     const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
 
-    // Descuento solo si aplica
     const descuentoItem =
-      (item.tieneDescuento && porcentaje > 0 && item.tipo !== ItemTipoGestioo.ADICIONAL)
+      item.tieneDescuento && porcentaje > 0 && item.tipo !== ItemTipoGestioo.ADICIONAL
         ? (base * porcentaje) / 100
         : 0;
 
     descuentos += descuentoItem;
+
     const baseConDescuento = base - descuentoItem;
 
-    // Calcular IVA
+    // IVA
     const ivaItem =
-      (item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL)
+      item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL
         ? baseConDescuento * 0.19
         : 0;
 
     iva += ivaItem;
-    const totalItem = baseConDescuento + ivaItem;
 
     subtotal += baseConDescuento;
-    total += totalItem;
+    total += baseConDescuento + ivaItem;
   });
 
   return { subtotalBruto, descuentos, subtotal, iva, total };
@@ -173,10 +191,23 @@ export const formatTipo = (tipo: TipoCotizacionGestioo) => {
   return tipos[tipo];
 };
 
-export const formatearPrecio = (precioCLP: number, moneda: MonedaCotizacion, tasaCambio: number = 1): string => {
+// =====================================================
+//  FORMATEO DE PRECIO (MOSTRAR USD / CLP)
+// =====================================================
+export function formatearPrecio(valorCLP: number, moneda: "CLP" | "USD", tasa: number) {
+  const limpiar = (num: number) =>
+    Math.round((num + Number.EPSILON) * 100) / 100;
+
   if (moneda === "USD") {
-    const precioUSD = precioCLP / tasaCambio;
-    return `US$ ${precioUSD.toFixed(2)}`;
+    const usd = limpiar(valorCLP / tasa);
+    return `US$ ${usd.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   }
-  return `$ ${Math.round(precioCLP).toLocaleString("es-CL")}`;
-};
+
+  // CLP SIEMPRE ENTERO
+  return `$ ${Math.round(valorCLP).toLocaleString("es-CL")}`;
+}
+
+

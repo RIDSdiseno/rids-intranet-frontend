@@ -9,50 +9,74 @@ interface ViewCotizacionModalProps {
     cotizacion: CotizacionGestioo | null;
     onClose: () => void;
 
-    // ⭐ Permite imprimir sin overlay y sin animaciones
-    isPrintView?: boolean;
+    // ⭐ URL del PDF generado (vista previa real)
+    pdfURL?: string | null;
 }
 
 const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
     show,
     cotizacion,
     onClose,
-    isPrintView = false
+    pdfURL
 }) => {
 
-    if (!show || !cotizacion) return null;
+    if (!show) return null;
+
+    /* ============================================================
+       ⭐ 1) MODO VISTA PREVIA REAL DEL PDF
+       ============================================================ */
+    if (pdfURL) {
+        return (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[99999]">
+
+                <div className="bg-white rounded-xl shadow-xl w-[900px] h-[90vh] relative flex flex-col">
+
+                    {/* Botón cerrar */}
+                    <button
+                        onClick={onClose}
+                        className="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-xl z-10"
+                    >
+                        ✕
+                    </button>
+
+                    {/* Contenedor del PDF */}
+                    <div className="flex-1 mt-10">
+                        <iframe
+                            src={pdfURL}
+                            className="w-full h-full border-none"
+                        />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    /* ============================================================
+       ⭐ 2) MODO NORMAL (vista simple)
+       ============================================================ */
+    if (!cotizacion) return null;
 
     return (
-        <div
-            className={
-                isPrintView
-                    ? "" // ⭐ SIN OVERLAY, SIN FIXED, para imprimir correctamente
-                    : "fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-            }
-        >
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[99999]">
+
             <motion.div
-                initial={isPrintView ? false : { scale: 0.9, opacity: 0 }}
-                animate={isPrintView ? false : { scale: 1, opacity: 1 }}
-                className={
-                    isPrintView
-                        ? "bg-white p-6 w-full max-w-lg"  // ⭐ SIN shadow, SIN rounded, versión limpia para PDF
-                        : "bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative"
-                }
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative"
             >
+                {/* Título */}
                 <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <FileTextOutlined className="text-cyan-600" />
                     Cotización #{cotizacion.id}
                 </h2>
 
-                {/* ⭐ OCULTAR BOTÓN EN MODO PRINT */}
-                {!isPrintView && (
-                    <button
-                        onClick={onClose}
-                        className="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                    >
-                        ✕
-                    </button>
-                )}
+                {/* Botón cerrar */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-xl"
+                >
+                    ✕
+                </button>
 
                 <div className="space-y-2 text-sm text-slate-700">
                     <p><b>Fecha:</b> {new Date(cotizacion.fecha).toLocaleString("es-CL")}</p>
@@ -71,10 +95,9 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                         <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
                             {cotizacion.items.map((item, index) => (
                                 <li key={item.id} className="text-xs border-b pb-1">
-                                    <span className="font-medium">{index + 1}.</span> {item.descripcion} -
-                                    ${item.precio.toLocaleString("es-CL")} x {item.cantidad}
-                                    {item.tipo === "PRODUCTO" && item.tieneIVA && " (IVA)"}
-                                    {item.porcentaje && item.porcentaje > 0 && ` - ${item.porcentaje}% desc`}
+                                    <span className="font-medium">{index + 1}.</span>{" "}
+                                    {item.descripcion} - ${item.precio.toLocaleString("es-CL")} x{" "}
+                                    {item.cantidad}
                                 </li>
                             ))}
                         </ul>

@@ -121,7 +121,7 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="modal-new-producto fixed inset-0 bg-black/40 flex items-center justify-center z-[200] p-4">
             <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -341,10 +341,24 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                         <button
                             type="submit"
                             disabled={apiLoading}
-                            className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all duration-200 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all duration-200 
+        bg-gradient-to-r from-purple-600 to-pink-600 
+        hover:from-purple-700 hover:to-pink-700 
+        shadow-lg hover:shadow-xl 
+        flex items-center justify-center gap-2 
+        disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <CheckCircleOutlined />
-                            {apiLoading ? "Creando..." : "Crear Producto"}
+                            {apiLoading ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Creando...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircleOutlined />
+                                    Crear Producto
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>

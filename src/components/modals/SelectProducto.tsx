@@ -51,24 +51,44 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
     // =============================
     const filtrarProductosAvanzado = (productos: any[]) => {
         return productos.filter(producto => {
+
+            const nombre = (producto.nombre || "").toLowerCase();
+            const descripcion = (producto.descripcion || "").toLowerCase();
+            const codigo = (producto.sku || producto.codigo || "").toLowerCase();
+            const categoria = (producto.categoria || "").toLowerCase();
+
+            const textoFiltro = filtros.texto.toLowerCase();
+
+            // 1) Filtro de texto
             const coincideTexto =
-                producto.nombre?.toLowerCase().includes(filtros.texto.toLowerCase()) ||
-                producto.descripcion?.toLowerCase().includes(filtros.texto.toLowerCase()) ||
-                producto.codigo?.toLowerCase().includes(filtros.texto.toLowerCase());
+                nombre.includes(textoFiltro) ||
+                descripcion.includes(textoFiltro) ||
+                codigo.includes(textoFiltro);
 
-            const coincideCodigo = !filtros.codigo ||
-                producto.codigo?.toLowerCase().includes(filtros.codigo.toLowerCase());
+            if (!coincideTexto) return false;
 
-            const precio = producto.precio || producto.precioBase;
+            // 2) Filtro de código exacto
+            const coincideCodigo =
+                !filtros.codigo ||
+                codigo.includes(filtros.codigo.toLowerCase());
+
+            if (!coincideCodigo) return false;
+
+            // 3) Filtro de precio seguro
+            const precio = Number(producto.precio || 0);
             const precioMin = filtros.precioMin ? Number(filtros.precioMin) : 0;
             const precioMax = filtros.precioMax ? Number(filtros.precioMax) : Infinity;
-            const coincidePrecio = precio >= precioMin && precio <= precioMax;
 
-            const coincideCategoria = !filtros.categoria ||
-                (producto.categoria &&
-                    producto.categoria.toLowerCase().includes(filtros.categoria.toLowerCase()));
+            if (precio < precioMin || precio > precioMax) return false;
 
-            return coincideTexto && coincideCodigo && coincidePrecio && coincideCategoria;
+            // 4) Filtro categoría seguro
+            const coincideCategoria =
+                !filtros.categoria ||
+                categoria.includes(filtros.categoria.toLowerCase());
+
+            if (!coincideCategoria) return false;
+
+            return true;
         });
     };
 

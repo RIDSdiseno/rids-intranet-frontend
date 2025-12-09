@@ -841,13 +841,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     + Servicio
                                 </button>
 
-                                <button
-                                    type="button"
-                                    onClick={() => onAddItem(ItemTipoGestioo.ADICIONAL, formData.seccionActiva)}
-                                    className="px-3 py-1.5 rounded-xl border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                                >
-                                    + Descuento Adicional
-                                </button>
                             </div>
                         )}
 

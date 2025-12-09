@@ -87,6 +87,8 @@ export interface CotizacionItemGestioo {
   seccionId: number;
 
   imagen?: string | null;
+
+  precioOriginalCLP?: number;
 }
 
 export interface CotizacionGestioo {
@@ -108,6 +110,27 @@ export interface CotizacionGestioo {
 
   personaResponsable?: string | null;
   imagen?: string | null;
+}
+
+export interface ItemCotizacionFrontend {
+  tipo: ItemTipoGestioo;
+  descripcion: string;
+  cantidad: number;
+  precio: number;
+
+  precioCosto?: number | null;
+  porcGanancia?: number | null;
+
+  porcentaje?: number | null;
+  tieneDescuento?: boolean;
+
+  tieneIVA?: boolean;
+  sku?: string | null;
+  seccionId?: number;
+
+  imagen?: string | null;
+
+  precioOriginalCLP?: number | null;
 }
 
 export interface ProductoForm {
