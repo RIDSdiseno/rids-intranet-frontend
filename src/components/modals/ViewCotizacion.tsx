@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { FileTextOutlined } from "@ant-design/icons";
 import type { CotizacionGestioo } from "./types";
-import { formatEstado, formatTipo } from "./utils";
+import { formatEstado, formatTipo, formatearPrecio } from "./utils";
 
 interface ViewCotizacionModalProps {
     show: boolean;
@@ -88,16 +88,38 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                     <p><b>Correo:</b> {cotizacion.entidad?.correo || "—"}</p>
                     <p><b>Teléfono:</b> {cotizacion.entidad?.telefono || "—"}</p>
                     <p><b>Dirección:</b> {cotizacion.entidad?.direccion || "—"}</p>
-                    <p><b>Total:</b> ${Math.round(cotizacion.total).toLocaleString("es-CL")}</p>
+                    <p>
+                        <b>Total:</b>{" "}
+                        {formatearPrecio(
+                            cotizacion.total,
+                            cotizacion.moneda || "CLP",
+                            cotizacion.tasaCambio ?? 1
+                        )}
+                    </p>
 
                     <div className="mt-4">
                         <b>Items ({cotizacion.items.length}):</b>
                         <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
                             {cotizacion.items.map((item, index) => (
                                 <li key={item.id} className="text-xs border-b pb-1">
-                                    <span className="font-medium">{index + 1}.</span>{" "}
-                                    {item.descripcion} - ${item.precio.toLocaleString("es-CL")} x{" "}
-                                    {item.cantidad}
+                                    <div className="font-medium">
+                                        {index + 1}. {item.nombre}
+                                    </div>
+
+                                    {item.descripcion && (
+                                        <div className="text-[11px] text-slate-500 ml-3">
+                                            {item.descripcion}
+                                        </div>
+                                    )}
+
+                                    <div className="ml-3">
+                                        {formatearPrecio(
+                                            item.precioOriginalCLP ?? item.precio,
+                                            cotizacion.moneda || "CLP",
+                                            cotizacion.tasaCambio ?? 1
+                                        )}{" "}
+                                        x {item.cantidad}
+                                    </div>
                                 </li>
                             ))}
                         </ul>

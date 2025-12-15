@@ -38,7 +38,8 @@ import type {
     FiltrosProductos,
     FiltrosServicios,
     FiltrosHistorial,
-    Toast
+    Toast,
+    CotizacionItemGestioo
 } from "../components/modals/types";
 import {
     TipoCotizacionGestioo,
@@ -50,13 +51,20 @@ import {
     formatEstado,
     formatTipo,
     formatearPrecio,
-    validarCotizacion
+    validarCotizacion,
+    normalizarItemCotizacion,
+    calcularLineaItem
 } from "../components/modals/utils";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 type CotRow = CotizacionGestioo & {
     _showEstadoMenu?: boolean;
+};
+
+// Función para mostrar errores
+const showError = (msg: string) => {
+    alert(msg); // <- reemplaza con tu showToast si quieres
 };
 
 const Cotizaciones: React.FC = () => {
@@ -173,6 +181,10 @@ const Cotizaciones: React.FC = () => {
     // === HOOKS PERSONALIZADOS ===
     const { fetchApi: apiFetch, loading: apiLoading } = useApi();
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+    const [origenEditProducto, setOrigenEditProducto] =
+        useState<"catalogo" | "cotizacion" | null>(null);
+
 
     // === MANEJO DE ERRORES Y ÉXITOS ===
     const handleApiError = useCallback((error: any, defaultMessage: string) => {
@@ -341,17 +353,20 @@ const Cotizaciones: React.FC = () => {
         const newItem = {
             id: Date.now(),
             tipo,
-            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : "Nuevo item",
+            nombre: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : "",
+            descripcion: "",
             cantidad: 1,
             precio: 0,
-            porcentaje: 0,                 // Siempre 0 al inicio
+            precioOriginalCLP: 0,
+            porcentaje: 0,
+            tieneDescuento: false,
             tieneIVA: false,
-            tieneDescuento: false,         // 👈 nuevo campo
             seccionId: targetSeccionId
         };
 
         setItems(prev => [...prev, newItem]);
     };
+
 
     // === FUNCIONES PARA ITEMS ===
     const handleUpdateItem = (id: number, field: string, value: any) => {
@@ -362,6 +377,36 @@ const Cotizaciones: React.FC = () => {
 
     const handleRemoveItem = (id: number) => {
         setItems(prev => prev.filter(i => i.id !== id));
+    };
+
+    // === NUEVA FUNCIÓN PARA ACTUALIZAR ITEMS EN CREACIÓN O EDICIÓN ===
+    const handleItemChange = (index: number, field: string, value: any) => {
+        // 🔥 Si estamos editando una cotización existente
+        if (showEditModal && selectedCotizacion) {
+            const updatedItems = [...selectedCotizacion.items];
+
+            updatedItems[index] = {
+                ...updatedItems[index],
+                [field]: value
+            };
+
+            setSelectedCotizacion(prev => ({
+                ...prev!,
+                items: updatedItems
+            }));
+
+            return;
+        }
+
+        // 🔥 Si estamos creando una cotización nueva
+        const updated = [...items];
+
+        updated[index] = {
+            ...updated[index],
+            [field]: value
+        };
+
+        setItems(updated);
     };
 
     // === FUNCIONES PARA COTIZACIONES ===
@@ -422,22 +467,29 @@ const Cotizaciones: React.FC = () => {
 
                 return {
                     tipo: item.tipo,
+                    nombre: item.nombre,
                     descripcion: item.descripcion,
                     cantidad: item.cantidad,
-                    precio: precioCLP,            // 🔥 SIEMPRE EN CLP
-                    precioCosto: precioCostoCLP,  // 🔥 SIEMPRE EN CLP
+
+                    // 🔥 CLP REAL
+                    precio: precioCLP,
+                    precioOriginalCLP: precioCLP,
+
+                    precioCosto: precioCostoCLP,
                     porcentaje: item.porcentaje || null,
                     tieneIVA: item.tieneIVA || false,
+                    tieneDescuento: item.tieneDescuento || false,
+
                     sku: item.sku || null,
                     porcGanancia: item.porcGanancia || null,
                     seccionId: item.seccionId,
-                    tieneDescuento: item.tieneDescuento || false,
                     imagen: item.imagen || null,
                 };
             });
 
-            // === 3️⃣ CALCULAR TOTAL REAL EN CLP ===
-            const { total } = calcularTotales(itemsParaEnviar);
+            // === 3️⃣ CALCULAR TOTALES REALES EN CLP ===
+            const totales = calcularTotales(itemsParaEnviar);
+
 
             // === 4️⃣ ARMAR PAYLOAD PARA BACKEND ===
             const cotizacionData = {
@@ -445,11 +497,16 @@ const Cotizaciones: React.FC = () => {
                 estado: EstadoCotizacionGestioo.BORRADOR,
                 entidadId: Number(formData.entidadId),
 
-                // 🧾 Mantenemos total REAL en CLP en back-end (si la moneda es USD, back lo convertirá a mostrar)
-                total,
+                // 🔥 TOTALES REALES (CLP)
+                subtotal: totales.subtotal,
+                descuentos: totales.descuentos,
+                iva: totales.iva,
+                total: totales.total,
 
                 moneda: formData.moneda,
-                tasaCambio: formData.moneda === "USD" ? Number(formData.tasaCambio || 1) : 1,
+                tasaCambio: formData.moneda === "USD"
+                    ? Number(formData.tasaCambio || 1)
+                    : 1,
 
                 items: itemsParaEnviar,
                 comentariosCotizacion: formData.comentariosCotizacion?.trim() || null,
@@ -545,21 +602,10 @@ const Cotizaciones: React.FC = () => {
                     orden: s.orden ?? 0
                 })) ?? [],
 
-                // Copiar items sin id
-                items: cot.items.map((item) => ({
-                    tipo: item.tipo,
-                    descripcion: item.descripcion,
-                    cantidad: item.cantidad,
-                    precio: item.precio,
-                    precioCosto: item.precioCosto ?? null,
-                    porcGanancia: item.porcGanancia ?? null,
-                    porcentaje: item.porcentaje ?? null,
-                    tieneIVA: item.tieneIVA ?? false,
-                    tieneDescuento: item.tieneDescuento ?? false,
-                    sku: item.sku ?? null,
-                    seccionId: item.seccionId ?? null,
-                    imagen: item.imagen ?? null
-                })),
+                items: cot.items.map(item =>
+                    normalizarItemCotizacion(item, cot.moneda, cot.tasaCambio ?? 1)
+                ),
+
             };
 
             // ---------------------------------
@@ -573,12 +619,19 @@ const Cotizaciones: React.FC = () => {
 
             const clon = nueva.data;
 
-            // ---------------------------------
-            // 4️⃣ Actualizar UI y abrir editor
-            // ---------------------------------
-            setCotizaciones((prev) => [clon, ...prev]);
+            // 🔥 NORMALIZAR ANTES DE ABRIR
+            const moneda = clon.moneda || "CLP";
+            const tasa = moneda === "USD" ? clon.tasaCambio ?? 1 : 1;
 
-            setSelectedCotizacion(clon);
+            const clonNormalizado = {
+                ...clon,
+                items: clon.items.map((item: any) =>
+                    normalizarItemCotizacion(item, moneda, tasa)
+                )
+            };
+
+            // 👇 recién aquí abrir modal
+            setSelectedCotizacion(clonNormalizado);
             setShowEditModal(true);
 
             showSuccess(`Cotización duplicada correctamente (#${clon.id})`);
@@ -595,110 +648,78 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
+            // ================================
+            // 1️⃣ VALIDACIONES
+            // ================================
             const errores = validarCotizacion(selectedCotizacion);
             if (errores.length > 0) {
-                handleApiError({ message: errores.join("\n") }, "Errores de validación");
+                handleApiError(
+                    { message: errores.join("\n") },
+                    "Errores de validación"
+                );
                 return;
             }
 
             // ================================
-            // 1️⃣ ACTUALIZAR LA ENTIDAD
-            // ================================
-            if (selectedCotizacion.entidad) {
-                await apiFetch(`/entidades/${selectedCotizacion.entidad.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        nombre: selectedCotizacion.entidad.nombre.trim(),
-                        rut: selectedCotizacion.entidad.rut?.trim() || null,
-                        correo: selectedCotizacion.entidad.correo?.trim() || null,
-                        telefono: selectedCotizacion.entidad.telefono?.trim() || null,
-                        direccion: selectedCotizacion.entidad.direccion?.trim() || null,
-                        origen: selectedCotizacion.entidad.origen
-                    })
-                });
-            }
-
-            // ================================
-            // 2️⃣ ACTUALIZAR LA COTIZACIÓN
+            // 2️⃣ MONEDA Y TASA
             // ================================
             const moneda = selectedCotizacion.moneda || "CLP";
-            const tasaCambio = moneda === "USD"
-                ? Number(selectedCotizacion.tasaCambio) || 1
-                : 1;
+            const tasaCambio =
+                moneda === "USD"
+                    ? Number(selectedCotizacion.tasaCambio) || 1
+                    : 1;
 
-            // 2.1 Normalizar items a CLP
-            const itemsEnCLP = selectedCotizacion.items.map((item) => {
-                const precioOriginalCLP =
-                    item.precioOriginalCLP != null
-                        ? Number(item.precioOriginalCLP)
-                        : Number(item.precio); // 👈 BD siempre está en CLP
+            // ================================
+            // 3️⃣ NORMALIZAR ITEMS (ÚNICA VEZ)
+            // ================================
+            const itemsNormalizados = selectedCotizacion.items.map(item =>
+                normalizarItemCotizacion(item, moneda, tasaCambio)
+            );
 
-                const precioCostoCLP =
-                    item.precioCosto != null
-                        ? (moneda === "USD"
-                            ? Number(item.precioCosto) * tasaCambio
-                            : Number(item.precioCosto))
-                        : null;
+            // ================================
+            // 4️⃣ CALCULAR TOTALES (CLP REAL)
+            // ================================
+            const { total } = calcularTotales(itemsNormalizados as any);
 
-                return {
-                    ...item,
-                    precioOriginalCLP,
-                    precio: precioOriginalCLP,    // 👈 para totales y backend SIEMPRE CLP
-                    precioCosto: precioCostoCLP,
-                };
-            });
-
-            // 2.2 Calcular totales usando CLP real
-            const { total: totalCalculado } = calcularTotales(itemsEnCLP as any);
-
-            // 2.3 Armar payload para backend en CLP
-            const itemsConvertidos = itemsEnCLP.map((item) => ({
-                tipo: item.tipo,
-                descripcion: item.descripcion.trim(),
-                cantidad: Number(item.cantidad),
-                precio: Number(item.precio),              // 👈 ya es CLP
-                precioCosto: item.precioCosto ?? null,
-                porcGanancia: item.porcGanancia ?? null,
-                porcentaje:
-                    item.porcentaje !== null && item.porcentaje !== undefined
-                        ? Number(item.porcentaje)
-                        : null,
-                tieneIVA: item.tieneIVA || false,
-                sku: item.sku || null,
-                seccionId: item.seccionId ?? null,
-                tieneDescuento: item.tieneDescuento || false,
-                imagen: item.imagen || null,
-            }));
-
+            // ================================
+            // 5️⃣ ARMAR PAYLOAD FINAL
+            // ================================
             const cotizacionData = {
                 tipo: selectedCotizacion.tipo,
                 estado: selectedCotizacion.estado,
                 entidadId: selectedCotizacion.entidadId,
-                total: totalCalculado,
                 fecha: selectedCotizacion.fecha,
+                total,                       // 👈 CLP REAL
                 moneda,
                 tasaCambio,
-                comentariosCotizacion: selectedCotizacion.comentariosCotizacion?.trim() || null,
-                personaResponsable: selectedCotizacion.personaResponsable || null,
-                items: itemsConvertidos,
+                comentariosCotizacion:
+                    selectedCotizacion.comentariosCotizacion?.trim() || null,
+                personaResponsable:
+                    selectedCotizacion.personaResponsable || null,
+                items: itemsNormalizados,
                 secciones: selectedCotizacion.secciones || [],
                 imagen: selectedCotizacion.imagen || null,
             };
 
-            const cotizacionActualizada = await apiFetch(
+            // ================================
+            // 6️⃣ ENVIAR AL BACKEND
+            // ================================
+            const updated = await apiFetch(
                 `/cotizaciones/${selectedCotizacion.id}`,
                 {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(cotizacionData)
+                    body: JSON.stringify(cotizacionData),
                 }
             );
 
+            // ================================
+            // 7️⃣ ACTUALIZAR UI
+            // ================================
             setCotizaciones(prev =>
                 prev.map(c =>
                     c.id === selectedCotizacion.id
-                        ? cotizacionActualizada.data || cotizacionActualizada
+                        ? updated.data || updated
                         : c
                 )
             );
@@ -706,11 +727,12 @@ const Cotizaciones: React.FC = () => {
             setShowEditModal(false);
             showSuccess("Cotización actualizada correctamente");
             await fetchCotizaciones();
+
         } catch (error) {
             handleApiError(error, "Error al actualizar cotización");
         }
-
     };
+
 
     // === FUNCIONES AUXILIARES ===
     const resetForm = () => {
@@ -736,26 +758,32 @@ const Cotizaciones: React.FC = () => {
     // === FUNCIONES PARA PRODUCTOS ===
     const agregarProducto = async (producto: any) => {
         try {
-            // 1️⃣ Traer el producto REAL desde el backend (SIEMPRE incluye imagen correcta)
             const resp = await apiFetch(`/productos-gestioo/${producto.id}`);
             const productoReal = resp.data;
 
             const newItem = {
                 id: Date.now(),
+                cotizacionId: 0, // o lo que uses en creación
                 tipo: ItemTipoGestioo.PRODUCTO,
-                descripcion: productoReal.nombre,
+
+                nombre: productoReal.nombre,                     // 👈 NOMBRE
+                descripcion: productoReal.descripcion ?? "",     // 👈 DESCRIPCIÓN
+
                 cantidad: 1,
                 precio: productoReal.precioTotal || productoReal.precio,
+                precioOriginalCLP: productoReal.precioTotal || productoReal.precio,
                 precioCosto: productoReal.precio,
-                porcGanancia: productoReal.porcGanancia,
+                porcGanancia: productoReal.porcGanancia || 0,
+
                 porcentaje: 0,
                 tieneIVA: true,
                 tieneDescuento: false,
-                sku: productoReal.serie,
-                seccionId: formData.seccionActiva,
 
-                // 2️⃣ AHORA SIEMPRE TENDRÁS LA IMAGEN CORRECTA
+                sku: productoReal.serie || "",
+                seccionId: formData.seccionActiva,
                 imagen: productoReal.imagen || null,
+                productoId: productoReal.id,
+                createdAt: new Date().toISOString(),
             };
 
             setItems(prev => [...prev, newItem]);
@@ -763,10 +791,9 @@ const Cotizaciones: React.FC = () => {
             showSuccess("Producto agregado correctamente");
 
         } catch (error) {
-            handleApiError(error, "No se pudo cargar la imagen del producto");
+            handleApiError(error, "No se pudo cargar el producto");
         }
     };
-
 
     const agregarServicio = (servicio: any) => {
         const newItem = {
@@ -778,7 +805,8 @@ const Cotizaciones: React.FC = () => {
             porcentaje: 0,
             tieneIVA: false,
             tieneDescuento: false,         // 👈 nuevo
-            seccionId: formData.seccionActiva
+            seccionId: formData.seccionActiva,
+            productoId: null
         };
 
         setItems(prev => [...prev, newItem]);
@@ -786,47 +814,250 @@ const Cotizaciones: React.FC = () => {
         showSuccess("Servicio agregado correctamente");
     };
 
-    const abrirEditarProducto = (producto: any) => {
-        setProductoAEditar(producto);
+    const abrirEditarProducto = (
+        data: { productoId: number } | CotizacionItemGestioo,
+        origen: "catalogo" | "cotizacion"
+    ) => {
+        console.log("🔧 Abrir editar producto:", data, "origen:", origen);
+
+        setOrigenEditProducto(origen);
+
+        // =====================================================
+        // 1️⃣ Resolver productoId y item (si viene desde cotización)
+        // =====================================================
+        const productoId = data.productoId;
+
+        const item =
+            origen === "cotizacion" && "id" in data ? data : null;
+
+        // =====================================================
+        // 2️⃣ Buscar producto en catálogo
+        // =====================================================
+        let producto = productosCatalogo.find(p => p.id === productoId);
+
+        // Fallback por SKU (casos antiguos)
+        if (!producto && item?.sku) {
+            producto = productosCatalogo.find(
+                p => p.sku === item.sku || p.serie === item.sku
+            );
+
+            // 🔥 Si lo encontramos, sincronizamos el productoId en la cotización
+            if (producto && selectedCotizacion && item) {
+                setSelectedCotizacion(prev => {
+                    if (!prev) return prev;
+
+                    return {
+                        ...prev,
+                        items: prev.items.map(i =>
+                            i.id === item.id
+                                ? { ...i, productoId: producto!.id }
+                                : i
+                        )
+                    };
+                });
+            }
+        }
+
+        // =====================================================
+        // 3️⃣ Validación final
+        // =====================================================
+        if (!producto) {
+            setToast({
+                type: "error",
+                message:
+                    "Este ítem no tiene un producto asociado. Debe volver a agregarlo desde el catálogo."
+            });
+            setTimeout(() => setToast(null), 4000);
+            return;
+        }
+
+        // =====================================================
+        // 4️⃣ Preparar producto para edición
+        // =====================================================
+        setProductoAEditar({
+            ...producto,
+
+            // 👇 Prioridad: datos del ítem → catálogo
+            nombre: item?.nombre ?? producto.nombre,
+            descripcion: item?.descripcion ?? producto.descripcion ?? "",
+
+            // Costos
+            precioCosto: producto.precio ?? 0,
+            precio: producto.precio ?? 0,
+            precioTotal: producto.precioTotal ?? producto.precio ?? 0,
+            porcGanancia: producto.porcGanancia ?? 0,
+
+            categoria: producto.categoria ?? "",
+            stock: producto.stock ?? 0,
+            codigo: producto.serie ?? producto.codigo ?? "",
+            imagen: producto.imagen ?? null,
+            publicId: producto.publicId ?? null,
+        });
+
+        // =====================================================
+        // 5️⃣ Abrir modal correcto
+        // =====================================================
         setShowSelectorProducto(false);
         setShowEditProductoModal(true);
     };
 
-    const handleEditarProducto = async (productoData: any) => {
-        try {
-            // 1️⃣ Guardar cambios
-            const updated = await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(productoData)
-            });
+    const abrirEditarProductoDesdeCatalogo = (data: { productoId: number }) => {
+        abrirEditarProducto(data, "catalogo");
+    };
 
-            // 2️⃣ Volver a cargar el producto actualizado desde el backend
-            const resp = await apiFetch(`/productos-gestioo/${productoAEditar.id}`);
-            const productoReal = resp.data;
+    const abrirEditarProductoDesdeCotizacion = (item: CotizacionItemGestioo) => {
+        abrirEditarProducto(item, "cotizacion");
+    };
 
-            // 3️⃣ Actualizamos el catálogo
-            setProductosCatalogo(prev =>
-                prev.map(p => p.id === productoReal.id ? {
-                    ...p,
-                    imagen: productoReal.imagen
-                } : p)
-            );
+    // 🌟 Sincronizador global de productos
+    const syncProductoEnSistema = (producto: any) => {
 
+        // 1️⃣ Actualizar catálogo local
+        setProductosCatalogo(prev =>
+            prev.map(p =>
+                p.id === producto.id ? { ...p, ...producto } : p
+            )
+        );
+
+        // 2️⃣ Si estás editando una cotización
+        setSelectedCotizacion(prev => {
+            if (!prev) return prev;
+
+            const actualizado: CotizacionGestioo = {
+                ...prev,
+                items: prev.items.map(i =>
+                    i.productoId === producto.id
+                        ? {
+                            ...i,
+                            productoId: producto.id,
+
+                            // 🔥 ACTUALIZAR AMBOS CAMPOS
+                            nombre: producto.nombre,
+                            descripcion: producto.descripcion || i.descripcion,
+
+                            precioCosto: producto.precio,
+                            porcGanancia: producto.porcGanancia,
+                            precioOriginalCLP: producto.precioTotal ?? producto.precio,
+                            precio: producto.precioTotal ?? producto.precio,
+                            imagen: producto.imagen,
+                            sku: producto.serie ?? producto.sku,
+                        }
+                        : i
+                )
+            };
+
+            return actualizado;
+        });
+
+
+        // 3️⃣ Si estás creando una cotización
+        if (showCreateModal) {
             setItems(prev =>
                 prev.map(i =>
-                    i.sku === productoReal.serie
-                        ? { ...i, imagen: productoReal.imagen }
+                    i.productoId === producto.id
+                        ? {
+                            ...i,
+                            productoId: producto.id,
+                            nombre: producto.nombre,
+                            descripcion: producto.descripcion || i.descripcion,
+
+                            precioCosto: producto.precio,
+                            porcGanancia: producto.porcGanancia,
+                            precioOriginalCLP: producto.precioTotal ?? producto.precio,
+                            precio: producto.precioTotal ?? producto.precio,
+                            imagen: producto.imagen,
+                            sku: producto.serie ?? producto.sku,
+                        }
                         : i
                 )
             );
+        }
+    };
 
+    const handleEditarProducto = async (productoData: any) => {
+        try {
+            if (!productoAEditar?.id) {
+                return showError("No se puede editar: producto sin ID.");
+            }
+
+            // 1️⃣ Guardar cambios en backend
+            await apiFetch(`/productos-gestioo/${productoAEditar.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(productoData),
+            });
+
+            // 2️⃣ Obtener producto actualizado REAL desde backend
+            const resp = await apiFetch(`/productos-gestioo/${productoAEditar.id}`);
+            const productoReal = resp.data;
+
+            // 3️⃣ Sincronizar en TODO el sistema (catálogo, cotización, creación)
+            syncProductoEnSistema(productoReal);
+
+            // 4️⃣ Mensaje de éxito
             showSuccess("Producto actualizado correctamente");
+
+            // 5️⃣ Cerrar modal de edición
             setShowEditProductoModal(false);
-            setShowSelectorProducto(true);
 
         } catch (error) {
             handleApiError(error, "Error al actualizar producto");
+        }
+    };
+
+    const agregarProductoEnEdicion = async (producto: any) => {
+        if (!selectedCotizacion) return;
+
+        try {
+            const resp = await apiFetch(`/productos-gestioo/${producto.id}`);
+            const productoReal = resp.data;
+
+            const precioCosto = Number(productoReal.precio || 0);
+            const porcGanancia = Number(productoReal.porcGanancia || 0);
+            const precioVenta = Math.round(precioCosto * (1 + porcGanancia / 100));
+
+            const newItem: CotizacionItemGestioo = {
+                id: Number(`-9${Date.now()}`),
+                cotizacionId: selectedCotizacion.id,
+                tipo: ItemTipoGestioo.PRODUCTO,
+
+                nombre: productoReal.nombre,
+                descripcion: productoReal.descripcion ?? "",
+
+                cantidad: 1,
+                precioCosto,
+                porcGanancia,
+                precioOriginalCLP: precioVenta,
+                precio: precioVenta,
+
+                porcentaje: 0,
+                tieneIVA: true,
+                tieneDescuento: false,
+
+                sku: productoReal.serie,
+                seccionId: 1,
+                imagen: productoReal.imagen || null,
+                productoId: productoReal.id,
+                createdAt: new Date().toISOString(),
+            };
+
+            const normalizado = normalizarItemCotizacion(
+                newItem,
+                selectedCotizacion.moneda,
+                selectedCotizacion.tasaCambio ?? 1
+            );
+
+            setSelectedCotizacion(prev =>
+                prev
+                    ? { ...prev, items: [...prev.items, normalizado] }
+                    : prev
+            );
+
+            setShowSelectorProducto(false);
+            showSuccess("Producto agregado correctamente");
+
+        } catch (error) {
+            handleApiError(error, "No se pudo cargar el producto");
         }
     };
 
@@ -1011,48 +1242,62 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-
     // === MODAL EDICIÓN COTIZACIÓN ===
     const openEditModal = async (cotizacion: CotizacionGestioo) => {
-        console.log("🔥 Cotización completa desde backend:", cotizacion);
-        console.log("🔥 Items recibidos:", cotizacion.items);
-
-        let items: any[] = [];
-
         try {
+            console.log("🔥 Cotización recibida:", cotizacion);
+
+            // ================================
+            // 1️⃣ ASEGURAR CATÁLOGO
+            // ================================
+            await fetchCatalogo();
+
+            // ================================
+            // 2️⃣ OBTENER ITEMS (fallback seguro)
+            // ================================
+            let items: any[] = [];
+
             if (!cotizacion.items || !Array.isArray(cotizacion.items) || cotizacion.items.length === 0) {
                 items = await recargarItemsCotizacion(cotizacion.id);
             } else {
                 items = cotizacion.items;
             }
 
+            // ================================
+            // 3️⃣ MONEDA Y TASA
+            // ================================
             const moneda = cotizacion.moneda || "CLP";
-            const tasa = cotizacion.tasaCambio || 1;
+            const tasaCambio =
+                moneda === "USD"
+                    ? Number(cotizacion.tasaCambio) || 1
+                    : 1;
 
-            const itemsConvertidos = items.map((item) => {
-                const precioOriginalCLP = Number(item.precioOriginalCLP ?? item.precio);
+            // ================================
+            // 4️⃣ NORMALIZAR ITEMS (ÚNICA VEZ)
+            // ================================
+            const itemsNormalizados = items.map(item =>
+                normalizarItemCotizacion(item, moneda, tasaCambio)
+            );
 
-                return {
-                    ...item,
-                    precioOriginalCLP,  // este siempre es CLP real sin conversión
-                    precio:
-                        moneda === "USD"
-                            ? precioOriginalCLP / tasa     // mostrar USD correcto
-                            : precioOriginalCLP             // CLP directo sin convertir
-                };
-            });
-
-            const nuevaCotizacion = {
+            // ================================
+            // 5️⃣ ARMAR COTIZACIÓN PARA EDICIÓN
+            // ================================
+            const cotizacionEditable: CotizacionGestioo = {
                 ...cotizacion,
                 moneda,
-                tasaCambio: cotizacion.tasaCambio ?? 1,
-                comentariosCotizacion: cotizacion.comentariosCotizacion ?? "",
+                tasaCambio,
+                comentariosCotizacion:
+                    cotizacion.comentariosCotizacion ?? "",
                 imagen: cotizacion.imagen ?? null,
-                items: itemsConvertidos,
+                items: itemsNormalizados,
             };
 
-            setSelectedCotizacion(nuevaCotizacion);
+            // ================================
+            // 6️⃣ ABRIR MODAL
+            // ================================
+            setSelectedCotizacion(cotizacionEditable);
             setShowEditModal(true);
+
         } catch (error) {
             handleApiError(error, "Error al cargar cotización para editar");
         }
@@ -1070,15 +1315,13 @@ const Cotizaciones: React.FC = () => {
     };
 
     // === ESTADO PARA VISTA PREVIA PDF ===
-    const [htmlPreview, setHtmlPreview] = useState<string | null>(null);
-
     const [pdfURL, setPdfURL] = useState<string | null>(null);
 
+    // === GENERACIÓN DE PDF (Blob URL) ===
     const generarPDFBlobURL = async (cot: CotizacionGestioo) => {
         return new Promise<string>(async (resolve, reject) => {
             try {
                 const pdf = await handlePrint(cot, true); // modo blob
-
                 if (!pdf) {
                     reject("PDF no generado");
                     return;
@@ -1087,103 +1330,13 @@ const Cotizaciones: React.FC = () => {
                 const blob = pdf.output("blob");
                 const url = URL.createObjectURL(blob);
                 resolve(url);
-
             } catch (e) {
                 reject(e);
             }
         });
     };
 
-    const generarHTMLCotizacion = async (cot: CotizacionGestioo): Promise<string> => {
-        // 🔥 COPIA EXACTA de tu generación de HTML
-        // Usa los mismos cálculos de tu handlePrint:
-
-        const fechaActual = new Date().toLocaleString("es-CL", {
-            dateStyle: "short",
-            timeStyle: "short",
-        });
-
-        const codigo = `COT-${String(cot.id).padStart(6, "0")}`;
-
-        type OrigenLocal = "RIDS" | "ECONNET" | "OTRO";
-
-        const ORIGEN_DATA: Record<OrigenLocal, any> = {
-            RIDS: {
-                nombre: "RIDS LTDA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "soporte@rids.cl",
-                telefono: "+56 9 8823 1976",
-                rut: "76.758.352-4",
-                logo: "/img/splash.png",
-            },
-            ECONNET: {
-                nombre: "ECONNET SPA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "ventas@econnet.cl",
-                telefono: "+56 9 8807 6593",
-                rut: "76.758.352-4",
-                logo: "/img/ecconetlogo.png",
-            },
-            OTRO: {
-                nombre: cot.entidad?.nombre ?? "Empresa",
-                direccion: cot.entidad?.direccion ?? "",
-                correo: cot.entidad?.correo ?? "",
-                telefono: cot.entidad?.telefono ?? "",
-                rut: cot.entidad?.rut ?? "",
-                logo: "/img/splash.png",
-            },
-        };
-
-        const origen = (cot.entidad?.origen ?? "OTRO") as OrigenLocal;
-        const origenInfo = ORIGEN_DATA[origen];
-
-        // 🔥 REUTILIZA EXACTAMENTE EL MISMO HTML QUE USAS EN handlePrint
-
-        const html = `
-        <html>
-        <head>
-            <meta charset="UTF-8"/>
-            <style>
-                body{ font-family:Arial; padding:20px; }
-                table{ width:100%; border-collapse:collapse; font-size:10px; }
-                th,td{ border:1px solid #ddd; padding:4px; }
-                h3{ margin-top:30px; }
-            </style>
-        </head>
-        <body>
-            <h2>Cotización ${codigo}</h2>
-            <p>Fecha: ${fechaActual}</p>
-
-            <h3>Cliente</h3>
-            <p>${cot.entidad?.nombre ?? "—"}</p>
-
-            <h3>Detalle</h3>
-
-            <table>
-                <tr>
-                    <th>Descripción</th>
-                    <th>Precio</th>
-                    <th>Cantidad</th>
-                </tr>
-
-                ${cot.items
-                .map(
-                    (i) => `
-                        <tr>
-                            <td>${i.descripcion}</td>
-                            <td>${i.precio}</td>
-                            <td>${i.cantidad}</td>
-                        </tr>`
-                )
-                .join("")}
-            </table>
-        </body>
-        </html>
-    `;
-
-        return html;
-    };
-
+    // === FUNCIÓN PARA VISTA PREVIA (con URL del PDF) ===
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
         const url = await generarPDFBlobURL(cot);
         setPdfURL(url);
@@ -1191,32 +1344,26 @@ const Cotizaciones: React.FC = () => {
         setShowViewModal(true);
     };
 
+    // === IMPRESIÓN DEL PDF ===
     const handlePrint = async (
         cot: CotizacionGestioo,
         returnAsBlob: boolean = false
     ) => {
-
-
         try {
             // ================================
-            // FUNCIÓN MEJORADA PARA CONVERTIR IMÁGENES
+            // FUNCIÓN PARA CONVERTIR IMÁGENES A BASE64
             // ================================
             async function urlToBase64(url: string | null): Promise<string | null> {
                 try {
-                    // Verificar si la URL es válida
                     if (!url || !url.startsWith('http')) {
                         console.warn("URL de imagen inválida:", url);
                         return null;
                     }
 
-                    // Crear timeout para evitar bloqueos
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-                    // Intentar fetch con diferentes estrategias
                     let response;
 
-                    // Estrategia 1: Intentar con CORS primero
                     try {
                         response = await fetch(url, {
                             signal: controller.signal,
@@ -1228,7 +1375,6 @@ const Cotizaciones: React.FC = () => {
                         });
                     } catch (corsError) {
                         console.log("CORS falló, intentando sin CORS...");
-                        // Estrategia 2: Usar proxy CORS
                         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
                         response = await fetch(proxyUrl, {
                             signal: controller.signal,
@@ -1244,7 +1390,6 @@ const Cotizaciones: React.FC = () => {
                     }
 
                     const blob = await response.blob();
-
                     if (blob.size === 0) {
                         console.warn("Blob vacío para imagen:", url);
                         return null;
@@ -1281,9 +1426,6 @@ const Cotizaciones: React.FC = () => {
                 return;
             }
 
-            // ================================
-            // DATOS BASE
-            // ================================
             const fechaActual = new Date().toLocaleString("es-CL", {
                 dateStyle: "short",
                 timeStyle: "short",
@@ -1335,7 +1477,6 @@ const Cotizaciones: React.FC = () => {
             // ================================
             const formatPDF = (valorCLP: number) => {
                 if (isNaN(valorCLP)) return "$0";
-
                 if (cot.moneda === "USD") {
                     const tasa = cot.tasaCambio || 1;
                     const usd = valorCLP / tasa;
@@ -1347,7 +1488,7 @@ const Cotizaciones: React.FC = () => {
             // ================================
             // FUNCIÓN PARA CALCULAR VALORES
             // ================================
-            const calcularValoresItem = (item: any) => {
+            const calcularLineaItem = (item: any) => {
                 const precio = Number(item.precio) || 0;
                 const cantidad = Number(item.cantidad) || 0;
                 const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
@@ -1380,11 +1521,6 @@ const Cotizaciones: React.FC = () => {
             // ================================
             // CONVERTIR IMÁGENES A BASE64
             // ================================
-
-            // Convertir imagen principal de la cotización
-            const imagenBase64 = await urlToBase64(cot.imagen ?? null);
-
-            // Preparar caché para imágenes de productos (evitar conversiones duplicadas)
             const imagenesCache = new Map<string, string | null>();
 
             // ================================
@@ -1393,7 +1529,6 @@ const Cotizaciones: React.FC = () => {
             let seccionesHtml = "";
             let totalGeneral = 0;
 
-            // Función auxiliar para obtener imagen en base64 desde caché
             const obtenerImagenBase64 = async (url: string | null | undefined): Promise<string | null> => {
                 if (!url) return null;
                 if (imagenesCache.has(url)) return imagenesCache.get(url) || null;
@@ -1402,7 +1537,6 @@ const Cotizaciones: React.FC = () => {
                 imagenesCache.set(url, base64);
                 return base64;
             };
-
 
             // Con secciones
             if (cot.secciones && cot.secciones.length > 0) {
@@ -1419,45 +1553,59 @@ const Cotizaciones: React.FC = () => {
                     let totalSeccion = 0;
 
                     const itemsHtmlPromises = itemsSeccion.map(async (item) => {
-                        const valores = calcularValoresItem(item);
+                        const valores = calcularLineaItem(item);
 
                         // Obtener imagen en base64 desde caché
-                        const imagenItemBase64 = await obtenerImagenBase64(item.imagen ?? null);
 
                         totalSeccion += valores.totalItem;
 
                         return `
 <tr>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    <td style="padding:8px;text-align:center;vertical-align:top;">
         ${item.sku || ""}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd; display:flex; align-items:center; gap:8px;">
-        <span>${item.descripcion}</span>
+    <td style="padding:8px;text-align:left;vertical-align:top;">
+        <div style="font-weight:600;margin-bottom:4px;">${item.nombre}</div>
+        ${item.descripcion ? `
+       <div style="
+    font-size:8px;
+    color:#555;
+    margin:0;
+    padding:0;
+    line-height:1.1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:220px;
+">
+    ${item.descripcion}
+</div>
+
+        ` : ""}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    <td style="padding:8px;text-align:right;vertical-align:top;">
         ${formatPDF(Number(item.precio) || 0)}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    <td style="padding:8px;text-align:center;vertical-align:top;">
         ${item.cantidad}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    <td style="padding:8px;text-align:center;vertical-align:top;">
         ${valores.porcentajeMostrar}%
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    <td style="padding:8px;text-align:right;vertical-align:top;">
         ${formatPDF(valores.descuentoItem)}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
+    <td style="padding:8px;text-align:center;vertical-align:top;">
         ${valores.ivaPorcentajeMostrar}%
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    <td style="padding:8px;text-align:right;vertical-align:top;">
         ${formatPDF(valores.ivaMonto)}
     </td>
-    <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
+    <td style="padding:8px;text-align:right;vertical-align:top;font-weight:bold;">
         ${formatPDF(valores.totalItem)}
     </td>
 </tr>`;
                     });
-
                     const itemsHtml = (await Promise.all(itemsHtmlPromises)).join("");
                     totalGeneral += totalSeccion;
 
@@ -1465,17 +1613,14 @@ const Cotizaciones: React.FC = () => {
     <div style="margin-bottom: 30px;">
         <div style="background:#f8f9fa; padding:10px 15px; border-radius:6px; margin-bottom:15px; border-left:4px solid #007bff;">
             <h3 style="margin:0; font-size:18px; font-weight:bold; color:#333;">${seccion.nombre.toUpperCase()}</h3>
-            ${seccion.descripcion
-                            ? `<p style="margin:4px 0 0 0; font-size:14px; color:#666;">${seccion.descripcion}</p>`
-                            : ""
-                        }
+            ${seccion.descripcion ? `<p style="margin:4px 0 0 0; font-size:14px; color:#666;">${seccion.descripcion}</p>` : ""}
         </div>
         
         <table style="width:100%;border-collapse:collapse;font-size:13px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#e9ecef;">
                     <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-                    <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                    <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Nombre</th>
                     <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
                     <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
                     <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
@@ -1502,47 +1647,58 @@ const Cotizaciones: React.FC = () => {
     </div>`;
                 }
             } else {
-                // SIN secciones
                 const itemsHtmlPromises = cot.items.map(async (item) => {
-                    const valores = calcularValoresItem(item);
-
-                    // Obtener imagen en base64 desde caché
-                    const imagenItemBase64 = await obtenerImagenBase64(item.imagen);
-
+                    const valores = calcularLineaItem(item);
                     totalGeneral += valores.totalItem;
 
                     return `
-    <tr>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-            ${item.sku || ""}
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd; display:flex; align-items:center; gap:8px;">
-            <span>${item.descripcion}</span>
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-            ${formatPDF(Number(item.precio) || 0)}
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-            ${item.cantidad}
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-            ${valores.porcentajeMostrar}%
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-            ${formatPDF(valores.descuentoItem)}
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">
-            ${valores.ivaPorcentajeMostrar}%
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-            ${formatPDF(valores.ivaMonto)}
-        </td>
-        <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">
-            ${formatPDF(valores.totalItem)}
-        </td>
-    </tr>`;
+<tr>
+    <td style="padding:8px;text-align:center;vertical-align:top;">
+        ${item.sku || ""}
+    </td>
+    <td style="padding:8px;text-align:left;vertical-align:top;">
+        <div style="font-weight:600;margin-bottom:4px;">${item.nombre}</div>
+        ${item.descripcion ? `
+       <div style="
+    font-size:8px;
+    color:#555;
+    margin:0;
+    padding:0;
+    line-height:1.1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:220px;
+">
+    ${item.descripcion}
+</div>
+
+        ` : ""}
+    </td>
+    <td style="padding:8px;text-align:right;vertical-align:top;">
+        ${formatPDF(Number(item.precio) || 0)}
+    </td>
+    <td style="padding:8px;text-align:center;vertical-align:top;">
+        ${item.cantidad}
+    </td>
+    <td style="padding:8px;text-align:center;vertical-align:top;">
+        ${valores.porcentajeMostrar}%
+    </td>
+    <td style="padding:8px;text-align:right;vertical-align:top;">
+        ${formatPDF(valores.descuentoItem)}
+    </td>
+    <td style="padding:8px;text-align:center;vertical-align:top;">
+        ${valores.ivaPorcentajeMostrar}%
+    </td>
+    <td style="padding:8px;text-align:right;vertical-align:top;">
+        ${formatPDF(valores.ivaMonto)}
+    </td>
+    <td style="padding:8px;text-align:right;vertical-align:top;font-weight:bold;">
+        ${formatPDF(valores.totalItem)}
+    </td>
+</tr>`;
                 });
-                // Obtener imagen en base64 desde caché
+
                 const itemsHtml = (await Promise.all(itemsHtmlPromises)).join("");
 
                 seccionesHtml = `
@@ -1550,7 +1706,7 @@ const Cotizaciones: React.FC = () => {
         <thead>
             <tr style="background:#e9ecef;">
                 <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Código</th>
-                <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Descripción</th>
+                <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Nombre</th>
                 <th style="padding:8px;text-align:right; border:1px solid #dee2e6;">P.Unitario</th>
                 <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>
                 <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Desc (%)</th>
@@ -1647,21 +1803,31 @@ const Cotizaciones: React.FC = () => {
     width: 90%;                    /* ← Reduce el ancho total de la tabla */
     margin: 0 auto;                /* ← Centrada */
     border-collapse: collapse;
-    font-size: 10px;              /* ← Más pequeño */
+    font-size: 9px !important;              /* ← Más pequeño */
 }
 
 /* Texto de productos (celdas del body) */
 tbody td {
     font-size: 10px;        /* tamaño reducido */
-    padding: 2px 4px;      /* filas más compactas */
-    line-height: 1.2;      
+    padding: 0px 2px !important;      /* filas más compactas */
+    line-height: 1.0 !important;      
+}
+
+tbody td div {
+    font-size: 8px !important;
+    padding: 3px 5px !important;  
+    margin-top: 2px !important;   
+    margin-bottom: 2px !important;  
+    line-height: 1.1 !important;
+    background: transparent !important;
+    color: #302f2fff !important;
 }
 
 th, td {
-    padding: 2px 3px;              /* ← Mucho más compacto */
+    padding: 3px 4px !important;
     border: 1px solid #d0d0d0;
-    line-height: 1.0 !;              /* ← Reduce altura de cada fila */
-    vertical-align: middle;
+    line-height: 1.2;
+    vertical-align: top;
 }
 
 thead th {
@@ -1681,21 +1847,32 @@ thead th {
         text-align: right;
     }
 
-    .payment-info {
-        padding: 20px; 
-        border: 1px solid #ccc; 
-        border-radius: 10px; 
-        background: #fafafa; 
-        font-size: 13px;
-    }
-
-    /* Comentarios y firma */
     .footer-section {
-        display: flex;
-        justify-content: space-between;
-        gap: 40px;
-        margin-top: 100px; /* ⬅ más espacio arriba */
-    }
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+    margin-top: 100px;
+    page-break-inside: avoid !important;  /* ← CLAVE */
+    break-inside: avoid !important;
+}
+
+.final-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+
+    /* 🔥 CLAVE */
+    page-break-before: auto;
+}
+
+.payment-info {
+    padding: 20px; 
+    border: 1px solid #ccc; 
+    border-radius: 10px; 
+    background: #fafafa; 
+    font-size: 13px;
+    page-break-inside: avoid !important;  /* ← También para forma de pago */
+    break-inside: avoid !important;
+}
 
     .comentarios-box {
         flex: 1;
@@ -1826,7 +2003,6 @@ thead th {
 </div>
 
     <!-- FORMAS DE PAGO -->
-    <div style="height:60px;"></div>
     <div style="height:60px;"></div>
     <div class="payment-info avoid-break">
         <p><b>Pago por transferencia electrónica o depósito</b></p>
@@ -1990,7 +2166,11 @@ thead th {
         return matchSearch && matchOrigen && matchEstado && matchTipo;
     });
 
-    const totales = calcularTotales(items as any[]);
+    const totales = calcularTotales(
+        showEditModal && selectedCotizacion
+            ? selectedCotizacion.items
+            : items
+    );
 
     const totalMostrado = filtered.length;
     const totalCotizaciones = cotizaciones.length;
@@ -2383,6 +2563,8 @@ thead th {
                     setDireccion(entidad.direccion ?? "");
                     setShowEditEntidadModal(true);
                 }}
+                onEditarProducto={abrirEditarProductoDesdeCotizacion}
+
                 totales={totales}
                 apiLoading={apiLoading}
             />
@@ -2401,6 +2583,9 @@ thead th {
                     setShowNewProductoModal(true);
                     document.body.classList.add("modal-nested-open");
                 }}
+                onEditarProducto={abrirEditarProductoDesdeCotizacion}
+                onItemChange={handleItemChange}
+
             />
             <SelectProductoModal
                 show={showSelectorProducto}
@@ -2419,8 +2604,12 @@ thead th {
                         categoria: ""
                     })
                 }
-                onAgregarProducto={agregarProducto}
-                onEditarProducto={abrirEditarProducto}
+                // 👇 USAR FUNCIÓN DIFERENTE SEGÚN EL CONTEXTO
+                onAgregarProducto={
+                    showEditModal
+                        ? agregarProductoEnEdicion  // 👈 modo edición
+                        : agregarProducto           // 👈 modo creación
+                }
                 onEliminarProducto={handleEliminarProducto}
                 orden={ordenProducto}
                 onOrdenChange={setOrdenProducto}
@@ -2451,15 +2640,45 @@ thead th {
             />
 
             <EditProductoModal
+                onBackToSelector={() => {
+                    setShowEditProductoModal(false);
+
+                    if (origenEditProducto === "catalogo") {
+                        setShowSelectorProducto(true);
+                    }
+
+                    setOrigenEditProducto(null);
+                }}
                 show={showEditProductoModal}
                 producto={productoAEditar}
                 onClose={() => setShowEditProductoModal(false)}
                 onSave={handleEditarProducto}
-                onBackToSelector={() => {
-                    setShowEditProductoModal(false);
-                    setShowSelectorProducto(true);
-                }}
                 apiLoading={apiLoading}
+                // 👇 NUEVO CALLBACK PARA ACTUALIZACIÓN EN TIEMPO REAL
+                onUpdateRealTime={(itemActualizado) => {
+                    if (selectedCotizacion && showEditModal) {
+                        const itemsActualizados = selectedCotizacion.items.map(i =>
+                            i.id === itemActualizado.id
+                                ? { ...i, ...itemActualizado }
+                                : i
+                        );
+
+                        setSelectedCotizacion({
+                            ...selectedCotizacion,
+                            items: itemsActualizados // ✅ Usa los items actualizados
+                        });
+                    }
+
+                    if (showCreateModal) {
+                        setItems(prev =>
+                            prev.map(i =>
+                                i.id === itemActualizado.id
+                                    ? { ...i, ...itemActualizado }
+                                    : i
+                            )
+                        );
+                    }
+                }}
             />
 
             <EditServicioModal

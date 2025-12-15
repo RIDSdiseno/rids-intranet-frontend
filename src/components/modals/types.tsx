@@ -72,23 +72,23 @@ export interface CotizacionItemGestioo {
   id: number;
   cotizacionId: number;
   tipo: ItemTipoGestioo;
-  descripcion: string;
+
+  nombre: string;          // 👈 nombre visible
+  descripcion: string;     // 👈 descripción larga
+
   cantidad: number;
   precio: number;
   precioCosto?: number;
   porcGanancia?: number;
-
   porcentaje?: number | null;
   tieneDescuento?: boolean;
-
   createdAt: string;
   tieneIVA?: boolean;
   sku?: string;
   seccionId: number;
-
   imagen?: string | null;
-
   precioOriginalCLP?: number;
+  productoId?: number | null;
 }
 
 export interface CotizacionGestioo {

@@ -18,10 +18,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 /* ======= Tipos Gestioo ======= */
-// Reemplazamos el enum por tipos union para mayor compatibilidad
 type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
 
-// Objeto constante para usar como referencia
 const OrigenGestioo = {
     RIDS: "RIDS" as OrigenGestioo,
     ECONNET: "ECONNET" as OrigenGestioo,
@@ -38,13 +36,21 @@ interface EntidadGestioo {
     origen?: OrigenGestioo;
 }
 
-interface ProductoGestioo {
+interface EquipoGestioo {
     id: number;
-    nombre: string;
-    categoria?: string;
+    marca: string;
+    modelo: string;
     serie?: string | null;
-    precio?: number | null;
-    stock?: number | null;
+    tipo?: string | null;
+    estado?: string | null;
+    solicitante?: {
+        id: number;
+        nombre: string;
+        empresa?: {
+            id: number;
+            nombre: string;
+        } | null;
+    } | null;
 }
 
 type Prioridad = "baja" | "normal" | "alta";
@@ -61,7 +67,7 @@ interface DetalleTrabajoGestioo {
     area: "ENTRADA" | "DOMICILIO" | "REPARACION" | "SALIDA";
     prioridad: "BAJA" | "NORMAL" | "ALTA";
     entidad?: EntidadGestioo | null;
-    producto?: ProductoGestioo | null;
+    equipo?: EquipoGestioo | null;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
@@ -173,7 +179,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     </div>
 </div>
 
-<!-- CLIENTE / PRODUCTO -->
+<!-- CLIENTE / EQUIPO -->
 <div style="display: flex; gap: 20px; margin-bottom: 25px;">
 
     <!-- CLIENTE -->
@@ -186,12 +192,12 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <p><b>Dirección:</b> ${orden.entidad?.direccion ?? "—"}</p>
     </div>
 
-    <!-- PRODUCTO -->
+    <!-- EQUIPO -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
-        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Producto</h3>
-        <p><b>Producto:</b> ${orden.producto?.nombre ?? "—"}</p>
-        <p><b>Categoría:</b> ${orden.producto?.categoria ?? "—"}</p>
-        <p><b>Serie:</b> ${orden.producto?.serie ?? "—"}</p>
+        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Equipo</h3>
+        <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
+        <p><b>Tipo:</b> ${orden.equipo?.tipo ?? "—"}</p>
+        <p><b>Serie:</b> ${orden.equipo?.serie ?? "—"}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
         <p><b>Fecha ingreso:</b> ${new Date(orden.fecha).toLocaleString("es-CL")}</p>
     </div>
@@ -304,10 +310,10 @@ const OrdenesTaller: React.FC = () => {
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
-    const [productos, setProductos] = useState<ProductoGestioo[]>([]);
+    const [equipos, setEquipos] = useState<EquipoGestioo[]>([]);
+    const [equiposFiltrados, setEquiposFiltrados] = useState<EquipoGestioo[]>([]);
 
-    const [busquedaProducto, setBusquedaProducto] = useState("");
-
+    const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
     const [formData, setFormData] = useState({
         tipoTrabajo: "",
@@ -320,7 +326,7 @@ const OrdenesTaller: React.FC = () => {
         tipoEntidad: "EMPRESA" as "EMPRESA" | "PERSONA",
         origenEntidad: "",
         entidadId: "",
-        productoId: "",
+        equipoId: "",
     });
 
     const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "en progreso" | "completada" | "cancelada">("todas");
@@ -358,25 +364,49 @@ const OrdenesTaller: React.FC = () => {
 
     const fetchSelectData = async () => {
         try {
-            const [eRes, pRes] = await Promise.all([
-                fetch(`${API_URL}/entidades`, { credentials: "include" }),
-                fetch(`${API_URL}/productos-gestioo`, { credentials: "include" }),
-            ]);
+            const eRes = await fetch(`${API_URL}/entidades`, { credentials: "include" });
 
             if (!eRes.ok) throw new Error("Error al cargar entidades");
-            if (!pRes.ok) throw new Error("Error al cargar productos");
 
             const e = await eRes.json();
-            const p = await pRes.json();
-
             setEntidades(e.data ?? e.items ?? e ?? []);
-            setProductos(p.data ?? p.items ?? p ?? []);
         } catch (err) {
-            console.error("Error cargando selectores Gestioo:", err);
+            console.error("Error cargando entidades:", err);
             setEntidades([]);
-            setProductos([]);
         }
     };
+
+    // Efecto para cargar equipos cuando cambia la entidad seleccionada
+    useEffect(() => {
+        const cargarEquiposDeEmpresa = async () => {
+            if (!formData.entidadId) {
+                setEquipos([]);
+                setEquiposFiltrados([]);
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
+                    credentials: "include"
+                });
+
+                if (!res.ok) {
+                    throw new Error("Error al cargar equipos");
+                }
+
+                const data = await res.json();
+                const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
+                setEquipos(equiposData);
+                setEquiposFiltrados(equiposData);
+            } catch (err) {
+                console.error("Error cargando equipos:", err);
+                setEquipos([]);
+                setEquiposFiltrados([]);
+            }
+        };
+
+        cargarEquiposDeEmpresa();
+    }, [formData.entidadId]);
 
     useEffect(() => {
         fetchOrdenes();
@@ -395,11 +425,8 @@ const OrdenesTaller: React.FC = () => {
     }, [toast]);
 
     /* ======= Crear ======= */
-    /* ======= Crear ======= */
     const handleCreate = async () => {
-
         // === VALIDACIONES OBLIGATORIAS ===
-
         if (!formData.tipoTrabajo.trim()) {
             setToast({
                 type: "error",
@@ -416,10 +443,10 @@ const OrdenesTaller: React.FC = () => {
             return;
         }
 
-        if (!formData.productoId) {
+        if (!formData.equipoId) {
             setToast({
                 type: "error",
-                message: "Debe seleccionar un producto asociado"
+                message: "Debe seleccionar un equipo asociado"
             });
             return;
         }
@@ -439,7 +466,7 @@ const OrdenesTaller: React.FC = () => {
 
                 // Obligatorios
                 entidadId: Number(formData.entidadId),
-                productoId: Number(formData.productoId),
+                equipoId: Number(formData.equipoId),
             };
 
             console.log("📤 Enviando payload de creación:", payload);
@@ -474,7 +501,7 @@ const OrdenesTaller: React.FC = () => {
                 tipoEntidad: "EMPRESA",
                 origenEntidad: "",
                 entidadId: "",
-                productoId: "",
+                equipoId: "",
             });
 
             setModalOpen(false);
@@ -490,7 +517,6 @@ const OrdenesTaller: React.FC = () => {
             setCreating(false);
         }
     };
-
 
     /* ======= Editar ======= */
     const openEditModal = (o: DetalleTrabajoGestioo) => {
@@ -508,7 +534,7 @@ const OrdenesTaller: React.FC = () => {
             tipoEntidad: o.tipoEntidad ?? "EMPRESA",
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
-            productoId: String(o.producto?.id ?? ""),
+            equipoId: String(o.equipo?.id ?? ""),
         });
         setEditOpen(true);
     };
@@ -538,9 +564,8 @@ const OrdenesTaller: React.FC = () => {
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
                 // Solo enviar entidadId si tiene valor
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
-                // Solo enviar productoId si tiene valor
-                productoId: formData.productoId ? Number(formData.productoId) : null,
-                // NO enviar tipoEntidad, origenEntidad - no existen en el modelo
+                // Solo enviar equipoId si tiene valor
+                equipoId: formData.equipoId ? Number(formData.equipoId) : null,
             };
 
             console.log("📤 Enviando payload de actualización:", payload);
@@ -609,19 +634,20 @@ const OrdenesTaller: React.FC = () => {
             origenFiltro === "todas" ||
             o.entidad?.origen === origenFiltro;
 
-        const matchesProducto =
-            !busquedaProducto ||
-            o.producto?.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase()) ||
-            o.producto?.categoria?.toLowerCase().includes(busquedaProducto.toLowerCase()) ||
-            o.producto?.serie?.toLowerCase().includes(busquedaProducto.toLowerCase());
+        const matchesEquipo =
+            !busquedaEquipo ||
+            o.equipo?.marca?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
+            o.equipo?.modelo?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
+            o.equipo?.serie?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
+            o.equipo?.tipo?.toLowerCase().includes(busquedaEquipo.toLowerCase());
 
-        return matchesEstado && matchesArea && matchesOrigen && matchesProducto;
+        return matchesEstado && matchesArea && matchesOrigen && matchesEquipo;
     });
 
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
-    const [showNewProductoModal, setShowNewProductoModal] = useState(false);
+    const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
     const [showEditEntidadModal, setShowEditEntidadModal] = useState(false);
-    const [showEditProductoModal, setShowEditProductoModal] = useState(false);
+    const [showEditEquipoModal, setShowEditEquipoModal] = useState(false);
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -644,7 +670,7 @@ const OrdenesTaller: React.FC = () => {
                                 Órdenes de Taller
                             </h1>
                             <p className="text-slate-600 text-sm mt-1">
-                                Control y seguimiento de trabajos técnicos (Entidad, Producto).
+                                Control y seguimiento de trabajos técnicos (Entidad, Equipo).
                             </p>
                         </div>
 
@@ -662,7 +688,7 @@ const OrdenesTaller: React.FC = () => {
                                         tipoEntidad: "EMPRESA",
                                         origenEntidad: "",
                                         entidadId: "",
-                                        productoId: "",
+                                        equipoId: "",
                                     });
                                     setModalOpen(true);
                                 }}
@@ -686,9 +712,9 @@ const OrdenesTaller: React.FC = () => {
                         <div className="mt-4">
                             <input
                                 type="text"
-                                placeholder="Buscar por producto, categoría o serie..."
-                                value={busquedaProducto}
-                                onChange={(e) => setBusquedaProducto(e.target.value)}
+                                placeholder="Buscar por marca, modelo, serie o tipo..."
+                                value={busquedaEquipo}
+                                onChange={(e) => setBusquedaEquipo(e.target.value)}
                                 className="border border-cyan-200 rounded-xl px-4 py-2 text-sm w-full md:w-72 focus:ring-2 focus:ring-cyan-400"
                             />
                         </div>
@@ -748,7 +774,7 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm" style={{ minWidth: '1200px' }}>
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Producto", "Categoría", "Entidad", "Origen", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold ${h === "Acciones" ? "w-40" :
@@ -808,10 +834,12 @@ const OrdenesTaller: React.FC = () => {
                                                 </span>
                                             </td>
 
-                                            <td className="px-4 py-3">{o.producto?.nombre ?? "—"}</td>
+                                            <td className="px-4 py-3">
+                                                {o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ring-1 ring-purple-200">
-                                                    {o.producto?.categoria ?? "—"}
+                                                    {o.equipo?.tipo ?? "—"}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">{o.entidad?.nombre ?? "—"}</td>
@@ -891,15 +919,16 @@ const OrdenesTaller: React.FC = () => {
                     formData={formData}
                     setFormData={setFormData}
                     entidades={entidades}
-                    productos={productos}
+                    equipos={equiposFiltrados}
                     onSubmit={handleCreate}
                     loading={creating}
                     buttonLabel="Crear"
                     setShowNewEntidadModal={setShowNewEntidadModal}
-                    setShowNewProductoModal={setShowNewProductoModal}
+                    setShowNuevoEquipoModal={setShowNuevoEquipoModal}
                     setShowEditEntidadModal={setShowEditEntidadModal}
-                    setShowEditProductoModal={setShowEditProductoModal}
+                    setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
+                    setEquiposFiltrados={setEquiposFiltrados}
                 />
             )}
 
@@ -912,19 +941,20 @@ const OrdenesTaller: React.FC = () => {
                     formData={formData}
                     setFormData={setFormData}
                     entidades={entidades}
-                    productos={productos}
+                    equipos={equiposFiltrados}
                     onSubmit={handleUpdate}
                     loading={updating}
                     buttonLabel="Guardar cambios"
                     setShowNewEntidadModal={setShowNewEntidadModal}
-                    setShowNewProductoModal={setShowNewProductoModal}
+                    setShowNuevoEquipoModal={setShowNuevoEquipoModal}
                     setShowEditEntidadModal={setShowEditEntidadModal}
-                    setShowEditProductoModal={setShowEditProductoModal}
+                    setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
+                    setEquiposFiltrados={setEquiposFiltrados}
                 />
             )}
 
-            {/* ===== Modales Entidad/Producto ===== */}
+            {/* ===== Modales Entidad/Equipo ===== */}
             {showNewEntidadModal && (
                 <ModalNuevaEntidad
                     tipoEntidad={formData.tipoEntidad}
@@ -936,13 +966,28 @@ const OrdenesTaller: React.FC = () => {
                 />
             )}
 
-            {showNewProductoModal && (
-                <ModalNuevoProducto
-                    productos={productos}
-                    onClose={() => setShowNewProductoModal(false)}
+            {showNuevoEquipoModal && (
+                <ModalNuevoEquipo
+                    entidadId={formData.entidadId}
+                    onClose={() => setShowNuevoEquipoModal(false)}
                     onSaved={(nuevoId) => {
-                        fetchSelectData();
-                        setFormData((prev) => ({ ...prev, productoId: String(nuevoId) }));
+                        // Recargar equipos después de crear uno nuevo
+                        const cargarEquipos = async () => {
+                            if (!formData.entidadId) return;
+                            try {
+                                const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
+                                    credentials: "include"
+                                });
+                                const data = await res.json();
+                                const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
+                                setEquipos(equiposData);
+                                setEquiposFiltrados(equiposData);
+                            } catch (err) {
+                                console.error("Error cargando equipos:", err);
+                            }
+                        };
+                        cargarEquipos();
+                        setFormData((prev) => ({ ...prev, equipoId: String(nuevoId) }));
                     }}
                 />
             )}
@@ -952,15 +997,26 @@ const OrdenesTaller: React.FC = () => {
                 <ModalEditarEntidad
                     entidadId={formData.entidadId}
                     onClose={() => setShowEditEntidadModal(false)}
-                    onSaved={() => fetchSelectData()}
-                />
-            )}
-
-            {showEditProductoModal && (
-                <ModalEditarProducto
-                    productoId={formData.productoId}
-                    onClose={() => setShowEditProductoModal(false)}
-                    onSaved={() => fetchSelectData()}
+                    onSaved={() => {
+                        fetchSelectData();
+                        // También recargar equipos si la entidad cambió
+                        if (formData.entidadId) {
+                            const cargarEquipos = async () => {
+                                try {
+                                    const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
+                                        credentials: "include"
+                                    });
+                                    const data = await res.json();
+                                    const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
+                                    setEquipos(equiposData);
+                                    setEquiposFiltrados(equiposData);
+                                } catch (err) {
+                                    console.error("Error cargando equipos:", err);
+                                }
+                            };
+                            cargarEquipos();
+                        }
+                    }}
                 />
             )}
 
@@ -989,50 +1045,39 @@ interface ModalProps {
     formData: any;
     setFormData: (v: any) => void;
     entidades: EntidadGestioo[];
-    productos: ProductoGestioo[];
+    equipos: EquipoGestioo[];
     loading: boolean;
     buttonLabel: string;
     setShowNewEntidadModal: React.Dispatch<React.SetStateAction<boolean>>;
-    setShowNewProductoModal: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowNuevoEquipoModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowEditEntidadModal: React.Dispatch<React.SetStateAction<boolean>>;
-    setShowEditProductoModal: React.Dispatch<React.SetStateAction<boolean>>;
+    setShowEditEquipoModal: React.Dispatch<React.SetStateAction<boolean>>;
     setEntidades: React.Dispatch<React.SetStateAction<EntidadGestioo[]>>;
+    setEquiposFiltrados: React.Dispatch<React.SetStateAction<EquipoGestioo[]>>;
 }
 
 const ModalOrden: React.FC<ModalProps> = ({
     title, onClose, onSubmit, formData, setFormData,
-    entidades, productos, loading, buttonLabel,
-    setShowNewEntidadModal, setShowNewProductoModal,
-    setShowEditEntidadModal, setShowEditProductoModal,
-    setEntidades,
+    entidades, equipos, loading, buttonLabel,
+    setShowNewEntidadModal, setShowNuevoEquipoModal,
+    setShowEditEntidadModal, setShowEditEquipoModal,
+    setEntidades, setEquiposFiltrados,
 }) => {
-    const [queryProd, setQueryProd] = useState("");
-    const [categoriaFiltro, setCategoriaFiltro] = useState("");
+    const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
-    // Obtener categorías únicas de los productos
-    const categorias = Array.from(new Set(productos
-        .map(p => p.categoria)
-        .filter(Boolean)
-    )).sort() as string[];
-
-    const productosFiltrados = productos.filter((p) => {
-        const q = queryProd.toLowerCase();
-
-        const matchesSearch =
-            p.nombre?.toLowerCase().includes(q) ||
-            p.categoria?.toLowerCase().includes(q) ||
-            p.serie?.toLowerCase().includes(q);
-
-        const matchesCategoria =
-            !categoriaFiltro ||
-            p.categoria === categoriaFiltro;
-
-        return matchesSearch && matchesCategoria;
+    // Filtrar equipos basados en búsqueda
+    const equiposFiltrados = equipos.filter((eq) => {
+        const q = busquedaEquipo.toLowerCase();
+        return (
+            eq.marca?.toLowerCase().includes(q) ||
+            eq.modelo?.toLowerCase().includes(q) ||
+            eq.serie?.toLowerCase().includes(q) ||
+            eq.tipo?.toLowerCase().includes(q)
+        );
     });
 
     const handleClose = () => {
-        setQueryProd("");
-        setCategoriaFiltro("");
+        setBusquedaEquipo("");
         onClose();
     };
 
@@ -1301,74 +1346,71 @@ const ModalOrden: React.FC<ModalProps> = ({
                                 </div>
 
 
-                                {/* Información del Producto */}
+                                {/* Información del Equipo */}
                                 <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
                                     <h3 className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                        Información del Producto
+                                        Información del Equipo
                                     </h3>
 
                                     <div className="space-y-3">
-                                        {/* Filtros de Producto */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Buscar</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Nombre, categoría..."
-                                                    value={queryProd}
-                                                    onChange={(e) => setQueryProd(e.target.value)}
-                                                    className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Categoría</label>
-                                                <select
-                                                    value={categoriaFiltro}
-                                                    onChange={(e) => setCategoriaFiltro(e.target.value)}
-                                                    className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
-                                                >
-                                                    <option value="">Todas las categorías</option>
-                                                    {categorias.map((categoria) => (
-                                                        <option key={categoria} value={categoria}>
-                                                            {categoria}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                        {/* Buscar Equipo */}
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">Buscar Equipo</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Marca, modelo, serie..."
+                                                value={busquedaEquipo}
+                                                onChange={(e) => setBusquedaEquipo(e.target.value)}
+                                                className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
+                                                disabled={!formData.entidadId}
+                                            />
+                                            {!formData.entidadId && (
+                                                <p className="text-xs text-amber-600 mt-1">
+                                                    Primero seleccione una empresa para cargar los equipos
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="flex justify-between items-center">
-                                            <label className="block text-xs font-medium text-slate-600">Producto</label>
+                                            <label className="block text-xs font-medium text-slate-600">Equipo</label>
                                             <button
                                                 onClick={() => {
-                                                    if (!formData.productoId) setShowNewProductoModal(true);
-                                                    else setShowEditProductoModal(true);
+                                                    if (!formData.equipoId) setShowNuevoEquipoModal(true);
+                                                    else setShowEditEquipoModal(true);
                                                 }}
-                                                className={`p-2 rounded-xl text-white transition-all duration-200 ${formData.productoId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
+                                                disabled={!formData.entidadId}
+                                                className={`p-2 rounded-xl text-white transition-all duration-200 ${!formData.entidadId
+                                                    ? "bg-gray-400 cursor-not-allowed"
+                                                    : formData.equipoId
+                                                        ? "bg-amber-500 hover:bg-amber-600"
+                                                        : "bg-emerald-600 hover:bg-emerald-700"
                                                     }`}
-                                                title={formData.productoId ? "Editar producto" : "Nuevo producto"}
-                                                aria-label={formData.productoId ? "Editar producto" : "Nuevo producto"}
+                                                title={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
+                                                aria-label={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
                                             >
-                                                {formData.productoId ? <EditOutlined /> : <PlusOutlined />}
+                                                {formData.equipoId ? <EditOutlined /> : <PlusOutlined />}
                                             </button>
                                         </div>
 
                                         <select
-                                            value={formData.productoId}
-                                            onChange={(e) => setFormData({ ...formData, productoId: e.target.value })}
+                                            value={formData.equipoId}
+                                            onChange={(e) => setFormData({ ...formData, equipoId: e.target.value })}
+                                            disabled={!formData.entidadId || equiposFiltrados.length === 0}
                                             className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
                                         >
                                             <option value="">
-                                                {productosFiltrados.length === 0
-                                                    ? "No hay productos disponibles"
-                                                    : "Seleccionar producto..."}
+                                                {!formData.entidadId
+                                                    ? "Seleccione una empresa primero"
+                                                    : equiposFiltrados.length === 0
+                                                        ? "No hay equipos disponibles para esta empresa"
+                                                        : "Seleccionar equipo..."}
                                             </option>
-                                            {productosFiltrados.map((p) => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.nombre}
-                                                    {p.categoria && ` • ${p.categoria}`}
-                                                    {p.serie && ` • Serie: ${p.serie}`}
+                                            {equiposFiltrados.map((eq) => (
+                                                <option key={eq.id} value={eq.id}>
+                                                    {eq.marca} {eq.modelo}
+                                                    {eq.serie && ` • Serie: ${eq.serie}`}
+                                                    {eq.tipo && ` • Tipo: ${eq.tipo}`}
                                                 </option>
                                             ))}
                                         </select>
@@ -1394,7 +1436,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                             </button>
                             <button
                                 onClick={onSubmit}
-                                disabled={loading || !formData.tipoTrabajo.trim()}
+                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.entidadId || !formData.equipoId}
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
@@ -1424,8 +1466,8 @@ interface ModalNuevaEntidadProps {
     onSaved: (nuevoId: number) => void;
 }
 
-interface ModalNuevoProductoProps {
-    productos: ProductoGestioo[];
+interface ModalNuevoEquipoProps {
+    entidadId: string;
     onClose: () => void;
     onSaved: (nuevoId: number) => void;
 }
@@ -1712,7 +1754,7 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Nombre * <span className="text-rose-500">*</span>
+                                Nombre <span className="text-rose-500">*</span>
                             </label>
                             <input
                                 type="text"
@@ -1812,48 +1854,48 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
     );
 };
 
-/* Nuevo Producto */
-const ModalNuevoProducto: React.FC<ModalNuevoProductoProps> = ({ productos, onClose, onSaved }) => {
-    const [nombre, setNombre] = useState("");
-    const [categoria, setCategoria] = useState("");
-    const [precio, setPrecio] = useState<number | "">("");
-    const [stock, setStock] = useState<number | "">("");
+/* Nuevo Equipo */
+const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose, onSaved }) => {
+    const [marca, setMarca] = useState("");
+    const [modelo, setModelo] = useState("");
     const [serie, setSerie] = useState("");
+    const [tipo, setTipo] = useState("");
+    const [estado, setEstado] = useState("operativo");
     const [loading, setLoading] = useState(false);
 
-    const categoriasExistentes = Array.from(
-        new Set(
-            productos?.map(p => p.categoria).filter(Boolean)
-        )
-    ).sort();
-
     const handleSave = async () => {
-        if (!nombre.trim()) {
-            alert("El nombre es obligatorio");
+        if (!marca.trim() || !modelo.trim()) {
+            alert("La marca y modelo son obligatorios");
+            return;
+        }
+
+        if (!entidadId) {
+            alert("No hay empresa seleccionada");
             return;
         }
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/productos-gestioo`, {
+            const res = await fetch(`${API_URL}/equipos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify({
-                    nombre,
-                    categoria: categoria || null,
-                    precio: precio === "" ? null : Number(precio),
-                    stock: stock === "" ? null : Number(stock),
+                    marca,
+                    modelo,
                     serie: serie || null,
-                    tipo: "producto",
-                    estado: "disponible",
-                    activo: true,
+                    tipo: tipo || null,
+                    estado: estado || "operativo",
+                    // Asociar a un solicitante de la empresa
+                    // En una implementación real, necesitarías seleccionar un solicitante
+                    // o usar uno por defecto
+                    solicitanteId: null, // Deberías obtener o crear un solicitante para la empresa
                 }),
             });
 
             if (!res.ok) {
                 const errorData = await res.json();
-                throw new Error(errorData.error || "Error al crear producto");
+                throw new Error(errorData.error || "Error al crear equipo");
             }
 
             const data = await res.json();
@@ -1870,7 +1912,7 @@ const ModalNuevoProducto: React.FC<ModalNuevoProductoProps> = ({ productos, onCl
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
                 <div className="p-6">
-                    <h3 className="text-xl font-bold text-slate-800 mb-6">Nuevo Producto</h3>
+                    <h3 className="text-xl font-bold text-slate-800 mb-6">Nuevo Equipo</h3>
                     <button
                         onClick={onClose}
                         className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
@@ -1882,69 +1924,62 @@ const ModalNuevoProducto: React.FC<ModalNuevoProductoProps> = ({ productos, onCl
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Nombre <span className="text-rose-500">*</span>
+                                Marca <span className="text-rose-500">*</span>
                             </label>
                             <input
                                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Nombre del producto"
+                                placeholder="Ej: HP, Dell, Lenovo"
                                 required
-                                value={nombre}
-                                onChange={(e) => setNombre(e.target.value)}
+                                value={marca}
+                                onChange={(e) => setMarca(e.target.value)}
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Categoría</label>
-
-                            <select
-                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
-                                value={categoria}
-                                onChange={(e) => setCategoria(e.target.value)}
-                            >
-                                <option value="">Seleccionar categoría…</option>
-
-                                {categoriasExistentes.map((cat) => (
-                                    <option key={cat} value={cat}>
-                                        {cat}
-                                    </option>
-                                ))}
-
-                            </select>
-
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">Precio</label>
-                                <input
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                    placeholder="0"
-                                    type="number"
-                                    value={precio}
-                                    onChange={(e) => setPrecio(e.target.value === "" ? "" : Number(e.target.value))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">Stock</label>
-                                <input
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                    placeholder="0"
-                                    type="number"
-                                    value={stock}
-                                    onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
-                                />
-                            </div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Modelo <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                placeholder="Modelo del equipo"
+                                required
+                                value={modelo}
+                                onChange={(e) => setModelo(e.target.value)}
+                            />
                         </div>
 
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">Número de Serie</label>
                             <input
                                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Serie del producto (opcional)"
+                                placeholder="Serie del equipo (opcional)"
                                 value={serie}
                                 onChange={(e) => setSerie(e.target.value)}
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Tipo de Equipo</label>
+                            <input
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                                placeholder="Ej: Computador, Impresora, Servidor"
+                                value={tipo}
+                                onChange={(e) => setTipo(e.target.value)}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Estado</label>
+                            <select
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                value={estado}
+                                onChange={(e) => setEstado(e.target.value)}
+                            >
+                                <option value="operativo">Operativo</option>
+                                <option value="en reparacion">En reparación</option>
+                                <option value="dado de baja">Dado de baja</option>
+                                <option value="reserva">En reserva</option>
+                            </select>
                         </div>
                     </div>
 
@@ -1957,7 +1992,7 @@ const ModalNuevoProducto: React.FC<ModalNuevoProductoProps> = ({ productos, onCl
                         </button>
                         <button
                             onClick={handleSave}
-                            disabled={loading || !nombre.trim()}
+                            disabled={loading || !marca.trim() || !modelo.trim()}
                             className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                 ? "bg-cyan-400 cursor-not-allowed"
                                 : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
@@ -1969,206 +2004,10 @@ const ModalNuevoProducto: React.FC<ModalNuevoProductoProps> = ({ productos, onCl
                                     Guardando...
                                 </span>
                             ) : (
-                                "Guardar Producto"
+                                "Guardar Equipo"
                             )}
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-/* Editar Producto */
-const ModalEditarProducto: React.FC<{ productoId: string; onClose: () => void; onSaved: () => void }> = ({ productoId, onClose, onSaved }) => {
-    const [loading, setLoading] = useState(false);
-    const [cargandoDatos, setCargandoDatos] = useState(true);
-
-    const [nombre, setNombre] = useState("");
-    const [categoria, setCategoria] = useState("");
-    const [precio, setPrecio] = useState<number | "">("");
-    const [stock, setStock] = useState<number | "">("");
-    const [serie, setSerie] = useState("");
-
-    useEffect(() => {
-        const cargar = async () => {
-            if (!productoId) return;
-            setCargandoDatos(true);
-            try {
-                const res = await fetch(`${API_URL}/productos-gestioo/${Number(productoId)}`, { credentials: "include" });
-                if (!res.ok) throw new Error("Error al cargar el producto");
-
-                const data = await res.json();
-                const p = data.data ?? data;
-                setNombre(p.nombre ?? "");
-                setCategoria(p.categoria ?? "");
-                setPrecio(typeof p.precio === "number" ? p.precio : "");
-                setStock(typeof p.stock === "number" ? p.stock : "");
-                setSerie(p.serie ?? "");
-            } catch (err) {
-                console.error("Error cargando producto:", err);
-                alert("Error al cargar el producto.");
-            } finally {
-                setCargandoDatos(false);
-            }
-        };
-        cargar();
-    }, [productoId]);
-
-    const handleSave = async () => {
-        if (!nombre.trim()) {
-            alert("El nombre es obligatorio");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/productos-gestioo/${Number(productoId)}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    nombre,
-                    categoria: categoria || null,
-                    precio: precio === "" ? null : Number(precio),
-                    stock: stock === "" ? null : Number(stock),
-                    serie: serie || null,
-                }),
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Error al actualizar el producto");
-            }
-
-            onSaved();
-            onClose();
-        } catch (err) {
-            console.error(err);
-            alert("Error al actualizar el producto");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (cargandoDatos) {
-        return (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md text-center">
-                    <p className="text-slate-600 text-sm">Cargando datos del producto...</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative max-h-[90vh] overflow-y-auto">
-                <div className="p-6">
-                    <h3 className="text-xl font-bold text-slate-800 mb-6">Editar Producto</h3>
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                        aria-label="Cerrar modal"
-                    >
-                        ✕
-                    </button>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Nombre del Producto <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Ingrese el nombre del producto"
-                                value={nombre}
-                                onChange={(e) => setNombre(e.target.value)}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Categoría
-                            </label>
-                            <input
-                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Ej: Mano de obra, Reparación, Instalación..."
-                                value={categoria}
-                                onChange={(e) => setCategoria(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    Precio
-                                </label>
-                                <input
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                    placeholder="0"
-                                    type="number"
-                                    value={precio}
-                                    onChange={(e) => setPrecio(e.target.value === "" ? "" : Number(e.target.value))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                    Stock
-                                </label>
-                                <input
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                    placeholder="0"
-                                    type="number"
-                                    value={stock}
-                                    onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                Número de Serie
-                            </label>
-                            <input
-                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Serie del producto (opcional)"
-                                value={serie}
-                                onChange={(e) => setSerie(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-200">
-                        <button
-                            onClick={onClose}
-                            className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={loading || !nombre.trim()}
-                            className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
-                                ? "bg-cyan-400 cursor-not-allowed"
-                                : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
-                                } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                            {loading ? (
-                                <span className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                    Guardando...
-                                </span>
-                            ) : (
-                                "Guardar cambios"
-                            )}
-                        </button>
-                    </div>
-
-                    <p className="text-xs text-slate-500 mt-4 text-center">
-                        Los campos marcados con <span className="text-rose-500">*</span> son obligatorios
-                    </p>
                 </div>
             </div>
         </div>

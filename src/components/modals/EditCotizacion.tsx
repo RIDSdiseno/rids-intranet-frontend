@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
     DeleteOutlined,
@@ -11,7 +11,8 @@ import {
     DollarOutlined,
     PercentageOutlined,
     TagOutlined,
-    InfoCircleOutlined
+    InfoCircleOutlined,
+    EditOutlined,
 } from "@ant-design/icons";
 import {
     type CotizacionGestioo,
@@ -19,11 +20,10 @@ import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
     MonedaCotizacion,
+    type CotizacionItemGestioo,
 } from "./types";
 
-import { formatearPrecio, normalizarCLP } from "./utils";
-
-import type { CotizacionItemGestioo } from "./types";
+import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem } from "./utils";
 
 interface EditCotizacionModalProps {
     show: boolean;
@@ -36,6 +36,9 @@ interface EditCotizacionModalProps {
     onUpdateCotizacion: (cotizacion: CotizacionGestioo) => void;
     apiLoading: boolean;
     onCrearProducto: () => void;
+    onUpdateRealTime?: (itemActualizado: any) => void;
+    onEditarProducto: (item: CotizacionItemGestioo) => void;
+    onItemChange: (index: number, field: string, value: any) => void;
 }
 
 const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
@@ -48,9 +51,54 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     onCargarServicios,
     onUpdateCotizacion,
     apiLoading,
-    onCrearProducto
+    onCrearProducto,
+    onUpdateRealTime,
+    onEditarProducto
 }) => {
+
+    // ==========================
+    // ESTADO LOCAL DE ÍTEMS
+    // ==========================
+    const [itemsLocal, setItemsLocal] = useState<CotizacionItemGestioo[]>([]);
+
+    useEffect(() => {
+        if (show && cotizacion) {
+            setItemsLocal(cotizacion.items || []);
+        }
+    }, [show, cotizacion]);
+
     if (!show || !cotizacion) return null;
+
+    const handleActualizarItem = (itemEditado: any) => {
+        const newItems = itemsLocal.map(i =>
+            i.id === itemEditado.id
+                ? {
+                    ...i,
+                    nombre: itemEditado.nombre ?? i.nombre,
+                    descripcion: itemEditado.descripcion ?? i.descripcion,
+                    precioCosto: itemEditado.precioCosto ?? i.precioCosto,
+                    porcGanancia: itemEditado.porcGanancia ?? i.porcGanancia,
+                    precioOriginalCLP: itemEditado.precioOriginalCLP ?? i.precioOriginalCLP,
+                    precio: itemEditado.precio ?? i.precio,
+                    imagen: itemEditado.imagen ?? i.imagen,
+                    sku: itemEditado.codigo ?? i.sku,
+                }
+                : i
+        );
+
+        setItemsLocal(newItems);
+        onUpdateCotizacion({ ...cotizacion, items: newItems });
+    };
+
+    // Helper para aplicar cambios y sincronizar con el padre
+    const syncItems = (newItems: CotizacionItemGestioo[]) => {
+        setItemsLocal(newItems);
+        onUpdateCotizacion({
+            ...cotizacion,
+            items: newItems,
+        });
+    };
+
 
     // ==========================
     // MANEJO DE MONEDA
@@ -59,17 +107,17 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     const tasa = cotizacion.tasaCambio || 1;
 
     const handleCambioMoneda = (nuevaMoneda: "CLP" | "USD") => {
-        const tasa = cotizacion.tasaCambio || 1;
+        const tasaCambio = cotizacion.tasaCambio || 1;
 
-        const itemsActualizados = cotizacion.items.map((item) => {
-            const realCLP = normalizarCLP(item.precioOriginalCLP);
-
+        const itemsActualizados = itemsLocal.map((item) => {
+            const realCLP = Number(item.precioOriginalCLP || 0);
             return {
                 ...item,
-                precio: nuevaMoneda === "USD" ? realCLP / tasa : realCLP
+                precio: nuevaMoneda === "USD" ? realCLP / tasaCambio : realCLP,
             };
         });
 
+        setItemsLocal(itemsActualizados);
         onUpdateCotizacion({
             ...cotizacion,
             moneda: nuevaMoneda,
@@ -77,39 +125,35 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         });
     };
 
-    const handleItemChange = (index: number, campo: keyof CotizacionItemGestioo, valor: any) => {
-        const items = [...cotizacion.items];
-        const item = items[index];
+    const handleItemChange = (
+        index: number,
+        campo: keyof CotizacionItemGestioo,
+        valor: any
+    ) => {
+        const items = [...itemsLocal];
+        const item = { ...items[index] };
 
-
-        // Si se edita el precio
         if (campo === "precio") {
             const precioNum = Number(valor) || 0;
-
             let precioCLP = precioNum;
 
             if (cotizacion.moneda === "USD") {
                 precioCLP = precioNum * (cotizacion.tasaCambio || 1);
             }
 
-            item.precioOriginalCLP = precioCLP; // SIEMPRE CLP REAL
-            item.precio = precioNum;           // precio mostrado
-
+            item.precioOriginalCLP = precioCLP; // CLP real
+            item.precio = precioNum;            // valor mostrado (CLP o USD)
         } else {
             (item as any)[campo] = valor;
         }
 
         items[index] = item;
-
-        onUpdateCotizacion({
-            ...cotizacion,
-            items
-        });
+        syncItems(items);
     };
 
     const handleRemoveItem = (index: number) => {
-        const newItems = cotizacion.items.filter((_, i) => i !== index);
-        onUpdateCotizacion({ ...cotizacion, items: newItems });
+        const newItems = itemsLocal.filter((_, i) => i !== index);
+        syncItems(newItems);
     };
 
     const handleAddItem = (tipo: ItemTipoGestioo) => {
@@ -125,8 +169,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                     : "Nuevo item",
             cantidad: 1,
             precio: 0,
+            precioOriginalCLP: 0, // 👈 IMPORTANTE: agregar este campo
             porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
-            tieneDescuento: tipo === ItemTipoGestioo.ADICIONAL ? true : false,
+            tieneDescuento: tipo === ItemTipoGestioo.ADICIONAL,
             createdAt: new Date().toISOString(),
         };
 
@@ -134,42 +179,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             newItem.tieneIVA = true;
         }
 
-        const newItems = [...cotizacion.items, newItem];
-        onUpdateCotizacion({ ...cotizacion, items: newItems });
+        const newItems = [...itemsLocal, newItem];
+        syncItems(newItems);
     };
-
-    // ==========================
-    // CÁLCULOS EN CLP REAL
-    // ==========================
-    const subtotalBrutoCLP = cotizacion.items
-        .filter((item) => item.tipo !== ItemTipoGestioo.ADICIONAL)
-        .reduce((acc, item) => {
-            const precioBaseCLP = normalizarCLP(item.precioOriginalCLP);
-            return acc + precioBaseCLP * (item.cantidad || 0);
-        }, 0);
-
-    const descuentosCLP = cotizacion.items
-        .filter((item) => item.tipo === ItemTipoGestioo.ADICIONAL)
-        .reduce((acc, item) => {
-            const base = subtotalBrutoCLP;
-            if (item.porcentaje && item.porcentaje > 0) {
-                return acc + (base * item.porcentaje) / 100;
-            }
-            return acc + (Number(item.precio || 0) * (item.cantidad || 0));
-        }, 0);
-
-    const subtotalCLP = Math.max(0, subtotalBrutoCLP - descuentosCLP);
-
-    const ivaCLP = cotizacion.items
-        .filter((item) => item.tieneIVA === true && item.tipo !== ItemTipoGestioo.ADICIONAL)
-        .reduce((acc, item) => {
-            const baseCLP = normalizarCLP(item.precioOriginalCLP) * (item.cantidad || 0);
-            const descCLP = item.porcentaje ? (baseCLP * item.porcentaje) / 100 : 0;
-            const netoCLP = baseCLP - descCLP;
-            return acc + netoCLP * 0.19;
-        }, 0);
-
-    const totalCLP = subtotalCLP + ivaCLP;
 
     // ==========================
     // FECHA
@@ -183,6 +195,15 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             return "";
         }
     })();
+
+    // CALCULAR TOTALES EN TIEMPO REAL
+    const { subtotalBruto, descuentos, subtotal, iva, total } =
+        calcularTotales(itemsLocal);
+
+    const handleAgregarItem = (nuevoItem: CotizacionItemGestioo) => {
+        const nuevosItems = [...itemsLocal, nuevoItem];
+        syncItems(nuevosItems);
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
@@ -209,15 +230,18 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     <div
                                         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
                                             ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                            : cotizacion.estado === EstadoCotizacionGestioo.APROBADA
+                                            : cotizacion.estado ===
+                                                EstadoCotizacionGestioo.APROBADA
                                                 ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                                 : "bg-blue-100 text-blue-800 border border-blue-200"
                                             }`}
                                     >
                                         <div
-                                            className={`w-2 h-2 rounded-full ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
+                                            className={`w-2 h-2 rounded-full ${cotizacion.estado ===
+                                                EstadoCotizacionGestioo.BORRADOR
                                                 ? "bg-amber-500"
-                                                : cotizacion.estado === EstadoCotizacionGestioo.APROBADA
+                                                : cotizacion.estado ===
+                                                    EstadoCotizacionGestioo.APROBADA
                                                     ? "bg-emerald-500"
                                                     : "bg-blue-500"
                                                 }`}
@@ -226,7 +250,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </div>
                                     <div className="text-slate-500 text-sm">
                                         <DollarOutlined className="mr-1" />
-                                        {moneda === "USD" ? "Dólares (USD)" : "Pesos Chilenos (CLP)"}
+                                        {moneda === "USD"
+                                            ? "Dólares (USD)"
+                                            : "Pesos Chilenos (CLP)"}
                                     </div>
                                     <div className="text-slate-500 text-sm">
                                         <TagOutlined className="mr-1" />
@@ -244,7 +270,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                     </div>
                 </div>
 
-                {/* CONTENIDO PRINCIPAL - SCROLLABLE */}
+                {/* CONTENIDO PRINCIPAL */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="p-8">
                         {/* GRID PRINCIPAL */}
@@ -414,6 +440,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                         <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700">
                                             <SettingOutlined className="text-lg" />
                                         </div>
+
+
                                         <h3 className="text-xl font-bold text-slate-800">
                                             Configuración
                                         </h3>
@@ -429,30 +457,26 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                 onChange={(e) =>
                                                     onUpdateCotizacion({
                                                         ...cotizacion,
-                                                        estado: e.target.value as EstadoCotizacionGestioo,
+                                                        estado:
+                                                            e.target.value as EstadoCotizacionGestioo,
                                                     })
                                                 }
                                                 className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all appearance-none bg-white"
                                                 required
                                             >
                                                 <option value={EstadoCotizacionGestioo.BORRADOR}>
-                                                    {" "}
                                                     Borrador
                                                 </option>
                                                 <option value={EstadoCotizacionGestioo.GENERADA}>
-                                                    {" "}
                                                     Generada
                                                 </option>
                                                 <option value={EstadoCotizacionGestioo.ENVIADA}>
-                                                    {" "}
                                                     Enviada
                                                 </option>
                                                 <option value={EstadoCotizacionGestioo.APROBADA}>
-                                                    {" "}
                                                     Aprobada
                                                 </option>
                                                 <option value={EstadoCotizacionGestioo.RECHAZADA}>
-                                                    {" "}
                                                     Rechazada
                                                 </option>
                                             </select>
@@ -475,15 +499,12 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                 required
                                             >
                                                 <option value={TipoCotizacionGestioo.CLIENTE}>
-                                                    {" "}
                                                     Cliente
                                                 </option>
                                                 <option value={TipoCotizacionGestioo.INTERNA}>
-                                                    {" "}
                                                     Interna
                                                 </option>
                                                 <option value={TipoCotizacionGestioo.PROVEEDOR}>
-                                                    {" "}
                                                     Proveedor
                                                 </option>
                                             </select>
@@ -552,7 +573,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             onChange={(e) =>
                                                                 onUpdateCotizacion({
                                                                     ...cotizacion,
-                                                                    tasaCambio: Number(e.target.value),
+                                                                    tasaCambio: Number(
+                                                                        e.target.value
+                                                                    ),
                                                                 })
                                                             }
                                                             className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white pr-12"
@@ -593,7 +616,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                             </div>
                         </div>
 
-                        {/* SECCIÓN DE ITEMS */}
+                        {/* SECCIÓN DE ÍTEMS */}
                         <div className="mb-8">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                 <div>
@@ -641,7 +664,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                 Sección General
                                             </h4>
                                             <span className="bg-cyan-100 text-cyan-800 text-sm font-medium px-3 py-1 rounded-full">
-                                                {cotizacion.items.length} ítems
+                                                {itemsLocal.length} ítems
                                             </span>
                                         </div>
                                         <div className="text-right">
@@ -649,7 +672,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                 Total estimado
                                             </div>
                                             <div className="text-2xl font-bold text-slate-900">
-                                                {formatearPrecio(totalCLP, moneda, tasa)}
+                                                {formatearPrecio(total, moneda, tasa)}
                                             </div>
                                         </div>
                                     </div>
@@ -663,13 +686,14 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     Tipo
                                                 </th>
                                                 <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 min-w-[200px]">
-                                                    Descripción
+                                                    Nombre
                                                 </th>
                                                 <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-24">
                                                     Cant.
                                                 </th>
                                                 <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-40">
-                                                    P. Unitario ({moneda === "USD" ? "US$" : "$"})
+                                                    P. Unitario (
+                                                    {moneda === "USD" ? "US$" : "$"})
                                                 </th>
                                                 <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
                                                     % Ganancia
@@ -681,10 +705,10 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     % Desc
                                                 </th>
                                                 <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
-                                                    Neto
+                                                    Neto sin IVA
                                                 </th>
                                                 <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
-                                                    Subtotal
+                                                    Total con IVA
                                                 </th>
                                                 <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-20">
                                                     Acción
@@ -692,7 +716,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {cotizacion.items.length === 0 ? (
+                                            {itemsLocal.length === 0 ? (
                                                 <tr>
                                                     <td colSpan={10} className="px-6 py-12 text-center">
                                                         <div className="flex flex-col items-center justify-center">
@@ -709,64 +733,35 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                cotizacion.items.map((item, index) => {
-                                                    // === CÁLCULOS EN CLP REAL PARA ESTE ÍTEM ===
-                                                    const precioBaseCLP = normalizarCLP(item.precioOriginalCLP);
-                                                    const cantidad = item.cantidad || 0;
-                                                    const baseCLP = precioBaseCLP * cantidad;
+                                                itemsLocal.map((item, index) => {
+                                                    const valores = calcularValoresItem(item);
 
-                                                    const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
+                                                    const precioCosto = Number(item.precioCosto || 0);
+                                                    const cantidad = Number(item.cantidad || 1);
 
-                                                    // Descuento por ítem (NO global)
-                                                    let descuentoCLP = 0;
-                                                    if (
-                                                        item.tipo !== ItemTipoGestioo.ADICIONAL &&
-                                                        item.tieneDescuento &&
-                                                        porcentaje > 0
-                                                    ) {
-                                                        descuentoCLP = (baseCLP * porcentaje) / 100;
-                                                    }
+                                                    const costoTotalCLP = precioCosto * cantidad;
 
-                                                    const baseFinalCLP = baseCLP - descuentoCLP;
+                                                    //  PRECIO BASE REAL (NO AFECTADO POR DESCUENTO)
+                                                    const precioBaseCLP = Number(item.precioOriginalCLP || 0);
+                                                    const costoCLP = Number(item.precioCosto || 0);
 
-                                                    // IVA del ítem
-                                                    let ivaItemCLP = 0;
-                                                    if (
-                                                        item.tipo !== ItemTipoGestioo.ADICIONAL &&
-                                                        item.tieneIVA
-                                                    ) {
-                                                        ivaItemCLP = baseFinalCLP * 0.19;
-                                                    }
-
-                                                    const totalItemCLP = baseFinalCLP + ivaItemCLP;
-
-                                                    // Descuento global (ítems tipo ADICIONAL)
-                                                    let descuentoGlobalCLP = 0;
-                                                    if (item.tipo === ItemTipoGestioo.ADICIONAL) {
-                                                        const porcGlobal = item.porcentaje ? Number(item.porcentaje) : 0;
-                                                        if (porcGlobal > 0) {
-                                                            descuentoGlobalCLP = (subtotalBrutoCLP * porcGlobal) / 100;
-                                                        }
-                                                    }
-
-                                                    // === GANANCIA EN CLP REAL ===
-                                                    const precioCosto = item.precioCosto || 0;
-                                                    const precioVentaCLP = precioBaseCLP;
-
+                                                    //  GANANCIA REAL (NO CAMBIA CON DESCUENTO)
                                                     const gananciaItemCLP =
-                                                        item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto
-                                                            ? (precioVentaCLP - precioCosto) * cantidad
+                                                        item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
+                                                            ? (precioBaseCLP - costoCLP) * cantidad
                                                             : 0;
 
+                                                    //  % GANANCIA REAL
                                                     const margenGanancia =
-                                                        item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0
-                                                            ? ((precioVentaCLP - precioCosto) / precioCosto) * 100
-                                                            : item.porcGanancia || 0;
+                                                        item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
+                                                            ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
+                                                            : 0;
 
                                                     return (
                                                         <tr
-                                                            key={item.id}
-                                                            className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                            key={`${item.id}-${index}`}
+                                                            className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo ===
+                                                                ItemTipoGestioo.ADICIONAL
                                                                 ? "bg-rose-50/30 hover:bg-rose-50/50"
                                                                 : ""
                                                                 }`}
@@ -774,16 +769,20 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             {/* TIPO */}
                                                             <td className="px-6 py-4">
                                                                 <span
-                                                                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo === ItemTipoGestioo.PRODUCTO
+                                                                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo ===
+                                                                        ItemTipoGestioo.PRODUCTO
                                                                         ? "bg-cyan-100 text-cyan-800"
-                                                                        : item.tipo === ItemTipoGestioo.SERVICIO
+                                                                        : item.tipo ===
+                                                                            ItemTipoGestioo.SERVICIO
                                                                             ? "bg-emerald-100 text-emerald-800"
                                                                             : "bg-amber-100 text-amber-800"
                                                                         }`}
                                                                 >
-                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO
+                                                                    {item.tipo ===
+                                                                        ItemTipoGestioo.PRODUCTO
                                                                         ? "Producto"
-                                                                        : item.tipo === ItemTipoGestioo.SERVICIO
+                                                                        : item.tipo ===
+                                                                            ItemTipoGestioo.SERVICIO
                                                                             ? "Servicio"
                                                                             : "Descuento"}
                                                                 </span>
@@ -792,18 +791,30 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             {/* DESCRIPCIÓN */}
                                                             <td className="px-6 py-4 min-w-[200px]">
                                                                 <input
-                                                                    value={item.descripcion || ""}
+                                                                    value={item.nombre || ""}
+                                                                    readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
                                                                     onChange={(e) =>
-                                                                        handleItemChange(index, "descripcion", e.target.value)
+                                                                        handleItemChange(
+                                                                            index,
+                                                                            "nombre",
+                                                                            e.target.value
+                                                                        )
                                                                     }
                                                                     className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
                                                                     placeholder="Descripción del ítem"
                                                                 />
-                                                                {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
-                                                                    <div className="text-xs text-slate-500 mt-1 truncate">
-                                                                        Costo: {formatearPrecio(precioCosto, moneda, tasa)}
-                                                                    </div>
-                                                                )}
+                                                                {item.tipo ===
+                                                                    ItemTipoGestioo.PRODUCTO &&
+                                                                    precioCosto > 0 && (
+                                                                        <div className="text-xs text-slate-500 mt-1 truncate">
+                                                                            Costo:{" "}
+                                                                            {formatearPrecio(
+                                                                                precioCosto,
+                                                                                moneda,
+                                                                                tasa
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                             </td>
 
                                                             {/* CANTIDAD */}
@@ -812,61 +823,92 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                     type="number"
                                                                     min={1}
                                                                     value={item.cantidad || 1}
-                                                                    disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
+                                                                    disabled={
+                                                                        item.tipo ===
+                                                                        ItemTipoGestioo.ADICIONAL
+                                                                    }
                                                                     onChange={(e) =>
                                                                         handleItemChange(
                                                                             index,
                                                                             "cantidad",
-                                                                            Math.max(1, Number(e.target.value))
+                                                                            Math.max(
+                                                                                1,
+                                                                                Number(e.target.value)
+                                                                            )
                                                                         )
                                                                     }
-                                                                    className={`w-20 border border-slate-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all ${item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                    className={`w-20 border border-slate-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all ${item.tipo ===
+                                                                        ItemTipoGestioo.ADICIONAL
                                                                         ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                                                                         : "bg-white"
                                                                         }`}
                                                                 />
                                                             </td>
+
                                                             {/* PRECIO UNITARIO */}
                                                             <td className="px-6 py-4">
                                                                 <div className="flex flex-col items-center space-y-1">
+
                                                                     <input
                                                                         type="number"
                                                                         min={0}
                                                                         step={0.01}
-                                                                        value={item.precio === 0 ? "" : item.precio}
-                                                                        disabled={item.tipo !== ItemTipoGestioo.ADICIONAL}  // ← BLOQUEADO PARA PRODUCTOS Y SERVICIOS
+                                                                        readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
+                                                                        value={item.precio === null || item.precio === undefined ? "" : item.precio}
+                                                                        disabled={item.tipo === ItemTipoGestioo.SERVICIO}
                                                                         onChange={(e) => {
-                                                                            const value = e.target.value === "" ? 0 : Number(e.target.value);
-                                                                            handleItemChange(index, "precio", value);
+                                                                            const raw = e.target.value;
+
+                                                                            if (raw === "") {
+                                                                                handleItemChange(index, "precio", 0);
+                                                                                return;
+                                                                            }
+
+                                                                            const num = Number(raw);
+                                                                            if (!isNaN(num)) {
+                                                                                handleItemChange(index, "precio", num);
+                                                                            }
                                                                         }}
-                                                                        className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-center transition-all${item.tipo !== ItemTipoGestioo.ADICIONAL
-                                                                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                                                            : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
-                                                                            }`}
+                                                                        className={`
+                w-28 md:w-32      /* ← MÁS ANCHO */
+                px-4 py-2.5       /* ← MÁS GRANDE Y LEGIBLE */
+                border border-slate-200 rounded-lg
+                text-right         /* ← Precios alineados a la derecha */
+                text-sm
+                transition-all
+                ${item.tipo === ItemTipoGestioo.SERVICIO
+                                                                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                                : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                                                                            }
+            `}
                                                                         placeholder={moneda === "USD" ? "US$" : "$"}
                                                                     />
 
                                                                     {/* Precio en CLP formateado debajo */}
                                                                     <div className="text-xs text-slate-500">
-                                                                        {formatearPrecio(precioBaseCLP, moneda, tasa)}
+                                                                        {formatearPrecio(
+                                                                            valores.base / (item.cantidad || 1),
+                                                                            moneda,
+                                                                            tasa
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </td>
+
                                                             {/* % GANANCIA */}
                                                             <td className="px-6 py-4 text-center">
                                                                 {item.tipo === ItemTipoGestioo.PRODUCTO ? (
                                                                     <div className="flex flex-col items-center">
                                                                         <div
-                                                                            className={`text-sm font-semibold ${margenGanancia > 0
-                                                                                ? "text-emerald-600"
-                                                                                : "text-slate-500"
+                                                                            className={`text-sm font-semibold ${margenGanancia > 0 ? "text-emerald-600" : "text-slate-500"
                                                                                 }`}
                                                                         >
                                                                             {margenGanancia.toFixed(1)}%
                                                                         </div>
+
                                                                         {gananciaItemCLP > 0 && (
                                                                             <div className="text-xs text-emerald-500 mt-1">
-                                                                                +{formatearPrecio(gananciaItemCLP, moneda, tasa)}
+                                                                                + {formatearPrecio(gananciaItemCLP, moneda, tasa)}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -875,115 +917,109 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 )}
                                                             </td>
 
-                                                            {/* IVA CHECKBOX */}
+                                                            {/* IVA */}
                                                             <td className="px-6 py-4 text-center">
                                                                 {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={item.tieneIVA || false}
-                                                                        onChange={(e) =>
-                                                                            handleItemChange(index, "tieneIVA", e.target.checked)
-                                                                        }
-                                                                        className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-2 focus:ring-cyan-500"
-                                                                    />
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={item.tieneIVA || false}
+                                                                            onChange={(e) =>
+                                                                                handleItemChange(index, "tieneIVA", e.target.checked)
+                                                                            }
+                                                                            className="w-4 h-4 text-cyan-600 border-slate-300 rounded"
+                                                                        />
+
+                                                                        {item.tieneIVA && valores.iva > 0 && (
+                                                                            <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                                                                {formatearPrecio(valores.iva, moneda, tasa)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 ) : (
                                                                     <span className="text-slate-300">—</span>
                                                                 )}
                                                             </td>
 
-                                                            {/* % DESCUENTO */}
+                                                            {/* DESCUENTO */}
                                                             <td className="px-6 py-4 text-center">
-                                                                {item.tipo === ItemTipoGestioo.ADICIONAL ? (
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <input
-                                                                            type="number"
-                                                                            min={0}
-                                                                            max={100}
-                                                                            step={0.1}
-                                                                            value={item.porcentaje || 0}
-                                                                            onChange={(e) =>
-                                                                                handleItemChange(
-                                                                                    index,
-                                                                                    "porcentaje",
-                                                                                    Number(e.target.value)
-                                                                                )
+                                                                <div className="flex items-center justify-center gap-2">
+
+                                                                    {/* Checkbox */}
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={item.tieneDescuento || false}
+                                                                        onChange={(e) => {
+                                                                            const checked = e.target.checked;
+
+                                                                            handleItemChange(index, "tieneDescuento", checked);
+
+                                                                            // Si se apaga el descuento → limpiar porcentaje
+                                                                            if (!checked) {
+                                                                                handleItemChange(index, "porcentaje", 0);
                                                                             }
-                                                                            className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
-                                                                        />
-                                                                        <span className="text-sm text-slate-600">%</span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={item.tieneDescuento || false}
-                                                                            onChange={(e) =>
-                                                                                handleItemChange(index, "tieneDescuento", e.target.checked)
-                                                                            }
-                                                                            className="w-4 h-4"
-                                                                        />
-                                                                        {item.tieneDescuento && (
-                                                                            <>
-                                                                                <input
-                                                                                    type="number"
-                                                                                    min={0}
-                                                                                    max={100}
-                                                                                    step={0.1}
-                                                                                    value={item.porcentaje || 0}
-                                                                                    onChange={(e) =>
-                                                                                        handleItemChange(
-                                                                                            index,
-                                                                                            "porcentaje",
-                                                                                            Number(e.target.value)
-                                                                                        )
-                                                                                    }
-                                                                                    className="w-16 border border-slate-200 rounded px-2 py-1 text-sm"
-                                                                                />
-                                                                                <span className="text-xs">%</span>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                )}
+                                                                        }}
+                                                                        className="w-4 h-4"
+                                                                    />
+
+                                                                    {/* Input SIEMPRE visible, pero desactivado si el checkbox no está activo */}
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={100}
+                                                                        step={0.1}
+                                                                        value={item.porcentaje || 0}
+                                                                        disabled={!item.tieneDescuento}
+                                                                        onChange={(e) => {
+                                                                            let val = Number(e.target.value);
+                                                                            if (isNaN(val)) val = 0;
+                                                                            val = Math.min(100, Math.max(0, val));
+
+                                                                            handleItemChange(index, "porcentaje", val);
+                                                                        }}
+                                                                        className={`w-16 border rounded px-2 py-1 text-sm text-center ${item.tieneDescuento ? "border-slate-300 bg-white" : "bg-slate-100 text-slate-400"}`}
+                                                                    />
+                                                                    <span className="text-xs">%</span>
+                                                                </div>
                                                             </td>
 
                                                             {/* NETO */}
                                                             <td className="px-6 py-4 text-right">
-                                                                <div className="font-medium text-slate-900">
-                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL ? (
-                                                                        <span className="text-slate-300">—</span>
-                                                                    ) : (
-                                                                        formatearPrecio(baseFinalCLP, moneda, tasa)
-                                                                    )}
-                                                                </div>
+                                                                {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                    ? "—"
+                                                                    : formatearPrecio(valores.neto, moneda, tasa)}
                                                             </td>
 
-                                                            {/* SUBTOTAL */}
-                                                            <td className="px-6 py-4 text-right">
-                                                                <div
-                                                                    className={`font-bold ${item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                        ? "text-rose-600"
-                                                                        : "text-slate-900"
-                                                                        }`}
-                                                                >
-                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL ? (
-                                                                        <span className="flex items-center justify-end gap-1">
-                                                                            -{formatearPrecio(descuentoGlobalCLP, moneda, tasa)}
-                                                                        </span>
-                                                                    ) : (
-                                                                        formatearPrecio(totalItemCLP, moneda, tasa)
-                                                                    )}
-                                                                </div>
+                                                            {/* SUBTOTAL / TOTAL ITEM */}
+                                                            <td className="px-6 py-4 text-right font-bold">
+                                                                {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                    ? "—"
+                                                                    : formatearPrecio(valores.total, moneda, tasa)}
                                                             </td>
 
                                                             {/* ACCIÓN */}
                                                             <td className="px-6 py-4 text-center">
-                                                                <button
-                                                                    onClick={() => handleRemoveItem(index)}
-                                                                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors duration-200"
-                                                                    title="Eliminar ítem"
-                                                                >
-                                                                    <DeleteOutlined className="text-lg" />
-                                                                </button>
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO && (
+                                                                        <button
+                                                                            onClick={() => onEditarProducto(item)}
+                                                                            className="p-2 text-slate-500 hover:text-slate-700"
+                                                                        >
+                                                                            <EditOutlined />
+                                                                        </button>
+
+                                                                    )}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleRemoveItem(index)
+                                                                        }
+                                                                        className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors duration-200"
+                                                                        title="Eliminar ítem"
+                                                                    >
+                                                                        <DeleteOutlined className="text-lg" />
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -993,15 +1029,12 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </table>
                                 </div>
 
-                                {cotizacion.items.length > 0 && (
+                                {itemsLocal.length > 0 && (
                                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
                                         <div className="flex justify-between items-center">
                                             <div className="text-sm text-slate-600">
-                                                Mostrando{" "}
-                                                {cotizacion.items.length} ítem
-                                                {cotizacion.items.length !== 1
-                                                    ? "s"
-                                                    : ""}
+                                                Mostrando {itemsLocal.length} ítem
+                                                {itemsLocal.length !== 1 ? "s" : ""}
                                             </div>
                                             <div className="text-sm font-medium text-slate-700">
                                                 Moneda:{" "}
@@ -1012,12 +1045,40 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                         </div>
                                     </div>
                                 )}
+
+                                {/* DETALLE DE PRODUCTOS (FUERA DE LA TABLA) */}
+                                {itemsLocal.some(
+                                    (i) => i.tipo !== ItemTipoGestioo.ADICIONAL && i.descripcion
+                                ) && (
+                                        <div className="mt-6 bg-slate-50 rounded-xl border border-slate-200 p-5">
+                                            <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                                                Detalle de productos de esta cotización
+                                            </h4>
+
+                                            <ul className="space-y-2 text-sm text-slate-600">
+                                                {itemsLocal
+                                                    .filter(
+                                                        (item) =>
+                                                            item.tipo !== ItemTipoGestioo.ADICIONAL &&
+                                                            item.descripcion
+                                                    )
+                                                    .map((item, idx) => (
+                                                        <li key={`${item.id}-desc-${idx}`}>
+                                                            <span className="font-medium text-slate-800">
+                                                                {item.nombre}
+                                                            </span>
+                                                            {": "}
+                                                            <span>{item.descripcion}</span>
+                                                        </li>
+                                                    ))}
+                                            </ul>
+                                        </div>
+                                    )}
                             </div>
                         </div>
 
-                        {/* RESUMEN FINANCIERO Y COMENTARIOS */}
+                        {/* RESUMEN + COMENTARIOS */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                            {/* RESUMEN FINANCIERO */}
                             <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
                                 <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-xl font-bold text-slate-800">
@@ -1031,43 +1092,46 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 </div>
 
                                 <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">Subtotal Bruto</div>
+                                    <div className="text-slate-700">Total productos antes de descuentos:</div>
                                     <div className="font-medium text-slate-900">
-                                        {formatearPrecio(subtotalBrutoCLP, moneda, tasa)}
+                                        {formatearPrecio(subtotalBruto, moneda, tasa)}
                                     </div>
                                 </div>
 
-                                {descuentosCLP > 0 && (
+                                {descuentos > 0 && (
                                     <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                        <div className="text-rose-600 font-medium">Descuentos Aplicados</div>
+                                        <div className="text-rose-600 font-medium">Descuentos Aplicados:</div>
                                         <div className="font-bold text-rose-600">
-                                            - {formatearPrecio(descuentosCLP, moneda, tasa)}
+                                            - {formatearPrecio(descuentos, moneda, tasa)}
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">Subtotal Neto</div>
+                                    <div className="text-slate-700">Subtotal neto sin IVA:</div>
                                     <div className="font-semibold text-slate-900">
-                                        {formatearPrecio(subtotalCLP, moneda, tasa)}
+                                        {formatearPrecio(subtotal, moneda, tasa)}
                                     </div>
                                 </div>
 
-                                {ivaCLP > 0 && (
+                                {iva > 0 && (
                                     <div className="flex justify-between items-center py-3 border-b border-slate-100">
                                         <div className="text-slate-700">IVA (19%)</div>
                                         <div className="font-semibold text-slate-900">
-                                            {formatearPrecio(ivaCLP, moneda, tasa)}
+                                            {formatearPrecio(iva, moneda, tasa)}
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="flex justify-between items-center pt-4 border-t border-slate-300">
-                                    <div className="text-lg font-bold text-slate-900">TOTAL FINAL</div>
+                                    <div className="text-lg font-bold text-slate-900">
+                                        TOTAL FINAL
+                                    </div>
                                     <div className="text-2xl font-bold text-blue-700">
-                                        {formatearPrecio(totalCLP, moneda, tasa)}
+                                        {formatearPrecio(total, moneda, tasa)}
                                     </div>
                                 </div>
+
                             </div>
 
                             {/* COMENTARIOS */}
@@ -1095,8 +1159,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                 <div className="mt-4 text-sm text-slate-500">
                                     <InfoCircleOutlined className="mr-2" />
-                                    Estos comentarios serán visibles en el documento
-                                    PDF generado
+                                    Estos comentarios serán visibles en el documento PDF
+                                    generado
                                 </div>
                             </div>
                         </div>
@@ -1142,9 +1206,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                             <button
                                 type="button"
                                 onClick={onUpdate}
-                                disabled={
-                                    cotizacion.items.length === 0 || apiLoading
-                                }
+                                disabled={itemsLocal.length === 0 || apiLoading}
                                 className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                             >
                                 {apiLoading ? (

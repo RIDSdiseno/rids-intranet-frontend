@@ -10,6 +10,7 @@ import {
     TableOutlined,
     AppstoreOutlined
 } from "@ant-design/icons";
+import type { Descriptions } from "antd";
 
 interface SelectProductoModalProps {
     show: boolean;
@@ -19,7 +20,6 @@ interface SelectProductoModalProps {
     onFiltroChange: (filtro: string, value: any) => void;
     onLimpiarFiltros: () => void;
     onAgregarProducto: (producto: any) => void;
-    onEditarProducto: (producto: any) => void;
     onEliminarProducto: (id: number) => void;
     orden: string;
     onOrdenChange: (orden: string) => void;
@@ -34,7 +34,6 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
     onFiltroChange,
     onLimpiarFiltros,
     onAgregarProducto,
-    onEditarProducto,
     onEliminarProducto,
     orden,
     onOrdenChange,
@@ -232,18 +231,32 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
                             <td className="p-4">
                                 <div className="flex justify-center gap-2">
                                     <button
-                                        onClick={() => onAgregarProducto(producto)}
+                                        onClick={() => onAgregarProducto({
+                                            id: producto.id,
+                                            idLocal: `temp-${producto.id}-${Date.now()}`,
+
+                                            productoId: producto.id,
+                                            tipo: "PRODUCTO",
+
+                                            // Nombre corto que se ve en la tabla
+                                            nombre: producto.nombre,
+                                            descripcion: producto.descripcion,
+
+                                            cantidad: 1,
+
+                                            precioCosto: producto.precio,
+                                            porcGanancia: producto.porcGanancia ?? 0,
+
+                                            precioOriginalCLP: producto.precioTotal ?? producto.precio,
+                                            precio: producto.precioTotal ?? producto.precio,
+
+                                            tieneIVA: true,
+                                        })
+                                        }
                                         className="flex items-center gap-2 px-3 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors text-sm font-medium"
                                     >
                                         <PlusOutlined />
                                         Agregar
-                                    </button>
-                                    <button
-                                        onClick={() => onEditarProducto(producto)}
-                                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
-                                        title="Editar producto"
-                                    >
-                                        <EditOutlined />
                                     </button>
                                 </div>
                             </td>
@@ -252,13 +265,15 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
                 </tbody>
             </table>
 
-            {productosMostrar.length === 0 && (
-                <div className="text-center py-12 text-slate-500">
-                    <ShoppingCartOutlined className="text-3xl mb-3 opacity-50" />
-                    <p>No se encontraron productos</p>
-                </div>
-            )}
-        </div>
+            {
+                productosMostrar.length === 0 && (
+                    <div className="text-center py-12 text-slate-500">
+                        <ShoppingCartOutlined className="text-3xl mb-3 opacity-50" />
+                        <p>No se encontraron productos</p>
+                    </div>
+                )
+            }
+        </div >
     );
 
     // =============================
@@ -355,35 +370,50 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
                         {/* Botones de acción */}
                         <div className="flex gap-2">
                             <button
-                                onClick={() => onAgregarProducto(producto)}
+                                onClick={() => onAgregarProducto({
+                                    id: producto.id,
+                                    idLocal: `temp-${producto.id}-${Date.now()}`,
+
+                                    productoId: producto.id,
+                                    tipo: "PRODUCTO",
+
+                                    nombre: producto.nombre,
+                                    descripcion: producto.descripcion,
+
+                                    cantidad: 1,
+
+                                    precioCosto: producto.precio,
+                                    porcGanancia: producto.porcGanancia ?? 0,
+
+                                    precioOriginalCLP: producto.precioTotal ?? producto.precio,
+                                    precio: producto.precioTotal ?? producto.precio,
+
+                                    tieneIVA: true,
+                                })
+                                }
                                 className="flex-1 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
                             >
                                 <PlusOutlined className="text-sm" />
                                 Agregar
                             </button>
-
-                            <button
-                                onClick={() => onEditarProducto(producto)}
-                                className="p-3 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-xl transition-colors border border-slate-200 hover:border-cyan-200"
-                                title="Editar producto"
-                            >
-                                <EditOutlined />
-                            </button>
                         </div>
                     </div>
 
                     {/* Indicador de IVA */}
-                    {producto.tieneIVA && (
-                        <div className="bg-blue-50 border-t border-blue-200 px-4 py-2">
-                            <div className="flex items-center justify-center gap-2 text-xs text-blue-700 font-medium">
-                                <PercentageOutlined />
-                                <span>Incluye IVA (19%)</span>
+                    {
+                        producto.tieneIVA && (
+                            <div className="bg-blue-50 border-t border-blue-200 px-4 py-2">
+                                <div className="flex items-center justify-center gap-2 text-xs text-blue-700 font-medium">
+                                    <PercentageOutlined />
+                                    <span>Incluye IVA (19%)</span>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
                 </div>
-            ))}
-        </div>
+            ))
+            }
+        </div >
     );
 
     return (
