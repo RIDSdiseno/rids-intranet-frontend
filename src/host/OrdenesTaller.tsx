@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// OrdenesTaller.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import {
     ReloadOutlined,
     EyeOutlined,
@@ -17,14 +18,86 @@ import Header from "../components/Header";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-/* ======= Tipos Gestioo ======= */
-type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+import { ModalEditarEquipo } from "../components/modals-gestioo/EditEquipo";
 
-const OrigenGestioo = {
-    RIDS: "RIDS" as OrigenGestioo,
-    ECONNET: "ECONNET" as OrigenGestioo,
-    OTRO: "OTRO" as OrigenGestioo,
+/* =========================
+   Tipos / Enums FRONT
+========================= */
+
+type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+type Prioridad = "baja" | "normal" | "alta";
+type Area = "entrada" | "domicilio" | "reparacion" | "salida";
+
+export const TipoEquipo = {
+    GENERICO: "GENERICO",
+    NOTEBOOK: "NOTEBOOK",
+    ALL_IN_ONE: "ALL_IN_ONE",
+    DESKTOP: "DESKTOP",
+    CPU: "CPU",
+    EQUIPO_ARMADO: "EQUIPO_ARMADO",
+
+    IMPRESORA: "IMPRESORA",
+    SCANNER: "SCANNER",
+    LASER: "LASER",
+    LED: "LED",
+
+    MONITOR: "MONITOR",
+    NAS: "NAS",
+    ROUTER: "ROUTER",
+
+    DISCO_DURO_EXTERNO: "DISCO_DURO_EXTERNO",
+    CARGADOR: "CARGADOR",
+    INSUMOS_COMPUTACIONALES: "INSUMOS_COMPUTACIONALES",
+
+    RELOJ_CONTROL: "RELOJ_CONTROL",
+
+    OTRO: "OTRO",
+} as const;
+
+/** 👈 TYPE derivado (ESTE es el que se usa como tipo) */
+export type TipoEquipoValue =
+    typeof TipoEquipo[keyof typeof TipoEquipo];
+
+
+export const TipoEquipoLabel: Record<TipoEquipoValue, string> = {
+    GENERICO: "Genérico",
+    NOTEBOOK: "Notebook",
+    ALL_IN_ONE: "All in One",
+    DESKTOP: "Desktop",
+    CPU: "CPU",
+    EQUIPO_ARMADO: "Equipo Armado",
+
+    IMPRESORA: "Impresora",
+    SCANNER: "Scanner",
+    LASER: "Láser",
+    LED: "LED",
+
+    MONITOR: "Monitor",
+    NAS: "NAS",
+    ROUTER: "Router",
+
+    DISCO_DURO_EXTERNO: "Disco Duro Externo",
+    CARGADOR: "Cargador",
+    INSUMOS_COMPUTACIONALES: "Insumos Computacionales",
+
+    RELOJ_CONTROL: "Reloj Control",
+
+    OTRO: "Otro",
 };
+
+interface OrdenFormData {
+    tipoTrabajo: string;
+    descripcion: string;
+    prioridad: Prioridad;
+    estado: "pendiente" | "en progreso" | "completada" | "cancelada";
+    notas: string;
+    area: Area;
+    fecha: string;
+    tipoEntidad: "EMPRESA" | "PERSONA";
+    origenEntidad: OrigenGestioo | "";
+    entidadId: string;
+    equipoId: string;
+}
 
 interface EntidadGestioo {
     id: number;
@@ -37,24 +110,14 @@ interface EntidadGestioo {
 }
 
 interface EquipoGestioo {
-    id: number;
+    id_equipo: number;
     marca: string;
     modelo: string;
-    serie?: string | null;
-    tipo?: string | null;
-    estado?: string | null;
-    solicitante?: {
-        id: number;
-        nombre: string;
-        empresa?: {
-            id: number;
-            nombre: string;
-        } | null;
-    } | null;
+    serial: string | null;
+    tipo: TipoEquipoValue;
+    // Si tu backend aún no lo manda, se mantiene optional para no romper.
+    empresaId?: number | null;
 }
-
-type Prioridad = "baja" | "normal" | "alta";
-type Area = "entrada" | "domicilio" | "reparacion" | "salida";
 
 interface DetalleTrabajoGestioo {
     id: number;
@@ -74,32 +137,41 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
-    a === "entrada" ? "ENTRADA" :
-        a === "domicilio" ? "DOMICILIO" :
-            a === "reparacion" ? "REPARACION" : "SALIDA";
+    a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : a === "reparacion" ? "REPARACION" : "SALIDA";
 
-const prioridadToApi = (p: Prioridad) =>
-    p === "baja" ? "BAJA" : p === "alta" ? "ALTA" : "NORMAL";
+const prioridadToApi = (p: Prioridad) => (p === "baja" ? "BAJA" : p === "alta" ? "ALTA" : "NORMAL");
 
 const estadoToApi = (e: string) => {
     switch (e) {
-        case "pendiente": return "PENDIENTE";
-        case "en progreso": return "EN_PROCESO";
-        case "completada": return "FINALIZADO";
-        case "cancelada": return "CANCELADO";
-        default: return "PENDIENTE";
+        case "pendiente":
+            return "PENDIENTE";
+        case "en progreso":
+            return "EN_PROCESO";
+        case "completada":
+            return "FINALIZADO";
+        case "cancelada":
+            return "CANCELADO";
+        default:
+            return "PENDIENTE";
     }
 };
 
 const estadoFromApi = (e: string | null | undefined) => {
     switch (e) {
-        case "PENDIENTE": return "pendiente";
-        case "EN_PROCESO": return "en progreso";
-        case "FINALIZADO": return "completada";
-        case "CANCELADO": return "cancelada";
-        default: return "pendiente";
+        case "PENDIENTE":
+            return "pendiente";
+        case "EN_PROCESO":
+            return "en progreso";
+        case "FINALIZADO":
+            return "completada";
+        case "CANCELADO":
+            return "cancelada";
+        default:
+            return "pendiente";
     }
 };
+
+const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
 
 /* ===== Fecha local Chile (compatible con datetime-local) ===== */
 const getDateTimeLocalCL = () => {
@@ -109,7 +181,6 @@ const getDateTimeLocalCL = () => {
     return local.toISOString().slice(0, 16);
 };
 
-//PDF 
 // ==============================
 //   PDF ORDEN DE TALLER - FULL
 // ==============================
@@ -129,29 +200,29 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
                 direccion: "Santiago - Providencia, La Concepción 65",
                 correo: "soporte@rids.cl",
                 telefono: "+56 9 8823 1976",
-                logo: "/img/splash.png"
+                logo: "/img/splash.png",
             },
             ECONNET: {
                 nombre: "ECONNET SPA",
                 direccion: "Santiago - Providencia, La Concepción 65",
                 correo: "ventas@econnet.cl",
                 telefono: "+56 9 8807 6593",
-                logo: "/img/ecconetlogo.png"
+                logo: "/img/ecconetlogo.png",
             },
             OTRO: {
                 nombre: orden.entidad?.nombre ?? "Empresa",
                 direccion: orden.entidad?.direccion ?? "",
                 correo: orden.entidad?.correo ?? "",
                 telefono: orden.entidad?.telefono ?? "",
-                logo: "/img/splash.png"
-            }
+                logo: "/img/splash.png",
+            },
         };
 
         const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
 
-        // ======================
-        //     HTML DEL PDF
-        // ======================
+        const tipoEquipoLabel =
+            orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
+
         const html = `
 <div class="pdf-container" style="
     width: 1700px;
@@ -159,7 +230,10 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     padding: 40px;
     font-family: Arial, sans-serif;
     color: #000;
+    font-size: 25px;
 ">
+<br>
+<br>
 
 <!-- HEADER -->
 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 15px; margin-bottom: 20px;">
@@ -196,8 +270,8 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
         <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Equipo</h3>
         <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
-        <p><b>Tipo:</b> ${orden.equipo?.tipo ?? "—"}</p>
-        <p><b>Serie:</b> ${orden.equipo?.serie ?? "—"}</p>
+        <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
+        <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
         <p><b>Fecha ingreso:</b> ${new Date(orden.fecha).toLocaleString("es-CL")}</p>
     </div>
@@ -205,7 +279,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
 <!-- SECCIONES DE TEXTO -->
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 14px;">Trabajo solicitado:</h3>
+    <h3 style="font-size: 25px;">Trabajo solicitado:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.tipoTrabajo ?? "—"}
@@ -213,7 +287,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </div>
 
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 14px;">Descripción del problema:</h3>
+    <h3 style="font-size: 25px;">Descripción del problema:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.descripcion ?? "Sin descripción adicional."}
@@ -221,7 +295,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </div>
 
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 14px;">Notas del técnico:</h3>
+    <h3 style="font-size: 25px;">Notas del técnico:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.notas ?? "Sin observaciones."}
@@ -242,7 +316,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <br><br><br><br><br><br><br>
         <div style="border-top: 1px dashed #555; padding-top: 6px;">
             Firma Cliente<br>
-            <span style="font-size: 11px;">Nombre y RUT</span>
+            <span style="font-size: 20px;">Nombre y RUT</span>
         </div>
     </div>
 
@@ -250,13 +324,13 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <br><br><br><br><br><br><br>
         <div style="border-top: 1px solid #333; padding-top: 6px;">
             Firma Empresa<br>
-            <span style="font-size: 11px;">Representante autorizado</span>
+            <span style="font-size: 20px;">Representante autorizado</span>
         </div>
     </div>
 </div>
 
 <!-- TERMINOS -->
-<div style="margin-top: 30px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 11px; color: #444; line-height: 1.4;">
+<div style="margin-top: 30px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 15px; color: #444; line-height: 1.4;">
 <b>Términos y condiciones:</b><br>
 1) Para retirar el equipo es indispensable presentar esta orden.<br>
 2) El equipo deberá ser retirado dentro de 30 días desde la notificación.<br>
@@ -267,9 +341,6 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </div>
 `;
 
-        // ======================
-        //   GENERAR CANVAS
-        // ======================
         const container = document.createElement("div");
         container.innerHTML = html;
         document.body.appendChild(container);
@@ -278,7 +349,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             scale: 2,
             width: container.scrollWidth,
             height: container.scrollHeight,
-            windowWidth: container.scrollWidth
+            windowWidth: container.scrollWidth,
         });
 
         const pdf = new jsPDF("p", "mm", "a4");
@@ -291,13 +362,11 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         pdf.save(`Orden_${codigo}.pdf`);
 
         document.body.removeChild(container);
-
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");
     }
 };
-
 
 const OrdenesTaller: React.FC = () => {
     const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
@@ -311,19 +380,18 @@ const OrdenesTaller: React.FC = () => {
 
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
     const [equipos, setEquipos] = useState<EquipoGestioo[]>([]);
-    const [equiposFiltrados, setEquiposFiltrados] = useState<EquipoGestioo[]>([]);
 
     const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<OrdenFormData>({
         tipoTrabajo: "",
         descripcion: "",
-        prioridad: "normal" as Prioridad,
+        prioridad: "normal",
         estado: "pendiente",
         notas: "",
-        area: "entrada" as Area,
+        area: "entrada",
         fecha: getDateTimeLocalCL(),
-        tipoEntidad: "EMPRESA" as "EMPRESA" | "PERSONA",
+        tipoEntidad: "EMPRESA",
         origenEntidad: "",
         entidadId: "",
         equipoId: "",
@@ -337,26 +405,17 @@ const OrdenesTaller: React.FC = () => {
     const fetchOrdenes = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
-                credentials: "include"
-            });
+            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, { credentials: "include" });
 
-            if (!res.ok) {
-                throw new Error(`Error ${res.status}: ${res.statusText}`);
-            }
+            if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
 
             const data = await res.json();
-
             const lista = Array.isArray(data) ? data : data.data ?? data.items ?? [];
             lista.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
             setOrdenes(lista);
         } catch (e) {
             console.error("Error al cargar órdenes:", e);
-            setToast({
-                type: "error",
-                message: "Error al cargar las órdenes de trabajo"
-            });
+            setToast({ type: "error", message: "Error al cargar las órdenes de trabajo" });
         } finally {
             setLoading(false);
         }
@@ -365,9 +424,7 @@ const OrdenesTaller: React.FC = () => {
     const fetchSelectData = async () => {
         try {
             const eRes = await fetch(`${API_URL}/entidades`, { credentials: "include" });
-
             if (!eRes.ok) throw new Error("Error al cargar entidades");
-
             const e = await eRes.json();
             setEntidades(e.data ?? e.items ?? e ?? []);
         } catch (err) {
@@ -378,80 +435,50 @@ const OrdenesTaller: React.FC = () => {
 
     // Efecto para cargar equipos cuando cambia la entidad seleccionada
     useEffect(() => {
-        const cargarEquiposDeEmpresa = async () => {
-            if (!formData.entidadId) {
-                setEquipos([]);
-                setEquiposFiltrados([]);
-                return;
-            }
-
+        const cargarEquipos = async () => {
             try {
-                const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
-                    credentials: "include"
-                });
+                const url = formData.entidadId
+                    ? `${API_URL}/equipos?empresaId=${formData.entidadId}&pageSize=500`
+                    : `${API_URL}/equipos?pageSize=500`;
 
-                if (!res.ok) {
-                    throw new Error("Error al cargar equipos");
-                }
-
+                const res = await fetch(url, { credentials: "include" });
                 const data = await res.json();
-                const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
-                setEquipos(equiposData);
-                setEquiposFiltrados(equiposData);
-            } catch (err) {
-                console.error("Error cargando equipos:", err);
+                const list = Array.isArray(data) ? data : data.items ?? [];
+                // Normaliza tipo si viniera raro (por seguridad)
+                const normalized = (list as any[]).map((e) => ({
+                    ...e,
+                    tipo: (e.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue,
+                }));
+                setEquipos(normalized);
+            } catch (e) {
+                console.error("Error cargando equipos:", e);
                 setEquipos([]);
-                setEquiposFiltrados([]);
             }
         };
-
-        cargarEquiposDeEmpresa();
+        cargarEquipos();
     }, [formData.entidadId]);
 
     useEffect(() => {
         fetchOrdenes();
         fetchSelectData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Efecto para limpiar timeouts
     useEffect(() => {
-        const toastTimer = setTimeout(() => {
-            setToast(null);
-        }, 4000);
-
-        return () => {
-            clearTimeout(toastTimer);
-        };
+        const toastTimer = setTimeout(() => setToast(null), 4000);
+        return () => clearTimeout(toastTimer);
     }, [toast]);
 
     /* ======= Crear ======= */
     const handleCreate = async () => {
-        // === VALIDACIONES OBLIGATORIAS ===
         if (!formData.tipoTrabajo.trim()) {
-            setToast({
-                type: "error",
-                message: "El tipo de trabajo es obligatorio"
-            });
+            setToast({ type: "error", message: "El tipo de trabajo es obligatorio" });
             return;
         }
-
-        if (!formData.entidadId) {
-            setToast({
-                type: "error",
-                message: "Debe seleccionar una empresa o persona"
-            });
-            return;
-        }
-
         if (!formData.equipoId) {
-            setToast({
-                type: "error",
-                message: "Debe seleccionar un equipo asociado"
-            });
+            setToast({ type: "error", message: "Debe seleccionar un equipo asociado" });
             return;
         }
-
-        // =====================================
 
         setCreating(true);
         try {
@@ -463,8 +490,6 @@ const OrdenesTaller: React.FC = () => {
                 notas: formData.notas || null,
                 area: areaToApi(formData.area),
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
-
-                // Obligatorios
                 entidadId: Number(formData.entidadId),
                 equipoId: Number(formData.equipoId),
             };
@@ -484,12 +509,9 @@ const OrdenesTaller: React.FC = () => {
                 throw new Error(errorData.error || errorData.details || "Error al crear el detalle de trabajo");
             }
 
-            const newData = await res.json();
-            console.log("✅ Creación exitosa:", newData);
-
+            await res.json();
             setToast({ type: "success", message: "Trabajo creado exitosamente" });
 
-            // Reiniciar formulario
             setFormData({
                 tipoTrabajo: "",
                 descripcion: "",
@@ -506,13 +528,9 @@ const OrdenesTaller: React.FC = () => {
 
             setModalOpen(false);
             fetchOrdenes();
-
         } catch (error) {
             console.error("❌ Error en frontend:", error);
-            setToast({
-                type: "error",
-                message: (error as Error).message || "Error al crear el trabajo"
-            });
+            setToast({ type: "error", message: (error as Error).message || "Error al crear el trabajo" });
         } finally {
             setCreating(false);
         }
@@ -528,13 +546,11 @@ const OrdenesTaller: React.FC = () => {
             estado: estadoFromApi(o.estado),
             notas: o.notas ?? "",
             area: (o.area?.toLowerCase() ?? "entrada") as Area,
-            fecha: o.fecha
-                ? new Date(o.fecha).toISOString().slice(0, 16)
-                : getDateTimeLocalCL(),
+            fecha: o.fecha ? new Date(o.fecha).toISOString().slice(0, 16) : getDateTimeLocalCL(),
             tipoEntidad: o.tipoEntidad ?? "EMPRESA",
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
-            equipoId: String(o.equipo?.id ?? ""),
+            equipoId: String(o.equipo?.id_equipo ?? ""),
         });
         setEditOpen(true);
     };
@@ -542,18 +558,13 @@ const OrdenesTaller: React.FC = () => {
     const handleUpdate = async () => {
         if (!selectedOrden) return;
 
-        // Validación antes de enviar
         if (!formData.tipoTrabajo.trim()) {
-            setToast({
-                type: "error",
-                message: "El tipo de trabajo es obligatorio"
-            });
+            setToast({ type: "error", message: "El tipo de trabajo es obligatorio" });
             return;
         }
 
         setUpdating(true);
         try {
-            // Preparar payload solo con campos válidos
             const payload = {
                 tipoTrabajo: formData.tipoTrabajo,
                 descripcion: formData.descripcion || null,
@@ -562,9 +573,7 @@ const OrdenesTaller: React.FC = () => {
                 notas: formData.notas || null,
                 area: areaToApi(formData.area),
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
-                // Solo enviar entidadId si tiene valor
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
-                // Solo enviar equipoId si tiene valor
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
             };
 
@@ -583,19 +592,13 @@ const OrdenesTaller: React.FC = () => {
                 throw new Error(errorData.error || errorData.details || "Error al actualizar el trabajo");
             }
 
-            const updatedData = await res.json();
-            console.log("✅ Actualización exitosa:", updatedData);
-
+            await res.json();
             setToast({ type: "success", message: "Trabajo actualizado correctamente" });
             setEditOpen(false);
             fetchOrdenes();
-
         } catch (err) {
             console.error("❌ Error en frontend:", err);
-            setToast({
-                type: "error",
-                message: (err as Error).message || "Error al actualizar el trabajo"
-            });
+            setToast({ type: "error", message: (err as Error).message || "Error al actualizar el trabajo" });
         } finally {
             setUpdating(false);
         }
@@ -607,12 +610,10 @@ const OrdenesTaller: React.FC = () => {
         try {
             const res = await fetch(`${API_URL}/detalle-trabajo-gestioo/${id}`, {
                 method: "DELETE",
-                credentials: "include"
+                credentials: "include",
             });
 
-            if (!res.ok) {
-                throw new Error("Error al eliminar el trabajo");
-            }
+            if (!res.ok) throw new Error("Error al eliminar el trabajo");
 
             setOrdenes((prev) => prev.filter((o) => o.id !== id));
             setToast({ type: "success", message: "Trabajo eliminado correctamente" });
@@ -621,33 +622,32 @@ const OrdenesTaller: React.FC = () => {
         }
     };
 
-    const filtered = ordenes.filter((o) => {
-        const matchesEstado =
-            estadoFiltro === "todas" ||
-            estadoFromApi(o.estado) === estadoFiltro;
+    const filtered = useMemo(() => {
+        const q = safeLower(busquedaEquipo);
 
-        const matchesArea =
-            areaFiltro === "todas" ||
-            (o.area?.toLowerCase() ?? "") === areaFiltro;
+        return ordenes.filter((o) => {
+            const matchesEstado = estadoFiltro === "todas" || estadoFromApi(o.estado) === estadoFiltro;
+            const matchesArea = areaFiltro === "todas" || (o.area?.toLowerCase() ?? "") === areaFiltro;
+            const matchesOrigen = origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
 
-        const matchesOrigen =
-            origenFiltro === "todas" ||
-            o.entidad?.origen === origenFiltro;
+            const tipoLabel = o.equipo?.tipo ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue]) : "";
+            const matchesEquipo =
+                !q ||
+                safeLower(o.equipo?.marca).includes(q) ||
+                safeLower(o.equipo?.modelo).includes(q) ||
+                safeLower(o.equipo?.serial).includes(q) ||
+                tipoLabel.includes(q);
 
-        const matchesEquipo =
-            !busquedaEquipo ||
-            o.equipo?.marca?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
-            o.equipo?.modelo?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
-            o.equipo?.serie?.toLowerCase().includes(busquedaEquipo.toLowerCase()) ||
-            o.equipo?.tipo?.toLowerCase().includes(busquedaEquipo.toLowerCase());
-
-        return matchesEstado && matchesArea && matchesOrigen && matchesEquipo;
-    });
+            return matchesEstado && matchesArea && matchesOrigen && matchesEquipo;
+        });
+    }, [ordenes, estadoFiltro, areaFiltro, origenFiltro, busquedaEquipo]);
 
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
     const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
     const [showEditEntidadModal, setShowEditEntidadModal] = useState(false);
     const [showEditEquipoModal, setShowEditEquipoModal] = useState(false);
+
+    const [equipoEditando, setEquipoEditando] = useState<EquipoGestioo | null>(null);
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -660,7 +660,6 @@ const OrdenesTaller: React.FC = () => {
 
             <Header />
 
-            {/* Toolbar */}
             <main className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
                 <div className="rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -669,9 +668,7 @@ const OrdenesTaller: React.FC = () => {
                                 <ToolOutlined className="text-cyan-600" />
                                 Órdenes de Taller
                             </h1>
-                            <p className="text-slate-600 text-sm mt-1">
-                                Control y seguimiento de trabajos técnicos (Entidad, Equipo).
-                            </p>
+                            <p className="text-slate-600 text-sm mt-1">Control y seguimiento de trabajos técnicos (Entidad, Equipo).</p>
                         </div>
 
                         <div className="flex flex-wrap gap-3">
@@ -696,6 +693,7 @@ const OrdenesTaller: React.FC = () => {
                             >
                                 <PlusOutlined /> Nueva Orden
                             </button>
+
                             <button
                                 onClick={fetchOrdenes}
                                 className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-cyan-800 border border-cyan-200 bg-white hover:bg-cyan-50 transition"
@@ -707,8 +705,6 @@ const OrdenesTaller: React.FC = () => {
 
                     {/* Filtros rápidos */}
                     <div className="mt-4 flex flex-wrap gap-4 items-center">
-                        {/* Estado */}
-
                         <div className="mt-4">
                             <input
                                 type="text"
@@ -719,14 +715,13 @@ const OrdenesTaller: React.FC = () => {
                             />
                         </div>
 
+                        {/* Estado */}
                         <div className="flex flex-wrap gap-2">
                             {["todas", "pendiente", "en progreso", "completada", "cancelada"].map((estado) => (
                                 <button
                                     key={estado}
                                     onClick={() => setEstadoFiltro(estado as any)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${estadoFiltro === estado
-                                        ? "bg-cyan-600 text-white border-cyan-600"
-                                        : "bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${estadoFiltro === estado ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
                                         }`}
                                 >
                                     {estado === "todas" ? "Todas" : estado.charAt(0).toUpperCase() + estado.slice(1)}
@@ -740,9 +735,7 @@ const OrdenesTaller: React.FC = () => {
                                 <button
                                     key={area}
                                     onClick={() => setAreaFiltro(area as any)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${areaFiltro === area
-                                        ? "bg-indigo-600 text-white border-indigo-600"
-                                        : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${areaFiltro === area ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
                                         }`}
                                 >
                                     {area === "todas" ? "Todas" : area.charAt(0).toUpperCase() + area.slice(1)}
@@ -755,10 +748,8 @@ const OrdenesTaller: React.FC = () => {
                             {["todas", "RIDS", "ECONNET", "OTRO"].map((origen) => (
                                 <button
                                     key={origen}
-                                    onClick={() => setOrigenFiltro(origen === "todas" ? "todas" : origen as OrigenGestioo)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${origenFiltro === origen
-                                        ? "bg-violet-600 text-white border-violet-600"
-                                        : "bg-white text-violet-700 border-violet-200 hover:bg-violet-50"
+                                    onClick={() => setOrigenFiltro(origen === "todas" ? "todas" : (origen as OrigenGestioo))}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${origenFiltro === origen ? "bg-violet-600 text-white border-violet-600" : "bg-white text-violet-700 border-violet-200 hover:bg-violet-50"
                                         }`}
                                 >
                                     {origen === "todas" ? "Todos" : origen}
@@ -768,18 +759,16 @@ const OrdenesTaller: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Tabla - CORREGIDA PARA BOTONES VISIBLES */}
+                {/* Tabla */}
                 <section className="mt-6 rounded-3xl border border-cyan-200 bg-white overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm" style={{ minWidth: '1200px' }}>
+                        <table className="min-w-full text-sm" style={{ minWidth: "1200px" }}>
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
                                     {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
-                                            className={`text-left px-4 py-3 font-semibold ${h === "Acciones" ? "w-40" :
-                                                h === "ID" ? "w-16" :
-                                                    h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
+                                            className={`text-left px-4 py-3 font-semibold ${h === "Acciones" ? "w-40" : h === "ID" ? "w-16" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
                                                 }`}
                                         >
                                             {h}
@@ -787,92 +776,114 @@ const OrdenesTaller: React.FC = () => {
                                     ))}
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {loading ? (
-                                    <tr><td colSpan={11} className="py-10 text-center text-slate-500">Cargando...</td></tr>
+                                    <tr>
+                                        <td colSpan={11} className="py-10 text-center text-slate-500">
+                                            Cargando...
+                                        </td>
+                                    </tr>
                                 ) : filtered.length === 0 ? (
-                                    <tr><td colSpan={11} className="py-10 text-center text-slate-500">Sin resultados.</td></tr>
+                                    <tr>
+                                        <td colSpan={11} className="py-10 text-center text-slate-500">
+                                            Sin resultados.
+                                        </td>
+                                    </tr>
                                 ) : (
                                     filtered.map((o) => (
                                         <tr key={o.id} className="border-t border-cyan-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60">
                                             <td className="px-4 py-3 w-16">{o.id}</td>
+
                                             <td className="px-4 py-3 max-w-xs truncate" title={o.tipoTrabajo}>
                                                 {o.tipoTrabajo}
                                             </td>
+
                                             <td className="px-4 py-3 w-28">
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.prioridad === "ALTA"
-                                                    ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                    : o.prioridad === "BAJA"
-                                                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                        : "bg-amber-50 text-amber-700 ring-amber-200"
-                                                    }`}>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.prioridad === "ALTA"
+                                                        ? "bg-rose-50 text-rose-700 ring-rose-200"
+                                                        : o.prioridad === "BAJA"
+                                                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                            : "bg-amber-50 text-amber-700 ring-amber-200"
+                                                        }`}
+                                                >
                                                     {o.prioridad.toLowerCase()}
                                                 </span>
                                             </td>
+
                                             <td className="px-4 py-3 w-28">
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${estadoFromApi(o.estado) === "completada"
-                                                    ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                    : estadoFromApi(o.estado) === "en progreso"
-                                                        ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                        : estadoFromApi(o.estado) === "cancelada"
-                                                            ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                            : "bg-amber-50 text-amber-700 ring-amber-200"
-                                                    }`}>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${estadoFromApi(o.estado) === "completada"
+                                                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                        : estadoFromApi(o.estado) === "en progreso"
+                                                            ? "bg-sky-50 text-sky-700 ring-sky-200"
+                                                            : estadoFromApi(o.estado) === "cancelada"
+                                                                ? "bg-rose-50 text-rose-700 ring-rose-200"
+                                                                : "bg-amber-50 text-amber-700 ring-amber-200"
+                                                        }`}
+                                                >
                                                     {estadoFromApi(o.estado)}
                                                 </span>
                                             </td>
+
                                             <td className="px-4 py-3 w-28">
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.area === "ENTRADA"
-                                                    ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                    : o.area === "DOMICILIO"
-                                                        ? "bg-amber-50 text-amber-700 ring-amber-200"
-                                                        : o.area === "REPARACION"
-                                                            ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                                                            : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                    }`}>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.area === "ENTRADA"
+                                                        ? "bg-sky-50 text-sky-700 ring-sky-200"
+                                                        : o.area === "DOMICILIO"
+                                                            ? "bg-amber-50 text-amber-700 ring-amber-200"
+                                                            : o.area === "REPARACION"
+                                                                ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                                                                : "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                        }`}
+                                                >
                                                     {o.area.toLowerCase()}
                                                 </span>
                                             </td>
 
-                                            <td className="px-4 py-3">
-                                                {o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}
-                                            </td>
+                                            <td className="px-4 py-3">{o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}</td>
+
                                             <td className="px-4 py-3">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ring-1 ring-purple-200">
-                                                    {o.equipo?.tipo ?? "—"}
+                                                    {o.equipo?.tipo ? (TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue] ?? String(o.equipo.tipo)) : "—"}
                                                 </span>
                                             </td>
+
                                             <td className="px-4 py-3">{o.entidad?.nombre ?? "—"}</td>
+
                                             <td className="px-4 py-3 w-28">
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
-                                                    ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
-                                                    : o.entidad?.origen === "ECONNET"
-                                                        ? "bg-purple-50 text-purple-700 ring-purple-200"
-                                                        : "bg-slate-50 text-slate-700 ring-slate-200"
-                                                    }`}>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
+                                                        ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
+                                                        : o.entidad?.origen === "ECONNET"
+                                                            ? "bg-purple-50 text-purple-700 ring-purple-200"
+                                                            : "bg-slate-50 text-slate-700 ring-slate-200"
+                                                        }`}
+                                                >
                                                     {o.entidad?.origen ?? "—"}
                                                 </span>
                                             </td>
+
                                             <td className="px-4 py-3 whitespace-nowrap text-slate-700">
                                                 <div className="flex flex-col leading-tight">
                                                     <span>
                                                         {new Date(o.fecha).toLocaleDateString("es-CL", {
                                                             day: "2-digit",
                                                             month: "2-digit",
-                                                            year: "numeric"
+                                                            year: "numeric",
                                                         })}
                                                     </span>
                                                     <span className="text-xs text-slate-500">
                                                         {new Date(o.fecha).toLocaleTimeString("es-CL", {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
-                                                            hour12: false
+                                                            hour12: false,
                                                         })}
                                                     </span>
                                                 </div>
                                             </td>
 
-                                            {/* COLUMNA DE ACCIONES - CORREGIDA */}
                                             <td className="px-4 py-3 min-w-[180px] whitespace-nowrap">
                                                 <div className="flex gap-2 justify-start flex-nowrap">
                                                     <button
@@ -883,6 +894,7 @@ const OrdenesTaller: React.FC = () => {
                                                     >
                                                         <EyeOutlined />
                                                     </button>
+
                                                     <button
                                                         onClick={() => handlePrint(o)}
                                                         className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50 transition flex items-center justify-center min-w-[36px]"
@@ -891,6 +903,7 @@ const OrdenesTaller: React.FC = () => {
                                                     >
                                                         <PrinterOutlined />
                                                     </button>
+
                                                     <button
                                                         onClick={() => handleDelete(o.id)}
                                                         className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50 transition flex items-center justify-center min-w-[36px]"
@@ -918,8 +931,8 @@ const OrdenesTaller: React.FC = () => {
                     onClose={() => setModalOpen(false)}
                     formData={formData}
                     setFormData={setFormData}
+                    equipos={equipos}
                     entidades={entidades}
-                    equipos={equiposFiltrados}
                     onSubmit={handleCreate}
                     loading={creating}
                     buttonLabel="Crear"
@@ -928,7 +941,7 @@ const OrdenesTaller: React.FC = () => {
                     setShowEditEntidadModal={setShowEditEntidadModal}
                     setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
-                    setEquiposFiltrados={setEquiposFiltrados}
+                    setEquipoEditando={setEquipoEditando}
                 />
             )}
 
@@ -940,8 +953,8 @@ const OrdenesTaller: React.FC = () => {
                     onClose={() => setEditOpen(false)}
                     formData={formData}
                     setFormData={setFormData}
+                    equipos={equipos}
                     entidades={entidades}
-                    equipos={equiposFiltrados}
                     onSubmit={handleUpdate}
                     loading={updating}
                     buttonLabel="Guardar cambios"
@@ -950,7 +963,7 @@ const OrdenesTaller: React.FC = () => {
                     setShowEditEntidadModal={setShowEditEntidadModal}
                     setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
-                    setEquiposFiltrados={setEquiposFiltrados}
+                    setEquipoEditando={setEquipoEditando}
                 />
             )}
 
@@ -966,56 +979,67 @@ const OrdenesTaller: React.FC = () => {
                 />
             )}
 
+            {showEditEntidadModal && formData.entidadId && (
+                <ModalEditarEntidad
+                    entidadId={formData.entidadId}
+                    onClose={() => setShowEditEntidadModal(false)}
+                    onSaved={() => {
+                        setShowEditEntidadModal(false);
+                        fetchSelectData();
+                        setFormData((prev) => ({ ...prev }));
+                    }}
+                />
+            )}
+
             {showNuevoEquipoModal && (
                 <ModalNuevoEquipo
                     entidadId={formData.entidadId}
                     onClose={() => setShowNuevoEquipoModal(false)}
                     onSaved={(nuevoId) => {
-                        // Recargar equipos después de crear uno nuevo
                         const cargarEquipos = async () => {
-                            if (!formData.entidadId) return;
-                            try {
-                                const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
-                                    credentials: "include"
-                                });
-                                const data = await res.json();
-                                const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
-                                setEquipos(equiposData);
-                                setEquiposFiltrados(equiposData);
-                            } catch (err) {
-                                console.error("Error cargando equipos:", err);
-                            }
+                            const url = formData.entidadId
+                                ? `${API_URL}/equipos?empresaId=${formData.entidadId}&pageSize=500`
+                                : `${API_URL}/equipos?pageSize=500`;
+
+                            const res = await fetch(url, { credentials: "include" });
+                            const data = await res.json();
+                            const list = Array.isArray(data) ? data : data.items ?? [];
+                            const normalized = (list as any[]).map((e) => ({
+                                ...e,
+                                tipo: (e.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue,
+                            }));
+                            setEquipos(normalized);
                         };
+
                         cargarEquipos();
                         setFormData((prev) => ({ ...prev, equipoId: String(nuevoId) }));
                     }}
                 />
             )}
 
-
-            {showEditEntidadModal && (
-                <ModalEditarEntidad
-                    entidadId={formData.entidadId}
-                    onClose={() => setShowEditEntidadModal(false)}
+            {/* ===== Modal Editar Equipo ===== */}
+            {showEditEquipoModal && equipoEditando && (
+                <ModalEditarEquipo
+                    equipo={equipoEditando}
+                    onClose={() => {
+                        setShowEditEquipoModal(false);
+                        setEquipoEditando(null);
+                    }}
                     onSaved={() => {
-                        fetchSelectData();
-                        // También recargar equipos si la entidad cambió
-                        if (formData.entidadId) {
-                            const cargarEquipos = async () => {
-                                try {
-                                    const res = await fetch(`${API_URL}/equipos?empresaId=${formData.entidadId}`, {
-                                        credentials: "include"
-                                    });
-                                    const data = await res.json();
-                                    const equiposData = Array.isArray(data) ? data : data.data ?? data.items ?? [];
-                                    setEquipos(equiposData);
-                                    setEquiposFiltrados(equiposData);
-                                } catch (err) {
-                                    console.error("Error cargando equipos:", err);
-                                }
-                            };
-                            cargarEquipos();
-                        }
+                        setShowEditEquipoModal(false);
+                        setEquipoEditando(null);
+
+                        const cargarEquipos = async () => {
+                            const res = await fetch(`${API_URL}/equipos?pageSize=500`, { credentials: "include" });
+                            const data = await res.json();
+                            const list = Array.isArray(data) ? data : data.items ?? [];
+                            const normalized = (list as any[]).map((e) => ({
+                                ...e,
+                                tipo: (e.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue,
+                            }));
+                            setEquipos(normalized);
+                        };
+                        cargarEquipos();
                     }}
                 />
             )}
@@ -1042,8 +1066,8 @@ interface ModalProps {
     title: string;
     onClose: () => void;
     onSubmit: () => void;
-    formData: any;
-    setFormData: (v: any) => void;
+    formData: OrdenFormData;
+    setFormData: React.Dispatch<React.SetStateAction<OrdenFormData>>;
     entidades: EntidadGestioo[];
     equipos: EquipoGestioo[];
     loading: boolean;
@@ -1053,33 +1077,49 @@ interface ModalProps {
     setShowEditEntidadModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowEditEquipoModal: React.Dispatch<React.SetStateAction<boolean>>;
     setEntidades: React.Dispatch<React.SetStateAction<EntidadGestioo[]>>;
-    setEquiposFiltrados: React.Dispatch<React.SetStateAction<EquipoGestioo[]>>;
+    setEquipoEditando: React.Dispatch<React.SetStateAction<EquipoGestioo | null>>;
 }
 
 const ModalOrden: React.FC<ModalProps> = ({
-    title, onClose, onSubmit, formData, setFormData,
-    entidades, equipos, loading, buttonLabel,
-    setShowNewEntidadModal, setShowNuevoEquipoModal,
-    setShowEditEntidadModal, setShowEditEquipoModal,
-    setEntidades, setEquiposFiltrados,
+    title,
+    onClose,
+    onSubmit,
+    formData,
+    setFormData,
+    entidades,
+    equipos,
+    loading,
+    buttonLabel,
+    setShowNewEntidadModal,
+    setShowNuevoEquipoModal,
+    setShowEditEntidadModal,
+    setShowEditEquipoModal,
+    setEntidades,
+    setEquipoEditando,
 }) => {
     const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
-    // Filtrar equipos basados en búsqueda
-    const equiposFiltrados = equipos.filter((eq) => {
-        const q = busquedaEquipo.toLowerCase();
-        return (
-            eq.marca?.toLowerCase().includes(q) ||
-            eq.modelo?.toLowerCase().includes(q) ||
-            eq.serie?.toLowerCase().includes(q) ||
-            eq.tipo?.toLowerCase().includes(q)
-        );
-    });
+    const equiposFiltrados = useMemo(() => {
+        const q = safeLower(busquedaEquipo);
 
-    const handleClose = () => {
-        setBusquedaEquipo("");
-        onClose();
-    };
+        return equipos.filter((eq) => {
+            const tipoLabel = eq?.tipo ? safeLower(TipoEquipoLabel[eq.tipo]) : "";
+
+            const matchTexto =
+                !q ||
+                safeLower(eq.marca).includes(q) ||
+                safeLower(eq.modelo).includes(q) ||
+                safeLower(eq.serial).includes(q) ||
+                tipoLabel.includes(q);
+
+            const matchEntidad =
+                !formData.entidadId ||
+                eq.empresaId === Number(formData.entidadId) ||
+                eq.empresaId == null; // equipos sin empresa
+
+            return matchTexto && matchEntidad;
+        });
+    }, [equipos, busquedaEquipo, formData.entidadId]);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1094,7 +1134,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
                         <button
-                            onClick={handleClose}
+                            onClick={onClose}
                             className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
                             aria-label="Cerrar modal"
                         >
@@ -1106,7 +1146,6 @@ const ModalOrden: React.FC<ModalProps> = ({
                 {/* Contenido principal - Scrollable */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="p-6 space-y-6">
-                        {/* Sección 1: Información Principal */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Columna Izquierda */}
                             <div className="space-y-6">
@@ -1127,9 +1166,7 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                                 {/* Descripción */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Descripción del Trabajo
-                                    </label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción del Trabajo<span className="text-rose-500">*</span></label>
                                     <textarea
                                         placeholder="Describe detalladamente el trabajo a realizar..."
                                         required
@@ -1142,9 +1179,7 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                                 {/* Notas */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                        Notas / Observaciones
-                                    </label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Notas / Observaciones Técnico</label>
                                     <textarea
                                         placeholder="Observaciones adicionales, comentarios especiales..."
                                         value={formData.notas}
@@ -1169,7 +1204,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                                             <label className="block text-xs font-medium text-slate-600 mb-1">Prioridad</label>
                                             <select
                                                 value={formData.prioridad}
-                                                onChange={(e) => setFormData({ ...formData, prioridad: e.target.value })}
+                                                onChange={(e) => setFormData({ ...formData, prioridad: e.target.value as Prioridad })}
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             >
                                                 <option value="baja"> Baja</option>
@@ -1182,7 +1217,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                                             <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
                                             <select
                                                 value={formData.estado}
-                                                onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                                                onChange={(e) => setFormData({ ...formData, estado: e.target.value as OrdenFormData["estado"] })}
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             >
                                                 <option value="pendiente"> Pendiente</option>
@@ -1228,30 +1263,26 @@ const ModalOrden: React.FC<ModalProps> = ({
                                     <div className="space-y-3">
                                         {/* Tipo de Entidad */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Tipo de Entidad
-                                            </label>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de Entidad</label>
 
                                             <select
                                                 value={formData.tipoEntidad}
                                                 onChange={(e) => {
-                                                    const tipo = e.target.value;
+                                                    const tipo = e.target.value as "EMPRESA" | "PERSONA";
 
                                                     setFormData({
                                                         ...formData,
                                                         tipoEntidad: tipo,
                                                         entidadId: "",
-                                                        origenEntidad: "",  // reset
+                                                        origenEntidad: "",
                                                     });
 
-                                                    // Si es PERSONA → cargar todas las personas
                                                     if (tipo === "PERSONA") {
                                                         fetch(`${API_URL}/entidades?tipo=PERSONA`, { credentials: "include" })
-                                                            .then(res => res.json())
-                                                            .then(data => setEntidades(Array.isArray(data) ? data : data.data))
+                                                            .then((res) => res.json())
+                                                            .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
                                                             .catch(() => setEntidades([]));
                                                     } else {
-                                                        // Si es empresa → esperar origen
                                                         setEntidades([]);
                                                     }
                                                 }}
@@ -1265,14 +1296,12 @@ const ModalOrden: React.FC<ModalProps> = ({
                                         {/* Origen (solo si es empresa) */}
                                         {formData.tipoEntidad === "EMPRESA" && (
                                             <div>
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                    Origen de la Empresa
-                                                </label>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Origen de la Empresa</label>
 
                                                 <select
                                                     value={formData.origenEntidad}
                                                     onChange={(e) => {
-                                                        const origen = e.target.value;
+                                                        const origen = e.target.value as OrigenGestioo | "";
 
                                                         setFormData({
                                                             ...formData,
@@ -1280,11 +1309,9 @@ const ModalOrden: React.FC<ModalProps> = ({
                                                             entidadId: "",
                                                         });
 
-                                                        fetch(`${API_URL}/entidades?tipo=EMPRESA&origen=${origen}`, {
-                                                            credentials: "include",
-                                                        })
-                                                            .then(res => res.json())
-                                                            .then(data => setEntidades(Array.isArray(data) ? data : data.data))
+                                                        fetch(`${API_URL}/entidades?tipo=EMPRESA&origen=${origen}`, { credentials: "include" })
+                                                            .then((res) => res.json())
+                                                            .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
                                                             .catch(() => setEntidades([]));
                                                     }}
                                                     className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
@@ -1300,18 +1327,16 @@ const ModalOrden: React.FC<ModalProps> = ({
                                         {/* Entidad */}
                                         <div>
                                             <div className="flex justify-between items-center mb-1">
-                                                <label className="block text-xs font-medium text-slate-600">
-                                                    Entidad
-                                                </label>
+                                                <label className="block text-xs font-medium text-slate-600">Entidad</label>
 
                                                 <button
+                                                    type="button"
                                                     onClick={() => {
                                                         if (!formData.entidadId) setShowNewEntidadModal(true);
                                                         else setShowEditEntidadModal(true);
                                                     }}
-                                                    className={`p-2 rounded-xl text-white transition
-                        ${formData.entidadId ? "bg-amber-500 hover:bg-amber-600" : "bg-indigo-600 hover:bg-indigo-700"}
-                    `}
+                                                    className={`p-2 rounded-xl text-white transition ${formData.entidadId ? "bg-amber-500 hover:bg-amber-600" : "bg-indigo-600 hover:bg-indigo-700"
+                                                        }`}
                                                     aria-label={formData.entidadId ? "Editar entidad" : "Nueva entidad"}
                                                 >
                                                     {formData.entidadId ? <EditOutlined /> : <PlusOutlined />}
@@ -1320,10 +1345,7 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                                             <select
                                                 value={formData.entidadId}
-                                                onChange={(e) => {
-                                                    const id = e.target.value;
-                                                    setFormData({ ...formData, entidadId: id });
-                                                }}
+                                                onChange={(e) => setFormData((prev) => ({ ...prev, entidadId: e.target.value }))}
                                                 disabled={formData.tipoEntidad === "EMPRESA" && !formData.origenEntidad}
                                                 className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm bg-white"
                                             >
@@ -1345,7 +1367,6 @@ const ModalOrden: React.FC<ModalProps> = ({
                                     </div>
                                 </div>
 
-
                                 {/* Información del Equipo */}
                                 <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
                                     <h3 className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
@@ -1359,35 +1380,37 @@ const ModalOrden: React.FC<ModalProps> = ({
                                             <label className="block text-xs font-medium text-slate-600 mb-1">Buscar Equipo</label>
                                             <input
                                                 type="text"
-                                                placeholder="Marca, modelo, serie..."
+                                                placeholder="Marca, modelo, serie o tipo..."
                                                 value={busquedaEquipo}
                                                 onChange={(e) => setBusquedaEquipo(e.target.value)}
                                                 className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
-                                                disabled={!formData.entidadId}
+                                                disabled={equipos.length === 0}
                                             />
                                             {!formData.entidadId && (
-                                                <p className="text-xs text-amber-600 mt-1">
-                                                    Primero seleccione una empresa para cargar los equipos
-                                                </p>
+                                                <p className="text-xs text-amber-600 mt-1">Mostrando equipos de todas las empresas</p>
                                             )}
                                         </div>
 
                                         <div className="flex justify-between items-center">
                                             <label className="block text-xs font-medium text-slate-600">Equipo</label>
                                             <button
+                                                type="button"
                                                 onClick={() => {
-                                                    if (!formData.equipoId) setShowNuevoEquipoModal(true);
-                                                    else setShowEditEquipoModal(true);
+                                                    if (!formData.equipoId) {
+                                                        setShowNuevoEquipoModal(true);
+                                                    } else {
+                                                        const equipo = equipos.find((e) => String(e.id_equipo) === formData.equipoId);
+                                                        if (!equipo) {
+                                                            alert("Equipo no encontrado");
+                                                            return;
+                                                        }
+                                                        setEquipoEditando(equipo);
+                                                        setShowEditEquipoModal(true);
+                                                    }
                                                 }}
-                                                disabled={!formData.entidadId}
-                                                className={`p-2 rounded-xl text-white transition-all duration-200 ${!formData.entidadId
-                                                    ? "bg-gray-400 cursor-not-allowed"
-                                                    : formData.equipoId
-                                                        ? "bg-amber-500 hover:bg-amber-600"
-                                                        : "bg-emerald-600 hover:bg-emerald-700"
+                                                className={`p-2 rounded-xl text-white transition-all duration-200 ${formData.equipoId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
                                                     }`}
                                                 title={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
-                                                aria-label={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
                                             >
                                                 {formData.equipoId ? <EditOutlined /> : <PlusOutlined />}
                                             </button>
@@ -1395,27 +1418,24 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                                         <select
                                             value={formData.equipoId}
-                                            onChange={(e) => setFormData({ ...formData, equipoId: e.target.value })}
-                                            disabled={!formData.entidadId || equiposFiltrados.length === 0}
+                                            onChange={(e) => setFormData((prev) => ({ ...prev, equipoId: e.target.value }))}
                                             className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
                                         >
                                             <option value="">
-                                                {!formData.entidadId
-                                                    ? "Seleccione una empresa primero"
-                                                    : equiposFiltrados.length === 0
-                                                        ? "No hay equipos disponibles para esta empresa"
-                                                        : "Seleccionar equipo..."}
+                                                {equiposFiltrados.length === 0 ? "No hay equipos disponibles" : "Seleccionar equipo…"}
                                             </option>
+
                                             {equiposFiltrados.map((eq) => (
-                                                <option key={eq.id} value={eq.id}>
-                                                    {eq.marca} {eq.modelo}
-                                                    {eq.serie && ` • Serie: ${eq.serie}`}
-                                                    {eq.tipo && ` • Tipo: ${eq.tipo}`}
+                                                <option key={eq.id_equipo} value={eq.id_equipo}>
+                                                    {eq.marca} {eq.modelo} · {TipoEquipoLabel[eq.tipo]}
+                                                    {eq.serial ? ` — S/N: ${eq.serial}` : " — S/N: N/A"}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
+
+                                {/* fin columna derecha */}
                             </div>
                         </div>
                     </div>
@@ -1427,16 +1447,18 @@ const ModalOrden: React.FC<ModalProps> = ({
                         <p className="text-xs text-slate-500 text-center sm:text-left">
                             Los campos marcados con <span className="text-rose-500">*</span> son obligatorios
                         </p>
+
                         <div className="flex gap-3">
                             <button
-                                onClick={handleClose}
+                                onClick={onClose}
                                 className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
                             >
                                 Cancelar
                             </button>
+
                             <button
                                 onClick={onSubmit}
-                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.entidadId || !formData.equipoId}
+                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId}
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
@@ -1501,8 +1523,8 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                     telefono: telefono || null,
                     direccion: direccion || null,
                     tipo: tipoEntidad,
-                    origen: origen
-                })
+                    origen: origen,
+                }),
             });
 
             if (!res.ok) {
@@ -1522,29 +1544,16 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-            <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-xl"
-            >
-                {/* Header */}
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-xl">
                 <div className="border-b px-6 py-4 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800">
-                        Nueva Entidad ({tipoEntidad === "EMPRESA" ? "Empresa" : "Persona"})
-                    </h2>
+                    <h2 className="text-xl font-bold text-slate-800">Nueva Entidad ({tipoEntidad === "EMPRESA" ? "Empresa" : "Persona"})</h2>
 
-                    <button
-                        onClick={onClose}
-                        className="text-slate-500 hover:text-slate-700 text-xl"
-                    >
+                    <button onClick={onClose} className="text-slate-500 hover:text-slate-700 text-xl">
                         ✕
                     </button>
                 </div>
 
-                {/* Formulario */}
                 <div className="p-6 space-y-5">
-
-                    {/* Nombre */}
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">
                             Nombre <span className="text-rose-500">*</span>
@@ -1558,21 +1567,12 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                         />
                     </div>
 
-                    {/* Grid 2 columnas */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                        {/* RUT */}
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">RUT</label>
-                            <input
-                                value={rut}
-                                onChange={(e) => setRut(e.target.value)}
-                                className="w-full border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-400"
-                                placeholder="RUT"
-                            />
+                            <input value={rut} onChange={(e) => setRut(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-400" placeholder="RUT" />
                         </div>
 
-                        {/* Teléfono */}
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">Teléfono</label>
                             <input
@@ -1583,7 +1583,6 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                             />
                         </div>
 
-                        {/* Correo */}
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">Correo</label>
                             <input
@@ -1594,12 +1593,9 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                             />
                         </div>
 
-                        {/* Origen (solo empresa) */}
                         {tipoEntidad === "EMPRESA" && (
                             <div>
-                                <label className="block text-sm font-medium text-slate-600 mb-1">
-                                    Origen
-                                </label>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">Origen</label>
                                 <select
                                     value={origen}
                                     onChange={(e) => setOrigen(e.target.value as OrigenGestioo)}
@@ -1613,11 +1609,8 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                         )}
                     </div>
 
-                    {/* Dirección */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">
-                            Dirección
-                        </label>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Dirección</label>
                         <input
                             value={direccion}
                             onChange={(e) => setDireccion(e.target.value)}
@@ -1627,21 +1620,15 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="border-t px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
-                    >
+                    <button onClick={onClose} className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100">
                         Cancelar
                     </button>
 
                     <button
                         onClick={handleSave}
                         disabled={loading}
-                        className={`px-4 py-2 rounded-xl text-white font-medium transition
-                        ${loading ? "bg-cyan-400" : "bg-cyan-600 hover:bg-cyan-700"}
-                    `}
+                        className={`px-4 py-2 rounded-xl text-white font-medium transition ${loading ? "bg-cyan-400" : "bg-cyan-600 hover:bg-cyan-700"}`}
                     >
                         {loading ? "Guardando..." : "Guardar Entidad"}
                     </button>
@@ -1649,7 +1636,6 @@ const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({ onClose, onSaved,
             </motion.div>
         </div>
     );
-
 };
 
 /* Editar Entidad */
@@ -1709,7 +1695,7 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
                     correo: correo || null,
                     telefono: telefono || null,
                     direccion: direccion || null,
-                    origen: origen
+                    origen: origen,
                 }),
             });
 
@@ -1743,11 +1729,8 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
                     <h3 className="text-xl font-bold text-slate-800 mb-6">Editar Entidad</h3>
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                        aria-label="Cerrar modal"
-                    >
+
+                    <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl" aria-label="Cerrar modal">
                         ✕
                     </button>
 
@@ -1824,12 +1807,10 @@ const ModalEditarEntidad: React.FC<{ entidadId: string; onClose: () => void; onS
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
-                        <button
-                            onClick={onClose}
-                            className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
-                        >
+                        <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium">
                             Cancelar
                         </button>
+
                         <button
                             onClick={handleSave}
                             disabled={loading || !nombre.trim()}
@@ -1859,7 +1840,9 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
     const [marca, setMarca] = useState("");
     const [modelo, setModelo] = useState("");
     const [serie, setSerie] = useState("");
-    const [tipo, setTipo] = useState("");
+
+    const [tipo, setTipo] = useState<TipoEquipoValue>(TipoEquipo.GENERICO);
+
     const [estado, setEstado] = useState("operativo");
     const [loading, setLoading] = useState(false);
 
@@ -1868,29 +1851,36 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
             alert("La marca y modelo son obligatorios");
             return;
         }
-
-        if (!entidadId) {
-            alert("No hay empresa seleccionada");
+        if (!serie.trim()) {
+            alert("La serie es obligatoria");
             return;
         }
 
         setLoading(true);
         try {
+            const payload = {
+                // Si tu backend usa empresaId en createEquipo, puedes enviarlo:
+                empresaId: entidadId ? Number(entidadId) : undefined,
+
+                marca: marca.trim(),
+                modelo: modelo.trim(),
+                serial: serie.trim(),
+                tipo: tipo,
+
+                // Estos campos son requeridos por tu schema Zod del backend (min(1))
+                procesador: "N/A",
+                ram: "N/A",
+                disco: "N/A",
+                propiedad: "EMPRESA",
+            };
+
+            console.log("📤 Creando equipo:", payload);
+
             const res = await fetch(`${API_URL}/equipos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({
-                    marca,
-                    modelo,
-                    serie: serie || null,
-                    tipo: tipo || null,
-                    estado: estado || "operativo",
-                    // Asociar a un solicitante de la empresa
-                    // En una implementación real, necesitarías seleccionar un solicitante
-                    // o usar uno por defecto
-                    solicitanteId: null, // Deberías obtener o crear un solicitante para la empresa
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) {
@@ -1899,7 +1889,7 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
             }
 
             const data = await res.json();
-            onSaved(data.id ?? 0);
+            onSaved(data.id ?? data.id_equipo);
             onClose();
         } catch (err) {
             alert((err as Error).message);
@@ -1913,11 +1903,8 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
                 <div className="p-6">
                     <h3 className="text-xl font-bold text-slate-800 mb-6">Nuevo Equipo</h3>
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                        aria-label="Cerrar modal"
-                    >
+
+                    <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl" aria-label="Cerrar modal">
                         ✕
                     </button>
 
@@ -1949,10 +1936,13 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Número de Serie</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Número de Serie <span className="text-rose-500">*</span>
+                            </label>
                             <input
+                                required
                                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Serie del equipo (opcional)"
+                                placeholder="Serie del equipo"
                                 value={serie}
                                 onChange={(e) => setSerie(e.target.value)}
                             />
@@ -1960,39 +1950,28 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
 
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">Tipo de Equipo</label>
-                            <input
-                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                placeholder="Ej: Computador, Impresora, Servidor"
-                                value={tipo}
-                                onChange={(e) => setTipo(e.target.value)}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Estado</label>
                             <select
+                                value={tipo}
+                                onChange={(e) => setTipo(e.target.value as TipoEquipoValue)}
                                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
-                                value={estado}
-                                onChange={(e) => setEstado(e.target.value)}
                             >
-                                <option value="operativo">Operativo</option>
-                                <option value="en reparacion">En reparación</option>
-                                <option value="dado de baja">Dado de baja</option>
-                                <option value="reserva">En reserva</option>
+                                {Object.values(TipoEquipo).map((t) => (
+                                    <option key={t} value={t}>
+                                        {TipoEquipoLabel[t]}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">
-                        <button
-                            onClick={onClose}
-                            className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
-                        >
+                        <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium">
                             Cancelar
                         </button>
+
                         <button
                             onClick={handleSave}
-                            disabled={loading || !marca.trim() || !modelo.trim()}
+                            disabled={loading || !marca.trim() || !modelo.trim() || !serie.trim()}
                             className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                 ? "bg-cyan-400 cursor-not-allowed"
                                 : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
