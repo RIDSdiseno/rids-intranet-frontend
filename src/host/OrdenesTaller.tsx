@@ -97,6 +97,8 @@ interface OrdenFormData {
     origenEntidad: OrigenGestioo | "";
     entidadId: string;
     equipoId: string;
+
+    tecnicoId?: string;
 }
 
 interface EntidadGestioo {
@@ -131,7 +133,19 @@ interface DetalleTrabajoGestioo {
     prioridad: "BAJA" | "NORMAL" | "ALTA";
     entidad?: EntidadGestioo | null;
     equipo?: EquipoGestioo | null;
+
+    tecnico?: {
+        id_tecnico: number;
+        nombre: string;
+    } | null;
 }
+
+interface Tecnico {
+    id_tecnico: number;
+    nombre: string;
+    status: boolean;
+}
+
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
@@ -178,6 +192,13 @@ const getDateTimeLocalCL = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
     const local = new Date(now.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 16);
+};
+
+const toDateTimeLocal = (date: string | Date) => {
+    const d = new Date(date);
+    const offset = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - offset * 60000);
     return local.toISOString().slice(0, 16);
 };
 
@@ -258,7 +279,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
     <!-- CLIENTE -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #f9fafb;">
-        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Cliente</h3>
+        <h3 style="margin: 0 0 10px; font-size: 20px;">Datos del Cliente</h3>
         <p><b>Entidad:</b> ${orden.entidad?.nombre ?? "—"}</p>
         <p><b>RUT:</b> ${orden.entidad?.rut ?? "—"}</p>
         <p><b>Teléfono:</b> ${orden.entidad?.telefono ?? "—"}</p>
@@ -383,6 +404,8 @@ const OrdenesTaller: React.FC = () => {
 
     const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
+    const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
+
     const [formData, setFormData] = useState<OrdenFormData>({
         tipoTrabajo: "",
         descripcion: "",
@@ -469,6 +492,16 @@ const OrdenesTaller: React.FC = () => {
         return () => clearTimeout(toastTimer);
     }, [toast]);
 
+    useEffect(() => {
+        fetch(`${API_URL}/tecnicos`, { credentials: "include" })
+            .then(res => res.json())
+            .then(data => {
+                const list = Array.isArray(data) ? data : data.items ?? [];
+                setTecnicos(list.filter((t: Tecnico) => t.status));
+            })
+            .catch(err => console.error("Error cargando técnicos", err));
+    }, []);
+
     /* ======= Crear ======= */
     const handleCreate = async () => {
         if (!formData.tipoTrabajo.trim()) {
@@ -492,6 +525,7 @@ const OrdenesTaller: React.FC = () => {
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
                 entidadId: Number(formData.entidadId),
                 equipoId: Number(formData.equipoId),
+                tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
             };
 
             console.log("📤 Enviando payload de creación:", payload);
@@ -546,11 +580,14 @@ const OrdenesTaller: React.FC = () => {
             estado: estadoFromApi(o.estado),
             notas: o.notas ?? "",
             area: (o.area?.toLowerCase() ?? "entrada") as Area,
-            fecha: o.fecha ? new Date(o.fecha).toISOString().slice(0, 16) : getDateTimeLocalCL(),
+            fecha: o.fecha ? toDateTimeLocal(o.fecha) : getDateTimeLocalCL(),
             tipoEntidad: o.tipoEntidad ?? "EMPRESA",
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
             equipoId: String(o.equipo?.id_equipo ?? ""),
+
+            tecnicoId: o.tecnico?.id_tecnico ? String(o.tecnico.id_tecnico) : "",
+
         });
         setEditOpen(true);
     };
@@ -575,6 +612,8 @@ const OrdenesTaller: React.FC = () => {
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
+
+                tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
             };
 
             console.log("📤 Enviando payload de actualización:", payload);
@@ -765,7 +804,7 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm" style={{ minWidth: "1200px" }}>
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold ${h === "Acciones" ? "w-40" : h === "ID" ? "w-16" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
@@ -780,13 +819,13 @@ const OrdenesTaller: React.FC = () => {
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={11} className="py-10 text-center text-slate-500">
+                                        <td colSpan={12} className="py-10 text-center text-slate-500">
                                             Cargando...
                                         </td>
                                     </tr>
                                 ) : filtered.length === 0 ? (
                                     <tr>
-                                        <td colSpan={11} className="py-10 text-center text-slate-500">
+                                        <td colSpan={12} className="py-10 text-center text-slate-500">
                                             Sin resultados.
                                         </td>
                                     </tr>
@@ -863,6 +902,16 @@ const OrdenesTaller: React.FC = () => {
                                                 >
                                                     {o.entidad?.origen ?? "—"}
                                                 </span>
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                {o.tecnico ? (
+                                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                                                        {o.tecnico.nombre}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">Sin asignar</span>
+                                                )}
                                             </td>
 
                                             <td className="px-4 py-3 whitespace-nowrap text-slate-700">
@@ -942,6 +991,8 @@ const OrdenesTaller: React.FC = () => {
                     setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
                     setEquipoEditando={setEquipoEditando}
+
+                    tecnicos={tecnicos}
                 />
             )}
 
@@ -964,6 +1015,8 @@ const OrdenesTaller: React.FC = () => {
                     setShowEditEquipoModal={setShowEditEquipoModal}
                     setEntidades={setEntidades}
                     setEquipoEditando={setEquipoEditando}
+
+                    tecnicos={tecnicos}
                 />
             )}
 
@@ -1078,6 +1131,9 @@ interface ModalProps {
     setShowEditEquipoModal: React.Dispatch<React.SetStateAction<boolean>>;
     setEntidades: React.Dispatch<React.SetStateAction<EntidadGestioo[]>>;
     setEquipoEditando: React.Dispatch<React.SetStateAction<EquipoGestioo | null>>;
+
+    tecnicos: Tecnico[];
+
 }
 
 const ModalOrden: React.FC<ModalProps> = ({
@@ -1096,6 +1152,7 @@ const ModalOrden: React.FC<ModalProps> = ({
     setShowEditEquipoModal,
     setEntidades,
     setEquipoEditando,
+    tecnicos
 }) => {
     const [busquedaEquipo, setBusquedaEquipo] = useState("");
 
@@ -1249,6 +1306,27 @@ const ModalOrden: React.FC<ModalProps> = ({
                                                 onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             />
+                                        </div>
+                                        <div className="mt-4">
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Técnico Responsable
+                                            </label>
+
+                                            <select
+                                                value={formData.tecnicoId ?? ""}
+                                                onChange={(e) =>
+                                                    setFormData({ ...formData, tecnicoId: e.target.value })
+                                                }
+                                                className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                            >
+                                                <option value="">— Sin asignar —</option>
+
+                                                {tecnicos.map((t) => (
+                                                    <option key={t.id_tecnico} value={t.id_tecnico}>
+                                                        {t.nombre}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
