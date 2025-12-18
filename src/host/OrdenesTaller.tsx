@@ -262,14 +262,14 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <img src="${origenInfo.logo}" style="height: 55px;" />
         <div>
             <h2 style="margin: 0; font-size: 22px; font-weight: bold;">${origenInfo.nombre}</h2>
-            <p style="margin: 0; font-size: 12px; color: #4b5563;">
+            <p style="margin: 0; font-size: 15px; color: #4b5563;">
                 ${origenInfo.direccion} · ${origenInfo.correo}<br>${origenInfo.telefono}
             </p>
         </div>
     </div>
 
     <div style="text-align: right;">
-        <p style="margin: 0; font-size: 12px;">Fecha impresión: ${fechaActual}</p>
+        <p style="margin: 0; font-size: 20px;">Fecha impresión: ${fechaActual}</p>
         <h3 style="margin: 4px 0 0;">Orden de Taller N° <b>${codigo}</b></h3>
     </div>
 </div>
@@ -289,7 +289,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
     <!-- EQUIPO -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
-        <h3 style="margin: 0 0 10px; font-size: 14px;">Datos del Equipo</h3>
+        <h3 style="margin: 0 0 10px; font-size: 20px;">Datos del Equipo</h3>
         <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
         <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
@@ -392,6 +392,9 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 const OrdenesTaller: React.FC = () => {
     const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
     const [loading, setLoading] = useState(false);
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewOrden, setPreviewOrden] = useState<DetalleTrabajoGestioo | null>(null);
+
     const [modalOpen, setModalOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [selectedOrden, setSelectedOrden] = useState<DetalleTrabajoGestioo | null>(null);
@@ -460,26 +463,27 @@ const OrdenesTaller: React.FC = () => {
     useEffect(() => {
         const cargarEquipos = async () => {
             try {
-                const url = formData.entidadId
-                    ? `${API_URL}/equipos?empresaId=${formData.entidadId}&pageSize=500`
-                    : `${API_URL}/equipos?pageSize=500`;
+                const res = await fetch(`${API_URL}/equipos?pageSize=500`, {
+                    credentials: "include",
+                });
 
-                const res = await fetch(url, { credentials: "include" });
                 const data = await res.json();
                 const list = Array.isArray(data) ? data : data.items ?? [];
-                // Normaliza tipo si viniera raro (por seguridad)
-                const normalized = (list as any[]).map((e) => ({
+
+                const normalized = list.map((e: any) => ({
                     ...e,
                     tipo: (e.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue,
                 }));
+
                 setEquipos(normalized);
             } catch (e) {
                 console.error("Error cargando equipos:", e);
                 setEquipos([]);
             }
         };
+
         cargarEquipos();
-    }, [formData.entidadId]);
+    }, []);
 
     useEffect(() => {
         fetchOrdenes();
@@ -568,6 +572,11 @@ const OrdenesTaller: React.FC = () => {
         } finally {
             setCreating(false);
         }
+    };
+
+    const openPreviewModal = (orden: DetalleTrabajoGestioo) => {
+        setPreviewOrden(orden);
+        setPreviewOpen(true);
     };
 
     /* ======= Editar ======= */
@@ -935,13 +944,22 @@ const OrdenesTaller: React.FC = () => {
 
                                             <td className="px-4 py-3 min-w-[180px] whitespace-nowrap">
                                                 <div className="flex gap-2 justify-start flex-nowrap">
+
+                                                    <button
+                                                        onClick={() => openPreviewModal(o)}
+                                                        className="rounded-lg border border-slate-200 bg-white text-slate-700 p-2 hover:bg-slate-50"
+                                                        title="Ver orden"
+                                                    >
+                                                        <EyeOutlined />
+                                                    </button>
+
                                                     <button
                                                         onClick={() => openEditModal(o)}
                                                         className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50 transition flex items-center justify-center min-w-[36px]"
                                                         title="Editar orden"
                                                         aria-label={`Editar orden ${o.id}`}
                                                     >
-                                                        <EyeOutlined />
+                                                        <EditOutlined />
                                                     </button>
 
                                                     <button
@@ -971,6 +989,17 @@ const OrdenesTaller: React.FC = () => {
                     </div>
                 </section>
             </main>
+
+            {previewOpen && previewOrden && (
+                <ModalPreviewOrden
+                    orden={previewOrden}
+                    onClose={() => {
+                        setPreviewOpen(false);
+                        setPreviewOrden(null);
+                    }}
+                    onPrint={() => handlePrint(previewOrden)}
+                />
+            )}
 
             {/* ===== Modal Crear ===== */}
             {modalOpen && (
@@ -1160,23 +1189,19 @@ const ModalOrden: React.FC<ModalProps> = ({
         const q = safeLower(busquedaEquipo);
 
         return equipos.filter((eq) => {
-            const tipoLabel = eq?.tipo ? safeLower(TipoEquipoLabel[eq.tipo]) : "";
+            const tipoLabel = eq?.tipo
+                ? safeLower(TipoEquipoLabel[eq.tipo])
+                : "";
 
-            const matchTexto =
+            return (
                 !q ||
                 safeLower(eq.marca).includes(q) ||
                 safeLower(eq.modelo).includes(q) ||
                 safeLower(eq.serial).includes(q) ||
-                tipoLabel.includes(q);
-
-            const matchEntidad =
-                !formData.entidadId ||
-                eq.empresaId === Number(formData.entidadId) ||
-                eq.empresaId == null; // equipos sin empresa
-
-            return matchTexto && matchEntidad;
+                tipoLabel.includes(q)
+            );
         });
-    }, [equipos, busquedaEquipo, formData.entidadId]);
+    }, [equipos, busquedaEquipo]);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1938,8 +1963,6 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
         try {
             const payload = {
                 // Si tu backend usa empresaId en createEquipo, puedes enviarlo:
-                empresaId: entidadId ? Number(entidadId) : undefined,
-
                 marca: marca.trim(),
                 modelo: modelo.trim(),
                 serial: serie.trim(),
@@ -2067,6 +2090,103 @@ const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({ entidadId, onClose,
                     </div>
                 </div>
             </div>
+        </div>
+    );
+};
+
+/* =========================
+   Modal Preview Orden
+========================= */
+interface ModalPreviewOrdenProps {
+    orden: DetalleTrabajoGestioo;
+    onClose: () => void;
+    onPrint: () => void;
+}
+
+const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
+    orden,
+    onClose,
+    onPrint,
+}) => {
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+            >
+                {/* Header */}
+                <div className="border-b px-6 py-4 flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-slate-800">
+                        Vista previa Orden #{orden.id}
+                    </h2>
+
+                    <button
+                        onClick={onClose}
+                        className="text-slate-400 hover:text-slate-600 text-xl"
+                        aria-label="Cerrar"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 overflow-y-auto space-y-4 text-sm text-slate-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p><b>Entidad:</b> {orden.entidad?.nombre ?? "—"}</p>
+                            <p><b>Origen:</b> {orden.entidad?.origen ?? "—"}</p>
+                            <p><b>Área:</b> {orden.area}</p>
+                            <p><b>Prioridad:</b> {orden.prioridad}</p>
+                        </div>
+
+                        <div>
+                            <p><b>Equipo:</b> {orden.equipo?.marca} {orden.equipo?.modelo}</p>
+                            <p><b>Tipo:</b> {orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo] : "—"}</p>
+                            <p><b>Serie:</b> {orden.equipo?.serial ?? "—"}</p>
+                            <p><b>Fecha ingreso:</b> {new Date(orden.fecha).toLocaleString("es-CL")}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold mt-4 mb-1">Trabajo solicitado</h4>
+                        <div className="border rounded-xl p-3 bg-slate-50">
+                            {orden.tipoTrabajo}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold mt-4 mb-1">Descripción</h4>
+                        <div className="border rounded-xl p-3 bg-slate-50">
+                            {orden.descripcion ?? "Sin descripción"}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold mt-4 mb-1">Notas del técnico</h4>
+                        <div className="border rounded-xl p-3 bg-slate-50">
+                            {orden.notas ?? "Sin observaciones"}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t px-6 py-4 flex justify-end gap-3 bg-slate-50 rounded-b-3xl">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-2 rounded-xl border bg-white hover:bg-slate-100"
+                    >
+                        Cerrar
+                    </button>
+
+                    <button
+                        onClick={onPrint}
+                        className="px-5 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
+                    >
+                        <PrinterOutlined /> Imprimir
+                    </button>
+                </div>
+            </motion.div>
         </div>
     );
 };
