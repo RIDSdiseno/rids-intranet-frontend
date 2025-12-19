@@ -10,6 +10,7 @@ import {
     CheckCircleOutlined,
     CloseCircleOutlined,
     EditOutlined,
+    SwapOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import Header from "../components/Header";
@@ -294,7 +295,11 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
         <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
-        <p><b>Fecha ingreso:</b> ${new Date(orden.fecha).toLocaleString("es-CL")}</p>
+        <p>
+  <b>${orden.area === "SALIDA" ? "Fecha salida:" : "Fecha ingreso:"}</b>
+  ${new Date(orden.fecha).toLocaleString("es-CL")}
+</p>
+
     </div>
 </div>
 
@@ -390,6 +395,50 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 };
 
 const OrdenesTaller: React.FC = () => {
+
+    const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
+        if (!confirm("¿Crear una orden de SALIDA para este equipo?")) return;
+
+        try {
+            const payload = {
+                tipoTrabajo: orden.tipoTrabajo,
+                descripcion: orden.descripcion,
+                prioridad: orden.prioridad,
+                estado: "PENDIENTE",
+                notas: orden.notas,
+                area: "SALIDA",
+                fecha: new Date().toISOString(),
+                entidadId: orden.entidad?.id ?? null,
+                equipoId: orden.equipo?.id_equipo ?? null,
+                tecnicoId: orden.tecnico?.id_tecnico ?? null,
+            };
+
+            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Error al crear orden de salida");
+            }
+
+            setToast({
+                type: "success",
+                message: "Orden de salida creada correctamente",
+            });
+
+            fetchOrdenes();
+        } catch (err) {
+            setToast({
+                type: "error",
+                message: (err as Error).message || "No se pudo crear la orden de salida",
+            });
+        }
+    };
+
     const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
     const [loading, setLoading] = useState(false);
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -601,6 +650,7 @@ const OrdenesTaller: React.FC = () => {
         setEditOpen(true);
     };
 
+    // UPDATE
     const handleUpdate = async () => {
         if (!selectedOrden) return;
 
@@ -609,7 +659,14 @@ const OrdenesTaller: React.FC = () => {
             return;
         }
 
+        const originalArea = selectedOrden.area;
+        const nuevaArea = areaToApi(formData.area);
+
+        const debeDuplicar =
+            originalArea !== "SALIDA" && nuevaArea === "SALIDA";
+
         setUpdating(true);
+
         try {
             const payload = {
                 tipoTrabajo: formData.tipoTrabajo,
@@ -617,36 +674,64 @@ const OrdenesTaller: React.FC = () => {
                 prioridad: prioridadToApi(formData.prioridad),
                 estado: estadoToApi(formData.estado),
                 notas: formData.notas || null,
-                area: areaToApi(formData.area),
-                fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
+                area: nuevaArea,
+                fecha: formData.fecha
+                    ? new Date(formData.fecha).toISOString()
+                    : undefined,
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
-
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
             };
 
-            console.log("📤 Enviando payload de actualización:", payload);
+            // 🔁 DUPLICAR (ENTRADA → SALIDA)
+            if (debeDuplicar) {
+                const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify(payload),
+                });
 
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo/${selectedOrden.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(payload),
-            });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || "Error al crear orden de salida");
+                }
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                console.error("❌ Error del servidor:", errorData);
-                throw new Error(errorData.error || errorData.details || "Error al actualizar el trabajo");
+                setToast({
+                    type: "success",
+                    message: "Orden de SALIDA creada correctamente",
+                });
+            } else {
+                // ✏️ EDICIÓN NORMAL
+                const res = await fetch(
+                    `${API_URL}/detalle-trabajo-gestioo/${selectedOrden.id}`,
+                    {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify(payload),
+                    }
+                );
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || "Error al actualizar la orden");
+                }
+
+                setToast({
+                    type: "success",
+                    message: "Orden actualizada correctamente",
+                });
             }
 
-            await res.json();
-            setToast({ type: "success", message: "Trabajo actualizado correctamente" });
             setEditOpen(false);
             fetchOrdenes();
         } catch (err) {
-            console.error("❌ Error en frontend:", err);
-            setToast({ type: "error", message: (err as Error).message || "Error al actualizar el trabajo" });
+            console.error(err);
+            setToast({
+                type: "error",
+                message: (err as Error).message || "Error al guardar cambios",
+            });
         } finally {
             setUpdating(false);
         }
@@ -932,12 +1017,18 @@ const OrdenesTaller: React.FC = () => {
                                                             year: "numeric",
                                                         })}
                                                     </span>
+
                                                     <span className="text-xs text-slate-500">
                                                         {new Date(o.fecha).toLocaleTimeString("es-CL", {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
                                                             hour12: false,
                                                         })}
+                                                    </span>
+
+                                                    {/* 👇 AQUÍ VA EXACTAMENTE */}
+                                                    <span className="text-[11px] text-slate-400 italic">
+                                                        {o.area === "SALIDA" ? "Salida" : "Ingreso"}
                                                     </span>
                                                 </div>
                                             </td>
@@ -961,6 +1052,16 @@ const OrdenesTaller: React.FC = () => {
                                                     >
                                                         <EditOutlined />
                                                     </button>
+
+                                                    {o.area !== "SALIDA" && (
+                                                        <button
+                                                            onClick={() => duplicarOrdenSalida(o)}
+                                                            className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
+                                                            title="Generar orden de salida"
+                                                        >
+                                                            <SwapOutlined />
+                                                        </button>
+                                                    )}
 
                                                     <button
                                                         onClick={() => handlePrint(o)}
@@ -1324,14 +1425,29 @@ const ModalOrden: React.FC<ModalProps> = ({
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">Fecha Ingreso</label>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                {formData.area === "salida"
+                                                    ? "Fecha de salida"
+                                                    : "Fecha de ingreso"}
+                                            </label>
+
                                             <input
                                                 type="datetime-local"
                                                 value={formData.fecha}
-                                                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                                                onChange={(e) =>
+                                                    setFormData({ ...formData, fecha: e.target.value })
+                                                }
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             />
+
+                                            {/* 👇 AQUÍ VA EXACTAMENTE */}
+                                            {formData.area === "salida" && (
+                                                <p className="text-xs text-amber-700 mt-1">
+                                                    Se creará una nueva orden de salida para mantener el historial
+                                                </p>
+                                            )}
                                         </div>
+
                                         <div className="mt-4">
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
                                                 Técnico Responsable
@@ -2144,7 +2260,10 @@ const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                             <p><b>Equipo:</b> {orden.equipo?.marca} {orden.equipo?.modelo}</p>
                             <p><b>Tipo:</b> {orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo] : "—"}</p>
                             <p><b>Serie:</b> {orden.equipo?.serial ?? "—"}</p>
-                            <p><b>Fecha ingreso:</b> {new Date(orden.fecha).toLocaleString("es-CL")}</p>
+                            <p>
+                                <b>{orden.area === "SALIDA" ? "Fecha salida:" : "Fecha ingreso:"}</b>{" "}
+                                {new Date(orden.fecha).toLocaleString("es-CL")}
+                            </p>
                         </div>
                     </div>
 

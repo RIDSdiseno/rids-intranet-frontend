@@ -162,6 +162,32 @@ const authHeaders = (): Record<string, string> => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+async function fetchSolicitantesByEmpresa(
+  empresaId: number,
+  search?: string
+): Promise<SolicitanteLite[]> {
+  const params = new URLSearchParams();
+  params.set("empresaId", String(empresaId));
+  if (search?.trim()) params.set("q", search.trim());
+
+  const res = await fetch(`${API_URL}/solicitantes/by-empresa?${params.toString()}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...authHeaders(),
+    },
+  });
+
+  if (!res.ok) throw new Error("No se pudieron cargar solicitantes");
+  const data = await res.json();
+
+  return data.items.map((it: { id: number; nombre: string }) => ({
+    id_solicitante: it.id,
+    nombre: it.nombre,
+    empresa: null, // Ya sabemos la empresa
+  }));
+}
 
 async function fetchSolicitantes(
   search: string,
@@ -296,14 +322,19 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const loadSolicitantes = async () => {
     setLoadingSolicitantes(true);
     try {
-      const data = await fetchSolicitantes(debSearch, 1, 120);
-      setSolOpts(
-        data.items.map((it) => ({
+      if (empresaId) {
+        // ✅ Usar endpoint específico por empresa (trae TODOS los solicitantes de esa empresa)
+        const solicitantes = await fetchSolicitantesByEmpresa(empresaId, debSearch);
+        setSolOpts(solicitantes.map(s => ({ ...s, empresa: { id_empresa: empresaId, nombre: "" } })));
+      } else {
+        // Cargar todos los solicitantes (con paginación)
+        const { items } = await fetchSolicitantes(debSearch);
+        setSolOpts(items.map(it => ({
           id_solicitante: it.id_solicitante,
           nombre: it.nombre,
           empresa: it.empresa,
-        }))
-      );
+        })));
+      }
     } catch {
       message.error("No se pudieron cargar solicitantes");
     } finally {
@@ -332,7 +363,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     if (!open) return;
     loadSolicitantes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, debSearch]);
+  }, [open, debSearch, empresaId]); // ← empresaId es clave aquí
 
   useEffect(() => {
     if (!open) return;
@@ -406,7 +437,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     onClose();
   };
 
-  
+
 
 
   // helpers visuales de error
@@ -420,7 +451,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
   const fadeUp = {
     initial: { opacity: 0, y: 8 },
-    animate:  { opacity: 1, y: 0 },
+    animate: { opacity: 1, y: 0 },
     transition: { duration: 0.22, ease: EASE_OUT_BEZIER } as Transition,
   } as const;
 
@@ -475,18 +506,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           >
             <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white ring-1 ring-black/5">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  stepEmpresaDone ? T.stepDone : "bg-slate-300"
-                }`}
+                className={`h-2 w-2 rounded-full ${stepEmpresaDone ? T.stepDone : "bg-slate-300"
+                  }`}
               />
               <span>Empresa</span>
             </div>
             <span className="h-px w-6 bg-slate-300" />
             <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white ring-1 ring-black/5">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  stepSolicDone ? T.stepDone : "bg-slate-300"
-                }`}
+                className={`h-2 w-2 rounded-full ${stepSolicDone ? T.stepDone : "bg-slate-300"
+                  }`}
               />
               <span>Solicitante</span>
             </div>
@@ -556,7 +585,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         <Form
           form={form}
           layout="vertical"
-          
+
           initialValues={{ propiedad: "Empresa", idSolicitante: null }}
           onKeyDown={(e) => {
             if (
@@ -595,7 +624,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   <Select
                     placeholder={loadingEmpresas ? "Cargando empresas…" : "Selecciona una empresa"}
                     loading={loadingEmpresas}
-                    options={empresaOptions}           
+                    options={empresaOptions}
                     showSearch
                     optionFilterProp="label"
                     allowClear={false}
@@ -714,8 +743,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                           v && v.trim()
                             ? Promise.resolve()
                             : Promise.reject(
-                                `Ingresa ${f.label.toLowerCase()}`
-                              ),
+                              `Ingresa ${f.label.toLowerCase()}`
+                            ),
                       },
                     ]}
                   >
