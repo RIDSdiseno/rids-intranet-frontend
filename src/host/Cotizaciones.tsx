@@ -2753,15 +2753,22 @@ thead th {
                     initial={{ y: -40, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: -40, opacity: 0 }}
-                    className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white ${toast.type === "success" ? "bg-green-600" : "bg-rose-600"
-                        }`}
+                    className={`
+            fixed top-5 right-5 
+            z-[99999]  /* 🔥 Mayor que cualquier modal */
+            flex items-center gap-3 
+            px-4 py-3 rounded-xl 
+            shadow-[0_10px_40px_rgba(0,0,0,0.3)]
+            text-white 
+            ${toast.type === "success" ? "bg-green-600" : "bg-rose-600"}
+        `}
                 >
                     {toast.type === "success" ? (
-                        <CheckCircleOutlined />
+                        <CheckCircleOutlined className="text-xl" />
                     ) : (
-                        <CloseCircleOutlined />
+                        <CloseCircleOutlined className="text-xl" />
                     )}
-                    <span>{toast.message}</span>
+                    <span className="font-medium">{toast.message}</span>
                 </motion.div>
             )}
 

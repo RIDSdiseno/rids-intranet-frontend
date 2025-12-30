@@ -565,6 +565,10 @@ const OrdenesTaller: React.FC = () => {
             setToast({ type: "error", message: "Debe seleccionar un equipo asociado" });
             return;
         }
+        if (!formData.tecnicoId) {
+            setToast({ type: "error", message: "Debe seleccionar un técnico responsable" });
+            return;
+        }
 
         setCreating(true);
         try {
@@ -1454,6 +1458,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                                             </label>
 
                                             <select
+                                                required
                                                 value={formData.tecnicoId ?? ""}
                                                 onChange={(e) =>
                                                     setFormData({ ...formData, tecnicoId: e.target.value })
@@ -1677,7 +1682,7 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                             <button
                                 onClick={onSubmit}
-                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId}
+                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId || !formData.tecnicoId}
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
