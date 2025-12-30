@@ -252,7 +252,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     padding: 40px;
     font-family: Arial, sans-serif;
     color: #000;
-    font-size: 25px;
+    font-size: 30px;
 ">
 <br>
 <br>
@@ -260,17 +260,17 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 <!-- HEADER -->
 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 15px; margin-bottom: 20px;">
     <div style="display: flex; align-items: center; gap: 14px;">
-        <img src="${origenInfo.logo}" style="height: 55px;" />
+        <img src="${origenInfo.logo}" style="height: 85px;" />
         <div>
-            <h2 style="margin: 0; font-size: 22px; font-weight: bold;">${origenInfo.nombre}</h2>
-            <p style="margin: 0; font-size: 15px; color: #4b5563;">
+            <h2 style="margin: 0; font-size: 30px; font-weight: bold;">${origenInfo.nombre}</h2>
+            <p style="margin: 0; font-size: 25px; color: #4b5563;">
                 ${origenInfo.direccion} · ${origenInfo.correo}<br>${origenInfo.telefono}
             </p>
         </div>
     </div>
 
     <div style="text-align: right;">
-        <p style="margin: 0; font-size: 20px;">Fecha impresión: ${fechaActual}</p>
+        <p style="margin: 0; font-size: 25px;">Fecha impresión: ${fechaActual}</p>
         <h3 style="margin: 4px 0 0;">Orden de Taller N° <b>${codigo}</b></h3>
     </div>
 </div>
@@ -280,7 +280,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
     <!-- CLIENTE -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #f9fafb;">
-        <h3 style="margin: 0 0 10px; font-size: 20px;">Datos del Cliente</h3>
+        <h3 style="margin: 0 0 10px; font-size: 30px;">Datos del Cliente</h3>
         <p><b>Entidad:</b> ${orden.entidad?.nombre ?? "—"}</p>
         <p><b>RUT:</b> ${orden.entidad?.rut ?? "—"}</p>
         <p><b>Teléfono:</b> ${orden.entidad?.telefono ?? "—"}</p>
@@ -290,7 +290,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
     <!-- EQUIPO -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
-        <h3 style="margin: 0 0 10px; font-size: 20px;">Datos del Equipo</h3>
+        <h3 style="margin: 0 0 10px; font-size: 30px;">Datos del Equipo</h3>
         <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
         <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
@@ -305,7 +305,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
 <!-- SECCIONES DE TEXTO -->
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 25px;">Trabajo solicitado:</h3>
+    <h3 style="font-size: 30px;">Trabajo solicitado:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.tipoTrabajo ?? "—"}
@@ -313,7 +313,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </div>
 
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 25px;">Descripción del problema:</h3>
+    <h3 style="font-size: 30px;">Descripción del problema:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.descripcion ?? "Sin descripción adicional."}
@@ -321,7 +321,7 @@ const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </div>
 
 <div style="margin-bottom: 15px;">
-    <h3 style="font-size: 25px;">Notas del técnico:</h3>
+    <h3 style="font-size: 30px;">Notas del técnico:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.notas ?? "Sin observaciones."}
@@ -897,15 +897,16 @@ const OrdenesTaller: React.FC = () => {
                 </div>
 
                 {/* Tabla */}
-                <section className="mt-6 rounded-3xl border border-cyan-200 bg-white overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm" style={{ minWidth: "1200px" }}>
+                <section className="mt-6 rounded-3xl border border-cyan-200 bg-white shadow-sm">
+                    {/* Contenedor con scroll horizontal - ESTO ES CLAVE */}
+                    <div className="overflow-x-auto rounded-3xl">
+                        <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
                                     {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
-                                            className={`text-left px-4 py-3 font-semibold ${h === "Acciones" ? "w-40" : h === "ID" ? "w-16" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
+                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
                                                 }`}
                                         >
                                             {h}
@@ -932,7 +933,7 @@ const OrdenesTaller: React.FC = () => {
                                         <tr key={o.id} className="border-t border-cyan-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60">
                                             <td className="px-4 py-3 w-16">{o.id}</td>
 
-                                            <td className="px-4 py-3 max-w-xs truncate" title={o.tipoTrabajo}>
+                                            <td className="px-4 py-3 max-w-xs" title={o.tipoTrabajo}>
                                                 {o.tipoTrabajo}
                                             </td>
 
@@ -1523,6 +1524,7 @@ const ModalOrden: React.FC<ModalProps> = ({
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">Origen de la Empresa</label>
 
                                                 <select
+                                                    required
                                                     value={formData.origenEntidad}
                                                     onChange={(e) => {
                                                         const origen = e.target.value as OrigenGestioo | "";
@@ -1682,7 +1684,7 @@ const ModalOrden: React.FC<ModalProps> = ({
 
                             <button
                                 onClick={onSubmit}
-                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId || !formData.tecnicoId}
+                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId || !formData.tecnicoId || !formData.entidadId || !formData.descripcion }
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
