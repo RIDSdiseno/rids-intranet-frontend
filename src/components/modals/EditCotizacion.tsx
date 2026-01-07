@@ -9,7 +9,6 @@ import {
     PlusOutlined,
     FileTextOutlined,
     DollarOutlined,
-    PercentageOutlined,
     TagOutlined,
     InfoCircleOutlined,
     EditOutlined,
@@ -30,7 +29,7 @@ interface EditCotizacionModalProps {
     cotizacion: CotizacionGestioo | null;
     onClose: () => void;
     onUpdate: () => void;
-    onPrint: (cotizacion: CotizacionGestioo) => void;
+    onGenerarPDF: () => void;
     onCargarProductos: () => void;
     onCargarServicios: () => void;
     onUpdateCotizacion: (cotizacion: CotizacionGestioo) => void;
@@ -46,7 +45,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     cotizacion,
     onClose,
     onUpdate,
-    onPrint,
+    onGenerarPDF,
     onCargarProductos,
     onCargarServicios,
     onUpdateCotizacion,
@@ -75,7 +74,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                 ? {
                     ...i,
                     nombre: itemEditado.nombre ?? i.nombre,
-                    descripcion: itemEditado.descripcion ?? i.descripcion,
+                    descripcion:
+                        itemEditado.descripcion?.trim() === "" ? null : itemEditado.descripcion ?? i.descripcion,
                     precioCosto: itemEditado.precioCosto ?? i.precioCosto,
                     porcGanancia: itemEditado.porcGanancia ?? i.porcGanancia,
                     precioOriginalCLP: itemEditado.precioOriginalCLP ?? i.precioOriginalCLP,
@@ -163,10 +163,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             id: tempId,
             cotizacionId: cotizacion.id,
             tipo,
-            descripcion:
-                tipo === ItemTipoGestioo.ADICIONAL
-                    ? "Descuento adicional"
-                    : "Nuevo item",
+            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional": null,
             cantidad: 1,
             precio: 0,
             precioOriginalCLP: 0, // 👈 IMPORTANTE: agregar este campo
@@ -199,11 +196,6 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     // CALCULAR TOTALES EN TIEMPO REAL
     const { subtotalBruto, descuentos, subtotal, iva, total } =
         calcularTotales(itemsLocal);
-
-    const handleAgregarItem = (nuevoItem: CotizacionItemGestioo) => {
-        const nuevosItems = [...itemsLocal, nuevoItem];
-        syncItems(nuevosItems);
-    };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
@@ -1196,7 +1188,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                             <button
                                 type="button"
-                                onClick={() => onPrint(cotizacion)}
+                                onClick={onGenerarPDF}
                                 className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
                             >
                                 <PrinterOutlined className="text-lg" />

@@ -9,3 +9,4 @@ export { default as NewEntidadModal } from './NewEntidad';
 export { default as EditEntidadModal } from './EditEntidad';
 export { default as NewEmpresaModal } from './NewEmpresa';
 export { default as NewProductoModal } from './NewProducto';
+export { default as GenerarPDFModal } from './GenerarPDFModal';

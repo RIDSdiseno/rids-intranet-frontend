@@ -1,4 +1,5 @@
 import React from "react";
+import { Select } from "antd";
 import { motion } from "framer-motion";
 import {
     PlusOutlined,
@@ -552,46 +553,72 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                                     {/* Selector de Entidad */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Entidad</label>
-                                        <select
-                                            value={formData.entidadId}
-                                            onChange={(e) => setFormData({ ...formData, entidadId: e.target.value })}
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                                            Entidad
+                                        </label>
+
+                                        <Select
+                                            showSearch
+                                            placeholder="Seleccione…"
+                                            value={formData.entidadId || undefined}
                                             disabled={entidades.length === 0}
-                                            className="
-        w-full px-3 py-2 text-sm
-        rounded-xl bg-white
-        border border-cyan-200
-        text-slate-700
-        focus:outline-none focus:ring-2 focus:ring-cyan-400
-        transition
-    "
-                                        >
-                                            <option value="">Seleccione…</option>
-                                            {entidades
+                                            className="w-full"
+                                            optionFilterProp="label"
+                                            onChange={(value) =>
+                                                setFormData({ ...formData, entidadId: value })
+                                            }
+                                            filterOption={(input, option) => {
+                                                const normalizeText = (text: string) =>
+                                                    text
+                                                        .toLowerCase()
+                                                        .normalize("NFD")
+                                                        .replace(/[\u0300-\u036f]/g, "");
+
+                                                const normalizeRut = (rut: string) =>
+                                                    rut.replace(/\./g, "").replace(/-/g, "");
+
+                                                const search = normalizeText(input);
+
+                                                const label = normalizeText(String(option?.label ?? ""));
+                                                const rut = normalizeRut(String(option?.rut ?? ""));
+
+                                                return (
+                                                    label.includes(search) ||
+                                                    rut.includes(normalizeRut(input))
+                                                );
+                                            }}
+                                            options={entidades
                                                 .filter(entidad => {
-                                                    if (formData.tipoEntidad === "EMPRESA" && filtroOrigen !== "TODOS") {
+                                                    if (
+                                                        formData.tipoEntidad === "EMPRESA" &&
+                                                        filtroOrigen !== "TODOS"
+                                                    ) {
                                                         return entidad.origen === filtroOrigen;
                                                     }
                                                     return true;
                                                 })
-                                                .map((ent) => (
-                                                    <option key={ent.id} value={ent.id}>
-                                                        {ent.nombre} {ent.rut ? `(${ent.rut})` : ""}
-                                                    </option>
-                                                ))}
-                                        </select>
+                                                .map(ent => ({
+                                                    value: String(ent.id),
+                                                    label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}`,
+                                                    rut: ent.rut, // 👈 CLAVE para buscar por RUT
+                                                }))}
+                                        />
+
                                         {formData.tipoEntidad === "EMPRESA" && (
                                             <p className="text-xs text-slate-500 mt-1">
-                                                Mostrando {entidades.filter(ent => {
-                                                    if (filtroOrigen !== "TODOS") {
-                                                        return ent.origen === filtroOrigen;
-                                                    }
-                                                    return true;
-                                                }).length} de {entidades.length} empresas
+                                                Mostrando {
+                                                    entidades.filter(ent => {
+                                                        if (filtroOrigen !== "TODOS") {
+                                                            return ent.origen === filtroOrigen;
+                                                        }
+                                                        return true;
+                                                    }).length
+                                                } de {entidades.length} empresas
                                             </p>
                                         )}
                                     </div>
 
+                                    {/* Persona Responsable */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
                                             Persona Responsable

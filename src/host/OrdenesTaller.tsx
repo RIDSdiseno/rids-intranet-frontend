@@ -611,7 +611,7 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Prioridad", "Estado", "Área", "Equipo", "Tipo", "Entidad", "Origen", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Origen", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
@@ -639,28 +639,15 @@ const OrdenesTaller: React.FC = () => {
                                 ) : (
                                     filtered.map((o) => (
                                         <tr key={o.id} className="border-t border-cyan-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60">
-                                            <td className="px-4 py-3 w-16">{o.id}</td>
+                                            <td className="px-4 py-3 w-16 align-middle">{o.id}</td>
 
-                                            <td className="px-4 py-3 max-w-xs" title={o.tipoTrabajo}>
+                                            <td className="px-4 py-3 max-w-xs align-middle" title={o.tipoTrabajo}>
                                                 {o.tipoTrabajo}
                                             </td>
 
-                                            <td className="px-4 py-3 w-28">
+                                            <td className="px-4 py-3 w-28 align-middle">
                                                 <span
-                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.prioridad === "ALTA"
-                                                        ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                        : o.prioridad === "BAJA"
-                                                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                            : "bg-amber-50 text-amber-700 ring-amber-200"
-                                                        }`}
-                                                >
-                                                    {o.prioridad.toLowerCase()}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-4 py-3 w-28">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${estadoFromApi(o.estado) === "completada"
+                                                    className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${estadoFromApi(o.estado) === "completada"
                                                         ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
                                                         : estadoFromApi(o.estado) === "en progreso"
                                                             ? "bg-sky-50 text-sky-700 ring-sky-200"
@@ -673,9 +660,9 @@ const OrdenesTaller: React.FC = () => {
                                                 </span>
                                             </td>
 
-                                            <td className="px-4 py-3 w-28">
+                                            <td className="px-4 py-3 w-28 align-middle">
                                                 <span
-                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.area === "ENTRADA"
+                                                    className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${o.area === "ENTRADA"
                                                         ? "bg-sky-50 text-sky-700 ring-sky-200"
                                                         : o.area === "DOMICILIO"
                                                             ? "bg-amber-50 text-amber-700 ring-amber-200"
@@ -688,17 +675,11 @@ const OrdenesTaller: React.FC = () => {
                                                 </span>
                                             </td>
 
-                                            <td className="px-4 py-3">{o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}</td>
+                                            <td className="px-4 py-3 align-middle">{o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}</td>
 
-                                            <td className="px-4 py-3">
-                                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 ring-1 ring-purple-200">
-                                                    {o.equipo?.tipo ? (TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue] ?? String(o.equipo.tipo)) : "—"}
-                                                </span>
-                                            </td>
+                                            <td className="px-4 py-3 align-middle">{o.entidad?.nombre ?? "—"}</td>
 
-                                            <td className="px-4 py-3">{o.entidad?.nombre ?? "—"}</td>
-
-                                            <td className="px-4 py-3 w-28">
+                                            <td className="px-4 py-3 w-28 align-middle">
                                                 <span
                                                     className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
                                                         ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
@@ -711,7 +692,7 @@ const OrdenesTaller: React.FC = () => {
                                                 </span>
                                             </td>
 
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 align-middle">
                                                 {o.tecnico ? (
                                                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
                                                         {o.tecnico.nombre}
@@ -721,9 +702,9 @@ const OrdenesTaller: React.FC = () => {
                                                 )}
                                             </td>
 
-                                            <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                                            <td className="px-4 py-3 whitespace-nowrap text-slate-700 align-middle text-center">
                                                 <div className="flex flex-col leading-tight">
-                                                    <span>
+                                                    <span className="font-medium">
                                                         {new Date(o.fecha).toLocaleDateString("es-CL", {
                                                             day: "2-digit",
                                                             month: "2-digit",
@@ -740,14 +721,14 @@ const OrdenesTaller: React.FC = () => {
                                                     </span>
 
                                                     {/* 👇 AQUÍ VA EXACTAMENTE */}
-                                                    <span className="text-[11px] text-slate-400 italic">
+                                                    <span className="text-[13px] text-slate-400 italic">
                                                         {o.area === "SALIDA" ? "Salida" : "Ingreso"}
                                                     </span>
                                                 </div>
                                             </td>
-
-                                            <td className="px-4 py-3 min-w-[180px] whitespace-nowrap">
-                                                <div className="flex gap-2 justify-start flex-nowrap">
+                                            
+                                            <td className="px-4 py-3 min-w-[180px] whitespace-nowrap align-middle">
+                                                <div className="flex gap-2 justify-center items-center flex-nowrap">
 
                                                     <button
                                                         onClick={() => openPreviewModal(o)}
