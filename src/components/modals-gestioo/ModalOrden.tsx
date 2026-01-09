@@ -1,10 +1,11 @@
 // ModalOrden.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     PlusOutlined,
     EditOutlined,
 } from "@ant-design/icons";
+import { Select } from "antd";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
@@ -89,6 +90,41 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         });
     }, [equipos, busquedaEquipo]);
 
+    const normalizeText = (value: unknown) =>
+        String(value ?? "")
+            .toLowerCase()
+            .normalize("NFD")                 // separa letras y tildes
+            .replace(/[\u0300-\u036f]/g, "")  // elimina tildes
+            .trim();
+
+    const normalizeRut = (value: unknown) =>
+        normalizeText(value).replace(/[^0-9k]/g, ""); // solo números y K
+
+    const [busquedaEntidad, setBusquedaEntidad] = useState("");
+
+    const entidadesFiltradas = useMemo(() => {
+        const q = normalizeText(busquedaEntidad);
+
+        if (!q) return entidades;
+
+        return entidades.filter((ent) => {
+            const nombre = normalizeText(ent.nombre);
+            const rut = normalizeRut(ent.rut);
+
+            return nombre.includes(q) || rut.includes(normalizeRut(q));
+        });
+    }, [entidades, busquedaEntidad]);
+
+    useEffect(() => {
+        if (entidadesFiltradas.length === 1) {
+            setFormData((prev) => ({
+                ...prev,
+                entidadId: String(entidadesFiltradas[0].id),
+            }));
+        }
+    }, [entidadesFiltradas, setFormData]);
+
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <motion.div
@@ -117,6 +153,18 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Columna Izquierda */}
                             <div className="space-y-6">
+                                {/* Descripción */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción del Estado<span className="text-rose-500">*</span></label>
+                                    <textarea
+                                        placeholder="Describe detalladamente el estado del equipo..."
+                                        required
+                                        value={formData.descripcion}
+                                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                                        className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all resize-none"
+                                        rows={4}
+                                    />
+                                </div>
                                 {/* Tipo de Trabajo */}
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -129,19 +177,6 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         onChange={(e) => setFormData({ ...formData, tipoTrabajo: e.target.value })}
                                         className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all"
                                         required
-                                    />
-                                </div>
-
-                                {/* Descripción */}
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción del Trabajo<span className="text-rose-500">*</span></label>
-                                    <textarea
-                                        placeholder="Describe detalladamente el trabajo a realizar..."
-                                        required
-                                        value={formData.descripcion}
-                                        onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                                        className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all resize-none"
-                                        rows={4}
                                     />
                                 </div>
 
@@ -332,44 +367,56 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                         {/* Entidad */}
                                         <div>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label className="block text-xs font-medium text-slate-600">Entidad</label>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Entidad
+                                            </label>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (!formData.entidadId) setShowNewEntidadModal(true);
-                                                        else setShowEditEntidadModal(true);
-                                                    }}
-                                                    className={`p-2 rounded-xl text-white transition ${formData.entidadId ? "bg-amber-500 hover:bg-amber-600" : "bg-indigo-600 hover:bg-indigo-700"
-                                                        }`}
-                                                    aria-label={formData.entidadId ? "Editar entidad" : "Nueva entidad"}
-                                                >
-                                                    {formData.entidadId ? <EditOutlined /> : <PlusOutlined />}
-                                                </button>
-                                            </div>
+                                            <Select
+                                                showSearch
+                                                placeholder="Seleccione entidad…"
+                                                value={formData.entidadId || undefined}
+                                                disabled={
+                                                    entidades.length === 0 ||
+                                                    (formData.tipoEntidad === "EMPRESA" && !formData.origenEntidad)
+                                                }
+                                                className="w-full"
+                                                optionFilterProp="label"
+                                                onChange={(value) =>
+                                                    setFormData({ ...formData, entidadId: value })
+                                                }
+                                                filterOption={(input, option) => {
+                                                    const normalize = (text: string) =>
+                                                        text
+                                                            .toLowerCase()
+                                                            .normalize("NFD")
+                                                            .replace(/[\u0300-\u036f]/g, "");
 
-                                            <select
-                                                value={formData.entidadId}
-                                                onChange={(e) => setFormData((prev) => ({ ...prev, entidadId: e.target.value }))}
-                                                disabled={formData.tipoEntidad === "EMPRESA" && !formData.origenEntidad}
-                                                className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm bg-white"
-                                            >
-                                                <option value="">
-                                                    {formData.tipoEntidad === "EMPRESA" && !formData.origenEntidad
-                                                        ? "Seleccione origen primero…"
-                                                        : entidades.length === 0
-                                                            ? "No hay entidades disponibles"
-                                                            : "Seleccionar entidad…"}
-                                                </option>
+                                                    const normalizeRut = (rut: string) =>
+                                                        rut.replace(/\./g, "").replace(/-/g, "");
 
-                                                {entidades.map((ent) => (
-                                                    <option key={ent.id} value={ent.id}>
-                                                        {ent.nombre}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                    const search = normalize(input);
+                                                    const label = normalize(String(option?.label ?? ""));
+                                                    const rut = normalizeRut(String((option as any)?.rut ?? ""));
+
+                                                    return (
+                                                        label.includes(search) ||
+                                                        rut.includes(normalizeRut(input))
+                                                    );
+                                                }}
+                                                options={entidades.map((ent) => ({
+                                                    value: String(ent.id),
+                                                    label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}`,
+                                                    rut: ent.rut, // 👈 permite búsqueda por RUT
+                                                }))}
+                                            />
+
+                                            {formData.tipoEntidad === "EMPRESA" && (
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    Mostrando {entidades.length} empresas
+                                                </p>
+                                            )}
                                         </div>
+
                                     </div>
                                 </div>
 
@@ -438,6 +485,28 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 </option>
                                             ))}
                                         </select>
+                                        {/* Checkbox cargador */}
+                                        <div className="flex items-center gap-3 mt-3">
+                                            <input
+                                                id="incluyeCargador"
+                                                type="checkbox"
+                                                checked={formData.incluyeCargador}
+                                                onChange={(e) =>
+                                                    setFormData({
+                                                        ...formData,
+                                                        incluyeCargador: e.target.checked,
+                                                    })
+                                                }
+                                                className="w-4 h-4 text-emerald-600 border-emerald-300 rounded focus:ring-emerald-500"
+                                            />
+
+                                            <label
+                                                htmlFor="incluyeCargador"
+                                                className="text-sm font-medium text-slate-700 cursor-pointer"
+                                            >
+                                                El equipo incluye cargador completo
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
 

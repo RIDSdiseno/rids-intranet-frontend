@@ -32,6 +32,7 @@ import type {
     Tecnico,
 } from "../components/modals-gestioo/types";
 
+// TYPES
 import {
     TipoEquipo,
     TipoEquipoLabel,
@@ -48,6 +49,7 @@ import { ModalOrden } from "../components/modals-gestioo/ModalOrden";
 import { ModalEditarEntidad } from "../components/modals-gestioo/ModalEditarEntidad";
 import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrden";
 
+// API URL
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 /* ===== Helpers de mapeo ===== */
@@ -120,6 +122,7 @@ const OrdenesTaller: React.FC = () => {
                 entidadId: orden.entidad?.id ?? null,
                 equipoId: orden.equipo?.id_equipo ?? null,
                 tecnicoId: orden.tecnico?.id_tecnico ?? null,
+                incluyeCargador: orden.incluyeCargador ?? false,
             };
 
             const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
@@ -179,6 +182,7 @@ const OrdenesTaller: React.FC = () => {
         origenEntidad: "",
         entidadId: "",
         equipoId: "",
+        incluyeCargador: false,
     });
 
     const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "en progreso" | "completada" | "cancelada">("todas");
@@ -291,6 +295,7 @@ const OrdenesTaller: React.FC = () => {
                 entidadId: Number(formData.entidadId),
                 equipoId: Number(formData.equipoId),
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
+                incluyeCargador: formData.incluyeCargador,
             };
 
             console.log("📤 Enviando payload de creación:", payload);
@@ -323,6 +328,7 @@ const OrdenesTaller: React.FC = () => {
                 origenEntidad: "",
                 entidadId: "",
                 equipoId: "",
+                incluyeCargador: false,
             });
 
             setModalOpen(false);
@@ -357,6 +363,7 @@ const OrdenesTaller: React.FC = () => {
             equipoId: String(o.equipo?.id_equipo ?? ""),
 
             tecnicoId: o.tecnico?.id_tecnico ? String(o.tecnico.id_tecnico) : "",
+            incluyeCargador: o.incluyeCargador ?? false,
 
         });
         setEditOpen(true);
@@ -393,6 +400,7 @@ const OrdenesTaller: React.FC = () => {
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
+                incluyeCargador: formData.incluyeCargador,
             };
 
             // 🔁 DUPLICAR (ENTRADA → SALIDA)
@@ -531,6 +539,7 @@ const OrdenesTaller: React.FC = () => {
                                         origenEntidad: "",
                                         entidadId: "",
                                         equipoId: "",
+                                        incluyeCargador: false,
                                     });
                                     setModalOpen(true);
                                 }}
@@ -726,7 +735,7 @@ const OrdenesTaller: React.FC = () => {
                                                     </span>
                                                 </div>
                                             </td>
-                                            
+
                                             <td className="px-4 py-3 min-w-[180px] whitespace-nowrap align-middle">
                                                 <div className="flex gap-2 justify-center items-center flex-nowrap">
 

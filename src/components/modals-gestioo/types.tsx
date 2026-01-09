@@ -78,6 +78,7 @@ export interface OrdenFormData {
     equipoId: string;
 
     tecnicoId?: string;
+    incluyeCargador: boolean;
 }
 
 export interface EntidadGestioo {
@@ -96,9 +97,19 @@ export interface EquipoGestioo {
     modelo: string;
     serial: string | null;
     tipo: TipoEquipoValue;
-    // Si tu backend aún no lo manda, se mantiene optional para no romper.
+
+    // 🔹 Campos técnicos
+    procesador?: string | null;
+    ram?: string | null;
+    disco?: string | null;
+    sistemaOperativo?: string | null;
+    office?: string | null;
+
+    // 🔹 Gestión / propiedad
+    propiedad?: string | null;
     empresaId?: number | null;
 }
+
 
 export interface DetalleTrabajoGestioo {
     id: number;
@@ -117,6 +128,8 @@ export interface DetalleTrabajoGestioo {
         id_tecnico: number;
         nombre: string;
     } | null;
+
+    incluyeCargador?: boolean;
 }
 
 export interface Tecnico {

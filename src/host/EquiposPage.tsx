@@ -16,6 +16,14 @@ import {
 import Header from "../components/Header";
 import CrearEquipoModal from "../components/CrearEquipo";
 
+import {
+  BuildingOfficeIcon,
+  CalendarIcon,
+  ChevronDownIcon,
+  ExclamationCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
+
 /* =================== Config =================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -323,6 +331,29 @@ const EquiposPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // Mes para exportación (YYYY-MM)
+  const [mesExport, setMesExport] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  // Funciones helper para formatear fechas
+  const formatMes = (mesString: string) => {
+    if (!mesString) return '';
+    const [year, month] = mesString.split('-');
+    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+      "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    return `${monthNames[parseInt(month) - 1]} ${year}`;
+  };
+
+  const formatMesCompleto = (mesString: string) => {
+    if (!mesString) return '';
+    const [year, month] = mesString.split('-');
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    return `${monthNames[parseInt(month) - 1]} de ${year}`;
+  };
+
   const canPrev = page > 1;
   const totalPages = data?.totalPages ?? 1;
   const canNext = page < totalPages;
@@ -413,175 +444,54 @@ const EquiposPage: React.FC = () => {
       setExportError(null);
       setExporting(true);
 
-      const token = localStorage.getItem("accessToken");
-      const buildExportUrl = (p: number, ps: number) => {
-        const params = new URLSearchParams({
-          page: String(p),
-          pageSize: String(ps),
-          _ts: String(Date.now()),
-        });
-        const sTerm = q.trim();
-        if (sTerm) params.append("search", sTerm);
-        if (empresaFilterId != null) params.append("empresaId", String(empresaFilterId));
-        if (marcaFilter.trim()) params.append("marca", marcaFilter.trim());
-        return `${API_BASE}/api/equipos?${params.toString()}`;
-      };
+      if (!mesExport) {
+        setExportError("Debes seleccionar un mes.");
+        return;
+      }
 
-      const fetchPage = async (p: number, ps: number) => {
-        const url = buildExportUrl(p, ps);
-        const res = await fetch(url, {
+      const params = new URLSearchParams({ mes: mesExport });
+
+      // Empresa es opcional
+      if (empresaFilterId != null) {
+        params.append("empresaId", String(empresaFilterId));
+      }
+
+
+      const token = localStorage.getItem("accessToken");
+
+      const res = await fetch(
+        `${API_URL}/inventario/export?${params.toString()}`,
+        {
+          method: "GET",
           headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           credentials: "include",
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errorText}`);
         }
-        return res;
-      };
+      );
 
-      let detected: number | null = null;
-      let firstPage: ApiList<EquipoRow> | null = null;
-
-      for (const candidate of EXPORT_PAGE_CANDIDATES) {
-        try {
-          const res = await fetchPage(1, candidate);
-          if (res.ok || res.status === 204) {
-            detected = candidate;
-            firstPage =
-              res.status === 204
-                ? { page: 1, pageSize: candidate, total: 0, totalPages: 1, items: [] }
-                : ((await res.json()) as ApiList<EquipoRow>);
-            break;
-          }
-        } catch {
-          continue;
-        }
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "No se pudo exportar inventario");
       }
 
-      if (!detected || !firstPage) {
-        throw new Error("No se pudo determinar pageSize para la exportación.");
-      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
 
-      const all: EquipoRow[] = [];
-      all.push(...(firstPage.items || []));
+      const fileName = empresaFilterName
+        ? `Inventario_${empresaFilterName}_${mesExport}.xlsx`
+        : `Inventario_TODAS_${mesExport}.xlsx`;
 
-      const totalPages = firstPage.totalPages || 1;
-      for (let p = 2; p <= totalPages; p++) {
-        const rx = await fetchPage(p, detected);
-        if (!rx.ok) throw new Error(`HTTP ${rx.status} en página ${p}`);
-        const jx = (await rx.json()) as ApiList<EquipoRow>;
-        all.push(...(jx.items || []));
-      }
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
-      const rowMap = (e: EquipoRow) => ({
-        ID: e.id_equipo,
-        SERIAL: toUC(e.serial),
-        MARCA: toUC(e.marca),
-        MODELO: e.modelo || "",
-        CPU: e.procesador || "",
-        RAM: e.ram || "",
-        DISCO: e.disco || "",
-        PROPIEDAD: e.propiedad || "",
-        SOLICITANTE: e.solicitante || "",
-        EMPRESA: e.empresa || "",
-        SolicitanteId: e.idSolicitante ?? "",
-        EmpresaId: e.empresaId ?? "",
-      });
-
-      const byEmpresa = new Map<string, EquipoRow[]>();
-      if (empresaFilterName) {
-        byEmpresa.set(empresaFilterName, all);
-      } else {
-        for (const it of all) {
-          const key = it.empresa || "— SIN EMPRESA —";
-          if (!byEmpresa.has(key)) byEmpresa.set(key, []);
-          byEmpresa.get(key)!.push(it);
-        }
-      }
-
-      const resumenRows: { EMPRESA: string; TOTAL: number }[] = [];
-      const resumenMarcaRows: { EMPRESA: string; MARCA: string; TOTAL: number }[] = [];
-      for (const [emp, arr] of byEmpresa) {
-        resumenRows.push({ EMPRESA: emp, TOTAL: arr.length });
-        const m = new Map<string, number>();
-        for (const it of arr) {
-          const mk = (it.marca || "—").toUpperCase();
-          m.set(mk, (m.get(mk) || 0) + 1);
-        }
-        for (const [marca, total] of m) {
-          resumenMarcaRows.push({ EMPRESA: emp, MARCA: marca, TOTAL: total });
-        }
-      }
-
-      const XLSX = await import("xlsx-js-style");
-      const wb = XLSX.utils.book_new();
-
-      if (!empresaFilterName && all.length > 0) {
-        const rowsTodos = all.map(rowMap);
-        const wsTodos = XLSX.utils.json_to_sheet(rowsTodos);
-        const todosHeader = Object.keys(rowsTodos[0] || { ID: "", SERIAL: "" });
-        styleWorksheet(XLSX, wsTodos, todosHeader, rowsTodos.length, "FF334155", "FFF8FAFC");
-        XLSX.utils.book_append_sheet(wb, wsTodos, "Todos");
-      }
-
-      for (const [emp, arr] of byEmpresa) {
-        const rs = arr.map(rowMap);
-        if (rs.length === 0) continue;
-        const ws = XLSX.utils.json_to_sheet(rs);
-        const header = Object.keys(rs[0] || { ID: "", SERIAL: "" });
-        const { headerFill, bodyFill } = excelCompanyColors(emp);
-        styleWorksheet(XLSX, ws, header, rs.length, headerFill, bodyFill);
-        let sheetName = emp.replace(/[\\/?*[\]:]/g, "_").slice(0, 31) || "Empresa";
-        if (empresaFilterName && byEmpresa.size === 1) sheetName = "Equipos";
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      }
-
-      if (!empresaFilterName && byEmpresa.size > 1) {
-        if (resumenRows.length > 0) {
-          const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
-          const resumenHeader = Object.keys(resumenRows[0] || { EMPRESA: "", TOTAL: 0 });
-          styleWorksheet(XLSX, wsResumen, resumenHeader, resumenRows.length, "FF0F766E", "FFECFEFF");
-          XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
-        }
-        if (resumenMarcaRows.length > 0) {
-          const wsResumenMarca = XLSX.utils.json_to_sheet(resumenMarcaRows);
-          const resumenMarcaHeader = Object.keys(resumenMarcaRows[0] || {
-            EMPRESA: "",
-            MARCA: "",
-            TOTAL: 0,
-          });
-          styleWorksheet(
-            XLSX,
-            wsResumenMarca,
-            resumenMarcaHeader,
-            resumenMarcaRows.length,
-            "FF6B21A8",
-            "FFEDE9FE"
-          );
-          XLSX.utils.book_append_sheet(wb, wsResumenMarca, "Resumen x Marca");
-        }
-      }
-
-      const parts: string[] = ["equipos"];
-      if (empresaFilterName) {
-        const safeEmpresaName = empresaFilterName.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
-        parts.push(safeEmpresaName);
-      }
-      if (marcaFilter) {
-        const safeMarca = marcaFilter.replace(/\s+/g, "_").replace(/[\\/?*:[\]]/g, "");
-        parts.push(`marca-${safeMarca}`);
-      }
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      const fileName = `${parts.join("_")}_${timestamp}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError((err as Error)?.message || "Error al exportar a Excel");
+      setExportError((err as Error).message || "Error al exportar inventario");
     } finally {
       setExporting(false);
     }
@@ -1032,25 +942,141 @@ const EquiposPage: React.FC = () => {
               </div>
 
               {/* Empresa */}
-              <div className="md:col-span-12 min-w-0 mt-1">
-                <select
-                  value={empresaFilterId ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setEmpresaFilterId(v ? Number(v) : null);
-                    setPage(1);
-                  }}
-                  className="w-full min-w-0 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  aria-label="Filtrar por empresa"
-                >
-                  <option value="">{empLoading ? "Cargando empresas…" : "— Filtrar por empresa —"}</option>
-                  {empresaOptions.map((opt) => (
-                    <option key={opt.id ?? -1} value={opt.id ?? ""}>
-                      {opt.nombre}
-                    </option>
-                  ))}
-                </select>
-                {empError && <div className="text-[11px] text-rose-600 mt-1">{empError}</div>}
+              {/* Filtros de Empresa y Mes */}
+              <div className="md:col-span-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  {/* Filtro de Empresa - MEJORADO */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <BuildingOfficeIcon className="w-4 h-4 text-cyan-600" />
+                      <label className="block text-sm font-medium text-slate-700">
+                        Filtrar por empresa
+                      </label>
+                    </div>
+
+                    <div className="relative">
+                      <select
+                        value={empresaFilterId ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEmpresaFilterId(v === "" ? null : Number(v));
+                          setPage(1);
+                        }}
+                        disabled={empLoading}
+                        className={`
+            w-full rounded-xl border shadow-sm
+            px-4 py-3 pl-10 pr-8
+            text-sm text-slate-900
+            bg-white
+            border-slate-200
+            hover:border-cyan-300
+            focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20
+            transition-all duration-200
+            appearance-none
+            cursor-pointer
+            disabled:opacity-50 disabled:cursor-not-allowed
+            ${empLoading ? 'bg-slate-50' : 'bg-white'}
+          `}
+                        aria-label="Filtrar por empresa"
+                      >
+                        {/* Opción VACÍA real */}
+                        <option value="">Todas las empresas</option>
+
+                        {empresaOptions.map((opt) => (
+                          <option key={opt.id ?? -1} value={opt.id ?? ""}>
+                            {opt.nombre}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Ícono del select */}
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <BuildingOfficeIcon className="w-5 h-5" />
+                      </div>
+
+                      {/* Flecha del select */}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <ChevronDownIcon className="w-5 h-5 text-slate-400" />
+                      </div>
+                    </div>
+
+                    {empError && (
+                      <div className="flex items-center gap-1.5 text-xs text-rose-600 mt-1.5 animate-pulse">
+                        <ExclamationCircleIcon className="w-4 h-4 flex-shrink-0" />
+                        <span>{empError}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selector de Mes - MEJORADO */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-emerald-600" />
+                      <label className="block text-sm font-medium text-slate-700">
+                        Mes de inventario
+                      </label>
+                      {mesExport && (
+                        <button
+                          onClick={() => setMesExport("")}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full transition"
+                          title="Limpiar filtro"
+                        >
+                          <XMarkIcon className="w-3 h-3" />
+                          Limpiar
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative group">
+                      <input
+                        type="month"
+                        value={mesExport}
+                        onChange={(e) => {
+                          setMesExport(e.target.value);
+                          setPage(1);
+                        }}
+                        className={`
+            w-full rounded-xl border shadow-sm
+            px-4 py-3 pl-10 pr-4
+            text-sm text-slate-900
+            bg-white
+            border-slate-200
+            hover:border-emerald-300
+            focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20
+            transition-all duration-200
+            cursor-pointer
+            ${mesExport ? 'border-emerald-200 bg-emerald-50/50' : ''}
+          `}
+                      />
+
+                      {/* Ícono del calendario */}
+                      <div className={`
+          absolute left-3 top-1/2 -translate-y-1/2
+          transition-colors duration-200
+          ${mesExport ? 'text-emerald-600' : 'text-slate-400'}
+        `}>
+                        <CalendarIcon className="w-5 h-5" />
+                      </div>
+
+                      {/* Badge con el mes seleccionado */}
+                      {mesExport && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-lg">
+                            {formatMes(mesExport)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Información del mes */}
+                    {mesExport && (
+                      <p className="text-xs text-slate-500 mt-1.5">
+                        Mostrando inventario de <span className="font-medium">{formatMesCompleto(mesExport)}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

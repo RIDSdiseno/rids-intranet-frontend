@@ -103,6 +103,17 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
         <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
+        <p><b>Procesador:</b> ${orden.equipo?.procesador ?? "—"}</p>
+<p><b>RAM:</b> ${orden.equipo?.ram ?? "—"}</p>
+<p><b>Disco:</b> ${orden.equipo?.disco ?? "—"}</p>
+<p><b>Propiedad:</b> ${orden.equipo?.propiedad ?? "—"}</p>
+<p>
+  <b>Cargador incluido:</b>
+    ${orden.incluyeCargador ? "Sí" : "No"}
+  </span>
+</p>
+
+
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
         <p>
   <b>${orden.area === "SALIDA" ? "Fecha salida:" : "Fecha ingreso:"}</b>
@@ -112,20 +123,20 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     </div>
 </div>
 
+<div style="margin-bottom: 15px;">
+    <h3 style="font-size: 30px;">Descripción del Estado:</h3>
+    <br>
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+        ${orden.descripcion ?? "Sin descripción adicional."}
+    </div>
+</div>
+
 <!-- SECCIONES DE TEXTO -->
 <div style="margin-bottom: 15px;">
     <h3 style="font-size: 30px;">Trabajo solicitado:</h3>
     <br>
     <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
         ${orden.tipoTrabajo ?? "—"}
-    </div>
-</div>
-
-<div style="margin-bottom: 15px;">
-    <h3 style="font-size: 30px;">Descripción del problema:</h3>
-    <br>
-    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
-        ${orden.descripcion ?? "Sin descripción adicional."}
     </div>
 </div>
 
