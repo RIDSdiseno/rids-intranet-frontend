@@ -68,7 +68,14 @@ interface EquipoGestioo {
     modelo: string;
     serial: string | null;
     tipo: TipoEquipoValue;
+
+    procesador?: string | null;
+    ram?: string | null;
+    disco?: string | null;
+    propiedad?: string | null;
+    incluyeCargador?: boolean;
 }
+
 
 interface ModalEditarEquipoProps {
     equipo: EquipoGestioo;
@@ -89,6 +96,14 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
     const [marca, setMarca] = useState(equipo.marca);
     const [modelo, setModelo] = useState(equipo.modelo);
     const [serial, setSerial] = useState(equipo.serial ?? "");
+    const [procesador, setProcesador] = useState(equipo.procesador ?? "");
+    const [ram, setRam] = useState(equipo.ram ?? "");
+    const [disco, setDisco] = useState(equipo.disco ?? "");
+    const [propiedad, setPropiedad] = useState(equipo.propiedad ?? "EMPRESA");
+    const [incluyeCargador, setIncluyeCargador] = useState(
+        equipo.incluyeCargador ?? false
+    );
+
     const [tipo, setTipo] = useState<TipoEquipoValue>(
         equipo.tipo ?? TipoEquipo.GENERICO
     );
@@ -100,7 +115,14 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
         setModelo(equipo.modelo);
         setSerial(equipo.serial ?? "");
         setTipo(equipo.tipo ?? TipoEquipo.GENERICO);
+
+        setProcesador(equipo.procesador ?? "");
+        setRam(equipo.ram ?? "");
+        setDisco(equipo.disco ?? "");
+        setPropiedad(equipo.propiedad ?? "EMPRESA");
+        setIncluyeCargador(equipo.incluyeCargador ?? false);
     }, [equipo]);
+
 
     const handleSave = async () => {
         if (!marca.trim() || !modelo.trim()) {
@@ -118,6 +140,9 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
                     marca: marca.trim(),
                     modelo: modelo.trim(),
                     serial: serial.trim() || null,
+                    procesador: procesador.trim() || null,
+                    ram: ram.trim() || null,
+                    disco: disco.trim() || null,
                     tipo, // ✅ string enum-like validado por union type
                 }),
             });
@@ -194,6 +219,42 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
                             />
                         </div>
 
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Procesador
+                            </label>
+                            <input
+                                value={procesador}
+                                onChange={(e) => setProcesador(e.target.value)}
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-400"
+                                placeholder="Ej: Intel i7 10th Gen"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Memoria RAM
+                            </label>
+                            <input
+                                value={ram}
+                                onChange={(e) => setRam(e.target.value)}
+                                placeholder="Ej: 16 GB"
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-400"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Disco
+                            </label>
+                            <input
+                                value={disco}
+                                onChange={(e) => setDisco(e.target.value)}
+                                placeholder="Ej: 512 GB SSD"
+                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-400"
+                            />
+                        </div>
+
                         {/* Tipo de Equipo */}
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -226,8 +287,8 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
                             onClick={handleSave}
                             disabled={loading || !marca.trim() || !modelo.trim()}
                             className={`px-6 py-2.5 rounded-xl text-white font-medium ${loading
-                                    ? "bg-emerald-400 cursor-not-allowed"
-                                    : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700"
+                                ? "bg-emerald-400 cursor-not-allowed"
+                                : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700"
                                 }`}
                         >
                             {loading ? "Guardando..." : "Guardar cambios"}
