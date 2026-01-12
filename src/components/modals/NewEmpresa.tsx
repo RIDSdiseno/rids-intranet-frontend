@@ -13,13 +13,12 @@ import {
 } from "@ant-design/icons";
 
 import { formatearRut, validarRut } from "./utils";
-
 import {
     validarEmail,
     validarTelefono,
     validarDireccion,
-    validarNombre
-} from "./utils"; // debe existir en utils.ts
+    validarNombre,
+} from "./utils";
 
 import type { EmpresaForm } from "./types";
 
@@ -40,10 +39,11 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
     onFormChange,
     apiLoading,
 }) => {
-
     if (!show) return null;
 
-    // === VALIDACIONES AVANZADAS ===
+    // ==========================
+    // VALIDACIONES
+    // ==========================
     const nombreValido = validarNombre(formData.nombre);
     const rutValido = validarRut(formData.rut);
     const emailValido = validarEmail(formData.correo);
@@ -57,18 +57,32 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
         !telefonoValido ||
         !direccionValida;
 
-    // === SUBMIT ===
+    const motivoDeshabilitado = () => {
+        if (!nombreValido) return "El nombre debe tener al menos 3 caracteres.";
+        if (!rutValido) return "El RUT ingresado no es válido.";
+        if (!emailValido) return "El correo electrónico no es válido.";
+        if (!telefonoValido)
+            return "El teléfono debe tener formato +56 9 XXXXXXXX.";
+        if (!direccionValida)
+            return "La dirección debe tener al menos 5 caracteres.";
+        if (apiLoading) return "Creando empresa, por favor espere.";
+        return "";
+    };
+
+    // ==========================
+    // SUBMIT SEGURO
+    // ==========================
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
         if (formInvalido) {
-            alert("Hay campos inválidos. Por favor revise nuevamente.");
+            alert("Hay campos inválidos. Revisa la información ingresada.");
             return;
         }
 
         onSubmit({
             ...formData,
-            tipo: "EMPRESA"
+            tipo: "EMPRESA",
         });
     };
 
@@ -86,8 +100,12 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                             <BuildOutlined className="text-lg" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">Crear Nueva Empresa</h2>
-                            <p className="text-slate-600 text-sm mt-1">Complete la información de la empresa</p>
+                            <h2 className="text-xl font-bold text-slate-800">
+                                Crear Nueva Empresa
+                            </h2>
+                            <p className="text-slate-600 text-sm mt-1">
+                                Complete la información de la empresa
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -99,8 +117,8 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                     ✕
                 </button>
 
+                {/* FORM */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-
                     {/* NOMBRE */}
                     <div className="space-y-2">
                         <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -109,16 +127,22 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         </label>
 
                         <input
-                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                            className={`w-full border rounded-xl px-4 py-3 text-sm
+                                ${nombreValido
+                                    ? "border-slate-300"
+                                    : "border-rose-400"
+                                }`}
                             placeholder="Ej: Mi Empresa SpA"
                             value={formData.nombre}
-                            onChange={(e) => onFormChange("nombre", e.target.value)}
-                            required
+                            onChange={(e) =>
+                                onFormChange("nombre", e.target.value)
+                            }
                         />
 
                         {!nombreValido && (
                             <p className="text-rose-600 text-xs flex items-center gap-1">
-                                <CloseCircleOutlined /> Mínimo 3 caracteres
+                                <CloseCircleOutlined />
+                                Mínimo 3 caracteres
                             </p>
                         )}
                     </div>
@@ -131,16 +155,25 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         </label>
 
                         <input
-                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                            className={`w-full border rounded-xl px-4 py-3 text-sm
+                                ${rutValido
+                                    ? "border-slate-300"
+                                    : "border-rose-400"
+                                }`}
                             placeholder="Ej: 12.345.678-9"
                             value={formData.rut}
-                            onChange={(e) => onFormChange("rut", formatearRut(e.target.value))}
-                            required
+                            onChange={(e) =>
+                                onFormChange(
+                                    "rut",
+                                    formatearRut(e.target.value)
+                                )
+                            }
                         />
 
                         {!rutValido && (
                             <p className="text-rose-600 text-xs flex items-center gap-1">
-                                <CloseCircleOutlined /> RUT inválido
+                                <CloseCircleOutlined />
+                                RUT inválido
                             </p>
                         )}
                     </div>
@@ -155,8 +188,9 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         <select
                             className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm bg-white"
                             value={formData.origen}
-                            onChange={(e) => onFormChange("origen", e.target.value)}
-                            required
+                            onChange={(e) =>
+                                onFormChange("origen", e.target.value)
+                            }
                         >
                             <option value="RIDS">RIDS</option>
                             <option value="ECONNET">ECONNET</option>
@@ -164,10 +198,8 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         </select>
                     </div>
 
-                    {/* CORREO y TELÉFONO */}
+                    {/* CORREO / TELÉFONO */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                        {/* CORREO */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
                                 <FileTextOutlined className="text-green-600 text-sm" />
@@ -176,10 +208,16 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
 
                             <input
                                 type="email"
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                                className={`w-full border rounded-xl px-4 py-3 text-sm
+                                    ${emailValido
+                                        ? "border-slate-300"
+                                        : "border-rose-400"
+                                    }`}
                                 placeholder="ejemplo@empresa.com"
                                 value={formData.correo}
-                                onChange={(e) => onFormChange("correo", e.target.value)}
+                                onChange={(e) =>
+                                    onFormChange("correo", e.target.value)
+                                }
                             />
 
                             {!emailValido && (
@@ -189,7 +227,6 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                             )}
                         </div>
 
-                        {/* TELÉFONO */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 flex items-center gap-2">
                                 <PhoneOutlined className="text-purple-600 text-sm" />
@@ -197,15 +234,21 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                             </label>
 
                             <input
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                                className={`w-full border rounded-xl px-4 py-3 text-sm
+                                    ${telefonoValido
+                                        ? "border-slate-300"
+                                        : "border-rose-400"
+                                    }`}
                                 placeholder="+56 9 1234 5678"
                                 value={formData.telefono}
-                                onChange={(e) => onFormChange("telefono", e.target.value)}
+                                onChange={(e) =>
+                                    onFormChange("telefono", e.target.value)
+                                }
                             />
 
                             {!telefonoValido && (
                                 <p className="text-rose-600 text-xs">
-                                    <CloseCircleOutlined /> Teléfono inválido (+56 9 XXXXXXXX)
+                                    <CloseCircleOutlined /> Teléfono inválido
                                 </p>
                             )}
                         </div>
@@ -219,10 +262,16 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         </label>
 
                         <input
-                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                            className={`w-full border rounded-xl px-4 py-3 text-sm
+                                ${direccionValida
+                                    ? "border-slate-300"
+                                    : "border-rose-400"
+                                }`}
                             placeholder="Ej: Av. Principal 123, Santiago"
                             value={formData.direccion}
-                            onChange={(e) => onFormChange("direccion", e.target.value)}
+                            onChange={(e) =>
+                                onFormChange("direccion", e.target.value)
+                            }
                         />
 
                         {!direccionValida && (
@@ -241,7 +290,8 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                                     Información importante
                                 </p>
                                 <p className="text-xs text-blue-600 mt-1">
-                                    La empresa creada estará disponible inmediatamente para usar en cotizaciones.
+                                    La empresa creada estará disponible
+                                    inmediatamente para cotizaciones.
                                 </p>
                             </div>
                         </div>
@@ -249,7 +299,6 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
 
                     {/* BOTONES */}
                     <div className="flex gap-3 pt-4 border-t border-slate-200">
-
                         <button
                             type="button"
                             onClick={onClose}
@@ -261,14 +310,19 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
                         <button
                             type="submit"
                             disabled={apiLoading || formInvalido}
-                            className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r 
-                                       from-blue-600 to-indigo-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                            title={motivoDeshabilitado()}
+                            className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             <CheckCircleOutlined />
                             {apiLoading ? "Creando..." : "Crear Empresa"}
                         </button>
                     </div>
 
+                    {apiLoading && (
+                        <p className="text-xs text-slate-500 text-center mt-2">
+                            Creando empresa, por favor espere…
+                        </p>
+                    )}
                 </form>
             </motion.div>
         </div>

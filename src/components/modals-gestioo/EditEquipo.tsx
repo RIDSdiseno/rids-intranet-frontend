@@ -110,6 +110,12 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
 
     const [loading, setLoading] = useState(false);
 
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    useEffect(() => {
+        setErrorMsg(null);
+    }, [equipo]);
+
     useEffect(() => {
         setMarca(equipo.marca);
         setModelo(equipo.modelo);
@@ -123,6 +129,36 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
         setIncluyeCargador(equipo.incluyeCargador ?? false);
     }, [equipo]);
 
+    const parseApiError = async (res: Response): Promise<string> => {
+        try {
+            const data = await res.json();
+
+            // Casos típicos de backend
+            if (res.status === 409) {
+                return "Ya existe un equipo con ese número de serie.";
+            }
+
+            if (res.status === 400) {
+                return data.error || "Datos inválidos. Revisa los campos ingresados.";
+            }
+
+            if (res.status === 401) {
+                return "Tu sesión expiró. Vuelve a iniciar sesión.";
+            }
+
+            if (res.status === 403) {
+                return "No tienes permisos para editar este equipo.";
+            }
+
+            if (res.status >= 500) {
+                return "Error interno del sistema. Intenta más tarde.";
+            }
+
+            return data.error || "No se pudo guardar el equipo.";
+        } catch {
+            return "Error inesperado al comunicarse con el servidor.";
+        }
+    };
 
     const handleSave = async () => {
         if (!marca.trim() || !modelo.trim()) {
@@ -148,8 +184,9 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
             });
 
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Error al actualizar equipo");
+                const msg = await parseApiError(res);
+                setErrorMsg(msg);
+                return;
             }
 
             onSaved();
@@ -273,6 +310,14 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
                             </select>
                         </div>
                     </div>
+                    
+                    {/* MSJ de Error */}
+                    {errorMsg && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                            {errorMsg}
+                        </div>
+                    )}
+
 
                     {/* Footer */}
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-200">

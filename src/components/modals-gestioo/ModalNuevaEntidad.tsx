@@ -1,5 +1,5 @@
 // ModalNuevaEntidad.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 // TYPES
@@ -26,12 +26,61 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
     const [origen, setOrigen] = useState<OrigenGestioo>("RIDS");
     const [loading, setLoading] = useState(false);
 
+    // Estado para mensaje de error
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Limpiar mensaje de error al abrir modal
+    useEffect(() => {
+        setErrorMsg(null);
+    }, []);
+
+    const parseApiError = async (res: Response): Promise<string> => {
+        try {
+            const data = await res.json();
+
+            if (res.status === 400) {
+                return data.error || "Datos inválidos. Revisa los campos.";
+            }
+
+            if (res.status === 409) {
+                return "Ya existe una entidad registrada con este RUT.";
+            }
+
+            if (res.status === 401) {
+                return "Tu sesión expiró. Vuelve a iniciar sesión.";
+            }
+
+            if (res.status === 403) {
+                return "No tienes permisos para crear entidades.";
+            }
+
+            if (res.status >= 500) {
+                return "Error interno del sistema. Intenta más tarde.";
+            }
+
+            return data.error || "No se pudo crear la entidad.";
+        } catch {
+            return "Error inesperado al comunicarse con el servidor.";
+        }
+    };
+
     const handleSave = async () => {
         if (!nombre.trim()) {
-            alert("El nombre es obligatorio");
+            setErrorMsg("El nombre de la entidad es obligatorio.");
             return;
         }
 
+        if (correo && !correo.includes("@")) {
+            setErrorMsg("El correo ingresado no tiene un formato válido.");
+            return;
+        }
+
+        if (rut && rut.length < 6) {
+            setErrorMsg("El RUT ingresado parece incorrecto.");
+            return;
+        }
+
+        // Guardar nueva entidad
         setLoading(true);
         try {
             const res = await fetch(`${API_URL}/entidades`, {
@@ -49,17 +98,21 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                 }),
             });
 
+            // Manejo de errores
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Error al crear entidad");
+                const msg = await parseApiError(res);
+                setErrorMsg(msg);
+                return;
             }
 
             const data = await res.json();
             onSaved(data.id ?? data.id_entidad);
             onClose();
         } catch (err) {
-            alert((err as Error).message);
-        } finally {
+            console.error(err);
+            setErrorMsg("No se pudo crear la entidad. Intenta nuevamente.");
+        }
+        finally {
             setLoading(false);
         }
     };
@@ -164,6 +217,13 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                     </div>
                 </div>
 
+                { /* Mensaje de error */}
+                {errorMsg && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                        {errorMsg}
+                    </div>
+                )}
+
                 {/* Footer */}
                 <div className="border-t px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3">
                     <button
@@ -177,8 +237,8 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                         onClick={handleSave}
                         disabled={loading}
                         className={`px-4 py-2 rounded-xl text-white font-medium ${loading
-                                ? "bg-cyan-400"
-                                : "bg-cyan-600 hover:bg-cyan-700"
+                            ? "bg-cyan-400"
+                            : "bg-cyan-600 hover:bg-cyan-700"
                             }`}
                     >
                         {loading ? "Guardando..." : "Guardar Entidad"}

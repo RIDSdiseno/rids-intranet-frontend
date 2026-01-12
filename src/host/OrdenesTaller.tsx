@@ -90,6 +90,16 @@ const estadoFromApi = (e: string | null | undefined) => {
 
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
 
+/* ===== Helpers de validación ===== */
+const validarOrdenParaImprimir = (
+    o: DetalleTrabajoGestioo
+): string | null => {
+    if (!o.entidad) return "La orden no tiene una entidad asociada";
+    if (!o.equipo) return "La orden no tiene un equipo asociado";
+    if (!o.fecha) return "La orden no tiene una fecha válida";
+    return null;
+};
+
 /* ===== Fecha local Chile (compatible con datetime-local) ===== */
 const getDateTimeLocalCL = () => {
     const now = new Date();
@@ -106,10 +116,16 @@ const toDateTimeLocal = (date: string | Date) => {
 };
 
 const OrdenesTaller: React.FC = () => {
-
+    
+    // Función para duplicar orden a SALIDA
     const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
-        if (!confirm("¿Crear una orden de SALIDA para este equipo?")) return;
-
+        if (
+            !confirm(
+                "Se creará una nueva orden de SALIDA para mantener el historial del equipo.\n\n¿Desea continuar?"
+            )
+        ) return;
+        
+        // Crear nueva orden de SALIDA
         try {
             const payload = {
                 tipoTrabajo: orden.tipoTrabajo,
@@ -767,7 +783,14 @@ const OrdenesTaller: React.FC = () => {
                                                     )}
 
                                                     <button
-                                                        onClick={() => handlePrint(o)}
+                                                        onClick={() => {
+                                                            const error = validarOrdenParaImprimir(o);
+                                                            if (error) {
+                                                                setToast({ type: "error", message: error });
+                                                                return;
+                                                            }
+                                                            handlePrint(o);
+                                                        }}
                                                         className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50 transition flex items-center justify-center min-w-[36px]"
                                                         title="Imprimir orden"
                                                         aria-label={`Imprimir orden ${o.id}`}

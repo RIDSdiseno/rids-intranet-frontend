@@ -56,6 +56,16 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
 
     const [loading, setLoading] = useState(false);
 
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // ===============================
+    // Limpiar mensaje de error al cambiar campos
+    // ===============================
+    useEffect(() => {
+        setErrorMsg(null);
+    }, [marca, modelo, serie, empresaId, idSolicitante]);
+
+
     // ===============================
     // Reset modelo al cambiar marca
     // ===============================
@@ -101,22 +111,38 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
     // Guardar equipo
     // ===============================
     const handleSave = async () => {
-        if (!marca || !modelo || !serie.trim()) {
-            alert("Marca, modelo y serie son obligatorios");
+        if (!marca) {
+            setErrorMsg("Debe seleccionar una marca.");
+            return;
+        }
+
+        if (!modelo) {
+            setErrorMsg("Debe seleccionar un modelo.");
+            return;
+        }
+
+        if (!serie.trim()) {
+            setErrorMsg("La serie del equipo es obligatoria.");
             return;
         }
 
         if (empresaId && !idSolicitante) {
-            alert("Debe seleccionar un solicitante");
+            setErrorMsg("Debe seleccionar un solicitante para la empresa.");
             return;
         }
 
-        // 👉 AQUÍ VA
+        // Validar empresa seleccionada
         const empresaSeleccionada = empresas.find(
             (e) => String(e.id_empresa) === empresaId
         );
 
-        const propiedad = empresaSeleccionada?.nombre ?? "";
+        // Validar que la empresa exista
+        if (!empresaSeleccionada) {
+            setErrorMsg("Debe seleccionar una empresa válida.");
+            return;
+        }
+
+        const propiedad = empresaSeleccionada.nombre;
 
         if (!propiedad) {
             alert("Debe seleccionar una empresa válida");
@@ -144,18 +170,55 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                 body: JSON.stringify(payload),
             });
 
+            // Manejo de errores
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Error al crear equipo");
+                const msg = await parseApiError(res);
+                setErrorMsg(msg);
+                return;
             }
 
             const data = await res.json();
             onSaved(data.id ?? data.id_equipo);
             onClose();
         } catch (err) {
-            alert((err as Error).message);
-        } finally {
+            console.error(err);
+            setErrorMsg("No se pudo crear el equipo. Intenta nuevamente.");
+        }
+        finally {
             setLoading(false);
+        }
+    };
+
+    // ===============================
+    // Función para parsear errores de la API
+    // ===============================
+    const parseApiError = async (res: Response): Promise<string> => {
+        try {
+            const data = await res.json();
+
+            if (res.status === 400) {
+                return data.error || "Datos inválidos. Revisa los campos.";
+            }
+
+            if (res.status === 409) {
+                return "Ya existe un equipo registrado con esta serie.";
+            }
+
+            if (res.status === 401) {
+                return "Tu sesión expiró. Vuelve a iniciar sesión.";
+            }
+
+            if (res.status === 403) {
+                return "No tienes permisos para crear equipos.";
+            }
+
+            if (res.status >= 500) {
+                return "Error interno del sistema. Intenta más tarde.";
+            }
+
+            return data.error || "No se pudo crear el equipo.";
+        } catch {
+            return "Error inesperado al comunicarse con el servidor.";
         }
     };
 
@@ -296,6 +359,14 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                         )}
                     </div>
 
+                    {/* MSJ de Error */}
+                    {errorMsg && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                            {errorMsg}
+                        </div>
+                    )}
+
+                    {/* Footer */}
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                         <button onClick={onClose} className="px-6 py-2 rounded-xl border">
                             Cancelar

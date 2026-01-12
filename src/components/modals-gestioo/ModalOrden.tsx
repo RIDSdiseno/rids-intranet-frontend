@@ -102,6 +102,21 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
     const [busquedaEntidad, setBusquedaEntidad] = useState("");
 
+    // Estado para mensaje de error
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Limpiar mensaje de error al cambiar campos del formulario
+    useEffect(() => {
+        setErrorMsg(null);
+    }, [
+        formData.tipoTrabajo,
+        formData.descripcion,
+        formData.entidadId,
+        formData.equipoId,
+        formData.tecnicoId,
+    ]);
+
+    // Filtrar entidades según búsqueda
     const entidadesFiltradas = useMemo(() => {
         const q = normalizeText(busquedaEntidad);
 
@@ -124,6 +139,37 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         }
     }, [entidadesFiltradas, setFormData]);
 
+    // Función para validar y enviar el formulario
+    const handleSubmitWithValidation = () => {
+        if (!formData.descripcion.trim()) {
+            setErrorMsg("Debe ingresar la descripción del estado del equipo.");
+            return;
+        }
+
+        if (!formData.tipoTrabajo.trim()) {
+            setErrorMsg("Debe indicar el tipo de trabajo.");
+            return;
+        }
+
+        if (!formData.entidadId) {
+            setErrorMsg("Debe seleccionar una entidad.");
+            return;
+        }
+
+        if (!formData.equipoId) {
+            setErrorMsg("Debe seleccionar un equipo.");
+            return;
+        }
+
+        if (!formData.tecnicoId) {
+            setErrorMsg("Debe asignar un técnico responsable.");
+            return;
+        }
+
+        // ✅ OK
+        setErrorMsg(null);
+        onSubmit();
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -321,7 +367,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         fetch(`${API_URL}/entidades?tipo=PERSONA`, { credentials: "include" })
                                                             .then((res) => res.json())
                                                             .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
-                                                            .catch(() => setEntidades([]));
+                                                            .catch(() => {
+                                                                setEntidades([]);
+                                                                setErrorMsg("No se pudieron cargar las entidades. Intenta nuevamente.");
+                                                            });
                                                     } else {
                                                         setEntidades([]);
                                                     }
@@ -353,7 +402,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         fetch(`${API_URL}/entidades?tipo=EMPRESA&origen=${origen}`, { credentials: "include" })
                                                             .then((res) => res.json())
                                                             .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
-                                                            .catch(() => setEntidades([]));
+                                                            .catch(() => {
+                                                                setEntidades([]);
+                                                                setErrorMsg("No se pudieron cargar las entidades. Intenta nuevamente.");
+                                                            });
                                                     }}
                                                     className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                                 >
@@ -454,7 +506,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                     } else {
                                                         const equipo = equipos.find((e) => String(e.id_equipo) === formData.equipoId);
                                                         if (!equipo) {
-                                                            alert("Equipo no encontrado");
+                                                            setErrorMsg("El equipo seleccionado ya no está disponible.");
                                                             return;
                                                         }
                                                         setEquipoEditando(equipo);
@@ -516,6 +568,13 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                     </div>
                 </div>
 
+                {/* Mensaje de error */}
+                {errorMsg && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                        {errorMsg}
+                    </div>
+                )}
+
                 {/* Footer */}
                 <div className="border-t border-cyan-100 px-6 py-4 bg-slate-50 rounded-b-3xl">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -532,7 +591,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                             </button>
 
                             <button
-                                onClick={onSubmit}
+                                onClick={handleSubmitWithValidation}
                                 disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId || !formData.tecnicoId || !formData.entidadId || !formData.descripcion}
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"

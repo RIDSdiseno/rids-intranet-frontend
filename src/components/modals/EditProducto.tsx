@@ -5,6 +5,7 @@ import {
     CloseCircleOutlined,
     CheckCircleOutlined,
     PercentageOutlined,
+    InfoCircleOutlined,
 } from "@ant-design/icons";
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import { useApi } from "./UseApi";
@@ -37,11 +38,9 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
     producto,
     onClose,
     onSave,
-    onBackToSelector,
     apiLoading,
-    onUpdateRealTime
+    onUpdateRealTime,
 }) => {
-
     const [formData, setFormData] = React.useState<FormDataState>({
         nombre: "",
         descripcion: "",
@@ -55,26 +54,34 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         imagenFile: null,
     });
 
-    const { fetchApi: apiFetch } = useApi();
+    const { fetchApi } = useApi();
 
-    // =====================================================================================
-    // 🔥 FUNCIONALIDAD PRINCIPAL — sincroniza el item con los cambios en tiempo real
-    // =====================================================================================
+    if (!show || !producto) return null;
+
+    // ======================================================
+    // VALIDACIONES
+    // ======================================================
+    const nombreInvalido = !formData.nombre.trim();
+    const precioInvalido = formData.precio <= 0;
+    const precioVentaInvalido = formData.precioTotal <= 0;
+
+    const tieneErrores =
+        nombreInvalido || precioInvalido || precioVentaInvalido;
+
+    // ======================================================
+    // SINCRONIZACIÓN TIEMPO REAL
+    // ======================================================
     const updateRealTimeGeneral = () => {
         if (!onUpdateRealTime) return;
 
         onUpdateRealTime({
             id: producto.id,
-
-            nombre: formData.nombre,           // 👈 nombre real del ítem
-            descripcion: formData.descripcion, // 👈 descripción larga
-
+            nombre: formData.nombre,
+            descripcion: formData.descripcion,
             precioCosto: formData.precio,
             porcGanancia: formData.porcGanancia,
             precioOriginalCLP: formData.precioTotal,
             precio: formData.precioTotal,
-
-            tieneIVA: producto.tieneIVA ?? true,
             imagen: formData.imagen,
             categoria: formData.categoria,
             stock: formData.stock,
@@ -82,27 +89,20 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         });
     };
 
-    // =====================================================================================
-    // Al abrir el modal, cargar datos del producto seleccionado
-    // =====================================================================================
-    React.useEffect(() => {
+    // ======================================================
+    // CARGA INICIAL
+    // ======================================================
+    useEffect(() => {
         if (show && producto) {
             setFormData({
                 nombre: producto.nombre || "",
                 descripcion: producto.descripcion || "",
-
-                // 👇 COSTO REAL SIEMPRE VIENE DE precioCosto
                 precio: producto.precioCosto ?? producto.precio ?? 0,
-
-                // 👇 GANANCIA SIEMPRE DEL PRODUCTO
                 porcGanancia: producto.porcGanancia ?? 0,
-
-                // 👇 PRECIO FINAL DEBE SER SIEMPRE costo * (1 + ganancia/100)
                 precioTotal: calcularPrecioTotal(
                     producto.precioCosto ?? 0,
                     producto.porcGanancia ?? 0
                 ),
-
                 categoria: producto.categoria || "",
                 stock: producto.stock || 0,
                 codigo: producto.codigo || producto.sku || "",
@@ -112,59 +112,61 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         }
     }, [show, producto]);
 
-    useEffect(() => {
-        console.log("Producto recibido:", producto);
-    }, [producto]);
-
-    if (!show || !producto) return null;
-
-    // =====================================================================================
-    // GUARDAR CAMBIOS
-    // =====================================================================================
+    // ======================================================
+    // SUBMIT SEGURO
+    // ======================================================
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (nombreInvalido) {
+            alert("El nombre del producto es obligatorio.");
+            return;
+        }
+
+        if (precioInvalido) {
+            alert("El precio de costo debe ser mayor a 0.");
+            return;
+        }
+
+        if (precioVentaInvalido) {
+            alert("El precio de venta debe ser mayor a 0.");
+            return;
+        }
+
         let imagenUrl = formData.imagen;
-        let newPublicId = producto.publicId;
-        let uploadResp: any = null;
+        let publicId = producto.publicId;
 
         if (formData.imagenFile) {
             const form = new FormData();
             form.append("productoId", String(producto.id));
             form.append("imagen", formData.imagenFile);
 
-            uploadResp = await apiFetch("/upload-imagenes/upload", {
+            const uploadResp = await fetchApi("/upload-imagenes/upload", {
                 method: "POST",
                 body: form,
             });
 
             imagenUrl = uploadResp?.producto?.imagen || imagenUrl;
-            newPublicId = uploadResp?.producto?.publicId || newPublicId;
+            publicId = uploadResp?.producto?.publicId || publicId;
         }
 
-        // 🔥 AQUÍ ESTÁ EL PROBLEMA: No estabas enviando la descripción
         onSave({
             id: producto.id,
-            nombre: formData.nombre,           // 🟢 Nombre
-            descripcion: formData.descripcion, // 🟢 Descripción (NUEVO)
-
+            nombre: formData.nombre,
+            descripcion: formData.descripcion,
             precioCosto: formData.precio,
-            precio: formData.precio,
             porcGanancia: formData.porcGanancia,
-
             categoria: formData.categoria,
             stock: formData.stock,
-
             serie: formData.codigo,
-
             imagen: imagenUrl,
-            publicId: newPublicId,
+            publicId,
         });
     };
 
-    // =====================================================================================
-    // HANDLERS NUMÉRICOS (COSTO, % GANANCIA, PRECIO FINAL)
-    // =====================================================================================
+    // ======================================================
+    // HANDLERS NUMÉRICOS
+    // ======================================================
     const handlePrecioChange = (precio: number) => {
         const nuevo = {
             ...formData,
@@ -189,21 +191,24 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         const nuevo = {
             ...formData,
             precioTotal,
-            porcGanancia: calcularPorcGanancia(formData.precio, precioTotal),
+            porcGanancia: calcularPorcGanancia(
+                formData.precio,
+                precioTotal
+            ),
         };
         setFormData(nuevo);
         updateRealTimeGeneral();
     };
 
-    // =====================================================================================
+    // ======================================================
     // RENDER
-    // =====================================================================================
+    // ======================================================
     return (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[10000] p-4 overflow-y-auto">
             <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative my-8 max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative my-8"
             >
                 {/* HEADER */}
                 <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-t-2xl">
@@ -212,208 +217,122 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <EditOutlined className="text-lg" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">Editar Producto</h2>
-                            <p className="text-slate-600 text-sm mt-1">Actualice la información del producto</p>
+                            <h2 className="text-xl font-bold text-slate-800">
+                                Editar Producto
+                            </h2>
+                            <p className="text-slate-600 text-sm mt-1">
+                                Actualiza la información del producto
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Btn Cerrar EDIT */}
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-2 hover:bg-slate-100 rounded-lg"
                 >
                     ✕
                 </button>
 
-                {/* FORMULARIO */}
+                {/* FORM */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-
-                    {/* Nombre y categoría */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-slate-700">Nombre *</label>
-                            <input
-                                name="nombre"
-                                value={formData.nombre}
-                                onChange={(e) => {
-                                    setFormData(prev => ({ ...prev, nombre: e.target.value }));
-                                    updateRealTimeGeneral();
-                                }}
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-slate-700">Categoría</label>
-                            <input
-                                name="categoria"
-                                value={formData.categoria}
-                                onChange={(e) => {
-                                    setFormData(prev => ({ ...prev, categoria: e.target.value }));
-                                    updateRealTimeGeneral();
-                                }}
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                            />
-                        </div>
+                    {/* NOMBRE */}
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700">
+                            Nombre *
+                        </label>
+                        <input
+                            value={formData.nombre}
+                            onChange={(e) =>
+                                setFormData((p) => ({
+                                    ...p,
+                                    nombre: e.target.value,
+                                }))
+                            }
+                            className={`w-full border rounded-xl px-4 py-3 text-sm
+                                ${
+                                    nombreInvalido
+                                        ? "border-rose-400"
+                                        : "border-slate-300"
+                                }`}
+                        />
+                        {nombreInvalido && (
+                            <p className="text-xs text-rose-600 mt-1">
+                                El nombre es obligatorio
+                            </p>
+                        )}
                     </div>
 
-                    {/* Descripción */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Descripción</label>
+                    {/* DESCRIPCIÓN */}
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700">
+                            Descripción
+                        </label>
                         <textarea
-                            name="descripcion"
                             value={formData.descripcion}
-                            onChange={(e) => {
-                                setFormData(prev => ({ ...prev, descripcion: e.target.value }));
-                                updateRealTimeGeneral();
-                            }}
-                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 resize-none"
+                            onChange={(e) =>
+                                setFormData((p) => ({
+                                    ...p,
+                                    descripcion: e.target.value,
+                                }))
+                            }
                             rows={3}
+                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm resize-none"
                         />
                     </div>
 
-                    {/* COSTO - GANANCIA - PRECIO FINAL */}
-                    <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-4">
-
-                        <h3 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                            <PercentageOutlined className="text-cyan-600" />
-                            Cálculo de Precios y Ganancia
+                    {/* PRECIOS */}
+                    <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4">
+                        <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                            <PercentageOutlined />
+                            Cálculo de precios
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                            {/* Precio costo */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">Precio costo *</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={formData.precio || ""}
-                                    onChange={(e) => handlePrecioChange(Number(e.target.value) || 0)}
-                                    className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm bg-white"
-                                    required
-                                />
-                            </div>
-
-                            {/* Porcentaje de ganancia */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">% Ganancia</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        max="1000"
-                                        value={formData.porcGanancia || ""}
-                                        onChange={(e) => handlePorcGananciaChange(Number(e.target.value) || 0)}
-                                        className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm bg-white pr-12"
-                                    />
-                                    <span className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500">%</span>
-                                </div>
-                            </div>
-
-                            {/* Precio Venta */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-slate-700">Precio Venta</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={formData.precioTotal || ""}
-                                    onChange={(e) => handlePrecioTotalChange(Number(e.target.value) || 0)}
-                                    className="w-full border border-emerald-200 rounded-xl px-4 py-3 text-sm bg-white font-semibold text-emerald-700"
-                                />
-                            </div>
-                        </div>
-
-                        {/* RESUMEN DE GANANCIA */}
-                        {formData.precio > 0 && formData.precioTotal > 0 && (
-                            <div className="mt-4 p-3 bg-white border border-emerald-200 rounded-lg">
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-600">Ganancia por unidad:</span>
-                                        <span className="font-bold text-emerald-700">
-                                            ${(formData.precioTotal - formData.precio).toLocaleString("es-CL")}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-600">Margen:</span>
-                                        <span className="font-bold text-emerald-700">
-                                            {formData.porcGanancia}%
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* STOCK Y CÓDIGO */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-slate-700">Stock</label>
                             <input
                                 type="number"
-                                min="0"
-                                value={formData.stock || ""}
-                                onChange={(e) => {
-                                    setFormData(prev => ({ ...prev, stock: Number(e.target.value) }));
-                                    updateRealTimeGeneral();
-                                }}
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                                min={0}
+                                value={formData.precio}
+                                onChange={(e) =>
+                                    handlePrecioChange(
+                                        Number(e.target.value) || 0
+                                    )
+                                }
+                                placeholder="Costo"
+                                className="border rounded-xl px-3 py-2"
                             />
-                        </div>
 
-                        <div className="space-y-2">
-                            <label className="block text-sm font-semibold text-slate-700">Código / Serie</label>
                             <input
-                                name="codigo"
-                                value={formData.codigo}
-                                onChange={(e) => {
-                                    setFormData(prev => ({ ...prev, codigo: e.target.value }));
-                                    updateRealTimeGeneral();
-                                }}
-                                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                                type="number"
+                                min={0}
+                                value={formData.porcGanancia}
+                                onChange={(e) =>
+                                    handlePorcGananciaChange(
+                                        Number(e.target.value) || 0
+                                    )
+                                }
+                                placeholder="% Ganancia"
+                                className="border rounded-xl px-3 py-2"
+                            />
+
+                            <input
+                                type="number"
+                                min={0}
+                                value={formData.precioTotal}
+                                onChange={(e) =>
+                                    handlePrecioTotalChange(
+                                        Number(e.target.value) || 0
+                                    )
+                                }
+                                placeholder="Precio venta"
+                                className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
                             />
                         </div>
-                    </div>
 
-                    {/* IMAGEN */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Imagen</label>
-
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                setFormData(prev => ({ ...prev, imagenFile: file }));
-                                updateRealTimeGeneral();
-                            }}
-                            className="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm"
-                        />
-
-                        {formData.imagen && (
-                            <div className="mt-3">
-                                <p className="text-xs text-slate-500 mb-1">Imagen actual:</p>
-                                <img
-                                    src={formData.imagen}
-                                    alt="Producto"
-                                    className="h-32 w-32 object-cover rounded-lg border"
-                                />
-                            </div>
-                        )}
-
-                        {formData.imagenFile && (
-                            <div className="mt-3">
-                                <p className="text-xs text-emerald-600 mb-1">Previsualización:</p>
-                                <img
-                                    src={URL.createObjectURL(formData.imagenFile)}
-                                    alt="Preview"
-                                    className="h-32 w-32 object-cover rounded-lg border"
-                                />
+                        {(precioInvalido || precioVentaInvalido) && (
+                            <div className="mt-3 text-xs text-amber-700 flex items-center gap-2">
+                                <InfoCircleOutlined />
+                                Revisa los valores de costo y precio de venta.
                             </div>
                         )}
                     </div>
@@ -423,16 +342,24 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
+                            className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-300"
                         >
-                            <CloseCircleOutlined />
-                            Cancelar
+                            <CloseCircleOutlined /> Cancelar
                         </button>
 
                         <button
                             type="submit"
-                            disabled={apiLoading}
-                            className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg"
+                            disabled={apiLoading || tieneErrores}
+                            title={
+                                nombreInvalido
+                                    ? "Nombre obligatorio"
+                                    : precioInvalido
+                                    ? "Costo inválido"
+                                    : precioVentaInvalido
+                                    ? "Precio de venta inválido"
+                                    : ""
+                            }
+                            className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-cyan-600 to-blue-600 disabled:opacity-50"
                         >
                             <CheckCircleOutlined />
                             {apiLoading ? "Guardando..." : "Guardar Cambios"}

@@ -23,6 +23,8 @@ import {
 } from "./types";
 import { formatearPrecio, calcularTotales, calcularValoresItem } from "./utils";
 
+import { message } from "antd";
+
 interface CreateCotizacionModalProps {
     show: boolean;
     onClose: () => void;
@@ -96,10 +98,21 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
         });
     };
 
+    // Motivo por el cual el botón de crear cotización está deshabilitado
+    const motivoDeshabilitado = () => {
+        if (!formData.entidadId) return "Debes seleccionar una entidad antes de crear la cotización.";
+        if (items.length === 0) return "Agrega al menos un producto o servicio a la cotización.";
+        if (apiLoading) return "La cotización se está procesando, espera un momento.";
+        return "";
+    };
+
     // Función para eliminar sección
     const eliminarSeccion = (seccionId: number) => {
         if (formData.secciones.length <= 1) {
-            alert("Debe haber al menos una sección");
+            message.warning({
+                content: "La cotización debe tener al menos una sección activa para continuar.",
+                duration: 4,
+            });
             return;
         }
 
@@ -1068,7 +1081,8 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 </button>
                                 <button
                                     onClick={onCrearCotizacion}
-                                    disabled={!formData.entidadId || items.length === 0 || apiLoading}
+                                    disabled={!formData.entidadId || items.length === 0 || apiLoading || !!motivoDeshabilitado()}
+                                    title={motivoDeshabilitado()}
                                     className="px-4 py-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {apiLoading ? "Creando..." : "Crear Cotización"}

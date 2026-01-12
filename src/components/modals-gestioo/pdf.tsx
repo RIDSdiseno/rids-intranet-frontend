@@ -17,12 +17,19 @@ import {
 // ==============================
 export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     try {
+        // Fecha actual formateada
         const fechaActual = new Date().toLocaleString("es-CL", {
-            dateStyle: "short",
-            timeStyle: "short",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false, // ✅ CLAVE
         });
 
         const codigo = String(orden.id).padStart(6, "0");
+
+        const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
         // Datos corporativos
         const ORIGEN_DATA = {
@@ -112,12 +119,19 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     ${orden.incluyeCargador ? "Sí" : "No"}
   </span>
 </p>
-
-
+<p><b>Técnico responsable:</b> ${tecnicoNombre}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
         <p>
   <b>${orden.area === "SALIDA" ? "Fecha salida:" : "Fecha ingreso:"}</b>
-  ${new Date(orden.fecha).toLocaleString("es-CL")}
+  ${new Date(orden.fecha).toLocaleString("es-CL", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        })}
+
 </p>
 
     </div>

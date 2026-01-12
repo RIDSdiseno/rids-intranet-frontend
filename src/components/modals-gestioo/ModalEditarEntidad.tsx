@@ -28,6 +28,14 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
     const [direccion, setDireccion] = useState("");
     const [origen, setOrigen] = useState<OrigenGestioo>("RIDS");
 
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Limpiar mensaje de error al cambiar entidadId
+    useEffect(() => {
+        setErrorMsg(null);
+    }, [entidadId]);
+
+    // Cargar datos de la entidad
     useEffect(() => {
         const cargar = async () => {
             if (!entidadId) return;
@@ -62,7 +70,17 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
 
     const handleSave = async () => {
         if (!nombre.trim()) {
-            alert("El nombre es obligatorio");
+            setErrorMsg("El nombre de la entidad es obligatorio.");
+            return;
+        }
+
+        if (correo && !correo.includes("@")) {
+            setErrorMsg("El correo ingresado no tiene un formato válido.");
+            return;
+        }
+
+        if (rut && rut.length < 6) {
+            setErrorMsg("El RUT ingresado parece incorrecto.");
             return;
         }
 
@@ -83,16 +101,18 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
             });
 
             if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Error al actualizar entidad");
+                const msg = await parseApiError(res);
+                setErrorMsg(msg);
+                return;
             }
 
             onSaved();
             onClose();
         } catch (err) {
             console.error(err);
-            alert("Error al actualizar la entidad");
-        } finally {
+            setErrorMsg("No se pudo actualizar la entidad. Intenta nuevamente.");
+        }
+        finally {
             setLoading(false);
         }
     };
@@ -106,6 +126,37 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
             </div>
         );
     }
+
+    // Función para parsear errores de la API
+    const parseApiError = async (res: Response): Promise<string> => {
+        try {
+            const data = await res.json();
+
+            if (res.status === 400) {
+                return data.error || "Datos inválidos. Revisa los campos ingresados.";
+            }
+
+            if (res.status === 409) {
+                return "Ya existe una entidad con ese RUT.";
+            }
+
+            if (res.status === 401) {
+                return "Tu sesión expiró. Vuelve a iniciar sesión.";
+            }
+
+            if (res.status === 403) {
+                return "No tienes permisos para editar esta entidad.";
+            }
+
+            if (res.status >= 500) {
+                return "Error interno del sistema. Intenta más tarde.";
+            }
+
+            return data.error || "No se pudo guardar la entidad.";
+        } catch {
+            return "Error inesperado al comunicarse con el servidor.";
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -154,7 +205,15 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
                             </select>
                         </div>
                     </div>
-
+                    
+                    {/* MSJ de Error */}
+                    {errorMsg && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                            {errorMsg}
+                        </div>
+                    )}
+                    
+                    {/* Footer */} 
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                         <button
                             onClick={onClose}
