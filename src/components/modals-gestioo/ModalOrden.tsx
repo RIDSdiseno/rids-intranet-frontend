@@ -280,7 +280,18 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                             <label className="block text-xs font-medium text-slate-600 mb-1">Área</label>
                                             <select
                                                 value={formData.area}
-                                                onChange={(e) => setFormData({ ...formData, area: e.target.value as Area })}
+                                                onChange={(e) => {
+                                                    const nuevaArea = e.target.value as Area;
+
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        area: nuevaArea,
+                                                        fechaIngreso:
+                                                            nuevaArea === "salida"
+                                                                ? prev.fechaIngreso ?? prev.fecha
+                                                                : prev.fechaIngreso,
+                                                    }));
+                                                }}
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             >
                                                 <option value="entrada"> Entrada</option>

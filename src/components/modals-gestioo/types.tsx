@@ -72,6 +72,7 @@ export interface OrdenFormData {
     notas: string;
     area: Area;
     fecha: string;
+    fechaIngreso?: string;
     tipoEntidad: "EMPRESA" | "PERSONA";
     origenEntidad: OrigenGestioo | "";
     entidadId: string;
@@ -113,7 +114,9 @@ export interface EquipoGestioo {
 
 export interface DetalleTrabajoGestioo {
     id: number;
+    ordenGrupoId: number;
     fecha: string;
+    fechaIngreso?: string;
     tipoTrabajo: string;
     tipoEntidad?: "EMPRESA" | "PERSONA";
     descripcion?: string | null;
@@ -283,3 +286,25 @@ export const DISCOS = [
 ] as const;
 
 export type DiscoEquipo = typeof DISCOS[number];
+
+// ===============================
+// Helpers UI
+// ===============================
+export const normalizeEstado = (estado?: string) => {
+    switch (estado) {
+        case "PENDIENTE":
+            return "pendiente";
+        case "EN_PROCESO":
+            return "en progreso";
+        case "COMPLETADA":
+        case "FINALIZADO":
+            return "completada";
+        case "CANCELADO":
+            return "cancelada";
+        default:
+            return "pendiente";
+    }
+};
+
+export const normalizeArea = (area?: string) =>
+    area?.toLowerCase() ?? "entrada";

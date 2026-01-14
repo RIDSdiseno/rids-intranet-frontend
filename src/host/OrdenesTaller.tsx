@@ -34,6 +34,8 @@ import type {
 
 // TYPES
 import {
+    normalizeArea,
+    normalizeEstado,
     TipoEquipo,
     TipoEquipoLabel,
 } from "../components/modals-gestioo/types";
@@ -73,21 +75,6 @@ const estadoToApi = (e: string) => {
     }
 };
 
-const estadoFromApi = (e: string | null | undefined) => {
-    switch (e) {
-        case "PENDIENTE":
-            return "pendiente";
-        case "EN_PROCESO":
-            return "en progreso";
-        case "FINALIZADO":
-            return "completada";
-        case "CANCELADO":
-            return "cancelada";
-        default:
-            return "pendiente";
-    }
-};
-
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
 
 /* ===== Helpers de validación ===== */
@@ -116,7 +103,7 @@ const toDateTimeLocal = (date: string | Date) => {
 };
 
 const OrdenesTaller: React.FC = () => {
-    
+
     // Función para duplicar orden a SALIDA
     const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
         if (
@@ -124,7 +111,7 @@ const OrdenesTaller: React.FC = () => {
                 "Se creará una nueva orden de SALIDA para mantener el historial del equipo.\n\n¿Desea continuar?"
             )
         ) return;
-        
+
         // Crear nueva orden de SALIDA
         try {
             const payload = {
@@ -134,7 +121,9 @@ const OrdenesTaller: React.FC = () => {
                 estado: "PENDIENTE",
                 notas: orden.notas,
                 area: "SALIDA",
+                ordenGrupoId: orden.ordenGrupoId ?? orden.id,
                 fecha: new Date().toISOString(),
+                fechaIngreso: orden.fechaIngreso ?? orden.fecha,
                 entidadId: orden.entidad?.id ?? null,
                 equipoId: orden.equipo?.id_equipo ?? null,
                 tecnicoId: orden.tecnico?.id_tecnico ?? null,
@@ -369,9 +358,9 @@ const OrdenesTaller: React.FC = () => {
             tipoTrabajo: o.tipoTrabajo ?? "",
             descripcion: o.descripcion ?? "",
             prioridad: (o.prioridad?.toLowerCase() ?? "normal") as Prioridad,
-            estado: estadoFromApi(o.estado),
+            estado: normalizeEstado(o.estado),
             notas: o.notas ?? "",
-            area: (o.area?.toLowerCase() ?? "entrada") as Area,
+            area: normalizeArea(o.area) as Area,
             fecha: o.fecha ? toDateTimeLocal(o.fecha) : getDateTimeLocalCL(),
             tipoEntidad: o.tipoEntidad ?? "EMPRESA",
             origenEntidad: o.entidad?.origen ?? "",
@@ -394,9 +383,11 @@ const OrdenesTaller: React.FC = () => {
             return;
         }
 
+        // Área original y nueva
         const originalArea = selectedOrden.area;
         const nuevaArea = areaToApi(formData.area);
 
+        // ¿Debe duplicar a SALIDA?
         const debeDuplicar =
             originalArea !== "SALIDA" && nuevaArea === "SALIDA";
 
@@ -491,12 +482,15 @@ const OrdenesTaller: React.FC = () => {
         }
     };
 
+    /* ======= Filtrado ======= */
     const filtered = useMemo(() => {
         const q = safeLower(busquedaEquipo);
 
+        const qNumber = Number(busquedaEquipo);
+
         return ordenes.filter((o) => {
-            const matchesEstado = estadoFiltro === "todas" || estadoFromApi(o.estado) === estadoFiltro;
-            const matchesArea = areaFiltro === "todas" || (o.area?.toLowerCase() ?? "") === areaFiltro;
+            const matchesEstado = estadoFiltro === "todas" || normalizeEstado(o.estado) === estadoFiltro;
+            const matchesArea = areaFiltro === "todas" || normalizeArea(o.area) === areaFiltro;
             const matchesOrigen = origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
 
             const tipoLabel = o.equipo?.tipo ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue]) : "";
@@ -507,7 +501,12 @@ const OrdenesTaller: React.FC = () => {
                 safeLower(o.equipo?.serial).includes(q) ||
                 tipoLabel.includes(q);
 
-            return matchesEstado && matchesArea && matchesOrigen && matchesEquipo;
+            const matchesOrdenId =
+                busquedaEquipo &&
+                !isNaN(qNumber) &&
+                (o.ordenGrupoId === qNumber || o.id === qNumber);
+
+            return matchesEstado && matchesArea && matchesOrigen && (matchesEquipo || matchesOrdenId);
         });
     }, [ordenes, estadoFiltro, areaFiltro, origenFiltro, busquedaEquipo]);
 
@@ -529,6 +528,7 @@ const OrdenesTaller: React.FC = () => {
 
             <Header />
 
+            {/* Contenido principal */}
             <main className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
                 <div className="rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -540,6 +540,7 @@ const OrdenesTaller: React.FC = () => {
                             <p className="text-slate-600 text-sm mt-1">Control y seguimiento de trabajos técnicos (Entidad, Equipo).</p>
                         </div>
 
+                        {/* Acciones principales */}
                         <div className="flex flex-wrap gap-3">
                             <button
                                 onClick={() => {
@@ -578,7 +579,7 @@ const OrdenesTaller: React.FC = () => {
                         <div className="mt-4">
                             <input
                                 type="text"
-                                placeholder="Buscar por marca, modelo, serie o tipo..."
+                                placeholder="Buscar por N° orden, marca, modelo, serie o tipo..."
                                 value={busquedaEquipo}
                                 onChange={(e) => setBusquedaEquipo(e.target.value)}
                                 className="border border-cyan-200 rounded-xl px-4 py-2 text-sm w-full md:w-72 focus:ring-2 focus:ring-cyan-400"
@@ -648,6 +649,7 @@ const OrdenesTaller: React.FC = () => {
                                 </tr>
                             </thead>
 
+                            {/* Cuerpo de la tabla */}
                             <tbody>
                                 {loading ? (
                                     <tr>
@@ -662,156 +664,209 @@ const OrdenesTaller: React.FC = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filtered.map((o) => (
-                                        <tr key={o.id} className="border-t border-cyan-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60">
-                                            <td className="px-4 py-3 w-16 align-middle">{o.id}</td>
+                                    // Listado de órdenes
+                                    filtered.map((o) => {
 
-                                            <td className="px-4 py-3 max-w-xs align-middle" title={o.tipoTrabajo}>
-                                                {o.tipoTrabajo}
-                                            </td>
+                                        // Determinar fecha a mostrar según área
+                                        const fechaMostrar = o.fecha;
 
-                                            <td className="px-4 py-3 w-28 align-middle">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${estadoFromApi(o.estado) === "completada"
-                                                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                        : estadoFromApi(o.estado) === "en progreso"
+                                        // Render fila
+                                        return (
+                                            <tr
+                                                key={o.id}
+                                                className="border-t border-cyan-100 odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                                            >
+                                                {/* ID */}
+                                                <td className="px-4 py-3 w-16 align-middle">
+                                                    <div className="flex flex-col leading-tight">
+                                                        <span className="font-semibold text-slate-800">
+                                                            #{o.ordenGrupoId ?? o.id}
+                                                        </span>
+                                                        <span className="text-xs text-slate-400 italic">
+                                                            {o.area === "SALIDA" ? "Salida" : "Ingreso"}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Tipo trabajo */}
+                                                <td
+                                                    className="px-4 py-3 max-w-xs align-middle"
+                                                    title={o.tipoTrabajo}
+                                                >
+                                                    {o.tipoTrabajo}
+                                                </td>
+
+                                                {/* Estado */}
+                                                <td className="px-4 py-3 w-28 align-middle">
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${normalizeEstado(o.estado) === "completada"
+                                                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                            : normalizeEstado(o.estado) === "en progreso"
+                                                                ? "bg-sky-50 text-sky-700 ring-sky-200"
+                                                                : normalizeEstado(o.estado) === "cancelada"
+                                                                    ? "bg-rose-50 text-rose-700 ring-rose-200"
+                                                                    : "bg-amber-50 text-amber-700 ring-amber-200"
+                                                            }`}
+                                                    >
+                                                        {normalizeEstado(o.estado)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Área */}
+                                                <td className="px-4 py-3 w-28 align-middle">
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${o.area === "ENTRADA"
                                                             ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                            : estadoFromApi(o.estado) === "cancelada"
-                                                                ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                                : "bg-amber-50 text-amber-700 ring-amber-200"
-                                                        }`}
-                                                >
-                                                    {estadoFromApi(o.estado)}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-4 py-3 w-28 align-middle">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${o.area === "ENTRADA"
-                                                        ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                        : o.area === "DOMICILIO"
-                                                            ? "bg-amber-50 text-amber-700 ring-amber-200"
-                                                            : o.area === "REPARACION"
-                                                                ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                                                                : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                        }`}
-                                                >
-                                                    {o.area.toLowerCase()}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-4 py-3 align-middle">{o.equipo ? `${o.equipo.marca} ${o.equipo.modelo}` : "—"}</td>
-
-                                            <td className="px-4 py-3 align-middle">{o.entidad?.nombre ?? "—"}</td>
-
-                                            <td className="px-4 py-3 w-28 align-middle">
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
-                                                        ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
-                                                        : o.entidad?.origen === "ECONNET"
-                                                            ? "bg-purple-50 text-purple-700 ring-purple-200"
-                                                            : "bg-slate-50 text-slate-700 ring-slate-200"
-                                                        }`}
-                                                >
-                                                    {o.entidad?.origen ?? "—"}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-4 py-3 align-middle">
-                                                {o.tecnico ? (
-                                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
-                                                        {o.tecnico.nombre}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-400 italic">Sin asignar</span>
-                                                )}
-                                            </td>
-
-                                            <td className="px-4 py-3 whitespace-nowrap text-slate-700 align-middle text-center">
-                                                <div className="flex flex-col leading-tight">
-                                                    <span className="font-medium">
-                                                        {new Date(o.fecha).toLocaleDateString("es-CL", {
-                                                            day: "2-digit",
-                                                            month: "2-digit",
-                                                            year: "numeric",
-                                                        })}
-                                                    </span>
-
-                                                    <span className="text-xs text-slate-500">
-                                                        {new Date(o.fecha).toLocaleTimeString("es-CL", {
-                                                            hour: "2-digit",
-                                                            minute: "2-digit",
-                                                            hour12: false,
-                                                        })}
-                                                    </span>
-
-                                                    {/* 👇 AQUÍ VA EXACTAMENTE */}
-                                                    <span className="text-[13px] text-slate-400 italic">
-                                                        {o.area === "SALIDA" ? "Salida" : "Ingreso"}
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            <td className="px-4 py-3 min-w-[180px] whitespace-nowrap align-middle">
-                                                <div className="flex gap-2 justify-center items-center flex-nowrap">
-
-                                                    <button
-                                                        onClick={() => openPreviewModal(o)}
-                                                        className="rounded-lg border border-slate-200 bg-white text-slate-700 p-2 hover:bg-slate-50"
-                                                        title="Ver orden"
+                                                            : o.area === "DOMICILIO"
+                                                                ? "bg-amber-50 text-amber-700 ring-amber-200"
+                                                                : o.area === "REPARACION"
+                                                                    ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                                                                    : "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                            }`}
                                                     >
-                                                        <EyeOutlined />
-                                                    </button>
+                                                        {normalizeArea(o.area)}
+                                                    </span>
+                                                </td>
 
-                                                    <button
-                                                        onClick={() => openEditModal(o)}
-                                                        className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50 transition flex items-center justify-center min-w-[36px]"
-                                                        title="Editar orden"
-                                                        aria-label={`Editar orden ${o.id}`}
+                                                {/* Equipo */}
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.equipo
+                                                        ? `${o.equipo.marca} ${o.equipo.modelo}`
+                                                        : "—"}
+                                                </td>
+
+                                                {/* Empresa */}
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.entidad?.nombre ?? "—"}
+                                                </td>
+
+                                                {/* Origen */}
+                                                <td className="px-4 py-3 w-28 align-middle">
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
+                                                            ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
+                                                            : o.entidad?.origen === "ECONNET"
+                                                                ? "bg-purple-50 text-purple-700 ring-purple-200"
+                                                                : "bg-slate-50 text-slate-700 ring-slate-200"
+                                                            }`}
                                                     >
-                                                        <EditOutlined />
-                                                    </button>
+                                                        {o.entidad?.origen ?? "—"}
+                                                    </span>
+                                                </td>
 
-                                                    {o.area !== "SALIDA" && (
-                                                        <button
-                                                            onClick={() => duplicarOrdenSalida(o)}
-                                                            className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
-                                                            title="Generar orden de salida"
-                                                        >
-                                                            <SwapOutlined />
-                                                        </button>
+                                                {/* Técnico */}
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.tecnico ? (
+                                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                                                            {o.tecnico.nombre}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic">
+                                                            Sin asignar
+                                                        </span>
                                                     )}
+                                                </td>
 
-                                                    <button
-                                                        onClick={() => {
-                                                            const error = validarOrdenParaImprimir(o);
-                                                            if (error) {
-                                                                setToast({ type: "error", message: error });
-                                                                return;
-                                                            }
-                                                            handlePrint(o);
-                                                        }}
-                                                        className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50 transition flex items-center justify-center min-w-[36px]"
-                                                        title="Imprimir orden"
-                                                        aria-label={`Imprimir orden ${o.id}`}
-                                                    >
-                                                        <PrinterOutlined />
-                                                    </button>
+                                                {/* Fecha ingreso / salida */}
+                                                <td className="px-4 py-3 whitespace-nowrap text-slate-700 align-middle text-center">
+                                                    <div className="flex flex-col leading-tight">
+                                                        <span className="font-medium">
+                                                            {fechaMostrar
+                                                                ? new Date(fechaMostrar).toLocaleDateString(
+                                                                    "es-CL",
+                                                                    {
+                                                                        day: "2-digit",
+                                                                        month: "2-digit",
+                                                                        year: "numeric",
+                                                                    }
+                                                                )
+                                                                : "—"}
+                                                        </span>
 
-                                                    <button
-                                                        onClick={() => handleDelete(o.id)}
-                                                        className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50 transition flex items-center justify-center min-w-[36px]"
-                                                        title="Eliminar orden"
-                                                        aria-label={`Eliminar orden ${o.id}`}
-                                                    >
-                                                        <DeleteOutlined />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                        <span className="text-xs text-slate-500">
+                                                            {fechaMostrar
+                                                                ? new Date(fechaMostrar).toLocaleTimeString(
+                                                                    "es-CL",
+                                                                    {
+                                                                        hour: "2-digit",
+                                                                        minute: "2-digit",
+                                                                        hour12: false,
+                                                                    }
+                                                                )
+                                                                : ""}
+                                                        </span>
+
+                                                        <span className="text-[13px] text-slate-400 italic">
+                                                            {o.area === "SALIDA"
+                                                                ? "Salida"
+                                                                : "Ingreso"}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Acciones */}
+                                                <td className="px-4 py-3 min-w-[180px] whitespace-nowrap align-middle">
+                                                    <div className="flex gap-2 justify-center items-center">
+                                                        <button
+                                                            onClick={() => openPreviewModal(o)}
+                                                            className="rounded-lg border border-slate-200 bg-white text-slate-700 p-2 hover:bg-slate-50"
+                                                            title="Ver orden"
+                                                        >
+                                                            <EyeOutlined />
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => openEditModal(o)}
+                                                            className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50"
+                                                            title="Editar orden"
+                                                        >
+                                                            <EditOutlined />
+                                                        </button>
+
+                                                        {o.area !== "SALIDA" && (
+                                                            <button
+                                                                onClick={() => duplicarOrdenSalida(o)}
+                                                                className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
+                                                                title="Generar orden de salida"
+                                                            >
+                                                                <SwapOutlined />
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            onClick={() => {
+                                                                const error =
+                                                                    validarOrdenParaImprimir(o);
+                                                                if (error) {
+                                                                    setToast({
+                                                                        type: "error",
+                                                                        message: error,
+                                                                    });
+                                                                    return;
+                                                                }
+                                                                handlePrint(o);
+                                                            }}
+                                                            className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50"
+                                                            title="Imprimir orden"
+                                                        >
+                                                            <PrinterOutlined />
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => handleDelete(o.id)}
+                                                            className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50"
+                                                            title="Eliminar orden"
+                                                        >
+                                                            <DeleteOutlined />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
+
                         </table>
                     </div>
                 </section>

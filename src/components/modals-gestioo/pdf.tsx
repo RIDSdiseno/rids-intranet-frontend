@@ -27,7 +27,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             hour12: false, // ✅ CLAVE
         });
 
-        const codigo = String(orden.id).padStart(6, "0");
+        const codigo = String(orden.ordenGrupoId ?? orden.id).padStart(6, "0");
 
         const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
@@ -121,9 +121,14 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 </p>
 <p><b>Técnico responsable:</b> ${tecnicoNombre}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
-        <p>
-  <b>${orden.area === "SALIDA" ? "Fecha salida:" : "Fecha ingreso:"}</b>
-  ${new Date(orden.fecha).toLocaleString("es-CL", {
+
+<p>
+  <b>Fecha ingreso:</b>
+  ${new Date(
+            orden.area === "SALIDA"
+                ? orden.fechaIngreso ?? orden.fecha
+                : orden.fecha
+        ).toLocaleString("es-CL", {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
@@ -131,8 +136,24 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             minute: "2-digit",
             hour12: false,
         })}
-
 </p>
+
+${orden.area === "SALIDA"
+                ? `
+<p>
+  <b>Fecha salida:</b>
+  ${new Date(orden.fecha).toLocaleString("es-CL", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                })}
+</p>
+`
+                : ""
+            }
 
     </div>
 </div>

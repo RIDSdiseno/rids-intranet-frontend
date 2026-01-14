@@ -33,7 +33,7 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                 {/* Header */}
                 <div className="border-b px-6 py-4 flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800">
-                        Vista previa Orden #{orden.id}
+                        Vista previa Orden #{orden.ordenGrupoId ?? orden.id}
                     </h2>
 
                     <button
@@ -79,9 +79,14 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                                     orden.area === "SALIDA"
                                         ? "Fecha salida"
                                         : "Fecha ingreso",
-                                    new Date(orden.fecha).toLocaleString(
-                                        "es-CL"
-                                    ),
+                                    new Date(orden.fecha).toLocaleString("es-CL", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        hour12: false, // 🔥 fuerza formato 24h
+                                    }),
                                 ],
                             ]}
                         />
