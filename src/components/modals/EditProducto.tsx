@@ -41,6 +41,7 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
     apiLoading,
     onUpdateRealTime,
 }) => {
+
     const [formData, setFormData] = React.useState<FormDataState>({
         nombre: "",
         descripcion: "",
@@ -54,8 +55,30 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         imagenFile: null,
     });
 
-    const { fetchApi } = useApi();
+    const { fetchApi } = useApi(); // hook estable
 
+    // ✅ UN SOLO useEffect
+    useEffect(() => {
+        if (!show || !producto) return;
+
+        setFormData({
+            nombre: producto.nombre || "",
+            descripcion: producto.descripcion || "",
+            precio: producto.precioCosto ?? producto.precio ?? 0,
+            porcGanancia: producto.porcGanancia ?? 0,
+            precioTotal: calcularPrecioTotal(
+                producto.precioCosto ?? 0,
+                producto.porcGanancia ?? 0
+            ),
+            categoria: producto.categoria || "",
+            stock: producto.stock || 0,
+            codigo: producto.codigo || producto.sku || "",
+            imagen: producto.imagen ?? null,
+            imagenFile: null,
+        });
+    }, [show, producto]);
+
+    // 👇 return recién acá
     if (!show || !producto) return null;
 
     // ======================================================
@@ -88,29 +111,6 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
             codigo: formData.codigo,
         });
     };
-
-    // ======================================================
-    // CARGA INICIAL
-    // ======================================================
-    useEffect(() => {
-        if (show && producto) {
-            setFormData({
-                nombre: producto.nombre || "",
-                descripcion: producto.descripcion || "",
-                precio: producto.precioCosto ?? producto.precio ?? 0,
-                porcGanancia: producto.porcGanancia ?? 0,
-                precioTotal: calcularPrecioTotal(
-                    producto.precioCosto ?? 0,
-                    producto.porcGanancia ?? 0
-                ),
-                categoria: producto.categoria || "",
-                stock: producto.stock || 0,
-                codigo: producto.codigo || producto.sku || "",
-                imagen: producto.imagen ?? null,
-                imagenFile: null,
-            });
-        }
-    }, [show, producto]);
 
     // ======================================================
     // SUBMIT SEGURO
@@ -250,10 +250,9 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                                 }))
                             }
                             className={`w-full border rounded-xl px-4 py-3 text-sm
-                                ${
-                                    nombreInvalido
-                                        ? "border-rose-400"
-                                        : "border-slate-300"
+                                ${nombreInvalido
+                                    ? "border-rose-400"
+                                    : "border-slate-300"
                                 }`}
                         />
                         {nombreInvalido && (
@@ -354,10 +353,10 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                                 nombreInvalido
                                     ? "Nombre obligatorio"
                                     : precioInvalido
-                                    ? "Costo inválido"
-                                    : precioVentaInvalido
-                                    ? "Precio de venta inválido"
-                                    : ""
+                                        ? "Costo inválido"
+                                        : precioVentaInvalido
+                                            ? "Precio de venta inválido"
+                                            : ""
                             }
                             className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-cyan-600 to-blue-600 disabled:opacity-50"
                         >

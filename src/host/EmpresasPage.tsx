@@ -47,12 +47,6 @@ interface EstadisticasEmpresa {
 }
 
 interface Empresa extends EmpresaLite {
-  solicitantes: Array<{
-    id_solicitante: number;
-    nombre: string;
-    email: string | null;
-    equipos: Array<{ id_equipo: number }>;
-  }>;
   estadisticas: EstadisticasEmpresa;
 }
 
@@ -80,27 +74,6 @@ function asNullableStringOr(v: unknown, fallback: string | null): string | null 
   return isNullableString(v) ? v : fallback;
 }
 
-/* ====== Normalizadores estrictos (sin any) ====== */
-function normalizeSolicitante(input: unknown): Empresa["solicitantes"][number] {
-  const obj = isRecord(input) ? input : {};
-  const equiposArr = Array.isArray(obj.equipos) ? obj.equipos : [];
-  const equipos = equiposArr
-    .map((eq): { id_equipo: number } | null => {
-      const rec = isRecord(eq) ? eq : {};
-      const id_equipo = asNumberOr(rec.id_equipo, NaN);
-      return Number.isFinite(id_equipo) ? { id_equipo } : null;
-    })
-    .filter((x): x is { id_equipo: number } => x !== null);
-
-  const id = asNumberOr(obj.id_solicitante, NaN);
-  return {
-    id_solicitante: Number.isFinite(id) ? id : -1,
-    nombre: asStringOr(obj.nombre, ""),
-    email: asNullableStringOr(obj.email, null),
-    equipos,
-  };
-}
-
 function normalizeEstadisticas(input: unknown): EstadisticasEmpresa {
   const s = isRecord(input) ? input : {};
   return {
@@ -117,21 +90,19 @@ function normalizeEstadisticas(input: unknown): EstadisticasEmpresa {
 function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
   const solicitantesRaw = Array.isArray(e.solicitantes) ? e.solicitantes : [];
-  const solicitantes = solicitantesRaw.map(normalizeSolicitante);
 
   const id = asNumberOr(e.id_empresa, NaN);
 
   // detalleEmpresa: mantener shape de EmpresaLite (puede ser null)
   const detalleEmpresa =
-  isRecord(e.detalleEmpresa)
-    ? (e.detalleEmpresa as EmpresaLite["detalleEmpresa"])
-    : undefined;
+    isRecord(e.detalleEmpresa)
+      ? (e.detalleEmpresa as EmpresaLite["detalleEmpresa"])
+      : undefined;
 
   return {
     id_empresa: Number.isFinite(id) ? id : -1,
     nombre: asStringOr(e.nombre, ""),
     detalleEmpresa,
-    solicitantes,
     estadisticas: normalizeEstadisticas(e.estadisticas),
   };
 }
@@ -376,7 +347,7 @@ const EmpresasPage: React.FC = () => {
           r.min === 0 && r.max === 0
             ? e.estadisticas.totalEquipos === 0
             : e.estadisticas.totalEquipos >= r.min &&
-              e.estadisticas.totalEquipos <= r.max
+            e.estadisticas.totalEquipos <= r.max
         ).length;
         return { name: r.name, value: count, color: r.color };
       })
@@ -450,6 +421,83 @@ const EmpresasPage: React.FC = () => {
     [empresas, searchTerm]
   );
 
+  const fetchAllSolicitantesByEmpresa = async (empresaId: number) => {
+    const token = localStorage.getItem("accessToken") ?? "";
+    const pageSize = 100;
+    let page = 1;
+    let all: SolicitanteLite[] = [];
+    let totalPages = 1;
+
+    do {
+      const res = await fetch(
+        `${API_URL}/solicitantes${qs({
+          empresaId,
+          page,
+          pageSize,
+        })}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+        }
+      );
+
+      if (!res.ok) break;
+
+      const json = await res.json();
+
+      if (Array.isArray(json.items)) {
+        all = all.concat(json.items);
+      }
+
+      totalPages = json.totalPages ?? 1;
+      page++;
+    } while (page <= totalPages);
+
+    return all;
+  };
+
+  const fetchAllVisitasByEmpresa = async (empresaId: number) => {
+    const token = localStorage.getItem("accessToken") ?? "";
+    const pageSize = 100; // máximo permitido por backend
+    let page = 1;
+    let totalPages = 1;
+    let all: Visita[] = [];
+
+    do {
+      const res = await fetch(
+        `${API_URL}/visitas${qs({
+          empresaId,
+          page,
+          pageSize,
+        })}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: "include",
+        }
+      );
+
+      if (!res.ok) break;
+
+      const json = await res.json();
+
+      if (Array.isArray(json.items)) {
+        all = all.concat(json.items);
+      }
+
+      totalPages = json.totalPages ?? 1;
+      page++;
+    } while (page <= totalPages);
+
+    return all;
+  };
+
+
   /* ====== Abrir modal y cargar detalles de rutas /equipos y /visitas ====== */
   const openDetails = async (empresa: Empresa) => {
     setEmpresaSel({
@@ -457,16 +505,11 @@ const EmpresasPage: React.FC = () => {
       nombre: empresa.nombre,
       detalleEmpresa: empresa.detalleEmpresa,
     });
-    setSolicitantesSel(
-      (empresa.solicitantes ?? []).map((s) => ({
-        id_solicitante: s.id_solicitante,
-        nombre: s.nombre,
-        email: s.email,
-        equipos: (s.equipos ?? []).map((eq) => ({ id_equipo: eq.id_equipo })),
-      }))
-    );
-    setEquiposSel([]); // se reemplaza con lo del API
-    setVisitasSel([]); // se reemplaza con lo del API
+
+    // 1️⃣ limpiar estado ANTES
+    setSolicitantesSel([]);
+    setEquiposSel([]);
+    setVisitasSel([]);
     setDetailsError(null);
     setDetailsLoading(true);
     setDetailsOpen(true);
@@ -474,9 +517,15 @@ const EmpresasPage: React.FC = () => {
     const token = localStorage.getItem("accessToken") ?? "";
 
     try {
-      // Equipos por empresa
+      /** ✅ SOLICITANTES (TODOS, sin límite) */
+      const solicitantes = await fetchAllSolicitantesByEmpresa(
+        empresa.id_empresa
+      );
+      setSolicitantesSel(solicitantes);
+
+      /** 2️⃣ EQUIPOS */
       const eqRes = await fetch(
-        `${API_URL}/equipos${qs({ empresaId: empresa.id_empresa })}`,
+        `${API_URL}/empresas/${empresa.id_empresa}/equipos`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -485,43 +534,20 @@ const EmpresasPage: React.FC = () => {
           credentials: "include",
         }
       );
+
       if (eqRes.ok) {
-        const eqJson: unknown = await eqRes.json();
-        let equipos: EquipoLite[] = [];
-        if (isRecord(eqJson)) {
-          if (Array.isArray(eqJson.data)) equipos = eqJson.data as EquipoLite[];
-          else if (Array.isArray(eqJson.rows))
-            equipos = eqJson.rows as EquipoLite[];
-          else if (Array.isArray(eqJson.items))
-            equipos = eqJson.items as EquipoLite[];
+        const eqJson = await eqRes.json();
+        if (Array.isArray(eqJson?.items)) {
+          setEquiposSel(eqJson.items);
         }
-        setEquiposSel(equipos);
       }
 
-      // Visitas por empresa
-      const vRes = await fetch(
-        `${API_URL}/visitas${qs({ empresaId: empresa.id_empresa })}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          credentials: "include",
-        }
-      );
-      if (vRes.ok) {
-        const vJson: unknown = await vRes.json();
-        let visitas: Visita[] = [];
-        if (isRecord(vJson)) {
-          if (Array.isArray(vJson.data)) visitas = vJson.data as Visita[];
-          else if (Array.isArray(vJson.rows)) visitas = vJson.rows as Visita[];
-        }
-        setVisitasSel(visitas);
-      } else {
-        setDetailsError(`No se pudieron cargar visitas (HTTP ${vRes.status})`);
-      }
+      /** 3️⃣ VISITAS (sube pageSize si aplica paginación) */
+      const visitas = await fetchAllVisitasByEmpresa(empresa.id_empresa);
+      setVisitasSel(visitas);
+
     } catch {
-      setDetailsError("No se pudo obtener el detalle desde el API.");
+      setDetailsError("No se pudo cargar el detalle de la empresa.");
     } finally {
       setDetailsLoading(false);
     }
@@ -590,11 +616,10 @@ const EmpresasPage: React.FC = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab as "overview" | "companies")}
-              className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${
-                activeTab === tab
-                  ? "bg-cyan-700 text-white shadow-md"
-                  : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
-              }`}
+              className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === tab
+                ? "bg-cyan-700 text-white shadow-md"
+                : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
             >
               {tab === "overview" ? "Resumen" : "Empresas"}
             </button>
