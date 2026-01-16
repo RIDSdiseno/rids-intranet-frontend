@@ -24,27 +24,24 @@ import {
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 import Header from "../components/Header";
-import EmpresaDetailsModal, {
-  type EquipoLite,
-  type SolicitanteLite,
-  type Visita,
-  type EmpresaLite,
-} from "../components/EmpresaDetailsModal";
+
+import type {
+  EmpresaLite,
+  EquipoLite,
+  SolicitanteLite,
+  Visita,
+  EstadisticasEmpresa,
+} from "../components/modals-empresa/types";
+
+import EmpresaDetailsModal from "../components/modals-empresa/EmpresaDetailsModal";
+
+import FichaEmpresaModal from "../components/modals-empresa/FichaEmpresaModal";
 
 /* ====================== Config ====================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
 
 /* ====================== Tipos de página ====================== */
-interface EstadisticasEmpresa {
-  totalTickets: number;
-  totalSolicitantes: number;
-  totalEquipos: number;
-  totalVisitas: number;
-  totalTrabajos: number;
-  visitasPendientes: number;
-  trabajosPendientes: number;
-}
 
 interface Empresa extends EmpresaLite {
   estadisticas: EstadisticasEmpresa;
@@ -229,6 +226,17 @@ const EmpresasPage: React.FC = () => {
   const [solicitantesSel, setSolicitantesSel] = useState<SolicitanteLite[]>([]);
   const [equiposSel, setEquiposSel] = useState<EquipoLite[]>([]);
   const [visitasSel, setVisitasSel] = useState<Visita[]>([]);
+
+  // estado nuevo
+  const [fichaOpen, setFichaOpen] = useState(false);
+  const [fichaLoading, setFichaLoading] = useState(false);
+  const [fichaError, setFichaError] = useState<string | null>(null);
+
+  const [fichaData, setFichaData] = useState<{
+    empresa: EmpresaLite;
+    ficha: any;
+    checklist: any;
+  } | null>(null);
 
   const fetchEmpresas = async (showRefresh = false) => {
     const ctrl = new AbortController();
@@ -497,7 +505,6 @@ const EmpresasPage: React.FC = () => {
     return all;
   };
 
-
   /* ====== Abrir modal y cargar detalles de rutas /equipos y /visitas ====== */
   const openDetails = async (empresa: Empresa) => {
     setEmpresaSel({
@@ -550,6 +557,28 @@ const EmpresasPage: React.FC = () => {
       setDetailsError("No se pudo cargar el detalle de la empresa.");
     } finally {
       setDetailsLoading(false);
+    }
+  };
+
+  // FUNCION OPEN FICHAS
+  const openFichaEmpresa = async (empresa: EmpresaLite) => {
+    try {
+      setFichaOpen(true);
+      setFichaLoading(true);
+      setFichaError(null);
+
+      const res = await fetch(
+        `${API_URL}/ficha-empresa/${empresa.id_empresa}/completa`
+      );
+
+      if (!res.ok) throw new Error();
+
+      const data = await res.json();
+      setFichaData(data);
+    } catch {
+      setFichaError("No se pudo cargar la ficha");
+    } finally {
+      setFichaLoading(false);
     }
   };
 
@@ -860,6 +889,13 @@ const EmpresasPage: React.FC = () => {
                       >
                         Ver detalles →
                       </button>
+                      <button
+                        onClick={() => openFichaEmpresa(empresa)}
+                        className="text-emerald-700 hover:text-emerald-900 text-sm"
+                      >
+                        Ver ficha →
+                      </button>
+
                     </div>
                   </motion.div>
                 ))
@@ -880,6 +916,18 @@ const EmpresasPage: React.FC = () => {
         equipos={equiposSel}
         visitas={visitasSel}
       />
+
+      {/* Modal ficha empresa */}
+      <FichaEmpresaModal
+        open={fichaOpen}
+        onClose={() => setFichaOpen(false)}
+        loading={fichaLoading}
+        empresa={fichaData?.empresa ?? null}
+        ficha={fichaData?.ficha ?? null}
+        checklist={fichaData?.checklist ?? null}
+        detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null}
+      />
+
     </div>
   );
 };

@@ -34,111 +34,19 @@ import {
   Statistic,
   Button
 } from "antd";
+
 import type { TabsProps, TableColumnsType, TableProps } from "antd";
 
-/* ===== Tipos ===== */
-export interface EquipoLite {
-  id_equipo: number;
-  serial?: string | null;
-  marca?: string | null;
-  modelo?: string | null;
-  procesador?: string | null;
-  ram?: string | null;
-  disco?: string | null;
-  propiedad?: string | null;
+import type {
+  EmpresaDetailsModalProps,
+  EmpresaLite,
+  SolicitanteLite,
+  EquipoLite,
+  Visita,
+  TabKey,
+} from "../modals-empresa/types";
 
-  solicitante?: {
-    id_solicitante: number;
-    nombre: string;
-  } | null;
-}
-
-export interface SolicitanteLite {
-  id_solicitante: number;
-  nombre: string;
-  email: string | null;
-  telefono?: string | null;
-  equipos?: Array<EquipoLite>;
-}
-
-export interface EmpresaLite {
-  id_empresa: number;
-  nombre: string;
-  detalleEmpresa?: {
-    rut?: string;
-    direccion?: string;
-    telefono?: string;
-    email?: string;
-    sitioWeb?: string;
-    industria?: string;
-  };
-}
-
-/** Compatible controller + legacy */
-export interface Visita {
-  id_visita: number;
-
-  empresaId?: number | null;
-  tecnicoId?: number | null;
-  solicitanteId?: number | null;
-  solicitante?: string | null;
-  inicio?: string | Date | null;
-  fin?: string | Date | null;
-  status?: "PENDIENTE" | "COMPLETADA" | "CANCELADA" | string | null;
-
-  confImpresoras?: boolean;
-  confTelefonos?: boolean;
-  confPiePagina?: boolean;
-  otros?: boolean;
-  otrosDetalle?: string | null;
-  actualizaciones?: boolean;
-  antivirus?: boolean;
-  ccleaner?: boolean;
-  estadoDisco?: boolean;
-  licenciaOffice?: boolean;
-  licenciaWindows?: boolean;
-  mantenimientoReloj?: boolean;
-  rendimientoEquipo?: boolean;
-
-  empresa?: { id_empresa: number; nombre: string } | null;
-  tecnico?: { id_tecnico: number; nombre: string } | string | null;
-  solicitanteRef?: { id_solicitante: number; nombre: string } | null;
-
-  // legacy
-  fecha?: string | null;
-  estado?: string | null;
-  motivo?: string | null;
-}
-
-type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen";
-
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  loading: boolean;
-  error?: string | null;
-  empresa: EmpresaLite | null;
-  solicitantes: SolicitanteLite[];
-  equipos: EquipoLite[];
-  visitas: Visita[];
-}
-
-/* ===================== Helpers ===================== */
-const toTimestamp = (value: string | Date): number =>
-  value instanceof Date ? value.getTime() : new Date(value).getTime();
-
-const toDateStringCL = (value?: string | Date | null): string => {
-  if (!value) return "—";
-  const ts = toTimestamp(value as string | Date);
-  if (Number.isNaN(ts)) return "—";
-  return new Date(ts).toLocaleDateString("es-CL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-};
+import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 
 const getTimeAgo = (date?: string | Date | null): string => {
   if (!date) return "—";
@@ -175,7 +83,11 @@ const getVisitTecnico = (v: Visita): string => {
   if (!v.tecnico) return "—";
   return typeof v.tecnico === "string" ? v.tecnico : (v.tecnico?.nombre ?? "—");
 };
-const getVisitMotivo = (v: Visita) => v.otrosDetalle ?? v.motivo ?? v.solicitante ?? "—";
+const getVisitMotivo = (v: Visita) =>
+  v.otrosDetalle ??
+  v.motivo ??
+  v.solicitanteRef?.nombre ??
+  "—";
 
 const estadoTag = (estado?: string | null) => {
   const value = (estado ?? "").toUpperCase();
@@ -638,7 +550,7 @@ const StatsOverview: React.FC<{
 };
 
 /* ===================== Componente ===================== */
-const EmpresaDetailsModal: React.FC<Props> = ({
+const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
   open,
   onClose,
   loading,
