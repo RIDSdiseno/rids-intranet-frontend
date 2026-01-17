@@ -4,8 +4,12 @@ import { Drawer, Tabs } from "antd";
 import FichaTab from "./tabs/FichaTab";
 import ChecklistTab from "./tabs/ChecklistTab";
 import FichaTecnicaTab from "./tabs/FichaTecnicaTab";
+import SucursalTab from "./tabs/SucursalTab";
 
-import type { FichaEmpresaModalProps } from "./types";
+import type {
+  FichaEmpresaModalProps,
+  ContactoEmpresa,
+} from "./types";
 
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL ||
@@ -18,41 +22,58 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   ficha,
   checklist,
   detalleEmpresa,
+  contactos,
   loading,
 }) => {
   const [activeTab, setActiveTab] = React.useState("ficha");
+
+  /* 🔥 ESTADO LOCAL (CLAVE) */
   const [localData, setLocalData] = React.useState({
     empresa,
     ficha,
     checklist,
     detalleEmpresa,
+    contactos: contactos ?? [] as ContactoEmpresa[],
   });
 
-  /* 🔁 Sync cuando cambia empresa o llegan nuevos props */
+  /* 🔁 Sync props → estado local */
   React.useEffect(() => {
     setActiveTab("ficha");
-    setLocalData({ empresa, ficha, checklist, detalleEmpresa });
-  }, [empresa?.id_empresa, ficha, checklist, detalleEmpresa]);
+    setLocalData({
+      empresa,
+      ficha,
+      checklist,
+      detalleEmpresa,
+      contactos: contactos ?? [],
+    });
+  }, [empresa?.id_empresa, ficha, checklist, detalleEmpresa, contactos]);
 
   /* 🔄 Refetch ficha completa */
   const refetchFicha = async () => {
-    if (!empresa) return;
+    if (!localData.empresa) return;
 
-    const res = await fetch(
-      `${API_URL}/ficha-empresa/${empresa.id_empresa}/completa`
-    );
+    try {
+      const res = await fetch(
+        `${API_URL}/ficha-empresa/${localData.empresa.id_empresa}/completa`
+      );
 
-    if (!res.ok) return;
+      if (!res.ok) return;
 
-    const data = await res.json();
+      const data = await res.json();
 
-    setLocalData({
-      empresa: data.empresa,
-      ficha: data.ficha,
-      checklist: data.checklist,
-      detalleEmpresa: data.detalleEmpresa,
-    });
+      setLocalData({
+        empresa: data.empresa,
+        ficha: data.ficha,
+        checklist: data.checklist,
+        detalleEmpresa: data.detalleEmpresa,
+        contactos: data.contactos ?? [],
+      });
+    } catch {
+      // silencioso
+    }
   };
+
+  if (!open) return null;
 
   return (
     <Drawer
@@ -78,8 +99,9 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                 <FichaTab
                   empresa={localData.empresa}
                   ficha={localData.ficha}
-                  detalleEmpresa={localData.detalleEmpresa ?? null}
-                  onUpdated={refetchFicha} // 👈 CLAVE
+                  detalleEmpresa={localData.detalleEmpresa}
+                  contactos={localData.contactos}
+                  onUpdated={refetchFicha} // 🔥 AQUÍ VA
                 />
               ),
             },
@@ -93,15 +115,24 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                 />
               ),
             },
-
             {
               key: "tecnica",
               label: "Ficha técnica",
               children: (
-                <FichaTecnicaTab empresaId={empresa!.id_empresa} />
+                <FichaTecnicaTab
+                  empresaId={localData.empresa.id_empresa}
+                />
               ),
-            }
-
+            },
+            {
+              key: "sucursales",
+              label: "Sucursales",
+              children: (
+                <SucursalTab
+                  empresaId={localData.empresa.id_empresa}
+                />
+              ),
+            },
           ]}
         />
       )}

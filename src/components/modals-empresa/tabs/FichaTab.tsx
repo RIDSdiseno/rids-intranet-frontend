@@ -21,6 +21,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
     empresa,
     ficha,
     detalleEmpresa,
+    contactos,
     onUpdated,
 }) => {
 
@@ -37,9 +38,9 @@ const FichaTab: React.FC<FichaTabProps> = ({
             rut: detalleEmpresa?.rut,
             direccion: detalleEmpresa?.direccion,
             condicionesComerciales: ficha?.condicionesComerciales,
+            contactos: contactos ?? [], // 🔥 CLAVE
         });
-
-    }, [empresa, ficha, detalleEmpresa, form]);
+    }, [empresa, ficha, detalleEmpresa, contactos, form]);
 
     if (!ficha) {
         return (
@@ -65,6 +66,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         rut: values.rut,
                         direccion: values.direccion,
                         condicionesComerciales: values.condicionesComerciales,
+                        contactos: values.contactos ?? [], // 🔥
                     }),
                 }
             );
@@ -125,6 +127,22 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         {ficha.condicionesComerciales || "—"}
                     </Descriptions.Item>
 
+                    <Descriptions.Item label="Contactos / Jefes">
+                        {contactos.length > 0 ? (
+                            contactos.map((c) => (
+                                <div key={c.id}>
+                                    <b>{c.nombre}</b>
+                                    {c.principal && " ⭐"}
+                                    <div className="text-xs text-gray-500">
+                                        {c.cargo || "—"} · {c.email || "—"} · {c.telefono || "—"}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            "—"
+                        )}
+                    </Descriptions.Item>
+
                     <Descriptions.Item label="Fecha creación ficha">
                         {new Date(ficha.creadaEn).toLocaleDateString("es-CL")}
                     </Descriptions.Item>
@@ -149,6 +167,41 @@ const FichaTab: React.FC<FichaTabProps> = ({
                     >
                         <Input.TextArea rows={4} />
                     </Form.Item>
+
+                    <Form.List name="contactos">
+                        {(fields, { add, remove }) => (
+                            <>
+                                {fields.map(({ key, name }) => (
+                                    <Space key={key} align="baseline">
+                                        <Form.Item name={[name, "nombre"]} rules={[{ required: true }]}>
+                                            <Input placeholder="Nombre" />
+                                        </Form.Item>
+
+                                        <Form.Item name={[name, "cargo"]}>
+                                            <Input placeholder="Cargo" />
+                                        </Form.Item>
+
+                                        <Form.Item name={[name, "email"]}>
+                                            <Input placeholder="Email" />
+                                        </Form.Item>
+
+                                        <Form.Item name={[name, "telefono"]}>
+                                            <Input placeholder="Teléfono" />
+                                        </Form.Item>
+
+                                        <Button danger onClick={() => remove(name)}>
+                                            Eliminar
+                                        </Button>
+                                    </Space>
+                                ))}
+
+                                <Button type="dashed" onClick={() => add()} block>
+                                    + Agregar Jefe al listado
+                                </Button>
+                            </>
+                        )}
+                    </Form.List>
+
                 </Form>
             )}
         </Card>

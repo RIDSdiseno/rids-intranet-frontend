@@ -31,6 +31,7 @@ import type {
   SolicitanteLite,
   Visita,
   EstadisticasEmpresa,
+  FichaEmpresaCompleta
 } from "../components/modals-empresa/types";
 
 import EmpresaDetailsModal from "../components/modals-empresa/EmpresaDetailsModal";
@@ -232,11 +233,7 @@ const EmpresasPage: React.FC = () => {
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaError, setFichaError] = useState<string | null>(null);
 
-  const [fichaData, setFichaData] = useState<{
-    empresa: EmpresaLite;
-    ficha: any;
-    checklist: any;
-  } | null>(null);
+  const [fichaData, setFichaData] = useState<FichaEmpresaCompleta | null>(null);
 
   const fetchEmpresas = async (showRefresh = false) => {
     const ctrl = new AbortController();
@@ -926,6 +923,7 @@ const EmpresasPage: React.FC = () => {
         ficha={fichaData?.ficha ?? null}
         checklist={fichaData?.checklist ?? null}
         detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null}
+        contactos={fichaData?.contactos ?? []}
       />
 
     </div>

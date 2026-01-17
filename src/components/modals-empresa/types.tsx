@@ -49,8 +49,17 @@ export interface FichaEmpresaCompleta {
     empresa: EmpresaLite;
     ficha: FichaEmpresa | null;
     checklist: Partial<ChecklistState> | null;
+    contactos: ContactoEmpresa[];
 }
 
+export interface ContactoEmpresa {
+    id: number;
+    nombre: string;
+    cargo: string;
+    email?: string | null;
+    telefono?: string | null;
+    principal: boolean;
+}
 
 /* ================= EQUIPOS / SOLICITANTES ================= */
 
@@ -165,6 +174,9 @@ export interface FichaTabProps {
         rut?: string | null;
         direccion?: string | null;
     } | null;
+
+    contactos: ContactoEmpresa[];
+
     onUpdated?: () => void;
 }
 
@@ -188,6 +200,7 @@ export interface FichaEmpresaModalProps {
     ficha: FichaEmpresa | null;
     checklist: Partial<ChecklistState> | null;
     detalleEmpresa: DetalleEmpresa | null;
+    contactos?: ContactoEmpresa[];
     loading: boolean;
 }
 
@@ -215,3 +228,19 @@ export const toDateStringCL = (
         minute: "2-digit",
     });
 };
+
+export interface ResponsableSucursal {
+    id: number;
+    nombre: string;
+    cargo: string;
+    email?: string | null;
+    telefono?: string | null;
+}
+
+export interface Sucursal {
+    id_sucursal: number;
+    nombre: string;
+    direccion?: string | null;
+    telefono?: string | null;
+    responsableSucursals: ResponsableSucursal[];
+}
