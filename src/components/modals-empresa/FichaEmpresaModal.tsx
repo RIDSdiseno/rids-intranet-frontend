@@ -97,11 +97,12 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Cliente",
               children: (
                 <FichaTab
+                  key={localData.empresa.id_empresa} // 🔥
                   empresa={localData.empresa}
                   ficha={localData.ficha}
                   detalleEmpresa={localData.detalleEmpresa}
                   contactos={localData.contactos}
-                  onUpdated={refetchFicha} // 🔥 AQUÍ VA
+                  onUpdated={refetchFicha}
                 />
               ),
             },
@@ -110,8 +111,10 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Checklist",
               children: (
                 <ChecklistTab
+                  key={localData.empresa.id_empresa} // 🔥
                   empresaId={localData.empresa.id_empresa}
                   checklist={localData.checklist}
+                  onUpdated={refetchFicha}
                 />
               ),
             },
@@ -120,19 +123,22 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Ficha técnica",
               children: (
                 <FichaTecnicaTab
+                  key={localData.empresa.id_empresa} // 🔥🔥🔥
                   empresaId={localData.empresa.id_empresa}
                 />
               ),
             },
+
             {
               key: "sucursales",
               label: "Sucursales",
               children: (
                 <SucursalTab
+                  key={localData.empresa?.id_empresa} // 🔥 CLAVE
                   empresaId={localData.empresa.id_empresa}
                 />
               ),
-            },
+            }
           ]}
         />
       )}

@@ -6,12 +6,31 @@ import {
     Form,
     Input,
     message,
-    Space
+    Space,
+    Row,
+    Col,
+    Tag,
+    Divider,
+    Tooltip,
+    Typography
 } from "antd";
-import { EditOutlined, SaveOutlined } from "@ant-design/icons";
-
+import {
+    EditOutlined,
+    SaveOutlined,
+    UserOutlined,
+    EnvironmentOutlined,
+    IdcardOutlined,
+    FileTextOutlined,
+    CalendarOutlined,
+    PhoneOutlined,
+    MailOutlined,
+    DeleteOutlined,
+    PlusOutlined,
+    StarFilled
+} from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
 
+const { Text } = Typography;
 const API_URL =
     (import.meta as ImportMeta).env?.VITE_API_URL ||
     "http://localhost:4000/api";
@@ -24,7 +43,6 @@ const FichaTab: React.FC<FichaTabProps> = ({
     contactos,
     onUpdated,
 }) => {
-
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [form] = Form.useForm();
@@ -38,7 +56,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
             rut: detalleEmpresa?.rut,
             direccion: detalleEmpresa?.direccion,
             condicionesComerciales: ficha?.condicionesComerciales,
-            contactos: contactos ?? [], // 🔥 CLAVE
+            contactos: contactos ?? [],
         });
     }, [empresa, ficha, detalleEmpresa, contactos, form]);
 
@@ -66,7 +84,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         rut: values.rut,
                         direccion: values.direccion,
                         condicionesComerciales: values.condicionesComerciales,
-                        contactos: values.contactos ?? [], // 🔥
+                        contactos: values.contactos ?? [],
                     }),
                 }
             );
@@ -75,7 +93,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
 
             message.success("Ficha actualizada correctamente");
             setEditing(false);
-            onUpdated?.(); // 👈 AQUÍ
+            onUpdated?.();
         } catch {
             message.error("No se pudo guardar la ficha");
         } finally {
@@ -86,122 +104,337 @@ const FichaTab: React.FC<FichaTabProps> = ({
     /* ===================== UI ===================== */
     return (
         <Card
-            title={`Ficha Empresa · ${empresa.nombre}`}
+            className="shadow-sm"
+            title={
+                <div className="flex items-center">
+                    <FileTextOutlined className="text-blue-500 mr-2" />
+                    <span className="font-semibold">
+                        Ficha Empresa · {empresa.nombre}
+                    </span>
+                </div>
+            }
             extra={
                 <Space>
                     {!editing ? (
-                        <Button
-                            icon={<EditOutlined />}
-                            onClick={() => setEditing(true)}
-                        >
-                            Editar
-                        </Button>
+                        <Tooltip title="Editar ficha de empresa">
+                            <Button
+                                type="primary"
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing(true)}
+                            >
+                                Editar
+                            </Button>
+                        </Tooltip>
                     ) : (
-                        <Button
-                            type="primary"
-                            icon={<SaveOutlined />}
-                            loading={saving}
-                            onClick={onSave}
-                        >
-                            Guardar
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={() => {
+                                    setEditing(false);
+                                    form.resetFields();
+                                }}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
+                                loading={saving}
+                                onClick={onSave}
+                                className="bg-blue-500 hover:bg-blue-600"
+                            >
+                                Guardar
+                            </Button>
+                        </div>
                     )}
                 </Space>
             }
         >
             {!editing ? (
-                <Descriptions column={1} bordered>
-                    <Descriptions.Item label="Razón social">
-                        {empresa.razonSocial || "—"}
-                    </Descriptions.Item>
+                /* ======= MODO VISUALIZACIÓN ======= */
+                <div className="space-y-6">
+                    {/* Información básica */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-gray-50 rounded">
+                            <div className="flex items-center mb-2">
+                                <IdcardOutlined className="text-gray-400 mr-2" />
+                                <span className="text-sm font-medium text-gray-600">Razón social</span>
+                            </div>
+                            <p className="text-base font-semibold">
+                                {empresa.razonSocial || "—"}
+                            </p>
+                        </div>
 
-                    <Descriptions.Item label="RUT">
-                        {detalleEmpresa?.rut || "—"}
-                    </Descriptions.Item>
+                        <div className="p-4 bg-gray-50 rounded">
+                            <div className="flex items-center mb-2">
+                                <IdcardOutlined className="text-gray-400 mr-2" />
+                                <span className="text-sm font-medium text-gray-600">RUT</span>
+                            </div>
+                            <p className="text-base font-semibold">
+                                {detalleEmpresa?.rut || "—"}
+                            </p>
+                        </div>
 
-                    <Descriptions.Item label="Dirección">
-                        {detalleEmpresa?.direccion || "—"}
-                    </Descriptions.Item>
+                        <div className="p-4 bg-gray-50 rounded md:col-span-2">
+                            <div className="flex items-center mb-2">
+                                <EnvironmentOutlined className="text-gray-400 mr-2" />
+                                <span className="text-sm font-medium text-gray-600">Dirección</span>
+                            </div>
+                            <p className="text-base font-semibold">
+                                {detalleEmpresa?.direccion || "—"}
+                            </p>
+                        </div>
+                    </div>
 
-                    <Descriptions.Item label="Condiciones comerciales">
-                        {ficha.condicionesComerciales || "—"}
-                    </Descriptions.Item>
+                    {/* Condiciones comerciales */}
+                    {ficha.condicionesComerciales && (
+                        <div className="p-4 bg-blue-50 rounded border border-blue-100">
+                            <div className="flex items-center mb-2">
+                                <FileTextOutlined className="text-blue-400 mr-2" />
+                                <span className="text-sm font-medium text-blue-600">Condiciones comerciales</span>
+                            </div>
+                            <p className="text-gray-700 whitespace-pre-line">
+                                {ficha.condicionesComerciales}
+                            </p>
+                        </div>
+                    )}
 
-                    <Descriptions.Item label="Contactos / Jefes">
+                    {/* Contactos */}
+                    <div>
+                        <Divider orientation="left">
+                            <UserOutlined className="mr-2" />
+                            Contactos / Jefes
+                        </Divider>
+
                         {contactos.length > 0 ? (
-                            contactos.map((c) => (
-                                <div key={c.id}>
-                                    <b>{c.nombre}</b>
-                                    {c.principal && " ⭐"}
-                                    <div className="text-xs text-gray-500">
-                                        {c.cargo || "—"} · {c.email || "—"} · {c.telefono || "—"}
-                                    </div>
-                                </div>
-                            ))
+                            <Row gutter={[16, 16]}>
+                                {contactos.map((c) => (
+                                    <Col xs={24} md={12} lg={8} key={c.id}>
+                                        <Card
+                                            size="small"
+                                            className={`h-full border-l-4 ${c.principal
+                                                ? 'border-l-yellow-500 bg-yellow-50'
+                                                : 'border-l-blue-200'
+                                                }`}
+                                            title={
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium truncate">{c.nombre}</span>
+                                                    {c.principal && (
+                                                        <Tooltip title="Contacto principal">
+                                                            <StarFilled className="text-yellow-500" />
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
+                                            }
+                                        >
+                                            <div className="space-y-2">
+                                                {c.cargo && (
+                                                    <div className="flex items-start">
+                                                        <UserOutlined className="text-gray-400 mt-1 mr-2" />
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 mb-0">Cargo</p>
+                                                            <p className="text-sm mb-0">{c.cargo}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {c.email && (
+                                                    <div className="flex items-center">
+                                                        <MailOutlined className="text-gray-400 mr-2" />
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 mb-0">Email</p>
+                                                            <p className="text-sm mb-0">{c.email}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {c.telefono && (
+                                                    <div className="flex items-center">
+                                                        <PhoneOutlined className="text-gray-400 mr-2" />
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 mb-0">Teléfono</p>
+                                                            <p className="text-sm mb-0">{c.telefono}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    </Col>
+                                ))}
+                            </Row>
                         ) : (
-                            "—"
+                            <div className="text-center py-8 text-gray-400">
+                                <UserOutlined className="text-2xl mb-2" />
+                                <p>No hay contactos registrados</p>
+                            </div>
                         )}
-                    </Descriptions.Item>
+                    </div>
 
-                    <Descriptions.Item label="Fecha creación ficha">
-                        {new Date(ficha.creadaEn).toLocaleDateString("es-CL")}
-                    </Descriptions.Item>
-                </Descriptions>
+                    {/* Información del sistema */}
+                    <Divider orientation="left">
+                        <CalendarOutlined className="mr-2" />
+                        Información del sistema
+                    </Divider>
+
+                    <div className="p-4 bg-gray-50 rounded">
+                        <div className="flex items-center">
+                            <CalendarOutlined className="text-gray-400 mr-2" />
+                            <span className="text-sm font-medium text-gray-600">Fecha creación ficha</span>
+                            <span className="ml-auto text-sm">
+                                {new Date(ficha.creadaEn).toLocaleString("es-CL", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: false,        // 🔥 CLAVE
+                                })}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             ) : (
-                <Form layout="vertical" form={form}>
-                    <Form.Item label="Razón social" name="razonSocial">
-                        <Input />
-                    </Form.Item>
+                /* ======= MODO EDICIÓN ======= */
+                <Form layout="vertical" form={form} className="space-y-6">
+                    <Row gutter={16}>
+                        <Col span={24} md={12}>
+                            <Form.Item
+                                label={
+                                    <span className="font-medium">
+                                        <IdcardOutlined className="mr-2" />
+                                        Razón social
+                                    </span>
+                                }
+                                name="razonSocial"
+                            >
+                                <Input placeholder="Razón social de la empresa" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item label="RUT" name="rut">
-                        <Input />
-                    </Form.Item>
+                        <Col span={24} md={12}>
+                            <Form.Item
+                                label={
+                                    <span className="font-medium">
+                                        <IdcardOutlined className="mr-2" />
+                                        RUT
+                                    </span>
+                                }
+                                name="rut"
+                            >
+                                <Input placeholder="RUT de la empresa" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item label="Dirección" name="direccion">
-                        <Input />
-                    </Form.Item>
+                        <Col span={24}>
+                            <Form.Item
+                                label={
+                                    <span className="font-medium">
+                                        <EnvironmentOutlined className="mr-2" />
+                                        Dirección
+                                    </span>
+                                }
+                                name="direccion"
+                            >
+                                <Input placeholder="Dirección completa" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        label="Condiciones comerciales"
-                        name="condicionesComerciales"
-                    >
-                        <Input.TextArea rows={4} />
-                    </Form.Item>
+                        <Col span={24}>
+                            <Form.Item
+                                label={
+                                    <span className="font-medium">
+                                        <FileTextOutlined className="mr-2" />
+                                        Condiciones comerciales
+                                    </span>
+                                }
+                                name="condicionesComerciales"
+                            >
+                                <Input.TextArea
+                                    rows={4}
+                                    placeholder="Describa las condiciones comerciales especiales..."
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Divider orientation="left">
+                        <UserOutlined className="mr-2" />
+                        Contactos / Jefes
+                    </Divider>
 
                     <Form.List name="contactos">
                         {(fields, { add, remove }) => (
-                            <>
+                            <div className="space-y-4">
                                 {fields.map(({ key, name }) => (
-                                    <Space key={key} align="baseline">
-                                        <Form.Item name={[name, "nombre"]} rules={[{ required: true }]}>
-                                            <Input placeholder="Nombre" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "cargo"]}>
-                                            <Input placeholder="Cargo" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "email"]}>
-                                            <Input placeholder="Email" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "telefono"]}>
-                                            <Input placeholder="Teléfono" />
-                                        </Form.Item>
-
-                                        <Button danger onClick={() => remove(name)}>
-                                            Eliminar
-                                        </Button>
-                                    </Space>
+                                    <Card
+                                        key={key}
+                                        size="small"
+                                        className="border-l-2 border-l-blue-200"
+                                        extra={
+                                            <Button
+                                                danger
+                                                type="link"
+                                                size="small"
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => remove(name)}
+                                            >
+                                                Eliminar
+                                            </Button>
+                                        }
+                                    >
+                                        <Row gutter={12}>
+                                            <Col span={12} md={6}>
+                                                <Form.Item
+                                                    name={[name, "nombre"]}
+                                                    label="Nombre"
+                                                    rules={[{ required: true, message: "Nombre requerido" }]}
+                                                    className="mb-2"
+                                                >
+                                                    <Input placeholder="Nombre completo" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12} md={6}>
+                                                <Form.Item
+                                                    name={[name, "cargo"]}
+                                                    label="Cargo"
+                                                    className="mb-2"
+                                                >
+                                                    <Input placeholder="Cargo/Posición" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12} md={6}>
+                                                <Form.Item
+                                                    name={[name, "email"]}
+                                                    label="Email"
+                                                    className="mb-2"
+                                                >
+                                                    <Input placeholder="email@empresa.com" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12} md={6}>
+                                                <Form.Item
+                                                    name={[name, "telefono"]}
+                                                    label="Teléfono"
+                                                    className="mb-2"
+                                                >
+                                                    <Input placeholder="Teléfono" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                        </Row>
+                                    </Card>
                                 ))}
 
-                                <Button type="dashed" onClick={() => add()} block>
-                                    + Agregar Jefe al listado
+                                <Button
+                                    type="dashed"
+                                    onClick={() => add()}
+                                    block
+                                    icon={<PlusOutlined />}
+                                    className="mt-2"
+                                >
+                                    Agregar contacto
                                 </Button>
-                            </>
+                            </div>
                         )}
                     </Form.List>
-
                 </Form>
             )}
         </Card>

@@ -992,7 +992,6 @@ const EquiposPage: React.FC = () => {
 
                       {/* Ícono del select */}
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        <BuildingOfficeIcon className="w-5 h-5" />
                       </div>
 
                       {/* Flecha del select */}
@@ -1006,74 +1005,6 @@ const EquiposPage: React.FC = () => {
                         <ExclamationCircleIcon className="w-4 h-4 flex-shrink-0" />
                         <span>{empError}</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Selector de Mes - MEJORADO */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-emerald-600" />
-                      <label className="block text-sm font-medium text-slate-700">
-                        Mes de inventario
-                      </label>
-                      {mesExport && (
-                        <button
-                          onClick={() => setMesExport("")}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-full transition"
-                          title="Limpiar filtro"
-                        >
-                          <XMarkIcon className="w-3 h-3" />
-                          Limpiar
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="relative group">
-                      <input
-                        type="month"
-                        value={mesExport}
-                        onChange={(e) => {
-                          setMesExport(e.target.value);
-                          setPage(1);
-                        }}
-                        className={`
-            w-full rounded-xl border shadow-sm
-            px-4 py-3 pl-10 pr-4
-            text-sm text-slate-900
-            bg-white
-            border-slate-200
-            hover:border-emerald-300
-            focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20
-            transition-all duration-200
-            cursor-pointer
-            ${mesExport ? 'border-emerald-200 bg-emerald-50/50' : ''}
-          `}
-                      />
-
-                      {/* Ícono del calendario */}
-                      <div className={`
-          absolute left-3 top-1/2 -translate-y-1/2
-          transition-colors duration-200
-          ${mesExport ? 'text-emerald-600' : 'text-slate-400'}
-        `}>
-                        <CalendarIcon className="w-5 h-5" />
-                      </div>
-
-                      {/* Badge con el mes seleccionado */}
-                      {mesExport && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-lg">
-                            {formatMes(mesExport)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Información del mes */}
-                    {mesExport && (
-                      <p className="text-xs text-slate-500 mt-1.5">
-                        Mostrando inventario de <span className="font-medium">{formatMesCompleto(mesExport)}</span>
-                      </p>
                     )}
                   </div>
                 </div>

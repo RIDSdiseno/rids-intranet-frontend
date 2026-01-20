@@ -48,6 +48,51 @@ import type {
 
 import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
+
+const formatDateTime24 = (date?: string | Date | null) => {
+  if (!date) return "—";
+  return dayjs.utc(date).format("DD-MM-YYYY, HH:mm");
+};
+
+const countVisitDaysInCurrentMonth = (visitas: Visita[]): number => {
+  const now = dayjs();
+
+  const uniqueDays = new Set<string>();
+
+  visitas.forEach(v => {
+    const date = v.inicio ?? v.fecha;
+    if (!date) return;
+
+    const d = dayjs.utc(date);
+
+    // solo visitas del mes actual
+    if (d.isSame(now, "month")) {
+      uniqueDays.add(d.format("YYYY-MM-DD")); // clave por día
+    }
+  });
+
+  return uniqueDays.size;
+};
+
+const getVisitasMesActual = (visitas: Visita[]): Visita[] => {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return visitas.filter(v => {
+    const d = new Date(v.inicio ?? v.fecha ?? "");
+    return (
+      !Number.isNaN(d.getTime()) &&
+      d.getMonth() === currentMonth &&
+      d.getFullYear() === currentYear
+    );
+  });
+};
+
 const getTimeAgo = (date?: string | Date | null): string => {
   if (!date) return "—";
   const now = new Date();
@@ -266,13 +311,19 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
       const bd = toTimestamp(b.inicio ?? b.fecha ?? new Date(0));
       return ad - bd;
     },
-    render: (_: unknown, r: Visita) => (
-      <div className="space-y-1">
-        <div className="font-medium">{getVisitFecha(r).split(',')[0]}</div>
-        <div className="text-xs text-slate-500">{getVisitFecha(r).split(',')[1]?.trim()}</div>
-      </div>
-    ),
+    render: (_: unknown, r: Visita) => {
+      const formatted = formatDateTime24(r.inicio ?? r.fecha);
+      const [date, time] = formatted.split(",");
+
+      return (
+        <div className="space-y-1">
+          <div className="font-medium">{date}</div>
+          <div className="text-xs text-slate-500">{time.trim()}</div>
+        </div>
+      );
+    },
   },
+
   {
     title: "Estado",
     key: "estado",
@@ -445,9 +496,9 @@ const StatsOverview: React.FC<{
   equipos: EquipoLite[];
   visitas: Visita[];
 }> = ({ solicitantes, equipos, visitas }) => {
-  const completedVisits = visitas.filter(v => v.status === 'COMPLETADA').length;
-  const pendingVisits = visitas.filter(v => v.status === 'PENDIENTE').length;
-  const visitCompletionRate = visitas.length > 0 ? Math.round((completedVisits / visitas.length) * 100) : 0;
+  const visitDaysThisMonth = countVisitDaysInCurrentMonth(visitas);
+
+  const visitasMesActual = getVisitasMesActual(visitas);
 
   const equiposPorSolicitante = solicitantes.length > 0
     ? (equipos.length / solicitantes.length).toFixed(1)
@@ -502,10 +553,10 @@ const StatsOverview: React.FC<{
           title={
             <div className="flex items-center gap-2 text-slate-600">
               <CalendarOutlined />
-              <span>Visitas</span>
+              <span>Registros de Visitas en el mes actual</span>
             </div>
           }
-          value={visitas.length}
+          value={visitasMesActual.length}
           valueStyle={{ color: '#8b5cf6', fontSize: '28px' }}
         />
       </Card>
@@ -514,13 +565,13 @@ const StatsOverview: React.FC<{
         <Statistic
           title={
             <div className="flex items-center gap-2 text-slate-600">
-              <CheckCircleOutlined />
-              <span>Tasa de completitud</span>
+              <CalendarOutlined />
+              <span>Visitas realizadas este mes</span>
             </div>
           }
-          value={visitCompletionRate}
-          valueStyle={{ color: '#ef4444', fontSize: '28px' }}
-          suffix="%"
+          value={visitDaysThisMonth}
+          valueStyle={{ color: '#0ea5e9', fontSize: '28px' }}
+          suffix="visitas"
         />
       </Card>
 

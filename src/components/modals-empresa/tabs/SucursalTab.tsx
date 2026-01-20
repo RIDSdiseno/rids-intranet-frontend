@@ -10,8 +10,23 @@ import {
     Input,
     message,
     Divider,
+    Row,
+    Col,
+    Badge,
+    Tooltip,
+    Empty
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import {
+    PlusOutlined,
+    EditOutlined,
+    EnvironmentOutlined,
+    PhoneOutlined,
+    WifiOutlined,
+    UserOutlined,
+    HomeOutlined,
+    EyeOutlined,
+    DeleteOutlined
+} from "@ant-design/icons";
 
 const API_URL =
     (import.meta as ImportMeta).env?.VITE_API_URL ||
@@ -25,11 +40,8 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     /* ===================== STATE ===================== */
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-
     const [modalOpen, setModalOpen] = useState(false);
-    const [editingSucursalId, setEditingSucursalId] =
-        useState<number | null>(null);
-
+    const [editingSucursalId, setEditingSucursalId] = useState<number | null>(null);
     const [form] = Form.useForm();
 
     /* ===================== LOAD LIST ===================== */
@@ -47,7 +59,14 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
             }
 
             const json = await res.json();
-            setData(Array.isArray(json) ? json : []);
+
+            // 🔥 validación defensiva
+            if (Array.isArray(json)) {
+                setData(json);
+            } else {
+                setData([]);
+            }
+
         } catch {
             setData([]);
         } finally {
@@ -56,6 +75,15 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     };
 
     useEffect(() => {
+        // 🔥 limpiar estado ANTES de cargar nueva empresa
+        setData([]);
+        setLoading(true);
+
+        // cerrar modal si estaba abierto
+        setModalOpen(false);
+        setEditingSucursalId(null);
+        form.resetFields();
+
         load();
     }, [empresaId]);
 
@@ -100,7 +128,6 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     const onSave = async () => {
         try {
             const values = await form.validateFields();
-
             const { redSucursal, ...sucursalData } = values;
 
             /* ===== 1️⃣ GUARDAR SUCURSAL ===== */
@@ -119,15 +146,11 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
             if (!res.ok) throw new Error("Error guardando sucursal");
 
             const savedSucursal = await res.json();
-            const sucursalId =
-                editingSucursalId ?? savedSucursal.id_sucursal;
+            const sucursalId = editingSucursalId ?? savedSucursal.id_sucursal;
 
             /* ===== 2️⃣ GUARDAR WIFI (solo si tiene datos) ===== */
-            const hasWifiData =
-                redSucursal &&
-                Object.values(redSucursal).some(
-                    v => v && String(v).trim() !== ""
-                );
+            const hasWifiData = redSucursal &&
+                Object.values(redSucursal).some(v => v && String(v).trim() !== "");
 
             if (hasWifiData) {
                 await fetch(
@@ -157,9 +180,15 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
 
     /* ===================== UI ===================== */
     return (
-        <>
+        <div className="p-2">
             {/* ======= HEADER ======= */}
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-lg font-semibold mb-1">Sucursales</h3>
+                    <p className="text-gray-500 text-sm">
+                        {data.length} sucursal{data.length !== 1 ? 'es' : ''} registrada{data.length !== 1 ? 's' : ''}
+                    </p>
+                </div>
                 <Button
                     type="primary"
                     icon={<PlusOutlined />}
@@ -167,194 +196,316 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                         setEditingSucursalId(null);
                         setModalOpen(true);
                     }}
+                    className="flex items-center"
                 >
                     Nueva sucursal
                 </Button>
             </div>
 
             {/* ======= LISTADO ======= */}
-            <List
-                loading={loading}
-                dataSource={data}
-                locale={{
-                    emptyText: "Esta empresa no tiene sucursales registradas",
-                }}
-                renderItem={(sucursal) => (
-                    <Card
-                        key={sucursal.id_sucursal}
-                        className="mb-4"
-                        title={`📍 ${sucursal.nombre}`}
-                        extra={
-                            <Button
-                                onClick={() => {
-                                    setEditingSucursalId(sucursal.id_sucursal);
-                                    setModalOpen(true);
-                                }}
+            {data.length === 0 && !loading ? (
+                <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                        <span className="text-gray-500">
+                            Esta empresa no tiene sucursales registradas
+                        </span>
+                    }
+                    className="py-8"
+                />
+            ) : (
+                <List
+                    loading={loading}
+                    dataSource={data}
+                    grid={{
+                        gutter: 16,
+                        xs: 1,
+                        sm: 1,
+                        md: 2,
+                        lg: 2,
+                        xl: 3,
+                        xxl: 3,
+                    }}
+                    renderItem={(sucursal) => (
+                        <List.Item>
+                            <Card
+                                className="h-full hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
+                                title={
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center truncate">
+                                            <EnvironmentOutlined className="text-blue-500 mr-2" />
+                                            <span className="font-medium truncate">{sucursal.nombre}</span>
+                                        </div>
+                                        {sucursal.redSucursal && (
+                                            <Badge
+                                                count={<WifiOutlined className="text-xs" />}
+                                                style={{ backgroundColor: '#52c41a' }}
+                                                title="WiFi configurado"
+                                            />
+                                        )}
+                                    </div>
+                                }
+                                extra={
+                                    <Tooltip title="Editar sucursal">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={<EditOutlined />}
+                                            onClick={() => {
+                                                setEditingSucursalId(sucursal.id_sucursal);
+                                                setModalOpen(true);
+                                            }}
+                                        />
+                                    </Tooltip>
+                                }
                             >
-                                Ver sucursal
-                            </Button>
-                        }
-                    >
-                        <p>
-                            <b>Dirección:</b> {sucursal.direccion || "—"}
-                        </p>
-                        <p>
-                            <b>Teléfono:</b> {sucursal.telefono || "—"}
-                        </p>
+                                <div className="space-y-3">
+                                    {/* Información básica */}
+                                    <div className="space-y-2">
+                                        {sucursal.direccion && (
+                                            <div className="flex items-start">
+                                                <HomeOutlined className="text-gray-400 mt-1 mr-2" />
+                                                <div className="flex-1">
+                                                    <p className="text-xs text-gray-500 mb-0">Dirección</p>
+                                                    <p className="mb-0 text-sm">{sucursal.direccion}</p>
+                                                </div>
+                                            </div>
+                                        )}
 
-                        {sucursal.redSucursal ? (
-                            <div className="mt-2">
-                                <p>
-                                    <b>WiFi:</b>{" "}
-                                    {sucursal.redSucursal.wifiNombre || "—"}
-                                </p>
-                                <p>
-                                    <b>Clave:</b>{" "}
-                                    {sucursal.redSucursal.claveWifi || "—"}
-                                </p>
-                            </div>
-                        ) : (
-                            <p className="text-slate-400 mt-2">
-                                WiFi no registrado
-                            </p>
-                        )}
+                                        {sucursal.telefono && (
+                                            <div className="flex items-center">
+                                                <PhoneOutlined className="text-gray-400 mr-2" />
+                                                <div>
+                                                    <p className="text-xs text-gray-500 mb-0">Teléfono</p>
+                                                    <p className="mb-0 text-sm">{sucursal.telefono}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
 
-                        <p className="mt-2">
-                            <b>Responsables:</b>
-                        </p>
+                                    {/* WiFi */}
+                                    {sucursal.redSucursal ? (
+                                        <div className="bg-gray-50 p-3 rounded">
+                                            <div className="flex items-center mb-2">
+                                                <WifiOutlined className="text-gray-500 mr-2" />
+                                                <span className="text-sm font-medium">Red WiFi</span>
+                                            </div>
+                                            <div className="space-y-1 text-sm">
+                                                {sucursal.redSucursal.wifiNombre && (
+                                                    <p className="mb-0">
+                                                        <span className="text-gray-600">SSID:</span>{' '}
+                                                        <span className="font-medium">{sucursal.redSucursal.wifiNombre}</span>
+                                                    </p>
+                                                )}
+                                                {sucursal.redSucursal.claveWifi && (
+                                                    <p className="mb-0">
+                                                        <span className="text-gray-600">Clave:</span>{' '}
+                                                        <code className="bg-gray-100 px-1 rounded">••••••••</code>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center text-gray-400">
+                                            <WifiOutlined className="mr-2" />
+                                            <span className="text-sm">WiFi no configurado</span>
+                                        </div>
+                                    )}
 
-                        <Space wrap>
-                            {Array.isArray(sucursal.responsableSucursals) &&
-                                sucursal.responsableSucursals.length > 0 ? (
-                                sucursal.responsableSucursals.map((r: any) => (
-                                    <Tag key={r.id}>{r.nombre}</Tag>
-                                ))
-                            ) : (
-                                <span>—</span>
-                            )}
-                        </Space>
-                    </Card>
-                )}
-            />
+                                    {/* Responsables */}
+                                    <div>
+                                        <div className="flex items-center mb-2">
+                                            <UserOutlined className="text-gray-500 mr-2" />
+                                            <span className="text-sm font-medium">Responsables</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {Array.isArray(sucursal.responsableSucursals) &&
+                                                sucursal.responsableSucursals.length > 0 ? (
+                                                sucursal.responsableSucursals.map((r: any) => (
+                                                    <Tag
+                                                        key={r.id}
+                                                        color="blue"
+                                                        className="m-0"
+                                                    >
+                                                        {r.nombre}
+                                                        {r.cargo && ` (${r.cargo})`}
+                                                    </Tag>
+                                                ))
+                                            ) : (
+                                                <span className="text-gray-400 text-sm">Sin responsables</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        </List.Item>
+                    )}
+                />
+            )}
 
             {/* ======= MODAL ======= */}
             <Modal
                 open={modalOpen}
                 title={
-                    editingSucursalId
-                        ? "Editar sucursal"
-                        : "Nueva sucursal"
+                    <div className="flex items-center">
+                        <EnvironmentOutlined className="mr-2 text-blue-500" />
+                        {editingSucursalId ? "Editar sucursal" : "Nueva sucursal"}
+                    </div>
                 }
                 onCancel={() => {
                     setModalOpen(false);
                     setEditingSucursalId(null);
+                    form.resetFields(); // 🔥 clave
                 }}
                 onOk={onSave}
                 destroyOnClose
+                width={700}
+                okText="Guardar"
+                cancelText="Cancelar"
+                okButtonProps={{ className: "bg-blue-500" }}
             >
-                <Form layout="vertical" form={form}>
-                    <Form.Item
-                        name="nombre"
-                        label="Nombre"
-                        rules={[
-                            { required: true, message: "Ingrese el nombre" },
-                        ]}
-                    >
-                        <Input />
-                    </Form.Item>
+                <Form layout="vertical" form={form} className="pt-4">
+                    <Row gutter={16}>
+                        <Col span={24}>
+                            <Form.Item
+                                name="nombre"
+                                label="Nombre"
+                                rules={[{ required: true, message: "Ingrese el nombre" }]}
+                            >
+                                <Input
+                                    placeholder="Nombre de la sucursal"
+                                    prefix={<EnvironmentOutlined className="text-gray-300" />}
+                                />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item name="direccion" label="Dirección">
-                        <Input />
-                    </Form.Item>
+                        <Col span={12}>
+                            <Form.Item name="direccion" label="Dirección">
+                                <Input
+                                    placeholder="Dirección completa"
+                                    prefix={<HomeOutlined className="text-gray-300" />}
+                                />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item name="telefono" label="Teléfono">
-                        <Input />
-                    </Form.Item>
+                        <Col span={12}>
+                            <Form.Item name="telefono" label="Teléfono">
+                                <Input
+                                    placeholder="Teléfono"
+                                    prefix={<PhoneOutlined className="text-gray-300" />}
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
-                    <Divider>WiFi de la sucursal</Divider>
+                    <Divider orientation="left" className="!mt-8 !mb-4">
+                        <WifiOutlined className="mr-2" />
+                        WiFi de la sucursal
+                    </Divider>
 
-                    <Form.Item
-                        label="Nombre de la red WiFi"
-                        name={["redSucursal", "wifiNombre"]}
-                    >
-                        <Input />
-                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                label="Nombre de la red"
+                                name={["redSucursal", "wifiNombre"]}
+                            >
+                                <Input placeholder="SSID" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                label="Contraseña WiFi"
+                                name={["redSucursal", "claveWifi"]}
+                            >
+                                <Input.Password placeholder="Contraseña" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                label="IP de red"
+                                name={["redSucursal", "ipRed"]}
+                            >
+                                <Input placeholder="Ej: 192.168.1.1" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                label="Observaciones"
+                                name={["redSucursal", "observaciones"]}
+                            >
+                                <Input.TextArea rows={2} placeholder="Observaciones adicionales" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
-                    <Form.Item
-                        label="Contraseña WiFi"
-                        name={["redSucursal", "claveWifi"]}
-                    >
-                        <Input.Password />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="IP de red"
-                        name={["redSucursal", "ipRed"]}
-                    >
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Observaciones"
-                        name={["redSucursal", "observaciones"]}
-                    >
-                        <Input.TextArea rows={2} />
-                    </Form.Item>
-
-                    <Divider>Responsables de la sucursal</Divider>
+                    <Divider orientation="left" className="!mt-8 !mb-4">
+                        <UserOutlined className="mr-2" />
+                        Responsables de la sucursal
+                    </Divider>
 
                     <Form.List name="responsableSucursals">
                         {(fields, { add, remove }) => (
-                            <>
+                            <div className="space-y-3">
                                 {fields.map(({ key, name }) => (
-                                    <Space
+                                    <Card
                                         key={key}
-                                        align="baseline"
-                                        style={{ display: "flex" }}
+                                        size="small"
+                                        className="border-l-2 border-l-blue-200"
                                     >
-                                        <Form.Item
-                                            name={[name, "nombre"]}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message: "Nombre requerido",
-                                                },
-                                            ]}
-                                        >
-                                            <Input placeholder="Nombre" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "cargo"]}>
-                                            <Input placeholder="Cargo" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "email"]}>
-                                            <Input placeholder="Email" />
-                                        </Form.Item>
-
-                                        <Form.Item name={[name, "telefono"]}>
-                                            <Input placeholder="Teléfono" />
-                                        </Form.Item>
-
-                                        <Button danger onClick={() => remove(name)}>
-                                            Eliminar
-                                        </Button>
-                                    </Space>
+                                        <Row gutter={8} align="middle">
+                                            <Col span={5}>
+                                                <Form.Item
+                                                    name={[name, "nombre"]}
+                                                    rules={[{ required: true, message: "Nombre requerido" }]}
+                                                    className="mb-0"
+                                                >
+                                                    <Input placeholder="Nombre" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={5}>
+                                                <Form.Item name={[name, "cargo"]} className="mb-0">
+                                                    <Input placeholder="Cargo" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={6}>
+                                                <Form.Item name={[name, "email"]} className="mb-0">
+                                                    <Input placeholder="Email" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={5}>
+                                                <Form.Item name={[name, "telefono"]} className="mb-0">
+                                                    <Input placeholder="Teléfono" size="small" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={3}>
+                                                <Button
+                                                    danger
+                                                    type="text"
+                                                    size="small"
+                                                    icon={<DeleteOutlined />}
+                                                    onClick={() => remove(name)}
+                                                    className="w-full"
+                                                />
+                                            </Col>
+                                        </Row>
+                                    </Card>
                                 ))}
 
                                 <Button
                                     type="dashed"
                                     onClick={() => add()}
                                     block
+                                    icon={<PlusOutlined />}
+                                    className="mt-2"
                                 >
-                                    + Agregar responsable
+                                    Agregar responsable
                                 </Button>
-                            </>
+                            </div>
                         )}
                     </Form.List>
                 </Form>
             </Modal>
-        </>
+        </div>
     );
 };
 

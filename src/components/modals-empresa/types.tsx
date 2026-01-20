@@ -20,6 +20,19 @@ export type ChecklistKey =
 
 export type ChecklistState = Record<ChecklistKey, boolean>;
 
+export interface ChecklistSection {
+    section: string;
+    items: {
+        key: ChecklistKey;
+        label: string;
+    }[];
+}
+
+export interface ChecklistItem {
+    key: ChecklistKey;
+    label: string;
+    section: string;
+}
 
 /* ================= EMPRESA / FICHA ================= */
 
@@ -157,6 +170,7 @@ export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen";
 export interface ChecklistTabProps {
     empresaId: number;
     checklist: Partial<ChecklistState> | null;
+    onUpdated?: () => void;
 }
 
 /* FichaTab */
