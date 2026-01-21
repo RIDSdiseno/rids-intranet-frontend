@@ -2152,7 +2152,7 @@ const ReportesPage: React.FC = () => {
           },
         ],
       });
-      
+
       const fileName = `Informe_${empresaNombre}_${periodoTexto || "Periodo"}.docx`;
 
       const blob = await Packer.toBlob(doc);
@@ -2160,11 +2160,26 @@ const ReportesPage: React.FC = () => {
       // descarga manual (NO se rompe)
       saveAs(blob, fileName);
 
+      function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
+        return new Promise((resolve, reject) => {
+          const blob = new Blob([buffer], {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          });
+
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            // data:application/...;base64,XXXX
+            resolve(result.split(",")[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
       // convertir a base64
       const arrayBuffer = await blob.arrayBuffer();
-      const base64Docx = btoa(
-        String.fromCharCode(...new Uint8Array(arrayBuffer))
-      );
+      const base64Docx = await arrayBufferToBase64(arrayBuffer);
 
       // envío al backend
       await fetch(`${API_URL}/reportes/upload-docx`, {
