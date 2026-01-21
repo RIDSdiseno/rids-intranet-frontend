@@ -2153,36 +2153,29 @@ const ReportesPage: React.FC = () => {
         ],
       });
 
-      const fileName = `Informe_${empresaNombre}_${periodoTexto || "Periodo"}.docx`;
-
-      const blob = await Packer.toBlob(doc);
-
-      // descarga manual (NO se rompe)
-      saveAs(blob, fileName);
-
-      function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
-        return new Promise((resolve, reject) => {
-          const blob = new Blob([buffer], {
-            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          });
-
+      const blobToBase64 = (blob: Blob): Promise<string> =>
+        new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => {
             const result = reader.result as string;
-            // data:application/...;base64,XXXX
-            resolve(result.split(",")[1]);
+            resolve(result.split(",")[1]); // base64 puro
           };
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      }
 
-      // convertir a base64
-      const arrayBuffer = await blob.arrayBuffer();
-      const base64Docx = await arrayBufferToBase64(arrayBuffer);
+      const fileName = `Informe_${empresaNombre}_${periodoTexto || "Periodo"}.docx`;
+
+      const blob = await Packer.toBlob(doc);
+
+      // descarga local (opcional, solo una vez)
+      saveAs(blob, fileName);
+
+      // ✅ base64 correcto y seguro
+      const base64Docx = await blobToBase64(blob);
 
       // envío al backend
-      await fetch(`${API_URL}/reportes/upload-docx`, {
+      await fetch(`${API_URL}/reportes-upload/upload-docx`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2204,8 +2197,7 @@ const ReportesPage: React.FC = () => {
         selectedYear && selectedMonth
           ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
           : "Periodo";
-      saveAs(blob, `Informe_${safeEmpresaClean}_${safePeriodo}_${ts}.docx`);
-
+          
       setExportStatus({ exporting: false, error: null });
     } catch (e) {
       console.error(e);
