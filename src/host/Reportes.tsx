@@ -1908,22 +1908,6 @@ const ReportesPage: React.FC = () => {
           "A continuación se presenta un análisis basado en la actividad operacional del periodo. Se incluyen gráficos de solicitudes, actividades de mantenimiento, usuarios y equipamiento."
         ),
 
-        // Nuevo: Gráfico de tendencias
-        H2("Tendencias Mensuales"),
-        ...(chartTendenciasBytes
-          ? [
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: chartTendenciasBytes,
-                  type: "png",
-                  transformation: { width: 600, height: 320 },
-                }),
-              ],
-            }),
-          ]
-          : []),
-
         // 1) Cantidad de mantenciones por fecha
         H2("Cantidad de mantenciones por fecha"),
         ...(chartMantFechaBytes
@@ -2168,8 +2152,32 @@ const ReportesPage: React.FC = () => {
           },
         ],
       });
+      
+      const fileName = `Informe_${empresaNombre}_${periodoTexto || "Periodo"}.docx`;
 
       const blob = await Packer.toBlob(doc);
+
+      // descarga manual (NO se rompe)
+      saveAs(blob, fileName);
+
+      // convertir a base64
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64Docx = btoa(
+        String.fromCharCode(...new Uint8Array(arrayBuffer))
+      );
+
+      // envío al backend
+      await fetch(`${API_URL}/reportes/upload-docx`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName,
+          empresa: empresaNombre,
+          periodo: periodoTexto || "Periodo",
+          fileBase64: base64Docx,
+        }),
+      });
+
       const ts = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const safeEmpresa =
         empresas.find((e) => e.id_empresa === Number(empresaFiltro))?.nombre ||
@@ -2785,7 +2793,6 @@ const ReportesPage: React.FC = () => {
           <canvas id="chart-mantxusuario-docx" width={800} height={400} />
 
           {/* Nuevos gráficos mejorados */}
-          <canvas id="chart-tendencias-docx" width={800} height={400} />
           <canvas id="chart-distribucion-docx" width={800} height={400} />
         </div>
 
