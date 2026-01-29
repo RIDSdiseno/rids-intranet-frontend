@@ -13,25 +13,22 @@ import {
 } from "./types";
 
 // ==============================
-//   PDF ORDEN DE TALLER - FULL
+//   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
 export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     try {
-        // Fecha actual formateada
         const fechaActual = new Date().toLocaleString("es-CL", {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-            hour12: false, // ✅ CLAVE
+            hour12: false,
         });
 
         const codigo = String(orden.ordenGrupoId ?? orden.id).padStart(6, "0");
-
         const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
-        // Datos corporativos
         const ORIGEN_DATA = {
             RIDS: {
                 nombre: "RIDS LTDA",
@@ -57,7 +54,6 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         };
 
         const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
-
         const tipoEquipoLabel =
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 
@@ -76,7 +72,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 <!-- HEADER -->
 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 15px; margin-bottom: 20px;">
     <div style="display: flex; align-items: center; gap: 14px;">
-        <img src="${origenInfo.logo}" style="height: 85px;" />
+        <img src="${origenInfo.logo}" style="height: 85px;" class="pdf-logo" />
         <div>
             <h2 style="margin: 0; font-size: 30px; font-weight: bold;">${origenInfo.nombre}</h2>
             <p style="margin: 0; font-size: 25px; color: #4b5563;">
@@ -95,7 +91,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 <div style="display: flex; gap: 20px; margin-bottom: 25px;">
 
     <!-- CLIENTE -->
-    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #f9fafb;">
+    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #f9fafb;" class="pdf-section">
         <h3 style="margin: 0 0 10px; font-size: 30px;">Datos del Cliente</h3>
         <p><b>Entidad:</b> ${orden.entidad?.nombre ?? "—"}</p>
         <p><b>RUT:</b> ${orden.entidad?.rut ?? "—"}</p>
@@ -105,26 +101,21 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     </div>
 
     <!-- EQUIPO -->
-    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;">
+    <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;" class="pdf-section">
         <h3 style="margin: 0 0 10px; font-size: 30px;">Datos del Equipo</h3>
         <p><b>Equipo:</b> ${orden.equipo?.marca ?? "—"} ${orden.equipo?.modelo ?? ""}</p>
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>
         <p><b>Serie:</b> ${orden.equipo?.serial ?? "—"}</p>
         <p><b>Procesador:</b> ${orden.equipo?.procesador ?? "—"}</p>
-<p><b>RAM:</b> ${orden.equipo?.ram ?? "—"}</p>
-<p><b>Disco:</b> ${orden.equipo?.disco ?? "—"}</p>
-<p><b>Propiedad:</b> ${orden.equipo?.propiedad ?? "—"}</p>
-<p>
-  <b>Cargador incluido:</b>
-    ${orden.incluyeCargador ? "Sí" : "No"}
-  </span>
-</p>
-<p><b>Técnico responsable:</b> ${tecnicoNombre}</p>
+        <p><b>RAM:</b> ${orden.equipo?.ram ?? "—"}</p>
+        <p><b>Disco:</b> ${orden.equipo?.disco ?? "—"}</p>
+        <p><b>Propiedad:</b> ${orden.equipo?.propiedad ?? "—"}</p>
+        <p><b>Cargador incluido:</b> ${orden.incluyeCargador ? "Sí" : "No"}</p>
+        <p><b>Técnico responsable:</b> ${tecnicoNombre}</p>
         <p><b>Área:</b> ${orden.area ?? "—"}</p>
-
-<p>
-  <b>Fecha ingreso:</b>
-  ${new Date(
+        <p>
+            <b>Fecha ingreso:</b>
+            ${new Date(
             orden.area === "SALIDA"
                 ? orden.fechaIngreso ?? orden.fecha
                 : orden.fecha
@@ -136,13 +127,12 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             minute: "2-digit",
             hour12: false,
         })}
-</p>
-
-${orden.area === "SALIDA"
+        </p>
+        ${orden.area === "SALIDA"
                 ? `
-<p>
-  <b>Fecha salida:</b>
-  ${new Date(orden.fecha).toLocaleString("es-CL", {
+        <p>
+            <b>Fecha salida:</b>
+            ${new Date(orden.fecha).toLocaleString("es-CL", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",
@@ -150,18 +140,17 @@ ${orden.area === "SALIDA"
                     minute: "2-digit",
                     hour12: false,
                 })}
-</p>
-`
+        </p>
+        `
                 : ""
             }
-
     </div>
 </div>
 
 <div style="margin-bottom: 15px;">
     <h3 style="font-size: 30px;">Descripción del Estado:</h3>
     <br>
-    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;" class="pdf-section">
         ${orden.descripcion ?? "Sin descripción adicional."}
     </div>
 </div>
@@ -170,7 +159,7 @@ ${orden.area === "SALIDA"
 <div style="margin-bottom: 15px;">
     <h3 style="font-size: 30px;">Trabajo solicitado:</h3>
     <br>
-    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;" class="pdf-section">
         ${orden.tipoTrabajo ?? "—"}
     </div>
 </div>
@@ -178,13 +167,13 @@ ${orden.area === "SALIDA"
 <div style="margin-bottom: 15px;">
     <h3 style="font-size: 30px;">Notas del técnico:</h3>
     <br>
-    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;">
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb;" class="pdf-section">
         ${orden.notas ?? "Sin observaciones."}
     </div>
 </div>
 
 <!-- SEGUIMIENTO -->
-<div style="background: #e0f2fe; border: 1px solid #93c5fd; padding: 12px; text-align: center; border-radius: 10px; margin-top: 25px; font-size: 14px;">
+<div style="background: #e0f2fe; border: 1px solid #93c5fd; padding: 12px; text-align: center; border-radius: 10px; margin-top: 25px; font-size: 14px;" class="pdf-section">
     Consulte el estado de la orden en:<br>
     <b>https://rids-intranet.netlify.app/home</b><br>
     Código: <b>${codigo}</b>
@@ -226,20 +215,59 @@ ${orden.area === "SALIDA"
         container.innerHTML = html;
         document.body.appendChild(container);
 
+        // ✅ OPTIMIZAR SECCIONES
+        const sections = container.querySelectorAll('.pdf-section');
+        sections.forEach((section) => {
+            (section as HTMLElement).style.background = '#FFFFFF';
+            (section as HTMLElement).style.border = '2px solid #000000';
+        });
+
+        // ✅ SOLUCIÓN PARA EL LOGO - MÚLTIPLES OPCIONES:
+
+        const logo = container.querySelector('.pdf-logo') as HTMLElement;
+        if (logo) {
+            // OPCIÓN 1: Aumentar contraste agresivamente (RECOMENDADO)
+            //logo.style.filter = 'grayscale(100%) contrast(2.5) brightness(0.8)';
+
+            // OPCIÓN 2: Invertir si el logo es principalmente azul oscuro
+            // logo.style.filter = 'invert(1) grayscale(100%) contrast(1.5)';
+
+            // OPCIÓN 3: Solo contraste alto sin escala de grises (mantiene algo de azul)
+            // logo.style.filter = 'contrast(3) brightness(0.7)';
+
+            // OPCIÓN 4: Convertir a negro puro (si el logo tiene fondo transparente)
+            logo.style.filter = 'brightness(0) invert(0)';
+
+            // OPCIÓN 5: Aumentar saturación antes de convertir a B/N
+            // logo.style.filter = 'saturate(0) contrast(2.5) brightness(0.6)';
+        }
+
+        // Forzar texto negro
+        const allText = container.querySelectorAll('p, h3, span, div');
+        allText.forEach((el) => {
+            (el as HTMLElement).style.color = '#000000';
+        });
+
+        // ✅ CONFIGURACIÓN OPTIMIZADA
         const canvas = await html2canvas(container, {
-            scale: 2,
+            scale: 3,
+            useCORS: true,
+            backgroundColor: '#FFFFFF',
+            logging: false,
+            imageTimeout: 0,
             width: container.scrollWidth,
             height: container.scrollHeight,
             windowWidth: container.scrollWidth,
         });
 
-        const pdf = new jsPDF("p", "mm", "a4");
-        const img = canvas.toDataURL("image/png");
+        const pdf = new jsPDF("p", "mm", "a4", true);
+        const img = canvas.toDataURL("image/jpeg", 1.0);
 
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const proportionalHeight = (canvas.height * pdfWidth) / canvas.width;
 
-        pdf.addImage(img, "PNG", 0, 0, pdfWidth, proportionalHeight);
+        pdf.addImage(img, "JPEG", 0, 0, pdfWidth, proportionalHeight, undefined, 'FAST');
+
         pdf.save(`Orden_${codigo}.pdf`);
 
         document.body.removeChild(container);

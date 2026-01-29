@@ -282,7 +282,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 value={formData.area}
                                                 onChange={(e) => {
                                                     const nuevaArea = e.target.value as Area;
-
+    
                                                     setFormData((prev) => ({
                                                         ...prev,
                                                         area: nuevaArea,

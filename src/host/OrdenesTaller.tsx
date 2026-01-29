@@ -517,6 +517,44 @@ const OrdenesTaller: React.FC = () => {
 
     const [equipoEditando, setEquipoEditando] = useState<EquipoGestioo | null>(null);
 
+    const conteoPorEstado = useMemo(() => {
+        const base = {
+            todas: ordenes.length,
+            pendiente: 0,
+            "en progreso": 0,
+            completada: 0,
+            cancelada: 0,
+        };
+
+        ordenes.forEach((o) => {
+            const estado = normalizeEstado(o.estado) as keyof typeof base;
+            if (base[estado] !== undefined) {
+                base[estado]++;
+            }
+        });
+
+        return base;
+    }, [ordenes]);
+
+    const conteoPorArea = useMemo(() => {
+        const base = {
+            todas: ordenes.length,
+            entrada: 0,
+            domicilio: 0,
+            reparacion: 0,
+            salida: 0,
+        };
+
+        ordenes.forEach((o) => {
+            const area = normalizeArea(o.area) as keyof typeof base;
+            if (base[area] !== undefined) {
+                base[area]++;
+            }
+        });
+
+        return base;
+    }, [ordenes]);
+
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
             {/* Fondo decorativo */}
@@ -588,30 +626,64 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Estado */}
                         <div className="flex flex-wrap gap-2">
-                            {["todas", "pendiente", "en progreso", "completada", "cancelada"].map((estado) => (
-                                <button
-                                    key={estado}
-                                    onClick={() => setEstadoFiltro(estado as any)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${estadoFiltro === estado ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
-                                        }`}
-                                >
-                                    {estado === "todas" ? "Todas" : estado.charAt(0).toUpperCase() + estado.slice(1)}
-                                </button>
-                            ))}
+                            {(["todas", "pendiente", "en progreso", "completada", "cancelada"] as const).map(
+                                (estado) => (
+                                    <button
+                                        key={estado}
+                                        onClick={() => setEstadoFiltro(estado)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border ${estadoFiltro === estado
+                                            ? "bg-cyan-600 text-white border-cyan-600"
+                                            : "bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                                            }`}
+                                    >
+                                        <span>
+                                            {estado === "todas"
+                                                ? "Todas"
+                                                : estado.charAt(0).toUpperCase() + estado.slice(1)}
+                                        </span>
+
+                                        <span
+                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${estadoFiltro === estado
+                                                ? "bg-white/20 text-white"
+                                                : "bg-cyan-100 text-cyan-700"
+                                                }`}
+                                        >
+                                            {conteoPorEstado[estado]}
+                                        </span>
+                                    </button>
+                                )
+                            )}
                         </div>
 
                         {/* Área */}
                         <div className="flex flex-wrap gap-2">
-                            {["todas", "entrada", "domicilio", "reparacion", "salida"].map((area) => (
-                                <button
-                                    key={area}
-                                    onClick={() => setAreaFiltro(area as any)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${areaFiltro === area ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-                                        }`}
-                                >
-                                    {area === "todas" ? "Todas" : area.charAt(0).toUpperCase() + area.slice(1)}
-                                </button>
-                            ))}
+                            {(["todas", "entrada", "domicilio", "reparacion", "salida"] as const).map(
+                                (area) => (
+                                    <button
+                                        key={area}
+                                        onClick={() => setAreaFiltro(area)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition border ${areaFiltro === area
+                                            ? "bg-indigo-600 text-white border-indigo-600"
+                                            : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                                            }`}
+                                    >
+                                        <span>
+                                            {area === "todas"
+                                                ? "Todas"
+                                                : area.charAt(0).toUpperCase() + area.slice(1)}
+                                        </span>
+
+                                        <span
+                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${areaFiltro === area
+                                                ? "bg-white/20 text-white"
+                                                : "bg-indigo-100 text-indigo-700"
+                                                }`}
+                                        >
+                                            {conteoPorArea[area]}
+                                        </span>
+                                    </button>
+                                )
+                            )}
                         </div>
 
                         {/* Origen */}

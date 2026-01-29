@@ -1,5 +1,5 @@
 // src/components/CrearEquipoModal.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Modal,
   Form,
@@ -319,15 +319,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const [shakeField, setShakeField] = useState<string | null>(null);
   const [tick, setTick] = useState(0); // fuerza re-render para clases de error
 
+  // Y modifica loadSolicitantes para que cuando hay empresa, NO use el search:
   const loadSolicitantes = async () => {
     setLoadingSolicitantes(true);
     try {
       if (empresaId) {
-        // ✅ Usar endpoint específico por empresa (trae TODOS los solicitantes de esa empresa)
-        const solicitantes = await fetchSolicitantesByEmpresa(empresaId, debSearch);
+        // ✅ NO pasamos debSearch - cargamos TODOS los solicitantes de la empresa
+        const solicitantes = await fetchSolicitantesByEmpresa(empresaId); // ← Sin search
         setSolOpts(solicitantes.map(s => ({ ...s, empresa: { id_empresa: empresaId, nombre: "" } })));
       } else {
-        // Cargar todos los solicitantes (con paginación)
+        // Para búsqueda global (sin empresa), SÍ usamos debSearch
         const { items } = await fetchSolicitantes(debSearch);
         setSolOpts(items.map(it => ({
           id_solicitante: it.id_solicitante,
@@ -363,7 +364,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     if (!open) return;
     loadSolicitantes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, debSearch, empresaId]); // ← empresaId es clave aquí
+  }, [open, empresaId]); // ← QUITA debSearch de aquí
 
   useEffect(() => {
     if (!open) return;
@@ -383,10 +384,17 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     }
   }, [open, defaultSolicitanteId, solOpts, form]);
 
+  const prevEmpresaId = useRef(empresaId);
+
   useEffect(() => {
     if (!open) return;
-    form.setFieldsValue({ idSolicitante: null });
-    setSolSearch("");
+
+    // Solo resetear si la empresa CAMBIÓ (no en el primer render o búsqueda)
+    if (prevEmpresaId.current !== empresaId && prevEmpresaId.current !== undefined) {
+      form.setFieldsValue({ idSolicitante: null });
+      setSolSearch("");
+    }
+    prevEmpresaId.current = empresaId;
   }, [empresaId, open, form]);
 
   const handleOk = async () => {
@@ -674,7 +682,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     filterOption={(input, option) =>
                       (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
                     }
-                    onSearch={setSolSearch}
                     allowClear={false}
                     notFoundContent={loadingSolicitantes ? <LoadingOutlined /> : "Sin resultados"}
                     dropdownStyle={{ maxHeight: 360, overflow: "auto" }}

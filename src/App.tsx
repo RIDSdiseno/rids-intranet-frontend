@@ -19,6 +19,8 @@ const Cotizaciones = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 
+const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
+
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const token = localStorage.getItem("accessToken");
   return token ? <>{children}</> : <Navigate to="/login" replace />;
@@ -110,6 +112,15 @@ const App: React.FC = () => {
             element={
               <PrivateRoute>
                 <TicketsPage />
+              </PrivateRoute>
+            }
+          />
+          
+          <Route
+            path="/helpdesk"
+            element={
+              <PrivateRoute>
+                <TicketeraRids />
               </PrivateRoute>
             }
           />

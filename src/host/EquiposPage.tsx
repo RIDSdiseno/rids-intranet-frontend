@@ -666,7 +666,37 @@ const EquiposPage: React.FC = () => {
   const [solOptsE, setSolOptsE] = useState<SolicitanteLite[]>([]);
   const [solLoadE, setSolLoadE] = useState(false);
 
+  // Agregar esta función después de fetchSolicitantes
+  async function fetchSolicitantesByEmpresa(
+    empresaId: number,
+    search?: string
+  ): Promise<SolicitanteLite[]> {
+    const params = new URLSearchParams();
+    params.set("empresaId", String(empresaId));
+    if (search?.trim()) params.set("q", search.trim());
+
+    const token = localStorage.getItem("accessToken");
+    const res = await fetch(`${API_URL}/solicitantes/by-empresa?${params.toString()}`, {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!res.ok) throw new Error("No se pudieron cargar solicitantes");
+    const data = await res.json();
+
+    return data.items.map((it: { id: number; nombre: string }) => ({
+      id_solicitante: it.id,
+      nombre: it.nombre,
+      empresa: { id_empresa: empresaId, nombre: "" },
+    }));
+  }
+
   // Carga solicitantes desde API, filtrando por empresa
+  // Reemplaza loadSolicitantesEdit por esta versión:
   const loadSolicitantesEdit = async (empresaId: number | null, term: string) => {
     if (empresaId == null) {
       setSolOptsE([]);
@@ -674,26 +704,23 @@ const EquiposPage: React.FC = () => {
     }
     setSolLoadE(true);
     try {
-      const resp = await fetchSolicitantes(term, 1, 50, empresaId);
-      setSolOptsE(
-        resp.items.map((it) => ({
-          id_solicitante: it.id_solicitante,
-          nombre: it.nombre,
-          empresa: it.empresa,
-        }))
-      );
+      // ✅ Usa fetchSolicitantesByEmpresa para traer TODOS los solicitantes de la empresa
+      const solicitantes = await fetchSolicitantesByEmpresa(empresaId, term);
+      setSolOptsE(solicitantes);
     } catch {
-      // noop
+      setSolOptsE([]);
     } finally {
       setSolLoadE(false);
     }
   };
 
   // Reaccionar a cambios (cuando el modal está abierto)
+  // Modifica el useEffect:
   useEffect(() => {
     if (!editOpen) return;
-    loadSolicitantesEdit(editEmpresaId, solSearchEDeb);
-  }, [editOpen, editEmpresaId, solSearchEDeb]);
+    loadSolicitantesEdit(editEmpresaId, ""); // ← Pasa string vacío, no term
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen, editEmpresaId]); // ← QUITA solSearchEDeb
 
   const startEdit = (row: EquipoRow) => {
     setEditRow(row);
@@ -809,14 +836,9 @@ const EquiposPage: React.FC = () => {
 
   /* =================== UI =================== */
   const headerCols = [
-    { key: "id_equipo", label: "ID", className: "w-[80px]" },
     { key: "serial", label: "Serial", className: "min-w-[180px]" },
     { key: "marca", label: "Marca", className: "min-w-[160px]" },
     { key: "modelo", label: "Modelo", className: "min-w-[200px]" },
-    { key: "procesador", label: "CPU", className: "min-w-[200px]" },
-    { key: "ram", label: "RAM", className: "min-w-[110px]" },
-    { key: "disco", label: "Disco", className: "min-w-[130px]" },
-    { key: "propiedad", label: "Propiedad", className: "min-w-[130px]" },
     { key: "solicitante", label: "Solicitante", className: "min-w-[200px]" },
     { key: "empresa", label: "Empresa", className: "min-w-[200px]" },
   ] as const;
@@ -1242,15 +1264,6 @@ const EquiposPage: React.FC = () => {
                               "hover:bg-cyan-50/70"
                             )}
                           >
-                            <td
-                              className={clsx(
-                                "px-4 py-3 whitespace-nowrap border-l-4 rounded-l-xl",
-                                theme.borderLeft
-                              )}
-                              title={e.empresa || undefined}
-                            >
-                              {e.id_equipo}
-                            </td>
                             <td className="px-4 py-3 font-mono tracking-wide">{toUC(e.serial)}</td>
                             <td className="px-4 py-3">
                               {e.marca ? (
@@ -1273,10 +1286,6 @@ const EquiposPage: React.FC = () => {
                               )}
                             </td>
                             <td className="px-4 py-3">{e.modelo || <span className="text-slate-400">—</span>}</td>
-                            <td className="px-4 py-3">{e.procesador || <span className="text-slate-400">—</span>}</td>
-                            <td className="px-4 py-3">{e.ram || <span className="text-slate-400">—</span>}</td>
-                            <td className="px-4 py-3">{e.disco || <span className="text-slate-400">—</span>}</td>
-                            <td className="px-4 py-3">{e.propiedad || <span className="text-slate-400">—</span>}</td>
                             <td className="px-4 py-3">
                               {e.solicitante ? (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">

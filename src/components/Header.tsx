@@ -36,6 +36,7 @@ const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 const TICKETS_PATH = "/tickets";
 const DOCUMENTOS_PATH = "/documentos"; // <-- nueva ruta
+const HELPDESK_PATH = "/helpdesk";
 
 /* ================== TIPOS DE NAVEGACIÓN ================== */
 
@@ -94,6 +95,7 @@ const NAV: NavEntry[] = [
     match: [EMPRESAS_PATH, REPORTES_PATH],
   },
   { type: "link", label: "Tickets", to: TICKETS_PATH, icon: <Ticket size={20} />, match: [TICKETS_PATH] },
+  { type: "link", label: "Helpdesk", to: HELPDESK_PATH, icon: <FileText size={20} />, match: [HELPDESK_PATH] },
 ];
 
 /* ================== HELPERS DE NAVEGACIÓN ================== */
@@ -108,6 +110,8 @@ function hintFor(path: string): string {
     case TICKETS_PATH: return "Mesa de ayuda";
     case ORDENESTALLER: return "Administración de taller";
     case COTIZACIONES: return "Generar cotizaciones";
+    case HELPDESK_PATH: return "Mesa de ayuda y tickets";
+
     default: return "Abrir sección";
   }
 }
