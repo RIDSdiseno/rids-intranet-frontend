@@ -10,6 +10,7 @@ import type {
   FichaEmpresaModalProps,
   ContactoEmpresa,
 } from "./types";
+import RedesTab from "./tabs/RedesTab";
 
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL ||
@@ -128,7 +129,11 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                 />
               ),
             },
-
+            {
+              key: "redes",
+              label: "Redes / ISP",
+              children: <RedesTab empresaId={localData.empresa.id_empresa} />,
+            },
             {
               key: "sucursales",
               label: "Sucursales",

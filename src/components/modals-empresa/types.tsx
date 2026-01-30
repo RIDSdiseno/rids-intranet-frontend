@@ -59,10 +59,13 @@ export interface FichaEmpresa {
 }
 
 export interface FichaEmpresaCompleta {
-    empresa: EmpresaLite;
-    ficha: FichaEmpresa | null;
-    checklist: Partial<ChecklistState> | null;
-    contactos: ContactoEmpresa[];
+  empresa: EmpresaLite;
+  ficha: FichaEmpresa | null;
+  checklist: Partial<ChecklistState> | null;
+  detalleEmpresa: DetalleEmpresa | null;
+  fichaTecnica: FichaTecnicaEmpresa | null; 
+  contactos: ContactoEmpresa[];
+  sucursales: Sucursal[];                  
 }
 
 export interface ContactoEmpresa {
@@ -72,6 +75,54 @@ export interface ContactoEmpresa {
     email?: string | null;
     telefono?: string | null;
     principal: boolean;
+}
+
+/* ================= FICHA TÉCNICA EMPRESA ================= */
+
+export interface FichaTecnicaEmpresa {
+    tecnicoPrincipal?: string | null;
+    tecnicosRespaldo?: string | null;
+
+    fechaUltimaVisita?: string | Date | null;
+    proximaVisitaProgramada?: string | Date | null;
+    observacionesVisita?: string | null;
+
+    pcsNotebooks?: string | null;
+    servidores?: string | null;
+    impresorasPerifericos?: string | null;
+    otrosEquipos?: string | null;
+
+    sistemasOperativos?: string | null;
+    aplicacionesCriticas?: string | null;
+    licenciasVigentes?: string | null;
+    antivirusSeguridad?: string | null;
+
+    // 🔥 ISP / Conectividad
+    proveedorInternet?: string | null;
+    velocidadContratada?: string | null;
+    routersSwitches?: string | null;
+    configuracionIP?: string | null;
+
+    dominioWeb?: string | null;
+    hostingProveedor?: string | null;
+    certificadoSSL?: string | null;
+    correosCorporativos?: string | null;
+    redesSociales?: string | null;
+
+    metodoRespaldo?: string | null;
+    frecuenciaRespaldo?: string | null;
+    responsableRespaldo?: string | null;
+    ultimaRestauracion?: string | Date | null;
+}
+
+/* ================= RED SUCURSAL ================= */
+
+export interface RedSucursal {
+    wifiNombre?: string | null;
+    claveWifi?: string | null;
+    ipRed?: string | null;
+    gateway?: string | null;
+    observaciones?: string | null;
 }
 
 /* ================= EQUIPOS / SOLICITANTES ================= */
@@ -164,7 +215,7 @@ export interface EstadisticasEmpresa {
 
 /* ================= TABS / MODALS ================= */
 
-export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen";
+export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen" |  "redes" ;
 
 /* ChecklistTab */
 export interface ChecklistTabProps {
@@ -257,4 +308,5 @@ export interface Sucursal {
     direccion?: string | null;
     telefono?: string | null;
     responsableSucursals: ResponsableSucursal[];
+    redSucursal?: RedSucursal | null;
 }

@@ -500,7 +500,6 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 value={busquedaEquipo}
                                                 onChange={(e) => setBusquedaEquipo(e.target.value)}
                                                 className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
-                                                disabled={equipos.length === 0}
                                             />
                                             {!formData.entidadId && (
                                                 <p className="text-xs text-amber-600 mt-1">Mostrando equipos de todas las empresas</p>

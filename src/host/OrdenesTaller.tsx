@@ -235,7 +235,7 @@ const OrdenesTaller: React.FC = () => {
     useEffect(() => {
         const cargarEquipos = async () => {
             try {
-                const res = await fetch(`${API_URL}/equipos?pageSize=500`, {
+                const res = await fetch(`${API_URL}/equipos?pageSize=700`, {
                     credentials: "include",
                 });
 
@@ -1032,7 +1032,7 @@ const OrdenesTaller: React.FC = () => {
                     onClose={() => setShowNuevoEquipoModal(false)}
                     onSaved={async (nuevoId) => {
                         try {
-                            const res = await fetch(`${API_URL}/equipos?pageSize=500`, {
+                            const res = await fetch(`${API_URL}/equipos?pageSize=700`, {
                                 credentials: "include",
                             });
 
@@ -1072,7 +1072,7 @@ const OrdenesTaller: React.FC = () => {
                         setEquipoEditando(null);
 
                         const cargarEquipos = async () => {
-                            const res = await fetch(`${API_URL}/equipos?pageSize=500`, { credentials: "include" });
+                            const res = await fetch(`${API_URL}/equipos?pageSize=700`, { credentials: "include" });
                             const data = await res.json();
                             const list = Array.isArray(data) ? data : data.items ?? [];
                             const normalized = (list as any[]).map((e) => ({
