@@ -27,7 +27,7 @@ const API_URL: string =
 const api = axios.create({ baseURL: API_URL, withCredentials: true });
 
 // ========= Tipos locales =========
-export type Empresa = { id_empresa: number; nombre: string };
+export type Empresa = { id_empresa: number; nombre: string, dominios?: string[]; };
 export type Equipo = {
   id_equipo: number;
   idSolicitante: number;
@@ -214,14 +214,14 @@ const ToastsView: React.FC<{
           t.kind === "success"
             ? "bg-emerald-600"
             : t.kind === "error"
-            ? "bg-rose-600"
-            : "bg-cyan-600";
+              ? "bg-rose-600"
+              : "bg-cyan-600";
         const Icon =
           t.kind === "success"
             ? CheckCircleFilled
             : t.kind === "error"
-            ? ExclamationCircleFilled
-            : InfoCircleFilled;
+              ? ExclamationCircleFilled
+              : InfoCircleFilled;
         return (
           <motion.div
             key={t.id}
@@ -399,7 +399,10 @@ export default function SolicitantesPage() {
   const openSyncMicrosoft = () => {
     setSyncMsOpen(true);
     setMsEmpresaId(empresaId ?? null);
-    setMsDomain("");
+
+    const emp = empresas.find(e => e.id_empresa === empresaId);
+    setMsDomain(emp?.dominios?.[0] ?? "");
+
     setMsEmail("");
   };
 
@@ -440,8 +443,9 @@ export default function SolicitantesPage() {
 
   // Empresas para selects (nuevo shape: { success, data, total })
   // Empresas para selects (nuevo shape: { success, data, total })
-type EmpresaApi = { id_empresa: number; nombre: string };
-type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: number };
+  type EmpresaApi = { id_empresa: number; nombre: string, dominios: string[];
+  dominioPrincipal?: string | null; };
+  type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: number };
 
   useEffect(() => {
     (async () => {
@@ -451,6 +455,7 @@ type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: num
         const items: Empresa[] = empresasData.map((e) => ({
           id_empresa: e.id_empresa,
           nombre: e.nombre,
+          dominios: Array.isArray(e.dominios) ? e.dominios : [],
         }));
         setEmpresas(items);
       } catch (e) {
@@ -463,7 +468,7 @@ type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: num
     })();
     // `push` viene del hook de toasts; lo incluimos para evitar warning del linter.
   }, [push]);
-  
+
 
   // Lista (con cancelación) + métricas
   const fetchList = useCallback(async () => {
@@ -1080,9 +1085,9 @@ type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: num
             <div>
               {list
                 ? `${(list.page - 1) * list.pageSize + 1}-${Math.min(
-                    list.page * list.pageSize,
-                    list.total
-                  )} de ${list.total}`
+                  list.page * list.pageSize,
+                  list.total
+                )} de ${list.total}`
                 : "0-0 de 0"}
             </div>
             <div className="flex items-center gap-2">
@@ -1286,7 +1291,16 @@ type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: num
             <select
               className="mt-1 w-full rounded-xl border px-3 py-2"
               value={msEmpresaId ?? ""}
-              onChange={(e) => setMsEmpresaId(e.target.value ? Number(e.target.value) : null)}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                setMsEmpresaId(id);
+
+                const emp = empresas.find(x => x.id_empresa === id);
+                const dominioPrincipal = emp?.dominios?.[0] ?? "";
+
+                setMsDomain(dominioPrincipal);
+              }}
+
             >
               <option value="">Selecciona…</option>
               {empresas.map((e) => (

@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CloseOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import {
+    CloseOutlined,
+    CheckCircleOutlined,
+} from "@ant-design/icons";
 
-interface EditServicioModalProps {
+interface NewServicioModalProps {
     show: boolean;
-    servicio: any;
     onClose: () => void;
     onSave: (servicioData: any) => void;
     apiLoading: boolean;
 }
 
-const EditServicioModal: React.FC<EditServicioModalProps> = ({
+const NewServicioModal: React.FC<NewServicioModalProps> = ({
     show,
-    servicio,
     onClose,
     onSave,
     apiLoading,
@@ -25,20 +26,19 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
         duracionHoras: "",
     });
 
-    // 🔄 sincroniza cuando cambia el servicio
     useEffect(() => {
-        if (servicio) {
+        if (show) {
             setFormData({
-                nombre: servicio.nombre ?? "",
-                descripcion: servicio.descripcion ?? "",
-                precio: servicio.precio ?? 0,
-                categoria: servicio.categoria ?? "",
-                duracionHoras: servicio.duracionHoras ?? "",
+                nombre: "",
+                descripcion: "",
+                precio: 0,
+                categoria: "",
+                duracionHoras: "",
             });
         }
-    }, [servicio]);
+    }, [show]);
 
-    if (!show || !servicio) return null;
+    if (!show) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,28 +55,26 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
             >
-                {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b">
                     <h2 className="text-lg font-bold text-slate-800">
-                        Editar Servicio
+                        Crear Servicio
                     </h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                    <button onClick={onClose} className="text-slate-400">
                         <CloseOutlined />
                     </button>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {/* Nombre */}
                     <div>
                         <label className="block text-sm font-medium mb-1">
-                            Nombre del servicio <span className="text-rose-500">*</span>
+                            Nombre <span className="text-rose-500">*</span>
                         </label>
                         <input
                             required
@@ -84,7 +82,7 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, nombre: e.target.value }))
                             }
-                            className="w-full border rounded-xl px-4 py-2 focus:ring-2 focus:ring-cyan-400"
+                            className="w-full border rounded-xl px-4 py-2"
                         />
                     </div>
 
@@ -99,7 +97,7 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, descripcion: e.target.value }))
                             }
-                            className="w-full border rounded-xl px-4 py-2 resize-none focus:ring-2 focus:ring-cyan-400"
+                            className="w-full border rounded-xl px-4 py-2"
                         />
                     </div>
 
@@ -116,7 +114,7 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, precio: Number(e.target.value) }))
                             }
-                            className="w-full border rounded-xl px-4 py-2 focus:ring-2 focus:ring-cyan-400"
+                            className="w-full border rounded-xl px-4 py-2"
                         />
                     </div>
 
@@ -130,7 +128,7 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, categoria: e.target.value }))
                             }
-                            className="w-full border rounded-xl px-4 py-2 focus:ring-2 focus:ring-cyan-400"
+                            className="w-full border rounded-xl px-4 py-2"
                         />
                     </div>
 
@@ -141,33 +139,22 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                         </label>
                         <input
                             type="number"
-                            min={0}
                             step={0.5}
+                            min={0}
                             value={formData.duracionHoras}
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, duracionHoras: e.target.value }))
                             }
-                            className="w-full border rounded-xl px-4 py-2 focus:ring-2 focus:ring-cyan-400"
+                            className="w-full border rounded-xl px-4 py-2"
                         />
                     </div>
 
-                    {/* Actions */}
                     <div className="flex justify-end gap-3 pt-4 border-t">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-5 py-2 rounded-xl border"
-                        >
+                        <button type="button" onClick={onClose}>
                             Cancelar
                         </button>
-
-                        <button
-                            type="submit"
-                            disabled={apiLoading}
-                            className="px-6 py-2 rounded-xl bg-cyan-600 text-white disabled:opacity-50 flex items-center gap-2"
-                        >
-                            <CheckCircleOutlined />
-                            {apiLoading ? "Guardando..." : "Guardar Cambios"}
+                        <button type="submit" disabled={apiLoading}>
+                            {apiLoading ? "Creando..." : "Crear Servicio"}
                         </button>
                     </div>
                 </form>
@@ -176,4 +163,4 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
     );
 };
 
-export default EditServicioModal;
+export default NewServicioModal;

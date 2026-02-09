@@ -89,6 +89,8 @@ export interface CotizacionItemGestioo {
   imagen?: string | null;
   precioOriginalCLP?: number;
   productoId?: number | null;
+
+  servicioId?: number;
 }
 
 export interface CotizacionGestioo {

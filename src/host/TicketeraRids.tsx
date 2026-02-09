@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
     Card,
     List,
@@ -23,6 +23,7 @@ import {
     Tabs,
     Timeline,
     Descriptions,
+    Pagination,
 } from "antd";
 import {
     PlusOutlined,
@@ -42,8 +43,14 @@ import {
     ArrowUpOutlined,
     ArrowDownOutlined,
     SettingOutlined,
+    SendOutlined,
+    EditOutlined,
+    EyeInvisibleOutlined,
+
 } from "@ant-design/icons";
 import Header from "../components/Header";
+
+import DOMPurify from "dompurify";
 
 /* ===================== CONFIG ===================== */
 const API_URL =
@@ -80,6 +87,35 @@ type Tecnico = {
     online?: boolean;
 };
 
+type TicketMessage = {
+    id: number;
+    bodyText: string | null;
+    bodyHtml?: string | null;
+    isInternal: boolean;
+    direction: "INBOUND" | "OUTBOUND";
+    createdAt: string;
+    fromEmail?: string | null;
+    toEmail?: string | null;
+    cc?: string[];
+    author?: {
+        nombre: string;
+        avatar?: string;
+    };
+    requester?: {
+        nombre: string;
+        email?: string;
+    };
+    attachments?: Array<{
+        id: number;
+        filename: string;
+        mimeType: string;
+        bytes: number;
+        url: string;
+        isInline?: boolean;   // ✅ Añadir
+        contentId?: string;   // ✅ Añadir
+    }>;
+};
+
 /* ===================== COMPONENT ===================== */
 export default function TicketeraRids() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -108,6 +144,15 @@ export default function TicketeraRids() {
     const [internalNoteText, setInternalNoteText] = useState("");
 
     const [allTickets, setAllTickets] = useState<Ticket[]>([]);
+
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(30);
+    const [totalTickets, setTotalTickets] = useState(0);
+
+    const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+
+    // Referencia para scroll automático
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const TICKET_STATUS_LABEL: Record<string, string> = {
         NEW: "Nuevo",
@@ -140,6 +185,7 @@ export default function TicketeraRids() {
         CLOSED: <CheckCircleOutlined style={{ color: "#8c8c8c" }} />,
     };
 
+    // Formulario para crear ticket
     const [form, setForm] = useState({
         empresaId: undefined as number | undefined,
         requesterId: undefined as number | undefined,
@@ -149,6 +195,7 @@ export default function TicketeraRids() {
         assigneeId: undefined as number | undefined,
     });
 
+    // Función para formatear fecha y hora
     function formatDateTime(date: string | Date) {
         return new Date(date).toLocaleString("es-CL", {
             year: "numeric",
@@ -160,6 +207,89 @@ export default function TicketeraRids() {
         });
     }
 
+    // Función para obtener autor del mensaje
+    function getMessageAuthor(m: TicketMessage, ticketDetalle: any) {
+        if (m.isInternal) {
+            return {
+                name: m.author?.nombre ?? ticketDetalle.assignee?.nombre ?? "Agente",
+                role: "Nota interna",
+            };
+        }
+
+        if (m.direction === "INBOUND") {
+            return {
+                name:
+                    ticketDetalle.requester?.nombre ??
+                    m.requester?.nombre ??
+                    m.fromEmail ??
+                    "Cliente",
+                role: "Cliente",
+            };
+        }
+
+        return {
+            name: m.author?.nombre ?? ticketDetalle.assignee?.nombre ?? "Agente",
+            role: "Agente",
+        };
+    }
+
+    function resolveInlineImages(
+        html: string,
+        attachments?: TicketMessage["attachments"]
+    ) {
+        if (!html) return html;
+
+        // 🔥 CASO CLAVE: HTML con cid PERO sin adjuntos → eliminar imgs
+        if (!attachments || attachments.length === 0) {
+            return html.replace(
+                /<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi,
+                ''
+            );
+        }
+
+        const inlineMap = new Map<string, number>();
+
+        attachments
+            .filter(a => a.isInline && a.contentId)
+            .forEach(a => {
+                inlineMap.set(a.contentId!, a.id);
+            });
+
+        return html.replace(
+            /<img[^>]+src=["']cid:([^"']+)["'][^>]*>/gi,
+            (_match, cid) => {
+                const cleanCid = cid.replace(/^</, '').replace(/>$/, '');
+                const attachmentId = inlineMap.get(cleanCid);
+
+                if (!attachmentId) {
+                    // ⚠️ No hay match → eliminar imagen
+                    return '';
+                }
+
+                return `<img src="${API_URL}/helpdesk/inline/${attachmentId}" />`;
+            }
+        );
+    }
+
+    // Función para detectar si hay imágenes CID sin resolver
+    function hasUnresolvedCidImages(
+        html?: string | null,
+        attachments?: TicketMessage["attachments"]
+    ) {
+        if (!html) return false;
+
+        // ¿El HTML original tenía imágenes CID?
+        const hasCidImages = /<img[^>]+src=["']cid:/i.test(html);
+        if (!hasCidImages) return false;
+
+        // ¿Hay adjuntos inline disponibles?
+        const inlineCount = attachments?.filter(a => a.isInline).length ?? 0;
+
+        // Si había CID pero no hay inline suficientes → aviso
+        return inlineCount === 0;
+    }
+
+    // Función para tiempo relativo
     function formatRelativeTime(date: string | Date) {
         const now = new Date();
         const diffMs = now.getTime() - new Date(date).getTime();
@@ -167,7 +297,9 @@ export default function TicketeraRids() {
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
 
-        if (diffMins < 60) {
+        if (diffMins < 1) {
+            return "Ahora";
+        } else if (diffMins < 60) {
             return `Hace ${diffMins} min`;
         } else if (diffHours < 24) {
             return `Hace ${diffHours} h`;
@@ -178,15 +310,33 @@ export default function TicketeraRids() {
         }
     }
 
-    type TicketMessage = {
-        id: number;
-        bodyText: string | null;
-        isInternal: boolean;
-        direction: "INBOUND" | "OUTBOUND";
-        createdAt: string;
-        author?: { nombre: string; avatar?: string };
-        attachments?: any[];
-    };
+    // Función para formatear cuerpo de email
+    function formatEmailBody(text: string | null) {
+        if (!text) return "";
+
+        let formattedText = text;
+
+        // Convertir URLs en enlaces
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        formattedText = formattedText.replace(urlRegex, '<a href="$1" target="_blank" class="text-blue-500 hover:text-blue-700 underline">$1</a>');
+
+        // Mantener saltos de línea
+        formattedText = formattedText.replace(/\n/g, '<br/>');
+
+        // Negritas (texto entre ** **)
+        formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        return formattedText;
+    }
+
+    // Función para formatear hora del mensaje
+    function formatMessageTime(date: string | Date) {
+        return new Date(date).toLocaleTimeString("es-CL", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        });
+    }
 
     /* ===================== LOAD DATA ===================== */
     const loadTickets = async () => {
@@ -195,33 +345,25 @@ export default function TicketeraRids() {
 
             const params = new URLSearchParams();
 
-            if (statusFilter) {
-                params.append("status", statusFilter);
-            }
-            if (priorityFilter) {
-                params.append("priority", priorityFilter);
-            }
-            if (assigneeFilter) {
-                params.append("assigneeId", assigneeFilter.toString());
-            }
-            if (searchText) {
-                params.append("search", searchText);
+            params.append("page", page.toString());
+            params.append("pageSize", pageSize.toString());
+
+            if (statusFilter) params.append("status", statusFilter);
+            if (priorityFilter) params.append("priority", priorityFilter);
+            if (assigneeFilter) params.append("assigneeId", assigneeFilter.toString());
+            if (searchText) params.append("search", searchText);
+
+            if (dateRange) {
+                params.append("from", dateRange[0]);
+                params.append("to", dateRange[1]);
             }
 
-            // 👉 PRIMERO fetch
-            const res = await fetch(
-                `${API_URL}/helpdesk/tickets?${params.toString()}`
-            );
-
+            const res = await fetch(`${API_URL}/helpdesk/tickets?${params.toString()}`);
             const json = await res.json();
 
-            // 👉 Guardar copia global SOLO cuando es "Todos"
-            if (!statusFilter) {
-                setAllTickets(Array.isArray(json.tickets) ? json.tickets : []);
-            }
-
-            // 👉 Tickets visibles
-            setTickets(Array.isArray(json.tickets) ? json.tickets : []);
+            setTickets(json.tickets ?? []);
+            setAllTickets(json.tickets ?? []);
+            setTotalTickets(json.total ?? 0);
         } catch {
             message.error("Error al cargar tickets");
         } finally {
@@ -254,6 +396,13 @@ export default function TicketeraRids() {
         setTecnicos(Array.isArray(json) ? json : []);
     };
 
+    // Scroll automático al final de los mensajes
+    const scrollToBottom = () => {
+        setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+    };
+
     useEffect(() => {
         loadEmpresas();
         loadTecnicos();
@@ -261,23 +410,81 @@ export default function TicketeraRids() {
 
     useEffect(() => {
         loadTickets();
-    }, [statusFilter, priorityFilter, assigneeFilter]);
+    }, [statusFilter, priorityFilter, assigneeFilter, dateRange]);
 
     useEffect(() => {
         if (activeTab === "CLOSED") {
             setStatusFilter("CLOSED");
         } else if (activeTab === "all") {
-            setStatusFilter(undefined); // tickets activos
+            setStatusFilter(undefined);
         } else if (["OPEN", "PENDING", "RESOLVED"].includes(activeTab)) {
             setStatusFilter(activeTab);
         }
     }, [activeTab]);
 
+    useEffect(() => {
+        loadTickets();
+    }, [page, pageSize]);
+
+    // Scroll automático cuando se carga el detalle
+    useEffect(() => {
+        if (ticketDetalle?.messages) {
+            scrollToBottom();
+        }
+    }, [ticketDetalle]);
+
+    // 🔍 DEBUG adjuntos e inline images
+    useEffect(() => {
+        if (ticketDetalle?.messages) {
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🔍 DEBUG ADJUNTOS / INLINE IMAGES');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+            ticketDetalle.messages.forEach((m: TicketMessage, idx: number) => {
+                console.log(`Mensaje ${idx}`, {
+                    id: m.id,
+                    direction: m.direction,
+                    attachments: m.attachments?.map(a => ({
+                        id: a.id,
+                        filename: a.filename,
+                        isInline: a.isInline,
+                        contentId: a.contentId,
+                        mimeType: a.mimeType,
+                    })) ?? [],
+                });
+            });
+
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
+    }, [ticketDetalle]);
+
+    const setLastDays = (days: number) => {
+        const to = new Date();
+        const from = new Date();
+        from.setDate(to.getDate() - days);
+
+        setDateRange([
+            from.toISOString().split("T")[0],
+            to.toISOString().split("T")[0],
+        ]);
+
+        setPage(1);
+    };
+
     const responderTicket = async (isInternal: boolean) => {
         const text = isInternal ? internalNoteText : replyText;
 
+        // 1️⃣ Mensaje vacío
         if (!text.trim()) {
             message.warning("Escribe un mensaje");
+            return;
+        }
+
+        // 2️⃣ 🚨 VALIDACIÓN CLAVE (AQUÍ VA)
+        if (!isInternal && !ticketDetalle?.requester?.email) {
+            message.warning(
+                "Este ticket no tiene un solicitante válido para responder"
+            );
             return;
         }
 
@@ -352,7 +559,13 @@ export default function TicketeraRids() {
             const res = await fetch(`${API_URL}/helpdesk/tickets/${ticket.id}`);
             const json = await res.json();
             if (!json.ok) throw new Error();
-            setTicketDetalle(json.ticket);
+            setTicketDetalle({
+                ...json.ticket,
+                messages: (json.ticket.messages ?? []).map((m: any) => ({
+                    ...m,
+                    cc: m.cc ? m.cc.split(",") : [],
+                })),
+            });
         } catch {
             message.error("Error al cargar detalle");
         } finally {
@@ -409,9 +622,8 @@ export default function TicketeraRids() {
     const filteredTickets = tickets.filter(ticket => {
         if (activeTab === "unassigned") return !ticket.assignee;
         if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
-        return true; // 👈 NO filtrar por status aquí
+        return true;
     });
-
 
     const getTicketCount = (status: string) => {
         if (status === "all") return allTickets.length;
@@ -495,58 +707,82 @@ export default function TicketeraRids() {
 
                 {/* Barra de filtros y búsqueda */}
                 <Card className="mb-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex-1">
-                            <Input
-                                placeholder="Buscar tickets por asunto, empresa o ID..."
-                                prefix={<SearchOutlined />}
-                                value={searchText}
-                                onChange={(e) => setSearchText(e.target.value)}
-                                onPressEnter={loadTickets}
-                                size="large"
-                            />
+                    <div className="flex flex-col gap-3">
+                        {/* 🔝 Fila superior: búsqueda + filtros */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <Input
+                                    placeholder="Buscar tickets por asunto, empresa o ID..."
+                                    prefix={<SearchOutlined />}
+                                    value={searchText}
+                                    onChange={(e) => setSearchText(e.target.value)}
+                                    onPressEnter={loadTickets}
+                                    size="large"
+                                />
+                            </div>
+
+                            <Space>
+                                <Select
+                                    placeholder="Estado"
+                                    allowClear
+                                    style={{ width: 140 }}
+                                    value={statusFilter}
+                                    onChange={setStatusFilter}
+                                    options={[
+                                        { value: "NEW", label: "Nuevo" },
+                                        { value: "OPEN", label: "Abierto" },
+                                        { value: "PENDING", label: "Pendiente" },
+                                        { value: "RESOLVED", label: "Resuelto" },
+                                        { value: "CLOSED", label: "Cerrado" },
+                                    ]}
+                                />
+
+                                <Select
+                                    placeholder="Prioridad"
+                                    allowClear
+                                    style={{ width: 140 }}
+                                    value={priorityFilter}
+                                    onChange={setPriorityFilter}
+                                    options={[
+                                        { value: "LOW", label: "Baja" },
+                                        { value: "NORMAL", label: "Media" },
+                                        { value: "HIGH", label: "Alta" },
+                                        { value: "URGENT", label: "Urgente" },
+                                    ]}
+                                />
+
+                                <Select
+                                    placeholder="Asignado a"
+                                    allowClear
+                                    style={{ width: 180 }}
+                                    value={assigneeFilter}
+                                    onChange={setAssigneeFilter}
+                                    options={tecnicos.map(t => ({
+                                        value: t.id_tecnico,
+                                        label: t.nombre,
+                                    }))}
+                                />
+
+                                <Button icon={<FilterOutlined />} onClick={loadTickets}>
+                                    Filtrar
+                                </Button>
+                            </Space>
                         </div>
-                        <Space>
-                            <Select
-                                placeholder="Estado"
-                                allowClear
-                                style={{ width: 140 }}
-                                value={statusFilter}
-                                onChange={setStatusFilter}
-                                options={[
-                                    { value: "NEW", label: "Nuevo" },
-                                    { value: "OPEN", label: "Abierto" },
-                                    { value: "PENDING", label: "Pendiente" },
-                                    { value: "RESOLVED", label: "Resuelto" },
-                                    { value: "CLOSED", label: "Cerrado" },
-                                ]}
-                            />
-                            <Select
-                                placeholder="Prioridad"
-                                allowClear
-                                style={{ width: 140 }}
-                                value={priorityFilter}
-                                onChange={setPriorityFilter}
-                                options={[
-                                    { value: "LOW", label: "Baja" },
-                                    { value: "NORMAL", label: "Media" },
-                                    { value: "HIGH", label: "Alta" },
-                                    { value: "URGENT", label: "Urgente" },
-                                ]}
-                            />
-                            <Select
-                                placeholder="Asignado a"
-                                allowClear
-                                style={{ width: 180 }}
-                                value={assigneeFilter}
-                                onChange={setAssigneeFilter}
-                                options={tecnicos.map(t => ({
-                                    value: t.id_tecnico,
-                                    label: t.nombre,
-                                }))}
-                            />
-                            <Button icon={<FilterOutlined />} onClick={loadTickets}>
-                                Filtrar
+
+                        {/* 🔽 Fila inferior: rango de fechas */}
+                        <Space size="small">
+                            <Button size="small" onClick={() => setLastDays(1)}>Hoy</Button>
+                            <Button size="small" onClick={() => setLastDays(7)}>Últimos 7 días</Button>
+                            <Button size="small" onClick={() => setLastDays(30)}>Este mes</Button>
+                            <Button
+                                size="small"
+                                onClick={() => {
+                                    setDateRange(null);
+                                    setPage(1);
+                                    loadTickets();
+                                }}
+                            >
+                                Limpiar rango
                             </Button>
                         </Space>
                     </div>
@@ -588,7 +824,7 @@ export default function TicketeraRids() {
                                     Resueltos <Badge count={getTicketCount("RESOLVED")} offset={[10, -2]} />
                                 </span>
                             ),
-                        }, 
+                        },
                         {
                             key: "CLOSED",
                             label: (
@@ -597,7 +833,6 @@ export default function TicketeraRids() {
                                 </span>
                             ),
                         },
-
                     ]}
                 />
 
@@ -637,9 +872,6 @@ export default function TicketeraRids() {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-semibold text-gray-800">
-                                                        {ticket.publicId ? `#${ticket.publicId}` : `#${ticket.id}`}
-                                                    </span>
                                                     <span className="text-gray-800">{ticket.subject}</span>
                                                 </div>
                                                 <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
@@ -647,8 +879,8 @@ export default function TicketeraRids() {
                                                         <TeamOutlined />
                                                         {ticket.empresa?.nombre}
                                                     </span>
-                                                    <span>
-                                                        {ticket.requester?.nombre}
+                                                    <span className="italic text-gray-400">
+                                                        {ticket.requester?.nombre ?? "Sin solicitante"}
                                                     </span>
                                                     {ticket.createdAt && (
                                                         <span>
@@ -681,6 +913,21 @@ export default function TicketeraRids() {
                         </div>
                     )}
                 </Card>
+
+                {/* Paginación */}
+                <div className="flex justify-center mt-4 mb-2">
+                    <Pagination
+                        current={page}
+                        pageSize={pageSize}
+                        total={totalTickets}
+                        showSizeChanger
+                        pageSizeOptions={["10", "20", "30", "50"]}
+                        onChange={(p, ps) => {
+                            setPage(p);
+                            setPageSize(ps);
+                        }}
+                    />
+                </div>
             </main>
 
             {/* ===================== DRAWER CREAR ===================== */}
@@ -797,7 +1044,9 @@ export default function TicketeraRids() {
             <Drawer
                 title={
                     <div className="flex items-center gap-2">
-                        <span className="font-semibold">Ticket #{ticketDetalle?.publicId || ticketDetalle?.id}</span>
+                        <span className="text-sm font-mono text-gray-500">
+                            TCK-{ticketDetalle?.publicId?.slice(0, 6).toUpperCase()}
+                        </span>
                         <Tag color={priorityColor(ticketDetalle?.priority)} className="m-0">
                             {ticketDetalle && TICKET_PRIORITY_LABEL[ticketDetalle.priority]}
                         </Tag>
@@ -809,15 +1058,16 @@ export default function TicketeraRids() {
                 open={drawerDetalle}
                 onClose={() => setDrawerDetalle(false)}
                 width={800}
+                bodyStyle={{ padding: 0 }}
             >
                 {loadingDetalle || !ticketDetalle ? (
                     <div className="flex justify-center py-10">
                         <Spin />
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {/* Información del ticket */}
-                        <Card size="small">
+                    <div className="flex flex-col h-full">
+                        {/* Información del ticket (sticky en top) */}
+                        <div className="sticky top-0 z-10 bg-white border-b p-4 shadow-sm">
                             <Descriptions column={2} size="small">
                                 <Descriptions.Item label="Empresa">
                                     <div className="font-medium">{ticketDetalle.empresa?.nombre}</div>
@@ -826,10 +1076,18 @@ export default function TicketeraRids() {
                                     <div className="flex items-center gap-2">
                                         <Avatar size="small" icon={<UserOutlined />} />
                                         <div>
-                                            <div className="font-medium">{ticketDetalle.requester?.nombre}</div>
-                                            <div className="text-sm text-gray-500">
-                                                <MailOutlined /> {ticketDetalle.requester?.email}
-                                            </div>
+                                            {ticketDetalle.requester ? (
+                                                <>
+                                                    <div className="font-medium">{ticketDetalle.requester.nombre}</div>
+                                                    <div className="text-sm text-gray-500">
+                                                        <MailOutlined /> {ticketDetalle.requester.email}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="italic text-gray-400">
+                                                    Solicitante no registrado
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </Descriptions.Item>
@@ -845,6 +1103,7 @@ export default function TicketeraRids() {
                                             { value: "CLOSED", label: "Cerrado" },
                                         ]}
                                         className="w-full"
+                                        size="small"
                                     />
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Prioridad">
@@ -858,6 +1117,7 @@ export default function TicketeraRids() {
                                             { value: "URGENT", label: "Urgente" },
                                         ]}
                                         className="w-full"
+                                        size="small"
                                     />
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Asignado a">
@@ -873,79 +1133,188 @@ export default function TicketeraRids() {
                                             label: t.nombre,
                                         }))}
                                         className="w-full"
+                                        size="small"
                                     />
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Creado">
                                     {ticketDetalle.createdAt && formatDateTime(ticketDetalle.createdAt)}
                                 </Descriptions.Item>
                             </Descriptions>
-                        </Card>
+                        </div>
 
                         {/* Asunto */}
-                        <Card size="small">
-                            <h3 className="font-semibold text-lg mb-2">{ticketDetalle.subject}</h3>
-                            <p className="text-gray-700">{ticketDetalle.description}</p>
-                        </Card>
+                        <div className="p-4 border-b bg-gray-50">
+                            <h3 className="font-semibold text-lg mb-1">{ticketDetalle.subject}</h3>
+                            <p className="text-gray-700 whitespace-pre-wrap">{ticketDetalle.description}</p>
+                        </div>
 
-                        {/* Conversación */}
-                        <div className="space-y-4">
-                            <h4 className="font-semibold">Conversación</h4>
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto p-2">
-                                {ticketDetalle.messages.map((m: TicketMessage) => (
-                                    <div
-                                        key={m.id}
-                                        className={`flex gap-3 ${m.direction === "OUTBOUND" ? "flex-row-reverse" : ""}`}
-                                    >
-                                        <Avatar
-                                            size="small"
-                                            src={m.author?.avatar}
-                                            icon={<UserOutlined />}
-                                            className={m.direction === "OUTBOUND" ? "order-1" : ""}
-                                        />
-                                        <div
-                                            className={`max-w-[80%] rounded-lg p-3 ${m.isInternal
-                                                ? "bg-yellow-50 border border-yellow-200"
-                                                : m.direction === "INBOUND"
-                                                    ? "bg-gray-100"
-                                                    : "bg-blue-50"
-                                                }`}
-                                        >
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="font-medium">
-                                                    {m.isInternal ? "Nota interna" : m.author?.nombre || "Soporte"}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {formatDateTime(m.createdAt)}
+                        {/* Área de conversación con scroll */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {/* Timeline de conversación */}
+                            <div className="relative max-h-full overflow-y-auto pl-10">
+                                {/* Línea vertical del timeline */}
+                                <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-300 z-0"></div>
+
+                                {ticketDetalle.messages.map((m: TicketMessage) => {
+                                    const isOutbound = m.direction === "OUTBOUND";
+                                    const isInternal = m.isInternal;
+
+                                    const author = getMessageAuthor(m, ticketDetalle);
+
+                                    // Determinar estilos según tipo de mensaje
+                                    let bgColor = "bg-white";
+                                    let borderColor = "border-l-blue-500";
+                                    let avatarBg = "bg-blue-500";
+                                    let avatarIcon = <UserOutlined className="text-white text-xs" />;
+
+                                    if (isInternal) {
+                                        bgColor = "bg-yellow-50";
+                                        borderColor = "border-l-yellow-500";
+                                        avatarBg = "bg-yellow-500";
+                                        avatarIcon = <EditOutlined className="text-white text-xs" />;
+                                    } else if (isOutbound) {
+                                        bgColor = "bg-blue-50";
+                                        borderColor = "border-l-green-500";
+                                        avatarBg = "bg-green-500";
+                                        avatarIcon = <TeamOutlined className="text-white text-xs" />;
+                                    } else {
+                                        bgColor = "bg-white";
+                                        borderColor = "border-l-blue-500";
+                                        avatarBg = "bg-blue-500";
+                                        avatarIcon = <UserOutlined className="text-white text-xs" />;
+                                    }
+
+                                    return (
+                                        <div key={m.id} className="relative mb-6">
+                                            {/* Punto del timeline con ícono */}
+                                            <div className="absolute left-[-36px] top-2 z-10">
+                                                <div className={`w-8 h-8 rounded-full ${avatarBg} flex items-center justify-center`}>
+                                                    {avatarIcon}
                                                 </div>
                                             </div>
-                                            <div className="text-gray-800">{m.bodyText}</div>
-                                            {m.attachments && m.attachments.length > 0 && (
-                                                <div className="mt-2">
-                                                    {m.attachments.map((att: any) => (
-                                                        <Button
-                                                            key={att.id}
-                                                            icon={<PaperClipOutlined />}
-                                                            type="text"
-                                                            size="small"
+
+                                            {/* Tarjeta de mensaje */}
+                                            <div className={`rounded-lg p-4 shadow-sm border ${bgColor} ${borderColor} border-l-4 hover:shadow-md transition-shadow`}>
+                                                {/* Encabezado del mensaje */}
+                                                <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium text-sm">
+                                                            {author.name}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 ml-2">
+                                                            ({author.role})
+                                                        </span>
+                                                        <Tag
+                                                            color={isInternal ? "gold" : isOutbound ? "blue" : "default"}
+                                                            className="text-xs"
                                                         >
-                                                            {att.name}
-                                                        </Button>
-                                                    ))}
+                                                            {isInternal ? "Interno" : isOutbound ? "Enviado" : "Recibido"}
+                                                        </Tag>
+                                                        {isOutbound && m.author?.nombre && (
+                                                            <span className="text-xs text-gray-500">
+                                                                por {m.author.nombre}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-xs text-gray-500">
+                                                            {formatDateTime(m.createdAt)}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400">
+                                                            {formatMessageTime(m.createdAt)}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            )}
+
+                                                {/* Aviso si hay imágenes CID no renderizables */}
+                                                {hasUnresolvedCidImages(m.bodyHtml, m.attachments) && (
+                                                    <div className="mb-2 px-3 py-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded">
+                                                        ⚠️ Algunas imágenes de la firma del correo no pudieron mostrarse.
+                                                    </div>
+                                                )}
+
+                                                {/* Cuerpo del mensaje */}
+                                                <div className="mb-3">
+                                                    <div
+                                                        className="prose prose-sm max-w-none text-gray-800"
+                                                        dangerouslySetInnerHTML={{
+                                                            __html: DOMPurify.sanitize(
+                                                                resolveInlineImages(
+                                                                    m.bodyHtml ?? formatEmailBody(m.bodyText),
+                                                                    m.attachments
+                                                                ),
+                                                                {
+                                                                    ADD_ATTR: ["target", "src"],
+                                                                    ADD_TAGS: ["img"],
+                                                                }
+                                                            ),
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                {/* Adjuntos */}
+                                                {/* Adjuntos - Solo mostrar los que NO son inline */}
+                                                {(m.attachments?.filter(a => !a.isInline).length ?? 0) > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                                                            <PaperClipOutlined />
+                                                            <span>Archivos adjuntos ({m.attachments?.filter(a => !a.isInline).length}):</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {(m.attachments ?? [])
+                                                                .filter(a => !a.isInline) // ✅ Filtrar inline
+                                                                .map(att => (
+                                                                    <a
+                                                                        key={att.id}
+                                                                        href={`${API_URL}/helpdesk/tickets/attachments/${att.id}/download`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 no-underline border border-gray-300"
+                                                                    >
+                                                                        <PaperClipOutlined className="text-xs" />
+                                                                        {att.filename}
+                                                                    </a>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Información adicional para mensajes del agente */}
+                                                {isOutbound && !isInternal && (
+                                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                            <MailOutlined className="text-xs" />
+                                                            <span>Enviado a: {ticketDetalle.requester?.email}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Indicador de hora relativa */}
+                                            <div className="text-xs text-gray-400 mt-1 ml-1">
+                                                {formatRelativeTime(m.createdAt)}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
+
+                                {/* Elemento para scroll automático */}
+                                <div ref={messagesEndRef} />
                             </div>
                         </div>
 
-                        {/* Respuesta */}
-                        <Card>
+                        {/* Área de respuesta (sticky en bottom) */}
+                        <div className="sticky bottom-0 bg-white border-t p-4 shadow-md">
                             <Tabs
                                 items={[
                                     {
                                         key: "reply",
-                                        label: "Responder al cliente",
+                                        label: (
+                                            <span className="flex items-center gap-1">
+                                                <SendOutlined />
+                                                Responder al cliente
+                                            </span>
+                                        ),
                                         children: (
                                             <div className="space-y-4">
                                                 <Input.TextArea
@@ -954,22 +1323,25 @@ export default function TicketeraRids() {
                                                     onChange={(e) => setReplyText(e.target.value)}
                                                     placeholder="Escribe tu respuesta al cliente..."
                                                     className="resize-none"
+                                                    autoSize={{ minRows: 3, maxRows: 6 }}
                                                 />
-                                                <div className="flex justify-between">
+                                                <div className="flex justify-between items-center">
                                                     <Space>
-                                                        <Button icon={<PaperClipOutlined />}>
-                                                            Adjuntar
+                                                        <Button icon={<PaperClipOutlined />} size="small">
+                                                            Adjuntar archivo
                                                         </Button>
-                                                        <Button icon={<PhoneOutlined />}>
-                                                            Llamar
+                                                        <Button icon={<PhoneOutlined />} size="small">
+                                                            Registrar llamada
                                                         </Button>
                                                     </Space>
                                                     <Space>
-                                                        <Button>Guardar borrador</Button>
                                                         <Button
+                                                            size="large"
                                                             type="primary"
+                                                            icon={<SendOutlined />}
                                                             loading={sendingReply}
                                                             onClick={() => responderTicket(false)}
+                                                            className="bg-blue-600 hover:bg-blue-700"
                                                         >
                                                             Enviar respuesta
                                                         </Button>
@@ -980,7 +1352,12 @@ export default function TicketeraRids() {
                                     },
                                     {
                                         key: "internal",
-                                        label: "Nota interna",
+                                        label: (
+                                            <span className="flex items-center gap-1">
+                                                <EditOutlined />
+                                                Nota interna
+                                            </span>
+                                        ),
                                         children: (
                                             <div className="space-y-4">
                                                 <Input.TextArea
@@ -988,13 +1365,19 @@ export default function TicketeraRids() {
                                                     value={internalNoteText}
                                                     onChange={(e) => setInternalNoteText(e.target.value)}
                                                     placeholder="Agregar nota interna visible solo para agentes..."
-                                                    className="resize-none bg-yellow-50"
+                                                    className="resize-none bg-yellow-50 border-yellow-200"
+                                                    autoSize={{ minRows: 2, maxRows: 4 }}
                                                 />
-                                                <div className="flex justify-end">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                        <EyeInvisibleOutlined />
+                                                        Solo visible para agentes
+                                                    </div>
                                                     <Button
                                                         type="default"
                                                         loading={sendingReply}
                                                         onClick={() => responderTicket(true)}
+                                                        icon={<EditOutlined />}
                                                     >
                                                         Agregar nota interna
                                                     </Button>
@@ -1004,7 +1387,7 @@ export default function TicketeraRids() {
                                     },
                                 ]}
                             />
-                        </Card>
+                        </div>
                     </div>
                 )}
             </Drawer>

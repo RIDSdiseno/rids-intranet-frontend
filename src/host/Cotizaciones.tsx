@@ -23,12 +23,12 @@ import {
     SelectProductoModal,
     SelectServicioModal,
     EditProductoModal,
-    EditServicioModal,
     NewEntidadModal,
     EditEntidadModal,
     NewEmpresaModal,
     NewProductoModal,
-    GenerarPDFModal
+    GenerarPDFModal,
+    NewServicioModal
 } from "../components/modals";
 import type {
     CotizacionGestioo,
@@ -86,6 +86,7 @@ const Cotizaciones: React.FC = () => {
     const [showEditEntidadModal, setShowEditEntidadModal] = useState(false);
     const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
     const [showNewProductoModal, setShowNewProductoModal] = useState(false);
+    const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
 
     // === ESTADOS PARA FORMULARIOS ===
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
@@ -172,7 +173,6 @@ const Cotizaciones: React.FC = () => {
 
     // === ESTADOS PARA ORDENAMIENTO ===
     const [ordenProducto, setOrdenProducto] = useState("asc");
-    const [ordenServicio, setOrdenServicio] = useState("asc");
 
     // === HOOKS PERSONALIZADOS ===
     const { fetchApi: apiFetch, loading: apiLoading } = useApi();
@@ -791,24 +791,55 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // === FUNCIONES PARA SERVICIOS ===
     const agregarServicio = (servicio: any) => {
-        const newItem = {
-            id: Date.now(),
+        const newItem: CotizacionItemGestioo = {
+            id: Date.now(), // id local del ítem
+            cotizacionId: 0, // o el real si lo tienes
             tipo: ItemTipoGestioo.SERVICIO,
-            descripcion: servicio.nombre,
+
+            nombre: servicio.nombre,
+            descripcion: servicio.descripcion ?? "",
+
             cantidad: 1,
             precio: servicio.precio || 0,
+            precioOriginalCLP: servicio.precio || 0,
+
             porcentaje: 0,
             tieneIVA: false,
-            tieneDescuento: false,         // 👈 nuevo
+            tieneDescuento: false,
+
             seccionId: formData.seccionActiva,
-            productoId: null
+
+            // 🔥🔥🔥 CLAVE ABSOLUTA
+            servicioId: servicio.id,   // 👈 ID REAL DE ServicioGestioo
+
+            productoId: null,
+            createdAt: new Date().toISOString(),
         };
 
         setItems(prev => [...prev, newItem]);
         setShowSelectorServicio(false);
         showSuccess("Servicio agregado correctamente");
     };
+
+
+    // === FUNCIONES PARA EDITAR ITEMS ===
+    const abrirEditarItem = (item: CotizacionItemGestioo) => {
+        // 🟦 PRODUCTO
+        if (item.tipo === ItemTipoGestioo.PRODUCTO) {
+            abrirEditarProducto(item, "cotizacion");
+            return;
+        }
+
+        // 🟩 SERVICIO
+        if (item.tipo === ItemTipoGestioo.SERVICIO) {
+            setServicioAEditar(item);
+            setShowEditServicioModal(true);
+            return;
+        }
+    };
+
 
     const abrirEditarProducto = (
         data: { productoId: number } | CotizacionItemGestioo,
@@ -970,6 +1001,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Sincronizador global de productos
     const handleEditarProducto = async (productoData: any) => {
         try {
             if (!productoAEditar?.id) {
@@ -1001,6 +1033,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Agregar producto a cotización en edición
     const agregarProductoEnEdicion = async (producto: any) => {
         if (!selectedCotizacion) return;
 
@@ -1057,6 +1090,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Eliminar producto del catálogo
     const handleEliminarProducto = async (productoId: number) => {
         try {
             const confirmar = window.confirm("¿Seguro que deseas eliminar este producto?");
@@ -1073,27 +1107,17 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const abrirEditarServicio = (servicio: any) => {
-        setServicioAEditar(servicio);
-        setShowEditServicioModal(true);
-    };
+    // Editar ítem (producto o servicio) desde la cotización
+    const editarItem = (item: CotizacionItemGestioo) => {
+        if (item.tipo === ItemTipoGestioo.PRODUCTO) {
+            abrirEditarProducto(item, "cotizacion");
+            return;
+        }
 
-    const handleEditarServicio = async (servicioData: any) => {
-        try {
-            await apiFetch(`/servicios-gestioo/${servicioAEditar.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(servicioData)
-            });
-
-            setServiciosCatalogo(prev =>
-                prev.map(s => s.id === servicioAEditar.id ? { ...s, ...servicioData } : s)
-            );
-
-            setShowEditServicioModal(false);
-            showSuccess("Servicio actualizado correctamente");
-        } catch (error: any) {
-            handleApiError(error, "Error al actualizar servicio");
+        if (item.tipo === ItemTipoGestioo.SERVICIO) {
+            setServicioAEditar(item);
+            setShowEditServicioModal(true);
+            return;
         }
     };
 
@@ -1760,6 +1784,8 @@ const Cotizaciones: React.FC = () => {
                     setShowEditEntidadModal(true);
                 }}
                 onEditarProducto={abrirEditarProductoDesdeCotizacion}
+                onEditarServicio={editarItem}
+                onCrearServicio={() => { setShowCreateServicioModal(true); }}
 
                 totales={totales}
                 apiLoading={apiLoading}
@@ -1779,7 +1805,7 @@ const Cotizaciones: React.FC = () => {
                     setShowNewProductoModal(true);
                     document.body.classList.add("modal-nested-open");
                 }}
-                onEditarProducto={abrirEditarProductoDesdeCotizacion}
+                onEditarProducto={abrirEditarItem}
                 onItemChange={handleItemChange}
             />
             <SelectProductoModal
@@ -1829,9 +1855,6 @@ const Cotizaciones: React.FC = () => {
                     })
                 }
                 onAgregarServicio={agregarServicio}
-                onEditarServicio={abrirEditarServicio}
-                orden={ordenServicio}
-                onOrdenChange={setOrdenServicio}
             />
 
             <EditProductoModal
@@ -1874,14 +1897,6 @@ const Cotizaciones: React.FC = () => {
                         );
                     }
                 }}
-            />
-
-            <EditServicioModal
-                show={showEditServicioModal}
-                servicio={servicioAEditar}
-                onClose={() => setShowEditServicioModal(false)}
-                onSave={handleEditarServicio}
-                apiLoading={apiLoading}
             />
 
             <NewEntidadModal
@@ -1939,6 +1954,35 @@ const Cotizaciones: React.FC = () => {
                     setProductoForm(prev => ({ ...prev, [field]: value }))
                 }
                 categoriasDisponibles={categoriasDisponibles}
+                apiLoading={apiLoading}
+            />
+
+            <NewServicioModal
+                show={showCreateServicioModal}
+                onClose={() => setShowCreateServicioModal(false)}
+                onSave={async (servicioCreado) => {
+                    try {
+                        // 1️⃣ Guardar en backend
+                        const resp = await apiFetch("/servicios-gestioo", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(servicioCreado),
+                        });
+
+                        const servicioReal = resp.data;
+
+                        // 2️⃣ Actualizar catálogo
+                        setServiciosCatalogo(prev => [...prev, servicioReal]);
+
+                        // 3️⃣ Cerrar modal
+                        setShowCreateServicioModal(false);
+
+                        showSuccess("Servicio creado correctamente");
+
+                    } catch (error) {
+                        handleApiError(error, "Error al crear servicio");
+                    }
+                }}
                 apiLoading={apiLoading}
             />
 

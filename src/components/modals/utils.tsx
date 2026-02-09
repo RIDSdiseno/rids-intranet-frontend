@@ -7,8 +7,12 @@ import { EstadoCotizacionGestioo, TipoCotizacionGestioo } from "./types";
 
 import { ItemTipoGestioo } from "./types";
 
+// =====================================================
+//  CÁLCULO DE TOTALES
+// =====================================================
 type ItemParaTotales = CotizacionItemGestioo | ItemCotizacionFrontend;
 
+// IVA fijo 19%
 const IVA_RATE = 0.19;
 
 // =====================================================
@@ -75,7 +79,7 @@ export const calcularTotales = (
   return { subtotalBruto, descuentos, subtotal, iva, total };
 };
 
-
+// Calcula el precio total dado el precio base y el porcentaje de ganancia
 export const calcularPrecioTotal = (
   precio: number,
   porcGanancia: number
@@ -84,6 +88,7 @@ export const calcularPrecioTotal = (
   return Number((precio * (1 + porcGanancia / 100)).toFixed(2));
 };
 
+// Calcula el porcentaje de ganancia dado el precio base y el precio total
 export const calcularPorcGanancia = (
   precio: number,
   precioTotal: number
@@ -92,7 +97,9 @@ export const calcularPorcGanancia = (
   return Number((((precioTotal - precio) / precio) * 100).toFixed(2));
 };
 
-
+// =====================================================
+//  VALIDACIONES GENERALES
+// =====================================================
 export const validarCotizacion = (cotizacion: any): string[] => {
   const errores: string[] = [];
 
@@ -104,25 +111,41 @@ export const validarCotizacion = (cotizacion: any): string[] => {
     errores.push("El origen de la entidad es obligatorio");
   }
 
-  if (cotizacion.items.length === 0) {
+  if (!cotizacion.items || cotizacion.items.length === 0) {
     errores.push("Debe agregar al menos un item");
   }
 
   cotizacion.items.forEach((item: any, index: number) => {
-    if (!item.descripcion?.trim()) {
-      errores.push(`Item ${index + 1}: La descripción es obligatoria`);
+    const tieneNombre = item.nombre && item.nombre.trim() !== "";
+    const tieneDescripcion =
+      item.descripcion && item.descripcion.trim() !== "";
+
+    // 🔥 CLAVE: nombre O descripción
+    if (!tieneNombre && !tieneDescripcion) {
+      errores.push(
+        `Item ${index + 1}: Debe tener nombre o descripción`
+      );
     }
-    if (item.cantidad <= 0) {
-      errores.push(`Item ${index + 1}: La cantidad debe ser mayor a 0`);
+
+    if (Number(item.cantidad) <= 0) {
+      errores.push(
+        `Item ${index + 1}: La cantidad debe ser mayor a 0`
+      );
     }
-    if (item.precio < 0) {
-      errores.push(`Item ${index + 1}: El precio no puede ser negativo`);
+
+    if (Number(item.precio) < 0) {
+      errores.push(
+        `Item ${index + 1}: El precio no puede ser negativo`
+      );
     }
   });
 
   return errores;
 };
 
+// =====================================================
+//  VALIDACIONES ESPECÍFICAS
+// =====================================================
 export const validarRut = (rut: string) => {
   if (!rut) return false;
 
@@ -151,6 +174,7 @@ export const validarRut = (rut: string) => {
   return dv === dvReal;
 };
 
+// Formatea un RUT chileno (agrega puntos y guion)
 export const formatearRut = (rut: string) => {
   rut = rut.replace(/^0+|[^0-9kK]+/g, "").toUpperCase();
   if (rut.length <= 1) return rut;
@@ -169,6 +193,7 @@ export const formatearRut = (rut: string) => {
   return `${formateado}-${dv}`;
 };
 
+// Validar que el nombre tenga al menos 3 caracteres
 export const validarNombre = (nombre: string) =>
   nombre.trim().length >= 3;
 
@@ -178,17 +203,22 @@ export const validarEmail = (email: string) => {
   return regex.test(email.toLowerCase());
 };
 
+// Validar teléfono chileno (9 dígitos, puede incluir +56 y espacios)
 export const validarTelefono = (telefono: string) => {
   if (!telefono) return true; // opcional
   const regex = /^(\+?56)?\s?9\d{8}$/;
   return regex.test(telefono.replace(/\s+/g, ""));
 };
 
+// Validar que la dirección tenga al menos 5 caracteres
 export const validarDireccion = (direccion: string) => {
   if (!direccion) return true; // opcional
   return direccion.trim().length >= 5;
 };
 
+// =====================================================
+//  FORMATEO DE ESTADO Y TIPO
+// =====================================================
 export const formatEstado = (estado: EstadoCotizacionGestioo) => {
   const estados: { [key in EstadoCotizacionGestioo]: string } = {
     [EstadoCotizacionGestioo.BORRADOR]: "Borrador",
@@ -231,6 +261,9 @@ export function formatearPrecio(
   return `$ ${Math.round(valorCLP).toLocaleString("es-CL")}`;
 }
 
+// =====================================================
+//  NORMALIZAR ITEM COTIZACIÓN
+// =====================================================
 export const normalizarItemCotizacion = (
   item: any,
   moneda: "CLP" | "USD",
@@ -269,6 +302,9 @@ export const normalizarItemCotizacion = (
   };
 };
 
+// =====================================================
+//  CÁLCULO DE VALORES POR ÍTEM
+// =====================================================
 export const calcularDescuentoItem = (item: any) => {
   if (!item.tieneDescuento || !item.porcentaje) return 0;
 
@@ -278,6 +314,7 @@ export const calcularDescuentoItem = (item: any) => {
   return Math.round(precio * cantidad * (item.porcentaje / 100));
 };
 
+// Calcula los valores base, descuento, neto, iva y total de un ítem
 export const calcularValoresItem = (
   item: CotizacionItemGestioo
 ) => {
@@ -307,6 +344,7 @@ export const calcularValoresItem = (
   };
 };
 
+// Calcula los valores detallados de un ítem para mostrar en la UI
 export const calcularLineaItem = (item: any) => {
   const precioCLP =
     Number(item.precioOriginalCLP ?? item.precio) || 0;
@@ -337,4 +375,3 @@ export const calcularLineaItem = (item: any) => {
     ivaPorcentajeMostrar: item.tieneIVA ? 19 : 0,
   };
 };
-

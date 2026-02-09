@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
     SearchOutlined,
-    EditOutlined,
     AppstoreOutlined,
     TableOutlined,
     PlusOutlined,
@@ -17,9 +16,6 @@ interface SelectServicioModalProps {
     onFiltroChange: (filtro: string, value: any) => void;
     onLimpiarFiltros: () => void;
     onAgregarServicio: (servicio: any) => void;
-    onEditarServicio: (servicio: any) => void;
-    orden: string;
-    onOrdenChange: (orden: string) => void;
 }
 
 const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
@@ -28,11 +24,7 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
     servicios,
     filtros,
     onFiltroChange,
-    onLimpiarFiltros,
     onAgregarServicio,
-    onEditarServicio,
-    orden,
-    onOrdenChange,
 }) => {
 
     if (!show) return null;
@@ -52,25 +44,7 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
         });
     };
 
-    // Ordenar servicios
-    const ordenarServicios = (lista: any[]) => {
-        return lista.sort((a, b) => {
-            switch (orden) {
-                case "asc":
-                    return a.nombre.localeCompare(b.nombre);
-                case "desc":
-                    return b.nombre.localeCompare(a.nombre);
-                case "precio-asc":
-                    return (a.precio || 0) - (b.precio || 0);
-                case "precio-desc":
-                    return (b.precio || 0) - (a.precio || 0);
-                default:
-                    return a.nombre.localeCompare(b.nombre);
-            }
-        });
-    };
-
-    const serviciosMostrar = ordenarServicios(filtrarServicios(servicios));
+    const serviciosMostrar = filtrarServicios(servicios);
 
     // ======= VISTA TABLA =======
     const VistaTabla = () => (
@@ -120,12 +94,6 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
                                         Agregar
                                     </button>
 
-                                    <button
-                                        onClick={() => onEditarServicio(s)}
-                                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"
-                                    >
-                                        <EditOutlined />
-                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -168,13 +136,6 @@ const SelectServicioModal: React.FC<SelectServicioModalProps> = ({
                         <span className="text-2xl font-bold text-emerald-600">
                             ${(s.precio || 0).toLocaleString("es-CL")}
                         </span>
-
-                        <button
-                            onClick={() => onEditarServicio(s)}
-                            className="p-2 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition"
-                        >
-                            <EditOutlined />
-                        </button>
                     </div>
 
                     <button

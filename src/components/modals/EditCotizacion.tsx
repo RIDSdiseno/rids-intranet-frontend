@@ -23,6 +23,7 @@ import {
 } from "./types";
 
 import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem } from "./utils";
+import EditServicioModal from "./EditServicio";
 
 interface EditCotizacionModalProps {
     show: boolean;
@@ -36,7 +37,7 @@ interface EditCotizacionModalProps {
     apiLoading: boolean;
     onCrearProducto: () => void;
     onUpdateRealTime?: (itemActualizado: any) => void;
-    onEditarProducto: (item: CotizacionItemGestioo) => void;
+    onEditarProducto: (item: CotizacionItemGestioo) => void; // 👈 ESTA
     onItemChange: (index: number, field: string, value: any) => void;
 }
 
@@ -54,6 +55,12 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     onUpdateRealTime,
     onEditarProducto
 }) => {
+
+    // ==========================
+    // ESTADO MODALES INTERNOS
+    // ==========================
+    const [showEditServicio, setShowEditServicio] = useState(false);
+    const [servicioAEditar, setServicioAEditar] = useState<any>(null);
 
     // ==========================
     // ESTADO LOCAL DE ÍTEMS
@@ -151,6 +158,20 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         syncItems(items);
     };
 
+    const handleEditarItem = (item: CotizacionItemGestioo) => {
+        if (item.tipo === ItemTipoGestioo.SERVICIO) {
+            setServicioAEditar(item);
+            setShowEditServicio(true);
+            return;
+        }
+
+        // 👇 Productos siguen usando el flujo existente
+        onEditarProducto(item);
+    };
+
+    // ==========================
+    // MANEJO DE ÍTEMS
+    // ==========================
     const handleRemoveItem = (index: number) => {
         const newItems = itemsLocal.filter((_, i) => i !== index);
         syncItems(newItems);
@@ -163,7 +184,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             id: tempId,
             cotizacionId: cotizacion.id,
             tipo,
-            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional": null,
+            descripcion: tipo === ItemTipoGestioo.ADICIONAL ? "Descuento adicional" : null,
             cantidad: 1,
             precio: 0,
             precioOriginalCLP: 0, // 👈 IMPORTANTE: agregar este campo
@@ -992,14 +1013,14 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             {/* ACCIÓN */}
                                                             <td className="px-6 py-4 text-center">
                                                                 <div className="flex items-center justify-center gap-2">
-                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO && (
+                                                                    {item.tipo !== ItemTipoGestioo.ADICIONAL && (
                                                                         <button
-                                                                            onClick={() => onEditarProducto(item)}
+                                                                            type="button"
+                                                                            onClick={() => handleEditarItem(item)}
                                                                             className="p-2 text-slate-500 hover:text-slate-700"
                                                                         >
                                                                             <EditOutlined />
                                                                         </button>
-
                                                                     )}
                                                                     <button
                                                                         type="button"
@@ -1217,6 +1238,37 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                     </div>
                 </div>
             </motion.div>
+
+            <EditServicioModal
+                show={showEditServicio}
+                servicio={servicioAEditar}
+                apiLoading={apiLoading}
+                onClose={() => {
+                    setShowEditServicio(false);
+                    setServicioAEditar(null);
+                }}
+                onSave={(data) => {
+                    if (!servicioAEditar) return;
+
+                    const newItems = itemsLocal.map(i =>
+                        i.id === servicioAEditar.id
+                            ? {
+                                ...i,
+                                nombre: data.nombre,
+                                descripcion: data.descripcion,
+                                precio: data.precio,
+                                precioOriginalCLP: data.precio,
+                                categoria: data.categoria,
+                                duracionHoras: data.duracionHoras,
+                            }
+                            : i
+                    );
+
+                    syncItems(newItems);
+                    setShowEditServicio(false);
+                    setServicioAEditar(null);
+                }}
+            />
         </div>
     );
 };

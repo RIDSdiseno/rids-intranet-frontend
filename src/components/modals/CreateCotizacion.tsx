@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Select } from "antd";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +24,7 @@ import {
 import { formatearPrecio, calcularTotales, calcularValoresItem } from "./utils";
 
 import { message } from "antd";
+import EditServicioModal from "./EditServicio";
 
 interface CreateCotizacionModalProps {
     show: boolean;
@@ -31,7 +32,7 @@ interface CreateCotizacionModalProps {
     formData: FormData;
     setFormData: (data: FormData) => void;
     items: any[];
-    setItems: (items: any[]) => void;
+    setItems: React.Dispatch<React.SetStateAction<CotizacionItemGestioo[]>>;
     entidades: EntidadGestioo[];
     filtroOrigen: string;
     setFiltroOrigen: (origen: string) => void;
@@ -46,6 +47,8 @@ interface CreateCotizacionModalProps {
     onCrearPersona: () => void;
     onEditarPersona: (entidad: EntidadGestioo) => void;
     onEditarProducto: (item: CotizacionItemGestioo) => void;
+    onEditarServicio: (item: CotizacionItemGestioo) => void;
+    onCrearServicio: () => void;
     totales: any;
     apiLoading: boolean;
 }
@@ -62,7 +65,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     setFiltroOrigen,
     onCargarProductos,
     onCargarServicios,
-    onAddItem,
     onUpdateItem,
     onRemoveItem,
     onCrearCotizacion,
@@ -71,9 +73,15 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     onCrearPersona,
     onEditarPersona,
     onEditarProducto,
+    onCrearServicio,
     totales,
     apiLoading,
 }) => {
+
+    // Estados para modales de edición
+    const [showEditServicio, setShowEditServicio] = useState(false);
+    const [servicioAEditar, setServicioAEditar] = useState<CotizacionItemGestioo | null>(null);
+
     if (!show) return null;
 
     const moneda = formData.moneda;
@@ -169,6 +177,41 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     const calcularTotalesSeccion = (seccionId: number) => {
         const itemsSeccion = items.filter(item => item.seccionId === seccionId);
         return calcularTotales(itemsSeccion);
+    };
+
+    // Abrir modal de edición de servicio
+    const handleEditarServicioLocal = (item: CotizacionItemGestioo) => {
+        setServicioAEditar(item);
+        setShowEditServicio(true);
+    };
+
+    // ===============================
+    // CREAR SERVICIO LOCAL (solo cotización)
+    // ===============================
+    const handleCrearServicioLocal = (data: any) => {
+        const newItem: CotizacionItemGestioo = {
+            id: Date.now(),
+            cotizacionId: 0 as any, // no existe aún
+            tipo: ItemTipoGestioo.SERVICIO,
+
+            nombre: data.nombre,
+            descripcion: data.descripcion ?? "",
+
+            cantidad: 1,
+            precio: data.precio || 0,
+            precioOriginalCLP: data.precio || 0,
+
+            porcentaje: 0,
+            tieneIVA: false,
+            tieneDescuento: false,
+
+            seccionId: formData.seccionActiva,
+            productoId: null,
+            createdAt: new Date().toISOString(),
+        };
+
+        setItems(prev => [...prev, newItem]);
+        message.success("Servicio agregado a la cotización");
     };
 
     // Renderizar item individual
@@ -429,9 +472,16 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                 {/* ACCIONES */}
                 <td className="px-3 py-2 text-right">
                     <button
-                        onClick={() => onEditarProducto(item)}
+                        onClick={() => {
+                            if (item.tipo === ItemTipoGestioo.PRODUCTO) {
+                                onEditarProducto(item);
+                            }
+
+                            if (item.tipo === ItemTipoGestioo.SERVICIO) {
+                                handleEditarServicioLocal(item);
+                            }
+                        }}
                         className="text-blue-500 hover:text-blue-700 transition-colors p-1 rounded hover:bg-blue-50"
-                        title="Editar ítem"
                     >
                         <EditOutlined className="text-lg" />
                     </button>
@@ -886,6 +936,14 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     + Servicio
                                 </button>
 
+                                <button
+                                    type="button"
+                                    onClick={onCrearServicio}
+                                    className="px-3 py-1.5 rounded-xl border border-cyan-400 text-cyan-700 hover:bg-cyan-50"
+                                >
+                                    + Nuevo servicio
+                                </button>
+
                             </div>
                         )}
 
@@ -1092,6 +1150,39 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                     </div>
                 </div>
             </motion.div>
+            <EditServicioModal
+                show={showEditServicio}
+                servicio={servicioAEditar}
+                apiLoading={false}
+                onClose={() => {
+                    setShowEditServicio(false);
+                    setServicioAEditar(null);
+                }}
+                onSave={(data) => {
+                    if (!servicioAEditar) return;
+
+                    setItems(prev =>
+                        prev.map(i =>
+                            i.id === servicioAEditar.id
+                                ? {
+                                    ...i,
+                                    nombre: data.nombre,
+                                    descripcion: data.descripcion,
+                                    precio: data.precio,
+                                    precioOriginalCLP: data.precio,
+                                    categoria: data.categoria,
+                                    duracionHoras: data.duracionHoras,
+                                }
+                                : i
+                        )
+                    );
+
+                    setShowEditServicio(false);
+                    setServicioAEditar(null);
+                    message.success("Servicio actualizado en la cotización");
+                }}
+            />
+
         </div>
     );
 };

@@ -33,6 +33,21 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
     const [mode, setMode] = useState<"view" | "edit">("view");
     const [data, setData] = useState<any>(null);
 
+    const ViewField: React.FC<{ value?: string }> = ({ value }) => (
+        <div
+            style={{
+                padding: "6px 11px",
+                minHeight: 32,
+                border: "1px solid #d9d9d9",
+                borderRadius: 6,
+                background: "#fafafa",
+                color: "rgba(0,0,0,0.88)",
+            }}
+        >
+            {value || "—"}
+        </div>
+    );
+
     const load = async () => {
         try {
             setLoading(true);
@@ -112,42 +127,89 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
                 </Space>
             }
         >
-            <Form
-                layout="vertical" form={form} disabled={mode === "view"}>
+            <Form layout="vertical" form={form}>
                 <Row gutter={16}>
                     <Col span={12}>
-                        <Form.Item name="operador" label="Operador / Proveedor">
-                            <Input prefix={<CloudOutlined />} />
+                        <Form.Item label="Operador / Proveedor">
+                            {mode === "view" ? (
+                                <ViewField value={data?.operador} />
+                            ) : (
+                                <Form.Item name="operador" noStyle>
+                                    <Input prefix={<CloudOutlined />} />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="telefono" label="Teléfono ISP">
-                            <Input prefix={<PhoneOutlined />} />
+                        <Form.Item label="Teléfono ISP">
+                            {mode === "view" ? (
+                                <ViewField value={data?.telefono} />
+                            ) : (
+                                <Form.Item name="telefono" noStyle>
+                                    <Input prefix={<PhoneOutlined />} />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="servicio" label="Servicio contratado">
-                            <Input placeholder="Fibra 600Mbps, enlace dedicado, respaldo" />
+                        <Form.Item label="Servicio contratado">
+                            {mode === "view" ? (
+                                <ViewField value={data?.servicio} />
+                            ) : (
+                                <Form.Item name="servicio" noStyle>
+                                    <Input placeholder="Ej: Fibra 600Mbps, enlace dedicado, respaldo" />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="ipRed" label="IP pública">
-                            <Input placeholder="200.xxx.xxx.xxx" />
+                        <Form.Item label="IP pública">
+                            {mode === "view" ? (
+                                <ViewField value={data?.ipRed} />
+                            ) : (
+                                <Form.Item name="ipRed" noStyle>
+                                    <Input placeholder="200.xxx.xxx.xxx" />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="numeroTicket" label="N° Ticket ISP">
-                            <Input />
+                        <Form.Item label="N° Ticket ISP">
+                            {mode === "view" ? (
+                                <ViewField value={data?.numeroTicket} />
+                            ) : (
+                                <Form.Item name="numeroTicket" noStyle>
+                                    <Input />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="wifiNombre" label="WiFi principal">
-                            <Input prefix={<WifiOutlined />} />
+                        <Form.Item label="WiFi principal">
+                            {mode === "view" ? (
+                                <ViewField value={data?.wifiNombre} />
+                            ) : (
+                                <Form.Item name="wifiNombre" noStyle>
+                                    <Input prefix={<WifiOutlined />} />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
+
                     <Col span={12}>
-                        <Form.Item name="wifiClaveRef" label="Clave WiFi">
-                            <Input />
+                        <Form.Item label="Clave WiFi">
+                            {mode === "view" ? (
+                                <ViewField value={data?.wifiClaveRef} />
+                            ) : (
+                                <Form.Item name="wifiClaveRef" noStyle>
+                                    <Input />
+                                </Form.Item>
+                            )}
                         </Form.Item>
                     </Col>
                 </Row>

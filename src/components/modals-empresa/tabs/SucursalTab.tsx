@@ -233,7 +233,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                 title={
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center truncate">
-                                            <EnvironmentOutlined className="text-blue-500 mr-2" />
+                                            <HomeOutlined className="text-blue-500 mr-2" />
                                             <span className="font-medium truncate">{sucursal.nombre}</span>
                                         </div>
                                         {sucursal.redSucursal && (
@@ -264,7 +264,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                     <div className="space-y-2">
                                         {sucursal.direccion && (
                                             <div className="flex items-start">
-                                                <HomeOutlined className="text-gray-400 mt-1 mr-2" />
+                                                <EnvironmentOutlined className="text-gray-400 mt-1 mr-2" />
                                                 <div className="flex-1">
                                                     <p className="text-xs text-gray-500 mb-0">Dirección</p>
                                                     <p className="mb-0 text-sm">{sucursal.direccion}</p>
@@ -300,7 +300,15 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                                 {sucursal.redSucursal.claveWifi && (
                                                     <p className="mb-0">
                                                         <span className="text-gray-600">Clave:</span>{' '}
-                                                        <code className="bg-gray-100 px-1 rounded">••••••••</code>
+                                                        <code
+                                                            className="bg-gray-100 px-1 rounded cursor-pointer"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(sucursal.redSucursal.claveWifi);
+                                                                message.success("Clave copiada");
+                                                            }}
+                                                        >
+                                                            {sucursal.redSucursal.claveWifi}
+                                                        </code>
                                                     </p>
                                                 )}
                                             </div>
@@ -417,7 +425,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                 label="Contraseña WiFi"
                                 name={["redSucursal", "claveWifi"]}
                             >
-                                <Input.Password placeholder="Contraseña" />
+                                <Input placeholder="Contraseña" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
