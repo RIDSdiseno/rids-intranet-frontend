@@ -54,10 +54,15 @@ const FichaTab: React.FC<FichaTabProps> = ({
         form.setFieldsValue({
             razonSocial: empresa.razonSocial,
             rut: detalleEmpresa?.rut,
-            direccion: detalleEmpresa?.direccion,
+            direccion: detalleEmpresa?.direccion ?? "", // 🔵 principal
+            direcciones:
+                Array.isArray(detalleEmpresa?.direcciones)
+                    ? detalleEmpresa.direcciones
+                    : [], // 🟢 solo sucursales
             condicionesComerciales: ficha?.condicionesComerciales,
             contactos: contactos ?? [],
         });
+
     }, [empresa, ficha, detalleEmpresa, contactos, form]);
 
     if (!ficha) {
@@ -82,7 +87,8 @@ const FichaTab: React.FC<FichaTabProps> = ({
                     body: JSON.stringify({
                         razonSocial: values.razonSocial,
                         rut: values.rut,
-                        direccion: values.direccion,
+                        direccion: values.direccion,         // 🔵 principal
+                        direcciones: values.direcciones ?? [], // 🟢 sucursales
                         condicionesComerciales: values.condicionesComerciales,
                         contactos: values.contactos ?? [],
                     }),
@@ -179,9 +185,27 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 <EnvironmentOutlined className="text-gray-400 mr-2" />
                                 <span className="text-sm font-medium text-gray-600">Dirección</span>
                             </div>
-                            <p className="text-base font-semibold">
-                                {detalleEmpresa?.direccion || "—"}
-                            </p>
+                            <div className="space-y-3">
+
+                                {/* 🔵 Dirección principal */}
+                                {detalleEmpresa?.direccion && (
+                                    <div className="flex items-center gap-2">
+                                        <Tag color="green">Principal</Tag>
+                                        <span className="font-semibold">
+                                            {detalleEmpresa.direccion}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* 🟢 Sucursales */}
+                                {Array.isArray(detalleEmpresa?.direcciones) &&
+                                    detalleEmpresa.direcciones.map((d: any, index: number) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <Tag color="blue">{d.tipo}</Tag>
+                                            <span className="font-semibold">{d.direccion}</span>
+                                        </div>
+                                    ))}
+                            </div>
                         </div>
                     </div>
 
@@ -329,13 +353,75 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 label={
                                     <span className="font-medium">
                                         <EnvironmentOutlined className="mr-2" />
-                                        Dirección
+                                        Dirección Principal
                                     </span>
                                 }
                                 name="direccion"
+                                rules={[{ required: true, message: "Dirección principal requerida" }]}
                             >
-                                <Input placeholder="Dirección completa" />
+                                <Input placeholder="Dirección principal de la empresa" />
                             </Form.Item>
+                        </Col>
+
+                        <Col span={24}>
+                            <Divider orientation="left">
+                                <EnvironmentOutlined className="mr-2" />
+                                Otras Direcciones
+                            </Divider>
+                            <Form.List name="direcciones">
+                                {(fields, { add, remove }) => (
+                                    <div className="space-y-4">
+                                        {fields.map(({ key, name }) => (
+                                            <Card
+                                                key={key}
+                                                size="small"
+                                                className="border-l-2 border-l-blue-200"
+                                                extra={
+                                                    <Button
+                                                        danger
+                                                        type="link"
+                                                        size="small"
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() => remove(name)}
+                                                    >
+                                                        Eliminar
+                                                    </Button>
+                                                }
+                                            >
+                                                <Row gutter={12}>
+                                                    <Col span={8}>
+                                                        <Form.Item
+                                                            name={[name, "tipo"]}
+                                                            label="Tipo"
+                                                            rules={[{ required: true, message: "Tipo requerido" }]}
+                                                        >
+                                                            <Input placeholder="Principal / Sucursal / Oficina" size="small" />
+                                                        </Form.Item>
+                                                    </Col>
+                                                    <Col span={16}>
+                                                        <Form.Item
+                                                            name={[name, "direccion"]}
+                                                            label="Dirección"
+                                                            rules={[{ required: true, message: "Dirección requerida" }]}
+                                                        >
+                                                            <Input placeholder="Dirección completa" size="small" />
+                                                        </Form.Item>
+                                                    </Col>
+                                                </Row>
+                                            </Card>
+                                        ))}
+
+                                        <Button
+                                            type="dashed"
+                                            onClick={() => add()}
+                                            block
+                                            icon={<PlusOutlined />}
+                                        >
+                                            Agregar dirección
+                                        </Button>
+                                    </div>
+                                )}
+                            </Form.List>
                         </Col>
 
                         <Col span={24}>

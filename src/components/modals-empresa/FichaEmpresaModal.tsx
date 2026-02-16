@@ -25,6 +25,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   detalleEmpresa,
   contactos,
   loading,
+  onUpdated,
 }) => {
   const [activeTab, setActiveTab] = React.useState("ficha");
 
@@ -39,7 +40,8 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
 
   /* 🔁 Sync props → estado local */
   React.useEffect(() => {
-    setActiveTab("ficha");
+    if (!empresa) return;
+
     setLocalData({
       empresa,
       ficha,
@@ -47,31 +49,28 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
       detalleEmpresa,
       contactos: contactos ?? [],
     });
-  }, [empresa?.id_empresa, ficha, checklist, detalleEmpresa, contactos]);
+  }, [empresa, ficha, checklist, detalleEmpresa, contactos]);
+
 
   /* 🔄 Refetch ficha completa */
   const refetchFicha = async () => {
     if (!localData.empresa) return;
 
-    try {
-      const res = await fetch(
-        `${API_URL}/ficha-empresa/${localData.empresa.id_empresa}/completa`
-      );
+    const res = await fetch(
+      `${API_URL}/ficha-empresa/${localData.empresa.id_empresa}/completa`
+    );
 
-      if (!res.ok) return;
+    if (!res.ok) return;
 
-      const data = await res.json();
+    const data = await res.json();
 
-      setLocalData({
-        empresa: data.empresa,
-        ficha: data.ficha,
-        checklist: data.checklist,
-        detalleEmpresa: data.detalleEmpresa,
-        contactos: data.contactos ?? [],
-      });
-    } catch {
-      // silencioso
-    }
+    setLocalData({
+      empresa: data.empresa,
+      ficha: data.ficha,
+      checklist: data.checklist,
+      detalleEmpresa: data.detalleEmpresa,
+      contactos: data.contactos ?? [],
+    });
   };
 
   if (!open) return null;
@@ -81,7 +80,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
       open={open}
       onClose={onClose}
       width={900}
-      destroyOnClose
+      destroyOnClose={false}
       title={`Ficha Empresa · ${localData.empresa?.nombre ?? ""}`}
     >
       {!localData.empresa || loading ? (
@@ -103,7 +102,10 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                   ficha={localData.ficha}
                   detalleEmpresa={localData.detalleEmpresa}
                   contactos={localData.contactos}
-                  onUpdated={refetchFicha}
+                  onUpdated={async () => {
+                    await refetchFicha(); // 🔥 espera
+                    onUpdated?.();
+                  }}
                 />
               ),
             },

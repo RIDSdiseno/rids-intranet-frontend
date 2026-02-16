@@ -29,11 +29,11 @@ export const ORIGEN_MAP = {
 
 export const EstadoCotizacionGestioo = {
   BORRADOR: "BORRADOR",
-  GENERADA: "GENERADA",
-  ENVIADA: "ENVIADA",
   APROBADA: "APROBADA",
-  RECHAZADA: "RECHAZADA"
+  RECHAZADA: "RECHAZADA",
+  FACTURACION: "FACTURACION",
 } as const;
+
 
 export const TipoCotizacionGestioo = {
   CLIENTE: "CLIENTE",

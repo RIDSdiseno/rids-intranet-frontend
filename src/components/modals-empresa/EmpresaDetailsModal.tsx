@@ -792,7 +792,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
       open={open}
       onClose={onClose}
       width={1000}
-      destroyOnClose
+      destroyOnClose={false}
       styles={{
         header: { padding: 0 },
         body: { padding: 0 },

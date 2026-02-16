@@ -557,6 +557,40 @@ const EmpresasPage: React.FC = () => {
     }
   };
 
+  const refreshEmpresaCompleta = async (empresaId: number) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/ficha-empresa/${empresaId}/completa`,
+        { cache: "no-store" }
+      );
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      setFichaData({ ...data });
+
+      setEmpresaSel(() => ({
+        ...data.empresa,
+        detalleEmpresa: data.empresa.detalleEmpresa
+          ? { ...data.empresa.detalleEmpresa }
+          : undefined,
+      }));
+
+      // 🔥 Actualiza lista principal (si cambió nombre)
+      setEmpresas(prev =>
+        prev.map(e =>
+          e.id_empresa === data.empresa.id_empresa
+            ? { ...e, nombre: data.empresa.nombre, detalleEmpresa: data.empresa.detalleEmpresa }
+            : e
+        )
+      );
+
+    } catch {
+      // silencioso
+    }
+  };
+
   // FUNCION OPEN FICHAS
   const openFichaEmpresa = async (empresa: EmpresaLite) => {
     try {
@@ -922,8 +956,12 @@ const EmpresasPage: React.FC = () => {
         checklist={fichaData?.checklist ?? null}
         detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null}
         contactos={fichaData?.contactos ?? []}
+        onUpdated={() => {
+          if (fichaData?.empresa?.id_empresa) {
+            refreshEmpresaCompleta(fichaData.empresa.id_empresa);
+          }
+        }}
       />
-
     </div >
   );
 };

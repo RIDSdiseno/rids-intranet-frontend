@@ -41,6 +41,8 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
+    const [deleteSucursalId, setDeleteSucursalId] = useState<number | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const [editingSucursalId, setEditingSucursalId] = useState<number | null>(null);
     const [form] = Form.useForm();
 
@@ -246,18 +248,31 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                     </div>
                                 }
                                 extra={
-                                    <Tooltip title="Editar sucursal">
-                                        <Button
-                                            type="text"
-                                            size="small"
-                                            icon={<EditOutlined />}
-                                            onClick={() => {
-                                                setEditingSucursalId(sucursal.id_sucursal);
-                                                setModalOpen(true);
-                                            }}
-                                        />
-                                    </Tooltip>
+                                    <Space>
+                                        <Tooltip title="Editar sucursal">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<EditOutlined />}
+                                                onClick={() => {
+                                                    setEditingSucursalId(sucursal.id_sucursal);
+                                                    setModalOpen(true);
+                                                }}
+                                            />
+                                        </Tooltip>
+
+                                        <Tooltip title="Eliminar sucursal">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => setDeleteSucursalId(sucursal.id_sucursal)}
+                                            />
+                                        </Tooltip>
+                                    </Space>
                                 }
+
                             >
                                 <div className="space-y-3">
                                     {/* Información básica */}
@@ -512,6 +527,50 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                         )}
                     </Form.List>
                 </Form>
+            </Modal>
+            {/* ======= MODAL CONFIRM DELETE ======= */}
+            {/* ======= MODAL CONFIRM DELETE ======= */}
+            <Modal
+                open={deleteSucursalId !== null}
+                title="¿Eliminar sucursal?"
+                onCancel={() => {
+                    if (!deleting) setDeleteSucursalId(null);
+                }}
+                onOk={async () => {
+                    try {
+                        if (!deleteSucursalId) return;
+
+                        setDeleting(true); // 🔥 activar spinner
+
+                        const res = await fetch(
+                            `${API_URL}/ficha-empresa/sucursales/${deleteSucursalId}`,
+                            { method: "DELETE" }
+                        );
+
+                        if (!res.ok) throw new Error();
+
+                        message.success("Sucursal eliminada correctamente");
+
+                        setDeleteSucursalId(null);
+                        load(); // recargar lista
+                    } catch (error) {
+                        console.error(error);
+                        message.error("No se pudo eliminar la sucursal");
+                    } finally {
+                        setDeleting(false); // 🔥 apagar spinner
+                    }
+                }}
+                okText="Sí, eliminar"
+                cancelText="Cancelar"
+                okButtonProps={{
+                    danger: true,
+                    loading: deleting, // 🔥 SPINNER EN BOTÓN
+                }}
+                cancelButtonProps={{
+                    disabled: deleting, // 🔥 bloquear cancelar mientras elimina
+                }}
+            >
+                <p>Esta acción no se puede deshacer.</p>
             </Modal>
         </div>
     );

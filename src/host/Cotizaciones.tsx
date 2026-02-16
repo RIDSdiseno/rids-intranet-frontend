@@ -539,22 +539,20 @@ const Cotizaciones: React.FC = () => {
     };
 
     // CAMBIAR ESTADO DE COTIZACIÓN
-    const handleChangeEstado = async (cot: CotizacionGestioo, nuevoEstado: EstadoCotizacionGestioo) => {
+    const handleChangeEstado = async (
+        cot: CotRow,
+        nuevoEstado: EstadoCotizacionGestioo
+    ): Promise<void> => {
         try {
-            // 1️⃣ Actualizar backend
-            const updated = await apiFetch(`/cotizaciones/${cot.id}`, {
+
+            await apiFetch(`/cotizaciones/${cot.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...cot,
-                    estado: nuevoEstado
-                }),
+                body: JSON.stringify({ estado: nuevoEstado }),
             });
 
-            // 2️⃣ Actualizar tabla sin recargar todo
-            setCotizaciones(prev =>
-                prev.map(c => c.id === cot.id ? updated.data || updated : c)
-            );
+            // 🔥 RECARGAR DESDE BD REAL
+            await fetchCotizaciones();
 
             showSuccess("Estado actualizado correctamente");
 
@@ -1515,10 +1513,9 @@ const Cotizaciones: React.FC = () => {
                             >
                                 <option value="">Todos los estados</option>
                                 <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                <option value={EstadoCotizacionGestioo.GENERADA}>Generada</option>
-                                <option value={EstadoCotizacionGestioo.ENVIADA}>Enviada</option>
                                 <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
                                 <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
+                                <option value={EstadoCotizacionGestioo.FACTURACION}>Facturación</option>
                             </select>
                         </div>
 
@@ -1562,7 +1559,7 @@ const Cotizaciones: React.FC = () => {
                                         Tipo
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                        Representante de la Cotización 
+                                        Cotización generado por:
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cliente
@@ -1600,15 +1597,13 @@ const Cotizaciones: React.FC = () => {
         transition
         ${c.estado === "BORRADOR"
                                                             ? "bg-yellow-100 text-yellow-700"
-                                                            : c.estado === "GENERADA"
-                                                                ? "bg-blue-100 text-blue-700"
-                                                                : c.estado === "ENVIADA"
-                                                                    ? "bg-cyan-100 text-cyan-700"
-                                                                    : c.estado === "APROBADA"
-                                                                        ? "bg-green-100 text-green-700"
-                                                                        : c.estado === "RECHAZADA"
-                                                                            ? "bg-red-100 text-red-700"
-                                                                            : "bg-gray-100 text-gray-600"
+                                                            : c.estado === "APROBADA"
+                                                                ? "bg-green-100 text-green-700"
+                                                                : c.estado === "RECHAZADA"
+                                                                    ? "bg-red-100 text-red-700"
+                                                                    : c.estado === "FACTURACION"
+                                                                        ? "bg-purple-100 text-purple-700"
+                                                                        : "bg-gray-100 text-gray-600"
                                                         }
     `}
                                                     onClick={(e) => {
@@ -1633,28 +1628,28 @@ const Cotizaciones: React.FC = () => {
                                                     >
                                                         {[
                                                             EstadoCotizacionGestioo.BORRADOR,
-                                                            EstadoCotizacionGestioo.GENERADA,
-                                                            EstadoCotizacionGestioo.ENVIADA,
                                                             EstadoCotizacionGestioo.APROBADA,
-                                                            EstadoCotizacionGestioo.RECHAZADA
-                                                        ].map((estado) => (
-                                                            <button
-                                                                key={estado}
-                                                                onClick={() => {
-                                                                    handleChangeEstado(c, estado);
-                                                                    setCotizaciones(prev =>
-                                                                        prev.map(cot =>
-                                                                            cot.id === c.id
-                                                                                ? { ...cot, _showEstadoMenu: false }
-                                                                                : cot
-                                                                        )
-                                                                    );
-                                                                }}
-                                                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                                                            >
-                                                                {formatEstado(estado)}
-                                                            </button>
-                                                        ))}
+                                                            EstadoCotizacionGestioo.RECHAZADA,
+                                                            EstadoCotizacionGestioo.FACTURACION
+                                                        ]
+                                                            .map((estado) => (
+                                                                <button
+                                                                    key={estado}
+                                                                    onClick={() => {
+                                                                        handleChangeEstado(c, estado);
+                                                                        setCotizaciones(prev =>
+                                                                            prev.map(cot =>
+                                                                                cot.id === c.id
+                                                                                    ? { ...cot, _showEstadoMenu: false }
+                                                                                    : cot
+                                                                            )
+                                                                        );
+                                                                    }}
+                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                                                >
+                                                                    {formatEstado(estado)}
+                                                                </button>
+                                                            ))}
                                                     </div>
                                                 )}
 

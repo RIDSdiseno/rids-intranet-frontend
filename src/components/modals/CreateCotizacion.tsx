@@ -21,7 +21,7 @@ import {
     TipoCotizacionGestioo,
     EstadoCotizacionGestioo
 } from "./types";
-import { formatearPrecio, calcularTotales, calcularValoresItem } from "./utils";
+import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
 
 import { message } from "antd";
 import EditServicioModal from "./EditServicio";
@@ -751,40 +751,35 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                 Estado Inicial <span className="text-rose-500">*</span>
                                             </label>
 
-                                            <div className="space-y-2">
-                                                {Object.values(EstadoCotizacionGestioo).map((estado) => {
-                                                    const checked = formData.estadoCotizacion === estado;
+                                            <div className="flex flex-wrap gap-3">
+                                                {Object.entries(estadoConfig).map(([key, config]) => {
+                                                    const estado = key as EstadoCotizacionGestioo;
+                                                    const isActive = formData.estadoCotizacion === estado;
 
                                                     return (
-                                                        <label
+                                                        <button
                                                             key={estado}
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setFormData({ ...formData, estadoCotizacion: estado })
+                                                            }
                                                             className={`
-          flex items-center justify-between
-          px-4 py-2.5 rounded-xl
-          border transition-all cursor-pointer
-          ${checked
-                                                                    ? "border-cyan-500 bg-cyan-50"
-                                                                    : "border-slate-200 bg-white hover:border-cyan-300"
-                                                                }
-        `}
+            px-4 py-2 rounded-full border text-sm font-semibold
+            transition-all duration-200
+            ${isActive ? config.active : config.color}
+          `}
                                                         >
-                                                            <span className="text-sm font-medium text-slate-700 capitalize">
-                                                                {estado.toLowerCase()}
-                                                            </span>
-
-                                                            <input
-                                                                type="radio"
-                                                                name="estadoCotizacion"
-                                                                checked={checked}
-                                                                onChange={() =>
-                                                                    setFormData({ ...formData, estadoCotizacion: estado })
-                                                                }
-                                                                className="w-4 h-4 accent-cyan-600"
-                                                            />
-                                                        </label>
+                                                            {config.label}
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
+
+                                            {!formData.estadoCotizacion && (
+                                                <p className="text-rose-500 text-xs mt-2">
+                                                    Debe seleccionar un estado
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Moneda */}
@@ -1154,10 +1149,14 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                             {/* BOTONES FINALES */}
                             <div className="flex justify-between items-center pt-4 border-t">
-                                <div>
-                                    <p className="text-slate-600 text-sm">
-                                        Estado inicial: <b>{formData.estadoCotizacion}</b>
-                                    </p>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-600">Estado inicial:</span>
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold ${estadoConfig[formData.estadoCotizacion]?.color
+                                            }`}
+                                    >
+                                        {estadoConfig[formData.estadoCotizacion]?.label}
+                                    </span>
                                 </div>
                                 <div className="flex gap-3">
                                     <button

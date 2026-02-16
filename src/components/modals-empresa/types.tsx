@@ -36,9 +36,15 @@ export interface ChecklistItem {
 
 /* ================= EMPRESA / FICHA ================= */
 
+export interface DireccionEmpresa {
+    tipo: string;
+    direccion: string;
+}
+
 export interface DetalleEmpresa {
     rut?: string | null;
     direccion?: string | null;
+    direcciones?: DireccionEmpresa[] | null;
     telefono?: string | null;
     email?: string | null;
     sitioWeb?: string | null;
@@ -59,13 +65,13 @@ export interface FichaEmpresa {
 }
 
 export interface FichaEmpresaCompleta {
-  empresa: EmpresaLite;
-  ficha: FichaEmpresa | null;
-  checklist: Partial<ChecklistState> | null;
-  detalleEmpresa: DetalleEmpresa | null;
-  fichaTecnica: FichaTecnicaEmpresa | null; 
-  contactos: ContactoEmpresa[];
-  sucursales: Sucursal[];                  
+    empresa: EmpresaLite;
+    ficha: FichaEmpresa | null;
+    checklist: Partial<ChecklistState> | null;
+    detalleEmpresa: DetalleEmpresa | null;
+    fichaTecnica: FichaTecnicaEmpresa | null;
+    contactos: ContactoEmpresa[];
+    sucursales: Sucursal[];
 }
 
 export interface ContactoEmpresa {
@@ -215,7 +221,7 @@ export interface EstadisticasEmpresa {
 
 /* ================= TABS / MODALS ================= */
 
-export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen" |  "redes" ;
+export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen" | "redes";
 
 /* ChecklistTab */
 export interface ChecklistTabProps {
@@ -235,11 +241,7 @@ export interface FichaTabProps {
         creadaEn: string;
         condicionesComerciales?: string | null;
     } | null;
-    detalleEmpresa: {
-        rut?: string | null;
-        direccion?: string | null;
-    } | null;
-
+    detalleEmpresa: DetalleEmpresa | null;
     contactos: ContactoEmpresa[];
 
     onUpdated?: () => void;
@@ -267,6 +269,7 @@ export interface FichaEmpresaModalProps {
     detalleEmpresa: DetalleEmpresa | null;
     contactos?: ContactoEmpresa[];
     loading: boolean;
+    onUpdated?: () => void;
 }
 
 /* =====================================================

@@ -22,7 +22,7 @@ import {
     type CotizacionItemGestioo,
 } from "./types";
 
-import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem } from "./utils";
+import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
 import EditServicioModal from "./EditServicio";
 
 interface EditCotizacionModalProps {
@@ -104,23 +104,6 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             ...cotizacion,
             items: newItems,
         });
-    };
-
-    const getEstadoStyle = (estado: EstadoCotizacionGestioo) => {
-        switch (estado) {
-            case EstadoCotizacionGestioo.BORRADOR:
-                return "bg-amber-100 text-amber-800 border border-amber-200";
-            case EstadoCotizacionGestioo.GENERADA:
-                return "bg-blue-100 text-blue-800 border border-blue-200";
-            case EstadoCotizacionGestioo.ENVIADA:
-                return "bg-indigo-100 text-indigo-800 border border-indigo-200";
-            case EstadoCotizacionGestioo.APROBADA:
-                return "bg-emerald-100 text-emerald-800 border border-emerald-200";
-            case EstadoCotizacionGestioo.RECHAZADA:
-                return "bg-rose-100 text-rose-800 border border-rose-200";
-            default:
-                return "bg-slate-100 text-slate-800";
-        }
     };
 
     // ==========================
@@ -257,8 +240,11 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 </h1>
                                 <div className="flex items-center gap-3 mt-2">
                                     {/* ESTADO BADGE */}
-                                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${getEstadoStyle(cotizacion.estado)}`}>
-                                        {cotizacion.estado}
+                                    <div
+                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${estadoConfig[cotizacion.estado]?.color
+                                            }`}
+                                    >
+                                        {estadoConfig[cotizacion.estado]?.label}
                                     </div>
                                     <div className="text-slate-500 text-sm">
                                         <DollarOutlined className="mr-1" />
@@ -466,35 +452,29 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     Estado <span className="text-rose-500">*</span>
                                                 </label>
 
-                                                <div className="flex flex-col gap-3">
-                                                    {Object.values(EstadoCotizacionGestioo).map((estado) => {
-                                                        const checked = cotizacion.estado === estado;
+                                                <div className="flex flex-wrap gap-3">
+                                                    {Object.entries(estadoConfig).map(([key, config]) => {
+                                                        const estado = key as EstadoCotizacionGestioo;
+                                                        const isActive = cotizacion.estado === estado;
 
                                                         return (
-                                                            <label
+                                                            <button
                                                                 key={estado}
-                                                                className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 cursor-pointer transition-all
-            ${checked
-                                                                        ? "border-cyan-500 bg-cyan-50"
-                                                                        : "border-slate-200 bg-white hover:border-cyan-300"
-                                                                    }`}
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    onUpdateCotizacion({
+                                                                        ...cotizacion,
+                                                                        estado,
+                                                                    })
+                                                                }
+                                                                className={`
+            px-4 py-2 rounded-full border text-sm font-semibold
+            transition-all duration-200
+            ${isActive ? config.active : config.color}
+          `}
                                                             >
-                                                                <span className="text-sm font-medium text-slate-700">
-                                                                    {estado.charAt(0) + estado.slice(1).toLowerCase()}
-                                                                </span>
-
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={checked}
-                                                                    onChange={() =>
-                                                                        onUpdateCotizacion({
-                                                                            ...cotizacion,
-                                                                            estado: estado,
-                                                                        })
-                                                                    }
-                                                                    className="w-5 h-5 accent-cyan-600"
-                                                                />
-                                                            </label>
+                                                                {config.label}
+                                                            </button>
                                                         );
                                                     })}
                                                 </div>

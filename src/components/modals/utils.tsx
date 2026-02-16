@@ -222,13 +222,13 @@ export const validarDireccion = (direccion: string) => {
 export const formatEstado = (estado: EstadoCotizacionGestioo) => {
   const estados: { [key in EstadoCotizacionGestioo]: string } = {
     [EstadoCotizacionGestioo.BORRADOR]: "Borrador",
-    [EstadoCotizacionGestioo.GENERADA]: "Generada",
-    [EstadoCotizacionGestioo.ENVIADA]: "Enviada",
     [EstadoCotizacionGestioo.APROBADA]: "Aprobada",
-    [EstadoCotizacionGestioo.RECHAZADA]: "Rechazada"
+    [EstadoCotizacionGestioo.RECHAZADA]: "Rechazada",
+    [EstadoCotizacionGestioo.FACTURACION]: "Facturación", // 👈 FALTABA ESTO
   };
   return estados[estado];
 };
+
 
 export const formatTipo = (tipo: TipoCotizacionGestioo) => {
   const tipos: { [key in TipoCotizacionGestioo]: string } = {
@@ -374,4 +374,27 @@ export const calcularLineaItem = (item: any) => {
     porcentajeMostrar: item.tieneDescuento ? porcentaje : 0,
     ivaPorcentajeMostrar: item.tieneIVA ? 19 : 0,
   };
+};
+
+export const estadoConfig = {
+  BORRADOR: {
+    label: "Borrador",
+    color: "bg-slate-100 text-slate-700 border-slate-300",
+    active: "bg-slate-700 text-white border-slate-700",
+  },
+  APROBADA: {
+    label: "Aprobada",
+    color: "bg-green-100 text-green-700 border-green-300",
+    active: "bg-green-600 text-white border-green-600",
+  },
+  RECHAZADA: {
+    label: "Rechazada",
+    color: "bg-red-100 text-red-700 border-red-300",
+    active: "bg-red-600 text-white border-red-600",
+  },
+  FACTURACION: {
+    label: "Facturación",
+    color: "bg-blue-100 text-blue-700 border-blue-300",
+    active: "bg-blue-600 text-white border-blue-600",
+  },
 };
