@@ -24,6 +24,7 @@ import {
     Timeline,
     Descriptions,
     Pagination,
+    Modal,
 } from "antd";
 import {
     PlusOutlined,
@@ -46,17 +47,23 @@ import {
     SendOutlined,
     EditOutlined,
     EyeInvisibleOutlined,
+    BellOutlined
 
 } from "@ant-design/icons";
 import Header from "../components/Header";
 
 import DOMPurify from "dompurify";
 
+import { socket } from "../lib/socket";
+
+import { notification } from "antd";
+
 /* ===================== CONFIG ===================== */
 const API_URL =
     (import.meta as any).env?.VITE_API_URL || "http://localhost:4000/api";
 
 /* ===================== TYPES ===================== */
+// Tipo para tickets en la lista
 type Ticket = {
     id: number;
     publicId?: string;
@@ -68,18 +75,28 @@ type Ticket = {
     createdAt?: string;
     updatedAt?: string;
     requester?: { nombre: string; email?: string };
+    fromEmail?: string;
+    lastActivityAt?: string;
+    lastMessageDirection?:
+    | "INBOUND"
+    | "OUTBOUND"
+    | "INTERNAL"
+    | null;
 };
 
+// Tipo para empresas en el formulario de creación
 type Empresa = {
     id_empresa: number;
     nombre: string;
 };
 
+// Tipo para solicitantes en el formulario de creación
 type SolicitanteOption = {
     value: number;
     label: string;
 };
 
+// Tipo para técnicos (filtro y asignación)
 type Tecnico = {
     id_tecnico: number;
     nombre: string;
@@ -87,6 +104,7 @@ type Tecnico = {
     online?: boolean;
 };
 
+// Detalle del ticket con mensajes
 type TicketMessage = {
     id: number;
     bodyText: string | null;
@@ -135,7 +153,6 @@ export default function TicketeraRids() {
 
     const [replyText, setReplyText] = useState("");
     const [sendingReply, setSendingReply] = useState(false);
-    const [isInternalNote, setIsInternalNote] = useState(false);
 
     const [statusFilter, setStatusFilter] = useState<string | undefined>();
     const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
@@ -143,17 +160,36 @@ export default function TicketeraRids() {
 
     const [internalNoteText, setInternalNoteText] = useState("");
 
-    const [allTickets, setAllTickets] = useState<Ticket[]>([]);
-
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(30);
     const [totalTickets, setTotalTickets] = useState(0);
 
     const [dateRange, setDateRange] = useState<[string, string] | null>(null);
 
+    const [newTicketsCount, setNewTicketsCount] = useState<number>(0);
+
+    const [, forceUpdate] = useState(0);
+
+    const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+
+    const [activeRange, setActiveRange] = useState<string | null>(null);
+
+    const [selectedTickets, setSelectedTickets] = useState<number[]>([]);
+
+    // Estados para modales de bulk actions
+    const [bulkAssignModalOpen, setBulkAssignModalOpen] = useState(false);
+    const [bulkMergeModalOpen, setBulkMergeModalOpen] = useState(false);
+    const [selectedTechnicianId, setSelectedTechnicianId] = useState<number | null>(null);
+    const [selectedMainTicketId, setSelectedMainTicketId] = useState<number | null>(null);
+
+    const [replyFiles, setReplyFiles] = useState<File[]>([]);
+
+    const replyFileInputRef = useRef<HTMLInputElement>(null);
+
     // Referencia para scroll automático
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Etiquetas legibles para estados
     const TICKET_STATUS_LABEL: Record<string, string> = {
         NEW: "Nuevo",
         OPEN: "Abierto",
@@ -163,6 +199,7 @@ export default function TicketeraRids() {
         CLOSED: "Cerrado",
     };
 
+    // Etiquetas legibles para prioridades
     const TICKET_PRIORITY_LABEL: Record<string, string> = {
         LOW: "Baja",
         NORMAL: "Media",
@@ -170,6 +207,7 @@ export default function TicketeraRids() {
         URGENT: "Urgente",
     };
 
+    // ICONOS DE PRIORIDAD: flechas y colores para cada nivel de prioridad
     const PRIORITY_ICONS = {
         LOW: <ArrowDownOutlined style={{ color: "#52c41a" }} />,
         NORMAL: <ExclamationCircleOutlined style={{ color: "#faad14" }} />,
@@ -177,6 +215,7 @@ export default function TicketeraRids() {
         URGENT: <ExclamationCircleOutlined style={{ color: "#f5222d" }} />,
     };
 
+    // ICONOS DE ESTADO: colores y símbolos para cada estado del ticket
     const STATUS_ICONS = {
         NEW: <ClockCircleOutlined style={{ color: "#1890ff" }} />,
         OPEN: <ClockCircleOutlined style={{ color: "#fa8c16" }} />,
@@ -194,6 +233,22 @@ export default function TicketeraRids() {
         priority: "NORMAL",
         assigneeId: undefined as number | undefined,
     });
+
+    // Última actividad del ticket (solo para detalle)
+    const lastMessage =
+        ticketDetalle?.messages?.length > 0
+            ? ticketDetalle.messages[ticketDetalle.messages.length - 1]
+            : null;
+
+    const lastActivityBy =
+        lastMessage?.isInternal
+            ? "internal"
+            : lastMessage?.direction === "INBOUND"
+                ? "client"
+                : lastMessage
+                    ? "agent"
+                    : null;
+
 
     // Función para formatear fecha y hora
     function formatDateTime(date: string | Date) {
@@ -233,6 +288,7 @@ export default function TicketeraRids() {
         };
     }
 
+    // Función para resolver imágenes inline con cid
     function resolveInlineImages(
         html: string,
         attachments?: TicketMessage["attachments"]
@@ -266,7 +322,14 @@ export default function TicketeraRids() {
                     return '';
                 }
 
-                return `<img src="${API_URL}/helpdesk/inline/${attachmentId}" />`;
+                const att = attachments.find(a => a.id === attachmentId);
+
+                if (!att) return '';
+
+                return `<img src="${att.url.startsWith("http")
+                        ? att.url
+                        : `${API_URL.replace('/api', '')}${att.url}`
+                    }" loading="lazy" />`;
             }
         );
     }
@@ -362,8 +425,8 @@ export default function TicketeraRids() {
             const json = await res.json();
 
             setTickets(json.tickets ?? []);
-            setAllTickets(json.tickets ?? []);
             setTotalTickets(json.total ?? 0);
+            setStatusCounts(json.counts ?? {});
         } catch {
             message.error("Error al cargar tickets");
         } finally {
@@ -371,12 +434,14 @@ export default function TicketeraRids() {
         }
     };
 
+    // Cargar empresas para el formulario de creación
     const loadEmpresas = async () => {
         const res = await fetch(`${API_URL}/empresas`);
         const json = await res.json();
         setEmpresas(json?.data ?? []);
     };
 
+    // Cargar solicitantes al seleccionar empresa en el formulario de creación
     const loadSolicitantes = async (empresaId: number) => {
         const res = await fetch(
             `${API_URL}/solicitantes/by-empresa?empresaId=${empresaId}`
@@ -390,6 +455,7 @@ export default function TicketeraRids() {
         );
     };
 
+    // Cargar técnicos para filtro y asignación
     const loadTecnicos = async () => {
         const res = await fetch(`${API_URL}/tecnicos`);
         const json = await res.json();
@@ -403,15 +469,18 @@ export default function TicketeraRids() {
         }, 100);
     };
 
+    // Cargar datos iniciales
     useEffect(() => {
         loadEmpresas();
         loadTecnicos();
     }, []);
 
+    // Recargar tickets al cambiar filtros o búsqueda
     useEffect(() => {
         loadTickets();
     }, [statusFilter, priorityFilter, assigneeFilter, dateRange]);
 
+    // Actualizar filtro de estado al cambiar de tab
     useEffect(() => {
         if (activeTab === "CLOSED") {
             setStatusFilter("CLOSED");
@@ -422,6 +491,7 @@ export default function TicketeraRids() {
         }
     }, [activeTab]);
 
+    // Recargar tickets al cambiar página o tamaño de página
     useEffect(() => {
         loadTickets();
     }, [page, pageSize]);
@@ -433,7 +503,7 @@ export default function TicketeraRids() {
         }
     }, [ticketDetalle]);
 
-    // 🔍 DEBUG adjuntos e inline images
+    // DEBUG adjuntos e inline images
     useEffect(() => {
         if (ticketDetalle?.messages) {
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -458,6 +528,77 @@ export default function TicketeraRids() {
         }
     }, [ticketDetalle]);
 
+    // Conexión a Socket.IO para recibir notificaciones en tiempo real
+    useEffect(() => {
+        socket.connect();
+
+        socket.on("connect", () => {
+            console.log("🟢 Socket conectado", socket.id);
+        });
+
+        socket.on("disconnect", () => {
+            console.log("🔴 Socket desconectado");
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    // Escuchar eventos de nuevo ticket
+    useEffect(() => {
+        const onTicketCreated = (payload: any) => {
+            setNewTicketsCount((prev) => prev + 1);
+
+            // opcional: sonido
+            // new Audio("/sounds/new-ticket.mp3").play();
+        };
+
+        socket.on("ticket.created", onTicketCreated);
+
+        return () => {
+            socket.off("ticket.created", onTicketCreated);
+        };
+    }, []);
+
+    // Refrescar cada minuto para actualizar tiempos relativos y estado de tickets
+    useEffect(() => {
+        const interval = setInterval(() => {
+            forceUpdate(v => v + 1);
+        }, 60_000); // ⏱️ cada 1 minuto
+
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const onTicketUpdated = async (payload: any) => {
+            // Si está abierto el detalle → refrescar solo ese ticket
+            if (payload.ticketId === ticketDetalle?.id) {
+                const res = await fetch(`${API_URL}/helpdesk/tickets/${payload.ticketId}`);
+                const json = await res.json();
+                if (json.ok) {
+                    setTicketDetalle(json.ticket);
+                }
+            }
+
+            // Actualizar solo ese ticket en la lista (sin reload completo)
+            setTickets(prev =>
+                prev.map(t =>
+                    t.id === payload.ticketId
+                        ? { ...t, lastActivityAt: new Date().toISOString() }
+                        : t
+                )
+            );
+        };
+
+        socket.on("ticket.updated", onTicketUpdated);
+
+        return () => {
+            socket.off("ticket.updated", onTicketUpdated);
+        };
+    }, [ticketDetalle]);
+
+    // Función para establecer rango de fechas según días atrás (hoy, últimos 7 días, este mes)
     const setLastDays = (days: number) => {
         const to = new Date();
         const from = new Date();
@@ -468,37 +609,70 @@ export default function TicketeraRids() {
             to.toISOString().split("T")[0],
         ]);
 
+        setActiveRange(`last-${days}`);
+
         setPage(1);
     };
 
+    const setToday = () => {
+        const today = new Date();
+
+        const start = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate(),
+            0, 0, 0
+        );
+
+        const end = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate() + 1,
+            0, 0, 0
+        );
+
+        setActiveRange("today");
+        setPage(1);
+
+        setDateRange([
+            start.toISOString(),
+            end.toISOString(),
+        ]);
+    };
+
+    // Función para responder a un ticket (respuesta al cliente o nota interna)
     const responderTicket = async (isInternal: boolean) => {
         const text = isInternal ? internalNoteText : replyText;
 
-        // 1️⃣ Mensaje vacío
         if (!text.trim()) {
             message.warning("Escribe un mensaje");
-            return;
-        }
-
-        // 2️⃣ 🚨 VALIDACIÓN CLAVE (AQUÍ VA)
-        if (!isInternal && !ticketDetalle?.requester?.email) {
-            message.warning(
-                "Este ticket no tiene un solicitante válido para responder"
-            );
             return;
         }
 
         try {
             setSendingReply(true);
 
-            await fetch(`${API_URL}/helpdesk/tickets/${ticketDetalle.id}/reply`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: text,
-                    isInternal,
-                }),
+            const formData = new FormData();
+            formData.append("message", text);
+            formData.append("isInternal", String(isInternal));
+
+            replyFiles.forEach(file => {
+                formData.append("attachments", file);
             });
+
+            const res = await fetch(
+                `${API_URL}/helpdesk/tickets/${ticketDetalle.id}/reply`,
+                {
+                    method: "POST",
+                    body: formData, // 🚨 SIN Content-Type
+                }
+            );
+
+            const json = await res.json();
+
+            if (!res.ok || !json.ok) {
+                throw new Error();
+            }
 
             if (isInternal) {
                 setInternalNoteText("");
@@ -508,8 +682,10 @@ export default function TicketeraRids() {
                 message.success("Respuesta enviada");
             }
 
-            abrirDetalle(ticketDetalle);
-            loadTickets();
+            setReplyFiles([]); // limpiar adjuntos
+
+            await abrirDetalle(ticketDetalle);
+
         } catch {
             message.error("Error al enviar mensaje");
         } finally {
@@ -555,6 +731,10 @@ export default function TicketeraRids() {
         setDrawerDetalle(true);
         setLoadingDetalle(true);
 
+        setReplyFiles([]);
+        setReplyText("");
+        setInternalNoteText("");
+
         try {
             const res = await fetch(`${API_URL}/helpdesk/tickets/${ticket.id}`);
             const json = await res.json();
@@ -573,6 +753,7 @@ export default function TicketeraRids() {
         }
     };
 
+    // Función para actualizar ticket (estado, prioridad, asignación)
     const updateTicket = async (payload: {
         status?: string;
         priority?: string;
@@ -598,6 +779,7 @@ export default function TicketeraRids() {
     };
 
     /* ===================== UI HELPERS ===================== */
+    // Función para asignar colores a prioridades
     const priorityColor = (p: string) => {
         switch (p) {
             case "URGENT": return "red";
@@ -608,6 +790,7 @@ export default function TicketeraRids() {
         }
     };
 
+    // Función para asignar colores a estados
     const statusColor = (s: string) => {
         switch (s) {
             case "NEW": return "blue";
@@ -619,23 +802,226 @@ export default function TicketeraRids() {
         }
     };
 
+    // Función para determinar estado de actividad del ticket (vencido, con actividad reciente, sin actividad)
+    function getTicketActivityMeta(ticket: Ticket) {
+        if (ticket.status === "CLOSED") {
+            return {
+                label: "Cerrado",
+                color: "default",
+                icon: <CheckCircleOutlined />,
+            };
+        }
+
+        const activityDate =
+            ticket.lastActivityAt ??
+            ticket.updatedAt ??
+            ticket.createdAt;
+
+        if (!activityDate) {
+            return {
+                label: "Sin actividad",
+                color: "default",
+                icon: <MessageOutlined />,
+            };
+        }
+
+        const diffMs = Date.now() - new Date(activityDate).getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        // 🟢 Menos de 1 hora
+        if (diffHours < 1) {
+            return {
+                label: "Actividad reciente",
+                color: "blue",
+                icon: <ClockCircleOutlined />,
+            };
+        }
+
+        // 🔴 Más de 1 hora
+        return {
+            label: "Vencido",
+            color: "red",
+            icon: <ExclamationCircleOutlined />,
+        };
+    }
+
+    // Función para generar texto de última actividad (creado, actividad reciente, cerrado hace X)
+    function getTicketActivityText(ticket: Ticket) {
+        const activityDate =
+            ticket.lastActivityAt ??
+            ticket.updatedAt ??
+            ticket.createdAt;
+
+        if (!activityDate) return null;
+
+        const relative = formatRelativeTime(activityDate);
+
+        if (ticket.status === "CLOSED") {
+            return {
+                icon: <CheckCircleOutlined />,
+                text: `Cerrado ${relative}`,
+            };
+        }
+
+        if (!ticket.lastMessageDirection) {
+            return {
+                icon: <UserOutlined />,
+                text: `Creado ${relative}`,
+            };
+        }
+
+        if (ticket.lastMessageDirection === "INBOUND") {
+            return {
+                icon: <MessageOutlined />,
+                text: `Respondido por solicitante ${relative}`,
+            };
+        }
+
+        if (ticket.lastMessageDirection === "OUTBOUND") {
+            return {
+                icon: <TeamOutlined />,
+                text: `Respondido por soporte ${relative}`,
+            };
+        }
+
+        return {
+            icon: <ClockCircleOutlined />,
+            text: `Actividad ${relative}`,
+        };
+    }
+
+    // Filtrar tickets según tab activo (todos, sin asignar, mis tickets)
     const filteredTickets = tickets.filter(ticket => {
         if (activeTab === "unassigned") return !ticket.assignee;
         if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
         return true;
     });
 
+    // Función para contar tickets por estado (para badges en tabs)
     const getTicketCount = (status: string) => {
-        if (status === "all") return allTickets.length;
-        return allTickets.filter(t => t.status === status).length;
+        if (status === "all") {
+            return Object.values(statusCounts).reduce((acc, val) => acc + val, 0);
+        }
+        return statusCounts[status] ?? 0;
+    };
+
+    /* ===================== BULK ACTIONS ===================== */
+
+    const bulkClose = async () => {
+        if (selectedTickets.length === 0) return;
+
+        try {
+            await fetch(`${API_URL}/helpdesk/tickets/bulk`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ticketIds: selectedTickets,
+                    status: "CLOSED",
+                }),
+            });
+
+            message.success("Tickets cerrados correctamente");
+            setSelectedTickets([]);
+            loadTickets();
+        } catch {
+            message.error("Error al cerrar tickets");
+        }
+    };
+
+    const bulkAssign = () => {
+        console.log("🎯 bulkAssign EJECUTADA");
+        if (selectedTickets.length === 0) return;
+
+        setSelectedTechnicianId(null);
+        setBulkAssignModalOpen(true);
+    };
+
+    const handleBulkAssignConfirm = async () => {
+        if (!selectedTechnicianId) {
+            message.warning("Selecciona un técnico");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/helpdesk/tickets/bulk`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ticketIds: selectedTickets,
+                    assigneeId: selectedTechnicianId,
+                }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json.ok) {
+                message.error("Error al asignar tickets");
+                return;
+            }
+
+            message.success("Tickets asignados correctamente");
+            setSelectedTickets([]);
+            setBulkAssignModalOpen(false);
+            setSelectedTechnicianId(null);
+            await loadTickets();
+
+        } catch (error) {
+            console.error("Error en bulkAssign:", error);
+            message.error("Error al asignar tickets");
+        }
+    };
+
+    const bulkMerge = () => {
+        console.log("🎯 bulkMerge EJECUTADA");
+
+        if (selectedTickets.length < 2) {
+            message.warning("Selecciona al menos 2 tickets para fusionar");
+            return;
+        }
+
+        setSelectedMainTicketId(null);
+        setBulkMergeModalOpen(true);
+    };
+
+    const handleBulkMergeConfirm = async () => {
+        if (!selectedMainTicketId) {
+            message.warning("Debes seleccionar un ticket principal");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/helpdesk/tickets/bulk-merge`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    mainTicketId: selectedMainTicketId,
+                    ticketIds: selectedTickets,
+                }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json.ok) {
+                message.error("Error al fusionar tickets");
+                return;
+            }
+
+            message.success("Tickets fusionados correctamente");
+            setSelectedTickets([]);
+            setBulkMergeModalOpen(false);
+            setSelectedMainTicketId(null);
+            await loadTickets();
+
+        } catch (error) {
+            console.error("Error en bulkMerge:", error);
+            message.error("Error al fusionar tickets");
+        }
     };
 
     /* ===================== RENDER ===================== */
     return (
         <div className="min-h-screen bg-gray-50">
-            <Header />
-
-            <main className="max-w-7xl mx-auto px-4 py-6">
+            <div className="max-w-7xl mx-auto px-4 py-6">
                 {/* Header con estadísticas */}
                 <div className="mb-6">
                     <div className="flex justify-between items-center mb-4">
@@ -663,7 +1049,9 @@ export default function TicketeraRids() {
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <div className="text-gray-500">Total</div>
-                                        <div className="text-2xl font-bold">{tickets.length}</div>
+                                        <div className="text-2xl font-bold">
+                                            {Object.values(statusCounts).reduce((a, b) => a + b, 0)}
+                                        </div>
                                     </div>
                                     <MessageOutlined className="text-blue-500 text-xl" />
                                 </div>
@@ -673,8 +1061,10 @@ export default function TicketeraRids() {
                             <Card size="small" className="border-l-4 border-l-orange-500">
                                 <div className="flex justify-between items-center">
                                     <div>
-                                        <div className="text-gray-500">Pendientes</div>
-                                        <div className="text-2xl font-bold">{getTicketCount("OPEN") + getTicketCount("PENDING")}</div>
+                                        <div className="text-gray-500">Abiertos</div>
+                                        <div className="text-2xl font-bold">
+                                            {getTicketCount("OPEN")}
+                                        </div>
                                     </div>
                                     <ClockCircleOutlined className="text-orange-500 text-xl" />
                                 </div>
@@ -684,8 +1074,10 @@ export default function TicketeraRids() {
                             <Card size="small" className="border-l-4 border-l-green-500">
                                 <div className="flex justify-between items-center">
                                     <div>
-                                        <div className="text-gray-500">Resueltos</div>
-                                        <div className="text-2xl font-bold">{getTicketCount("RESOLVED")}</div>
+                                        <div className="text-gray-500">Cerrados</div>
+                                        <div className="text-2xl font-bold">
+                                            {getTicketCount("CLOSED")}
+                                        </div>
                                     </div>
                                     <CheckCircleOutlined className="text-green-500 text-xl" />
                                 </div>
@@ -696,7 +1088,7 @@ export default function TicketeraRids() {
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <div className="text-gray-500">Urgentes</div>
-                                        <div className="text-2xl font-bold">{tickets.filter(t => t.priority === "URGENT" || t.priority === "HIGH").length}</div>
+                                        <div className="text-2xl font-bold">{(statusCounts["URGENT"] ?? 0) + (statusCounts["HIGH"] ?? 0)}</div>
                                     </div>
                                     <ExclamationCircleOutlined className="text-red-500 text-xl" />
                                 </div>
@@ -771,15 +1163,35 @@ export default function TicketeraRids() {
 
                         {/* 🔽 Fila inferior: rango de fechas */}
                         <Space size="small">
-                            <Button size="small" onClick={() => setLastDays(1)}>Hoy</Button>
-                            <Button size="small" onClick={() => setLastDays(7)}>Últimos 7 días</Button>
-                            <Button size="small" onClick={() => setLastDays(30)}>Este mes</Button>
+                            <Button
+                                size="small"
+                                type={activeRange === "today" ? "primary" : "default"}
+                                onClick={setToday}
+                            >
+                                Hoy
+                            </Button>
+
+                            <Button
+                                size="small"
+                                type={activeRange === "last-7" ? "primary" : "default"}
+                                onClick={() => setLastDays(7)}
+                            >
+                                Últimos 7 días
+                            </Button>
+
+                            <Button
+                                size="small"
+                                type={activeRange === "last-30" ? "primary" : "default"}
+                                onClick={() => setLastDays(30)}
+                            >
+                                Este mes
+                            </Button>
                             <Button
                                 size="small"
                                 onClick={() => {
                                     setDateRange(null);
+                                    setActiveRange(null); // 👈 FALTA ESTO
                                     setPage(1);
-                                    loadTickets();
                                 }}
                             >
                                 Limpiar rango
@@ -836,6 +1248,69 @@ export default function TicketeraRids() {
                     ]}
                 />
 
+                {/* ===================== ACCIONES MASIVAS ===================== */}
+                {selectedTickets.length > 0 && (
+                    <Card className="mb-3 border bg-gray-50">
+                        <div className="flex justify-between items-center">
+                            <span className="font-medium">
+                                {selectedTickets.length} seleccionado(s)
+                            </span>
+
+                            <Space>
+                                <Button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log("🔥 BULK ASSIGN CLICKED");
+                                        bulkAssign();
+                                    }}
+                                >
+                                    Asignar
+                                </Button>
+
+                                <Button
+                                    danger
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log("🔥 BULK CLOSE CLICKED");
+                                        bulkClose();
+                                    }}
+                                >
+                                    Cerrar
+                                </Button>
+
+                                <Button
+                                    type="primary"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log("🔥 BULK MERGE CLICKED");
+                                        bulkMerge();
+                                    }}
+                                >
+                                    Fusionar
+                                </Button>
+                            </Space>
+                        </div>
+                    </Card>
+                )}
+
+                {/* Notificación de nuevos tickets en tiempo real */}
+                {newTicketsCount > 0 && (
+                    <div className="flex justify-center mb-3">
+                        <Button
+                            type="primary"
+                            shape="round"
+                            icon={<BellOutlined />}
+                            className="shadow-md"
+                            onClick={() => {
+                                setNewTicketsCount(0);
+                                loadTickets();
+                            }}
+                        >
+                            {newTicketsCount} nuevo{newTicketsCount > 1 ? "s" : ""} ticket{newTicketsCount > 1 ? "s" : ""}
+                        </Button>
+                    </div>
+                )}
+
                 {/* Lista de tickets */}
                 <Card className="mt-4">
                     {loading ? (
@@ -848,6 +1323,7 @@ export default function TicketeraRids() {
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                         />
                     ) : (
+                        // Cada ticket es un card con información clave: prioridad, estado, asunto, empresa, solicitante, última actividad, asignado a...
                         <div className="space-y-2">
                             {filteredTickets.map((ticket) => (
                                 <div
@@ -855,57 +1331,145 @@ export default function TicketeraRids() {
                                     className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:shadow-sm transition-all cursor-pointer"
                                     onClick={() => abrirDetalle(ticket)}
                                 >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <div className="flex items-center gap-2 min-w-[100px]">
-                                                <Tooltip title={TICKET_PRIORITY_LABEL[ticket.priority]}>
-                                                    {PRIORITY_ICONS[ticket.priority as keyof typeof PRIORITY_ICONS]}
-                                                </Tooltip>
-                                                <Badge
-                                                    status={ticket.status === "NEW" ? "processing" : "default"}
-                                                    text={
-                                                        <Tag color={statusColor(ticket.status)} className="m-0">
-                                                            {TICKET_STATUS_LABEL[ticket.status] ?? ticket.status}
-                                                        </Tag>
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-gray-800">{ticket.subject}</span>
+                                    {/* ✅ CHECKBOX */}
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedTickets.includes(ticket.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedTickets(prev => [...prev, ticket.id]);
+                                            } else {
+                                                setSelectedTickets(prev => prev.filter(id => id !== ticket.id));
+                                            }
+                                        }}
+                                    />
+                                    {/* ✅ CONTENIDO ORIGINAL DEL TICKET */}
+                                    <div
+                                        className="flex-1 cursor-pointer"
+                                        onClick={() => abrirDetalle(ticket)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4 flex-1">
+                                                <div className="flex items-center gap-2 min-w-[100px]">
+                                                    <Tooltip title={TICKET_PRIORITY_LABEL[ticket.priority]}>
+                                                        {PRIORITY_ICONS[ticket.priority as keyof typeof PRIORITY_ICONS]}
+                                                    </Tooltip>
+                                                    <Tag
+                                                        color={
+                                                            ticket.status === "OPEN"
+                                                                ? "blue"
+                                                                : ticket.status === "PENDING"
+                                                                    ? "orange"
+                                                                    : ticket.status === "RESOLVED"
+                                                                        ? "green"
+                                                                        : ticket.status === "CLOSED"
+                                                                            ? "default"
+                                                                            : "cyan"
+                                                        }
+                                                        className="m-0"
+                                                    >
+                                                        {TICKET_STATUS_LABEL[ticket.status] ?? ticket.status}
+                                                    </Tag>
                                                 </div>
-                                                <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                                                    <span className="flex items-center gap-1">
-                                                        <TeamOutlined />
-                                                        {ticket.empresa?.nombre}
-                                                    </span>
-                                                    <span className="italic text-gray-400">
-                                                        {ticket.requester?.nombre ?? "Sin solicitante"}
-                                                    </span>
-                                                    {ticket.createdAt && (
-                                                        <span>
-                                                            {formatRelativeTime(ticket.createdAt)}
+                                                {/* Información principal del ticket: asunto, empresa, solicitante, última actividad */}
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-gray-800">{ticket.subject}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                                                        <span className="flex items-center gap-1">
+                                                            <TeamOutlined />
+                                                            {ticket.empresa?.nombre}
                                                         </span>
-                                                    )}
+                                                        <span className="italic text-gray-400">
+                                                            {(() => {
+                                                                const nombre = ticket.requester?.nombre;
+                                                                const email = ticket.requester?.email;
+                                                                const rawEmail = ticket.fromEmail;
+
+                                                                if (nombre) {
+                                                                    return <span>{nombre}</span>;
+                                                                }
+
+                                                                if (email) {
+                                                                    return (
+                                                                        <span className="italic text-gray-500">
+                                                                            {email}
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                if (rawEmail) {
+                                                                    return (
+                                                                        <span className="italic text-gray-400">
+                                                                            {rawEmail}
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <span className="italic text-gray-300">
+                                                                        Sin solicitante
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </span>
+                                                        {/* Indicador de última actividad: si el ticket tiene actividad reciente, mostrar un tag con el tiempo relativo (ej: "Respondido por cliente hace 5 minutos", "Cerrado hace 2 horas", "Sin actividad") */}
+                                                        {(ticket.lastActivityAt || ticket.createdAt) && (
+                                                            <div className="flex items-center gap-2 text-xs">
+                                                                {(() => {
+                                                                    const meta = getTicketActivityMeta(ticket);
+
+                                                                    return (
+                                                                        <>
+                                                                            <Tag
+                                                                                icon={meta.icon}
+                                                                                color={meta.color}
+                                                                                className="m-0"
+                                                                            >
+                                                                                {meta.label}
+                                                                            </Tag>
+
+                                                                            {(() => {
+                                                                                const activity = getTicketActivityText(ticket);
+                                                                                if (!activity) return null;
+
+                                                                                return (
+                                                                                    <Tag
+                                                                                        icon={activity.icon}
+                                                                                        className="m-0"
+                                                                                    >
+                                                                                        {activity.text}
+                                                                                    </Tag>
+                                                                                );
+                                                                            })()}
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right min-w-[120px]">
-                                                <div className="text-sm font-medium">
-                                                    {ticket.assignee ? (
-                                                        <div className="flex items-center gap-2">
-                                                            {ticket.assignee.nombre}
-                                                        </div>
-                                                    ) : (
-                                                        <Tag color="default">Sin asignar</Tag>
-                                                    )}
+                                            {/* Información secundaria: asignado a (si tiene), botón de acciones rápidas (responder, asignar, cambiar estado) */}
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right min-w-[120px]">
+                                                    <div className="text-sm font-medium">
+                                                        {ticket.assignee ? (
+                                                            <div className="flex items-center gap-2">
+                                                                {ticket.assignee.nombre}
+                                                            </div>
+                                                        ) : (
+                                                            <Tag color="default">Sin asignar</Tag>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                                <Button type="text" icon={<MoreOutlined />} onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Menú contextual aquí
+                                                }} />
                                             </div>
-                                            <Button type="text" icon={<MoreOutlined />} onClick={(e) => {
-                                                e.stopPropagation();
-                                                // Menú contextual aquí
-                                            }} />
                                         </div>
                                     </div>
                                 </div>
@@ -928,7 +1492,68 @@ export default function TicketeraRids() {
                         }}
                     />
                 </div>
-            </main>
+            </div>
+
+            {/* ===================== MODAL ASIGNAR MASIVO ===================== */}
+            <Modal
+                title="Asignar tickets seleccionados"
+                open={bulkAssignModalOpen}
+                onOk={handleBulkAssignConfirm}
+                onCancel={() => {
+                    setBulkAssignModalOpen(false);
+                    setSelectedTechnicianId(null);
+                }}
+                okText="Asignar"
+                cancelText="Cancelar"
+            >
+                <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-3">
+                        Se asignarán {selectedTickets.length} ticket(s) al técnico seleccionado.
+                    </p>
+                    <Select
+                        style={{ width: "100%" }}
+                        placeholder="Seleccionar técnico"
+                        value={selectedTechnicianId}
+                        onChange={setSelectedTechnicianId}
+                        options={tecnicos.map(t => ({
+                            value: t.id_tecnico,
+                            label: t.nombre,
+                        }))}
+                    />
+                </div>
+            </Modal>
+
+            {/* ===================== MODAL FUSIONAR MASIVO ===================== */}
+            <Modal
+                title="Fusionar tickets"
+                open={bulkMergeModalOpen}
+                onOk={handleBulkMergeConfirm}
+                onCancel={() => {
+                    setBulkMergeModalOpen(false);
+                    setSelectedMainTicketId(null);
+                }}
+                okText="Fusionar"
+                cancelText="Cancelar"
+            >
+                <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-3">
+                        Los mensajes de todos los tickets se moverán al ticket principal.
+                    </p>
+                    <Select
+                        style={{ width: "100%" }}
+                        placeholder="Seleccionar ticket principal"
+                        value={selectedMainTicketId}
+                        onChange={setSelectedMainTicketId}
+                        options={selectedTickets.map(id => {
+                            const ticket = tickets.find(t => t.id === id);
+                            return {
+                                value: id,
+                                label: `#${id} - ${ticket?.subject || 'Sin asunto'}`,
+                            };
+                        })}
+                    />
+                </div>
+            </Modal>
 
             {/* ===================== DRAWER CREAR ===================== */}
             <Drawer
@@ -963,6 +1588,7 @@ export default function TicketeraRids() {
                         />
                     </div>
 
+                    {/* El campo de contacto se habilita solo después de seleccionar empresa, ya que depende de esta selección */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Contacto *</label>
                         <Select
@@ -976,6 +1602,7 @@ export default function TicketeraRids() {
                         />
                     </div>
 
+                    {/* Campo de asunto obligatorio */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Asunto *</label>
                         <Input
@@ -988,6 +1615,7 @@ export default function TicketeraRids() {
                         />
                     </div>
 
+                    {/* Fila con campos de prioridad y asignación */}
                     <Row gutter={16}>
                         <Col span={12}>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Prioridad</label>
@@ -1017,6 +1645,7 @@ export default function TicketeraRids() {
                         </Col>
                     </Row>
 
+                    {/* Campo de descripción con contador y opción de adjuntar archivos (sin funcionalidad real)*/}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                         <Input.TextArea
@@ -1029,9 +1658,11 @@ export default function TicketeraRids() {
                             className="resize-none"
                         />
                         <div className="flex justify-between items-center mt-2">
-                            <Button icon={<PaperClipOutlined />} size="small">
-                                Adjuntar archivos
-                            </Button>
+                            <label>
+                                <Button icon={<PaperClipOutlined />} size="small">
+                                    Adjuntar archivo
+                                </Button>
+                            </label>
                             <span className="text-sm text-gray-500">
                                 {form.message.length}/5000 caracteres
                             </span>
@@ -1147,6 +1778,29 @@ export default function TicketeraRids() {
                             <h3 className="font-semibold text-lg mb-1">{ticketDetalle.subject}</h3>
                             <p className="text-gray-700 whitespace-pre-wrap">{ticketDetalle.description}</p>
                         </div>
+
+                        {/* Indicador de última actividad */}
+                        {lastActivityBy && (
+                            <div className="px-4 pt-3">
+                                {lastActivityBy === "client" && (
+                                    <Tag icon={<UserOutlined />} color="blue">
+                                        Cliente respondió
+                                    </Tag>
+                                )}
+
+                                {lastActivityBy === "agent" && (
+                                    <Tag icon={<TeamOutlined />} color="green">
+                                        Respondido por soporte
+                                    </Tag>
+                                )}
+
+                                {lastActivityBy === "internal" && (
+                                    <Tag icon={<EditOutlined />} color="gold">
+                                        Nota interna
+                                    </Tag>
+                                )}
+                            </div>
+                        )}
 
                         {/* Área de conversación con scroll */}
                         <div className="flex-1 overflow-y-auto p-4">
@@ -1327,21 +1981,59 @@ export default function TicketeraRids() {
                                                 />
                                                 <div className="flex justify-between items-center">
                                                     <Space>
-                                                        <Button icon={<PaperClipOutlined />} size="small">
-                                                            Adjuntar archivo
-                                                        </Button>
                                                         <Button icon={<PhoneOutlined />} size="small">
                                                             Registrar llamada
                                                         </Button>
                                                     </Space>
                                                     <Space>
+                                                        {/* INPUT OCULTO */}
+                                                        <input
+                                                            ref={replyFileInputRef}
+                                                            type="file"
+                                                            multiple
+                                                            hidden
+                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                                const files = e.target.files;
+
+                                                                if (!files || files.length === 0) return;
+
+                                                                setReplyFiles(prev => [
+                                                                    ...prev,
+                                                                    ...Array.from(files)
+                                                                ]);
+                                                                e.target.value = "";
+                                                            }}
+                                                        />
+                                                        {/* BOTÓN REAL */}
                                                         <Button
-                                                            size="large"
+                                                            icon={<PaperClipOutlined />}
+                                                            size="small"
+                                                            onClick={() => replyFileInputRef.current?.click()}
+                                                        >
+                                                            Adjuntar archivo
+                                                        </Button>
+                                                        {replyFiles.length > 0 && (
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                {replyFiles.map((file, index) => (
+                                                                    <Tag
+                                                                        key={index}
+                                                                        closable
+                                                                        onClose={() =>
+                                                                            setReplyFiles(prev =>
+                                                                                prev.filter((_, i) => i !== index)
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {file.name}
+                                                                    </Tag>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <Button
                                                             type="primary"
-                                                            icon={<SendOutlined />}
                                                             loading={sendingReply}
                                                             onClick={() => responderTicket(false)}
-                                                            className="bg-blue-600 hover:bg-blue-700"
+                                                            icon={<SendOutlined />}
                                                         >
                                                             Enviar respuesta
                                                         </Button>

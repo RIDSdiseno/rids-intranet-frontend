@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import axios, { AxiosError, type AxiosRequestConfig } from "axios";
+import { api, setAccessToken } from "../api/api";
 
 /* =========== Tipos de API =========== */
 type LoginResponse = {
@@ -14,87 +14,9 @@ type LoginResponse = {
 type ErrorResponse = { error?: string };
 type RefreshResponse = { accessToken: string };
 
-/* =========== Axios (en el mismo archivo) =========== */
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL, // ej: http://localhost:4000/api
-  withCredentials: true, // para cookie httpOnly "rt"
-});
-
-// token en memoria (persistido en localStorage)
-let accessToken: string | null = localStorage.getItem("accessToken");
-const setAccessToken = (t: string | null) => {
-  accessToken = t;
-  if (t) localStorage.setItem("accessToken", t);
-  else localStorage.removeItem("accessToken");
-};
-
-// Adjunta Bearer si hay token
-api.interceptors.request.use((config) => {
-  if (accessToken) {
-    const headers = config.headers ?? {};
-    headers.Authorization = `Bearer ${accessToken}`;
-    config.headers = headers;
-  }
-  return config;
-});
-
-// Soporte para marcar un request como reintento sin usar "any"
-type RetriableConfig = AxiosRequestConfig & { _retried?: boolean };
-
 // Refresh automático una sola vez por request
 let isRefreshing = false;
 let queue: Array<() => void> = [];
-
-// Interceptor de respuesta con control para login/refresh
-api.interceptors.response.use(
-  (res) => res,
-  async (error: AxiosError<ErrorResponse>) => {
-    const originalConfig = error.config as RetriableConfig | undefined;
-    const status = error.response?.status;
-
-    // Si no hay config o es login/refresh, NO intentes refrescar
-    if (
-      !originalConfig ||
-      originalConfig.url?.includes("/auth/login") ||
-      originalConfig.url?.includes("/auth/refresh")
-    ) {
-      return Promise.reject(error);
-    }
-
-    if (status === 401 && !originalConfig._retried) {
-      originalConfig._retried = true;
-
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          const r = await api.post<RefreshResponse>("/auth/refresh"); // usa cookie "rt"
-          const newAccess = r.data?.accessToken;
-          if (newAccess) setAccessToken(newAccess);
-
-          queue.forEach((cb) => cb());
-          queue = [];
-
-          return api(originalConfig);
-        } catch (e) {
-          setAccessToken(null);
-          queue = [];
-          return Promise.reject(e);
-        } finally {
-          isRefreshing = false;
-        }
-      }
-
-      // si ya hay un refresh en curso, encola el reintento
-      return new Promise((resolve, reject) => {
-        queue.push(() => {
-          api(originalConfig).then(resolve).catch(reject);
-        });
-      });
-    }
-
-    return Promise.reject(error);
-  }
-);
 
 /* =========== Utils de validación =========== */
 const isValidEmail = (email: string) =>
@@ -115,14 +37,6 @@ const LoginRids: React.FC = () => {
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-  };
-
-  const extractApiError = (err: unknown): string => {
-    if (axios.isAxiosError<ErrorResponse>(err)) {
-      return err.response?.data?.error ?? err.message;
-    }
-    if (err instanceof Error) return err.message;
-    return "Error inesperado";
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -151,18 +65,10 @@ const LoginRids: React.FC = () => {
       // Guardar accessToken (el refresh queda en cookie httpOnly)
       setAccessToken(data.accessToken);
 
+      localStorage.setItem("user", JSON.stringify(data.tecnico));
+
       // Redirigir al Home
       navigate("/home", { replace: true });
-    } catch (err: unknown) {
-      // Manejo específico para 401 (credenciales malas)
-      if (axios.isAxiosError<ErrorResponse>(err)) {
-        if (err.response?.status === 401) {
-          setError(err.response.data?.error ?? "Usuario o contraseña incorrectos");
-          setLoading(false);
-          return;
-        }
-      }
-      setError(extractApiError(err));
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
-import Header from "../components/Header";
 import {
   UserOutlined,
   LaptopOutlined,
@@ -433,73 +432,68 @@ const Home: FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
-      <Header />
+    <>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
+        <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
+      </motion.div>
 
-      <main className="flex-1 p-4 sm:p-6">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
-          <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
-        </motion.div>
-
-        {/* Cards */}
-        <div className="mt-6 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-          {computedStats.map((stat, idx) => (
-            <motion.div
-              key={stat.name}
-              className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-slate-100 relative overflow-hidden"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: idx * 0.1 }}
-              whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
-            >
-              <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-cyan-100/40 blur-2xl" />
-              <div className="flex items-start justify-between">
-                <div className="text-slate-600 font-medium">{stat.name}</div>
-                <div className="flex items-center gap-2">
-                  {stat.icon}
-                  {isRefreshableStat(stat) && (
-                    <button
-                      onClick={stat.onRefresh}
-                      className={`ml-1 rounded-full p-1.5 transition text-cyan-700 hover:bg-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        stat.isLoading ? "animate-spin" : ""
+      {/* Cards */}
+      <div className="mt-6 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        {computedStats.map((stat, idx) => (
+          <motion.div
+            key={stat.name}
+            className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-slate-100 relative overflow-hidden"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: idx * 0.1 }}
+            whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
+          >
+            <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-cyan-100/40 blur-2xl" />
+            <div className="flex items-start justify-between">
+              <div className="text-slate-600 font-medium">{stat.name}</div>
+              <div className="flex items-center gap-2">
+                {stat.icon}
+                {isRefreshableStat(stat) && (
+                  <button
+                    onClick={stat.onRefresh}
+                    className={`ml-1 rounded-full p-1.5 transition text-cyan-700 hover:bg-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed ${stat.isLoading ? "animate-spin" : ""
                       }`}
-                      title="Actualizar"
-                      aria-label={`Actualizar ${stat.name}`}
-                      disabled={stat.isLoading}
-                    >
-                      <ReloadOutlined className="text-sm" />
-                    </button>
-                  )}
-                </div>
+                    title="Actualizar"
+                    aria-label={`Actualizar ${stat.name}`}
+                    disabled={stat.isLoading}
+                  >
+                    <ReloadOutlined className="text-sm" />
+                  </button>
+                )}
               </div>
-              <div className="mt-3 text-2xl sm:text-3xl font-bold text-slate-800">{stat.value}</div>
-              <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
-            </motion.div>
-          ))}
-        </div>
+            </div>
+            <div className="mt-3 text-2xl sm:text-3xl font-bold text-slate-800">{stat.value}</div>
+            <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
+          </motion.div>
+        ))}
+      </div>
 
-        {/* Gráfico */}
-        <motion.div
-          className="mt-8 sm:mt-10 bg-white rounded-xl shadow-md p-4 sm:p-6 border border-slate-100"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-        >
-          <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
-            <h2 className="text-base sm:text-lg font-bold text-slate-800">Visitas del mes por técnico</h2>
-            <button
-              onClick={() => fetchVisitasMetrics()}
-              className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${
-                loadingVis ? "animate-spin" : ""
+      {/* Gráfico */}
+      <motion.div
+        className="mt-8 sm:mt-10 bg-white rounded-xl shadow-md p-4 sm:p-6 border border-slate-100"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.5 }}
+      >
+        <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800">Visitas del mes por técnico</h2>
+          <button
+            onClick={() => fetchVisitasMetrics()}
+            className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${loadingVis ? "animate-spin" : ""
               }`}
-              title="Actualizar"
-              aria-label="Actualizar visitas"
-              disabled={loadingVis}
-            >
-              {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
-            </button>
-          </div>
+            title="Actualizar"
+            aria-label="Actualizar visitas"
+            disabled={loadingVis}
+          >
+            {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
+          </button>
+        </div>
 
         <div className="h-64 sm:h-72">
           {loadingVis ? (
@@ -538,12 +532,11 @@ const Home: FC = () => {
           )}
         </div>
 
-          <div className="mt-2 text-xs text-neutral-500">
-            Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
-          </div>
-        </motion.div>
-      </main>
-    </div>
+        <div className="mt-2 text-xs text-neutral-500">
+          Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
+        </div>
+      </motion.div>
+    </>
   );
 };
 

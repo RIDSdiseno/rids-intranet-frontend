@@ -6,6 +6,8 @@ import LoginRids from "./host/login";
 import Home from "./host/Home";
 import SolicitanesPage from "./host/Solicitantes";
 
+import AppLayout from "./layouts/AppLayout";
+
 // Páginas lazy
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
@@ -33,128 +35,43 @@ const App: React.FC = () => {
     <BrowserRouter>
       <Suspense fallback={<div style={{ padding: 16 }}>Cargando…</div>}>
         <Routes>
+
+          {/* LOGIN */}
           <Route path="/login" element={<LoginRids />} />
 
+          {/* RUTAS PRIVADAS CON LAYOUT */}
           <Route
-            path="/home"
             element={
               <PrivateRoute>
-                <Home />
+                <AppLayout />
               </PrivateRoute>
             }
+          >
+            <Route path="/home" element={<Home />} />
+            <Route path="/solicitantes" element={<SolicitanesPage />} />
+            <Route path="/equipos" element={<EquiposPage />} />
+            <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+            <Route path="/Cotizaciones" element={<Cotizaciones />} />
+            <Route path="/clientes" element={<ClientesPage />} />
+            <Route path="/productos" element={<ProductosPage />} />
+            <Route path="/visitas" element={<VisitasPage />} />
+            <Route path="/tickets" element={<TicketsPage />} />
+            <Route path="/helpdesk" element={<TicketeraRids />} />
+            <Route path="/empresas" element={<EmpresasPage />} />
+            <Route path="/reportes" element={<ReportesPage />} />
+            <Route path="/documentos" element={<DocumentosPage />} />
+          </Route>
+
+          {/* REDIRECCIONES */}
+          <Route
+            path="/"
+            element={<Navigate to={hasSession ? "/home" : "/login"} replace />}
+          />
+          <Route
+            path="*"
+            element={<Navigate to={hasSession ? "/home" : "/login"} replace />}
           />
 
-          <Route
-            path="/solicitantes"
-            element={
-              <PrivateRoute>
-                <SolicitanesPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/equipos"
-            element={
-              <PrivateRoute>
-                <EquiposPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/OrdenesTaller"
-            element={
-              <PrivateRoute>
-                <OrdenesTallerPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/Cotizaciones"
-            element={
-              <PrivateRoute>
-                <Cotizaciones />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/clientes"
-            element={
-              <PrivateRoute>
-                <ClientesPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/productos"
-            element={
-              <PrivateRoute>
-                <ProductosPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/visitas"
-            element={
-              <PrivateRoute>
-                <VisitasPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/tickets"
-            element={
-              <PrivateRoute>
-                <TicketsPage />
-              </PrivateRoute>
-            }
-          />
-          
-          <Route
-            path="/helpdesk"
-            element={
-              <PrivateRoute>
-                <TicketeraRids />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/empresas"
-            element={
-              <PrivateRoute>
-                <EmpresasPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/reportes"
-            element={
-              <PrivateRoute>
-                <ReportesPage />
-              </PrivateRoute>
-            }
-          />
-
-          {/* 👇 NUEVO: Documentos */}
-          <Route
-            path="/documentos"
-            element={
-              <PrivateRoute>
-                <DocumentosPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route path="/" element={<Navigate to={hasSession ? "/home" : "/login"} replace />} />
-          <Route path="*" element={<Navigate to={hasSession ? "/home" : "/login"} replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

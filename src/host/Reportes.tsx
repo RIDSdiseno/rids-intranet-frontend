@@ -2495,8 +2495,6 @@ const ReportesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-slate-50 to-white">
-      <Header />
-
       {/* Top Nav */}
       <div className="bg-white/60 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-4">

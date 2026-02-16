@@ -106,6 +106,22 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         });
     };
 
+    const getEstadoStyle = (estado: EstadoCotizacionGestioo) => {
+        switch (estado) {
+            case EstadoCotizacionGestioo.BORRADOR:
+                return "bg-amber-100 text-amber-800 border border-amber-200";
+            case EstadoCotizacionGestioo.GENERADA:
+                return "bg-blue-100 text-blue-800 border border-blue-200";
+            case EstadoCotizacionGestioo.ENVIADA:
+                return "bg-indigo-100 text-indigo-800 border border-indigo-200";
+            case EstadoCotizacionGestioo.APROBADA:
+                return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+            case EstadoCotizacionGestioo.RECHAZADA:
+                return "bg-rose-100 text-rose-800 border border-rose-200";
+            default:
+                return "bg-slate-100 text-slate-800";
+        }
+    };
 
     // ==========================
     // MANEJO DE MONEDA
@@ -225,7 +241,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative max-h-[90vh] overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative max-h-[90vh] flex flex-col overflow-y-auto"
             >
                 {/* HEADER */}
                 <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white px-8 py-6 border-b border-slate-200">
@@ -240,25 +256,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     <span className="text-blue-600">#{cotizacion.id}</span>
                                 </h1>
                                 <div className="flex items-center gap-3 mt-2">
-                                    <div
-                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${cotizacion.estado === EstadoCotizacionGestioo.BORRADOR
-                                            ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                            : cotizacion.estado ===
-                                                EstadoCotizacionGestioo.APROBADA
-                                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                                : "bg-blue-100 text-blue-800 border border-blue-200"
-                                            }`}
-                                    >
-                                        <div
-                                            className={`w-2 h-2 rounded-full ${cotizacion.estado ===
-                                                EstadoCotizacionGestioo.BORRADOR
-                                                ? "bg-amber-500"
-                                                : cotizacion.estado ===
-                                                    EstadoCotizacionGestioo.APROBADA
-                                                    ? "bg-emerald-500"
-                                                    : "bg-blue-500"
-                                                }`}
-                                        />
+                                    {/* ESTADO BADGE */}
+                                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${getEstadoStyle(cotizacion.estado)}`}>
                                         {cotizacion.estado}
                                     </div>
                                     <div className="text-slate-500 text-sm">
@@ -462,37 +461,44 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                     <div className="space-y-5">
                                         <div>
-                                            <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                                Estado <span className="text-rose-500">*</span>
-                                            </label>
-                                            <select
-                                                value={cotizacion.estado}
-                                                onChange={(e) =>
-                                                    onUpdateCotizacion({
-                                                        ...cotizacion,
-                                                        estado:
-                                                            e.target.value as EstadoCotizacionGestioo,
-                                                    })
-                                                }
-                                                className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all appearance-none bg-white"
-                                                required
-                                            >
-                                                <option value={EstadoCotizacionGestioo.BORRADOR}>
-                                                    Borrador
-                                                </option>
-                                                <option value={EstadoCotizacionGestioo.GENERADA}>
-                                                    Generada
-                                                </option>
-                                                <option value={EstadoCotizacionGestioo.ENVIADA}>
-                                                    Enviada
-                                                </option>
-                                                <option value={EstadoCotizacionGestioo.APROBADA}>
-                                                    Aprobada
-                                                </option>
-                                                <option value={EstadoCotizacionGestioo.RECHAZADA}>
-                                                    Rechazada
-                                                </option>
-                                            </select>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-3">
+                                                    Estado <span className="text-rose-500">*</span>
+                                                </label>
+
+                                                <div className="flex flex-col gap-3">
+                                                    {Object.values(EstadoCotizacionGestioo).map((estado) => {
+                                                        const checked = cotizacion.estado === estado;
+
+                                                        return (
+                                                            <label
+                                                                key={estado}
+                                                                className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 cursor-pointer transition-all
+            ${checked
+                                                                        ? "border-cyan-500 bg-cyan-50"
+                                                                        : "border-slate-200 bg-white hover:border-cyan-300"
+                                                                    }`}
+                                                            >
+                                                                <span className="text-sm font-medium text-slate-700">
+                                                                    {estado.charAt(0) + estado.slice(1).toLowerCase()}
+                                                                </span>
+
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    onChange={() =>
+                                                                        onUpdateCotizacion({
+                                                                            ...cotizacion,
+                                                                            estado: estado,
+                                                                        })
+                                                                    }
+                                                                    className="w-5 h-5 accent-cyan-600"
+                                                                />
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <div>
@@ -669,7 +675,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                             </div>
 
                             {/* TABLA DE ITEMS */}
-                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-lg">
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg">
                                 <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-4 border-b border-slate-200">
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-3">
@@ -691,355 +697,359 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-slate-100 border-b border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 w-32">
-                                                    Tipo
-                                                </th>
-                                                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700 min-w-[200px]">
-                                                    Nombre
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-24">
-                                                    Cant.
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-40">
-                                                    P. Unitario (
-                                                    {moneda === "USD" ? "US$" : "$"})
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
-                                                    % Ganancia
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
-                                                    IVA
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-28">
-                                                    % Desc
-                                                </th>
-                                                <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
-                                                    Neto sin IVA
-                                                </th>
-                                                <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700 w-32">
-                                                    Total con IVA
-                                                </th>
-                                                <th className="px-6 py-4 text-center text-sm font-semibold text-slate-700 w-20">
-                                                    Acción
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {itemsLocal.length === 0 ? (
+                                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                                    <div className="w-full overflow-x-auto">
+                                        <table className="w-full text-sm table-fixed">
+                                            <thead className="bg-slate-100 border-b border-slate-200">
                                                 <tr>
-                                                    <td colSpan={10} className="px-6 py-12 text-center">
-                                                        <div className="flex flex-col items-center justify-center">
-                                                            <div className="p-4 rounded-full bg-slate-100 mb-4">
-                                                                <FileTextOutlined className="text-3xl text-slate-400" />
-                                                            </div>
-                                                            <h4 className="text-lg font-medium text-slate-700 mb-2">
-                                                                No hay ítems en esta cotización
-                                                            </h4>
-                                                            <p className="text-slate-500 mb-6">
-                                                                Agregue productos, servicios o descuentos para comenzar
-                                                            </p>
-                                                        </div>
-                                                    </td>
+                                                    <th className="px-4 px-3 text-left text-sm font-semibold text-slate-700">
+                                                        Tipo
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 break-words">
+                                                        Nombre
+                                                    </th>
+                                                    <th className="px-2 py-2 text-center text-sm font-semibold text-slate-700 w-15">
+                                                        Cant.
+                                                    </th>
+                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+                                                        P. Unitario (
+                                                        {moneda === "USD" ? "US$" : "$"})
+                                                    </th>
+                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+                                                        % Ganancia
+                                                    </th>
+                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+                                                        IVA
+                                                    </th>
+                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+                                                        % Desc
+                                                    </th>
+                                                    <th className="px-4 px-3 text-right text-sm font-semibold text-slate-700 w-32">
+                                                        Neto sin IVA
+                                                    </th>
+                                                    <th className="px-4 px-3 text-right text-sm font-semibold text-slate-700 w-32 whitespace-nowrap">
+                                                        Total con IVA
+                                                    </th>
+                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-20">
+                                                        Acción
+                                                    </th>
                                                 </tr>
-                                            ) : (
-                                                itemsLocal.map((item, index) => {
-                                                    const valores = calcularValoresItem(item);
+                                            </thead>
+                                            <tbody>
+                                                {itemsLocal.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={10} className="px-6 py-12 text-center">
+                                                            <div className="flex flex-col items-center justify-center">
+                                                                <div className="p-4 rounded-full bg-slate-100 mb-4">
+                                                                    <FileTextOutlined className="text-3xl text-slate-400" />
+                                                                </div>
+                                                                <h4 className="text-lg font-medium text-slate-700 mb-2">
+                                                                    No hay ítems en esta cotización
+                                                                </h4>
+                                                                <p className="text-slate-500 mb-6">
+                                                                    Agregue productos, servicios o descuentos para comenzar
+                                                                </p>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    itemsLocal.map((item, index) => {
+                                                        const valores = calcularValoresItem(item);
 
-                                                    const precioCosto = Number(item.precioCosto || 0);
-                                                    const cantidad = Number(item.cantidad || 1);
+                                                        const precioCosto = Number(item.precioCosto || 0);
+                                                        const cantidad = Number(item.cantidad || 1);
 
-                                                    const costoTotalCLP = precioCosto * cantidad;
+                                                        const costoTotalCLP = precioCosto * cantidad;
 
-                                                    //  PRECIO BASE REAL (NO AFECTADO POR DESCUENTO)
-                                                    const precioBaseCLP = Number(item.precioOriginalCLP || 0);
-                                                    const costoCLP = Number(item.precioCosto || 0);
+                                                        //  PRECIO BASE REAL (NO AFECTADO POR DESCUENTO)
+                                                        const precioBaseCLP = Number(item.precioOriginalCLP || 0);
+                                                        const costoCLP = Number(item.precioCosto || 0);
 
-                                                    //  GANANCIA REAL (NO CAMBIA CON DESCUENTO)
-                                                    const gananciaItemCLP =
-                                                        item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
-                                                            ? (precioBaseCLP - costoCLP) * cantidad
-                                                            : 0;
+                                                        //  GANANCIA REAL (NO CAMBIA CON DESCUENTO)
+                                                        const gananciaItemCLP =
+                                                            item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
+                                                                ? (precioBaseCLP - costoCLP) * cantidad
+                                                                : 0;
 
-                                                    //  % GANANCIA REAL
-                                                    const margenGanancia =
-                                                        item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
-                                                            ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
-                                                            : 0;
+                                                        //  % GANANCIA REAL
+                                                        const margenGanancia =
+                                                            item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
+                                                                ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
+                                                                : 0;
 
-                                                    return (
-                                                        <tr
-                                                            key={`${item.id}-${index}`}
-                                                            className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo ===
-                                                                ItemTipoGestioo.ADICIONAL
-                                                                ? "bg-rose-50/30 hover:bg-rose-50/50"
-                                                                : ""
-                                                                }`}
-                                                        >
-                                                            {/* TIPO */}
-                                                            <td className="px-6 py-4">
-                                                                <span
-                                                                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo ===
-                                                                        ItemTipoGestioo.PRODUCTO
-                                                                        ? "bg-cyan-100 text-cyan-800"
-                                                                        : item.tipo ===
-                                                                            ItemTipoGestioo.SERVICIO
-                                                                            ? "bg-emerald-100 text-emerald-800"
-                                                                            : "bg-amber-100 text-amber-800"
-                                                                        }`}
-                                                                >
-                                                                    {item.tipo ===
-                                                                        ItemTipoGestioo.PRODUCTO
-                                                                        ? "Producto"
-                                                                        : item.tipo ===
-                                                                            ItemTipoGestioo.SERVICIO
-                                                                            ? "Servicio"
-                                                                            : "Descuento"}
-                                                                </span>
-                                                            </td>
+                                                        return (
+                                                            <tr
+                                                                key={`${item.id}-${index}`}
+                                                                className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo ===
+                                                                    ItemTipoGestioo.ADICIONAL
+                                                                    ? "bg-rose-50/30 hover:bg-rose-50/50"
+                                                                    : ""
+                                                                    }`}
+                                                            >
+                                                                {/* TIPO */}
+                                                                <td className="px-6 py-4">
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo ===
+                                                                            ItemTipoGestioo.PRODUCTO
+                                                                            ? "bg-cyan-100 text-cyan-800"
+                                                                            : item.tipo ===
+                                                                                ItemTipoGestioo.SERVICIO
+                                                                                ? "bg-emerald-100 text-emerald-800"
+                                                                                : "bg-amber-100 text-amber-800"
+                                                                            }`}
+                                                                    >
+                                                                        {item.tipo ===
+                                                                            ItemTipoGestioo.PRODUCTO
+                                                                            ? "Producto"
+                                                                            : item.tipo ===
+                                                                                ItemTipoGestioo.SERVICIO
+                                                                                ? "Servicio"
+                                                                                : "Descuento"}
+                                                                    </span>
+                                                                </td>
 
-                                                            {/* DESCRIPCIÓN */}
-                                                            <td className="px-6 py-4 min-w-[200px]">
-                                                                <input
-                                                                    value={item.nombre || ""}
-                                                                    readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
-                                                                    onChange={(e) =>
-                                                                        handleItemChange(
-                                                                            index,
-                                                                            "nombre",
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
-                                                                    placeholder="Descripción del ítem"
-                                                                />
-                                                                {item.tipo ===
-                                                                    ItemTipoGestioo.PRODUCTO &&
-                                                                    precioCosto > 0 && (
-                                                                        <div className="text-xs text-slate-500 mt-1 truncate">
-                                                                            Costo:{" "}
-                                                                            {formatearPrecio(
-                                                                                precioCosto,
-                                                                                moneda,
-                                                                                tasa
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                            </td>
-
-                                                            {/* CANTIDAD */}
-                                                            <td className="px-6 py-4 text-center">
-                                                                <input
-                                                                    type="number"
-                                                                    min={1}
-                                                                    value={item.cantidad || 1}
-                                                                    disabled={
-                                                                        item.tipo ===
-                                                                        ItemTipoGestioo.ADICIONAL
-                                                                    }
-                                                                    onChange={(e) =>
-                                                                        handleItemChange(
-                                                                            index,
-                                                                            "cantidad",
-                                                                            Math.max(
-                                                                                1,
-                                                                                Number(e.target.value)
-                                                                            )
-                                                                        )
-                                                                    }
-                                                                    className={`w-20 border border-slate-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all ${item.tipo ===
-                                                                        ItemTipoGestioo.ADICIONAL
-                                                                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                                                        : "bg-white"
-                                                                        }`}
-                                                                />
-                                                            </td>
-
-                                                            {/* PRECIO UNITARIO */}
-                                                            <td className="px-6 py-4">
-                                                                <div className="flex flex-col items-center space-y-1">
-
+                                                                {/* DESCRIPCIÓN */}
+                                                                <td className="px-6 py-4 min-w-[200px]">
                                                                     <input
-                                                                        type="number"
-                                                                        min={0}
-                                                                        step={0.01}
+                                                                        value={item.nombre || ""}
                                                                         readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
-                                                                        value={item.precio === null || item.precio === undefined ? "" : item.precio}
-                                                                        disabled={item.tipo === ItemTipoGestioo.SERVICIO}
-                                                                        onChange={(e) => {
-                                                                            const raw = e.target.value;
+                                                                        onChange={(e) =>
+                                                                            handleItemChange(
+                                                                                index,
+                                                                                "nombre",
+                                                                                e.target.value
+                                                                            )
+                                                                        }
+                                                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                                                                        placeholder="Descripción del ítem"
+                                                                    />
+                                                                    {item.tipo ===
+                                                                        ItemTipoGestioo.PRODUCTO &&
+                                                                        precioCosto > 0 && (
+                                                                            <div className="text-xs text-slate-500 mt-1 truncate">
+                                                                                Costo:{" "}
+                                                                                {formatearPrecio(
+                                                                                    precioCosto,
+                                                                                    moneda,
+                                                                                    tasa
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                </td>
 
-                                                                            if (raw === "") {
-                                                                                handleItemChange(index, "precio", 0);
-                                                                                return;
+                                                                {/* CANTIDAD */}
+                                                                <td className="px-6 py-4 align-top">
+                                                                    <div className="flex items-center justify-center mt-1">
+                                                                        <input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            value={item.cantidad || 1}
+                                                                            disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
+                                                                            onChange={(e) =>
+                                                                                handleItemChange(
+                                                                                    index,
+                                                                                    "cantidad",
+                                                                                    Math.max(1, Number(e.target.value))
+                                                                                )
                                                                             }
+                                                                            className={[
+                                                                                "w-14 h-10",
+                                                                                "px-1 py-1",
+                                                                                "border border-slate-200 rounded-lg",
+                                                                                "text-center text-sm",
+                                                                                "focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400",
+                                                                                "transition",
+                                                                                item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                                    : "bg-white",
+                                                                            ].join(" ")}
+                                                                        />
+                                                                    </div>
+                                                                </td>
 
-                                                                            const num = Number(raw);
-                                                                            if (!isNaN(num)) {
-                                                                                handleItemChange(index, "precio", num);
-                                                                            }
-                                                                        }}
-                                                                        className={`
-                w-28 md:w-32      /* ← MÁS ANCHO */
+                                                                {/* PRECIO UNITARIO */}
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <div className="flex flex-col items-center space-y-1">
+
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            step={0.01}
+                                                                            readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
+                                                                            value={item.precio === null || item.precio === undefined ? "" : item.precio}
+                                                                            disabled={item.tipo === ItemTipoGestioo.SERVICIO}
+                                                                            onChange={(e) => {
+                                                                                const raw = e.target.value;
+
+                                                                                if (raw === "") {
+                                                                                    handleItemChange(index, "precio", 0);
+                                                                                    return;
+                                                                                }
+
+                                                                                const num = Number(raw);
+                                                                                if (!isNaN(num)) {
+                                                                                    handleItemChange(index, "precio", num);
+                                                                                }
+                                                                            }}
+                                                                            className={`
+                w-24      /* ← MÁS ANCHO */
                 px-4 py-2.5       /* ← MÁS GRANDE Y LEGIBLE */
                 border border-slate-200 rounded-lg
                 text-right         /* ← Precios alineados a la derecha */
                 text-sm
                 transition-all
                 ${item.tipo === ItemTipoGestioo.SERVICIO
-                                                                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                                                                : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
-                                                                            }
+                                                                                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                                    : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                                                                                }
             `}
-                                                                        placeholder={moneda === "USD" ? "US$" : "$"}
-                                                                    />
-
-                                                                    {/* Precio en CLP formateado debajo */}
-                                                                    <div className="text-xs text-slate-500">
-                                                                        {formatearPrecio(
-                                                                            valores.base / (item.cantidad || 1),
-                                                                            moneda,
-                                                                            tasa
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-
-                                                            {/* % GANANCIA */}
-                                                            <td className="px-6 py-4 text-center">
-                                                                {item.tipo === ItemTipoGestioo.PRODUCTO ? (
-                                                                    <div className="flex flex-col items-center">
-                                                                        <div
-                                                                            className={`text-sm font-semibold ${margenGanancia > 0 ? "text-emerald-600" : "text-slate-500"
-                                                                                }`}
-                                                                        >
-                                                                            {margenGanancia.toFixed(1)}%
-                                                                        </div>
-
-                                                                        {gananciaItemCLP > 0 && (
-                                                                            <div className="text-xs text-emerald-500 mt-1">
-                                                                                + {formatearPrecio(gananciaItemCLP, moneda, tasa)}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-slate-300">—</span>
-                                                                )}
-                                                            </td>
-
-                                                            {/* IVA */}
-                                                            <td className="px-6 py-4 text-center">
-                                                                {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
-                                                                    <div className="flex flex-col items-center gap-1">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={item.tieneIVA || false}
-                                                                            onChange={(e) =>
-                                                                                handleItemChange(index, "tieneIVA", e.target.checked)
-                                                                            }
-                                                                            className="w-4 h-4 text-cyan-600 border-slate-300 rounded"
+                                                                            placeholder={moneda === "USD" ? "US$" : "$"}
                                                                         />
 
-                                                                        {item.tieneIVA && valores.iva > 0 && (
-                                                                            <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                                                                                {formatearPrecio(valores.iva, moneda, tasa)}
-                                                                            </span>
-                                                                        )}
+                                                                        {/* Precio en CLP formateado debajo */}
+                                                                        <div className="text-xs text-slate-500">
+                                                                            {formatearPrecio(
+                                                                                valores.base / (item.cantidad || 1),
+                                                                                moneda,
+                                                                                tasa
+                                                                            )}
+                                                                        </div>
                                                                     </div>
-                                                                ) : (
-                                                                    <span className="text-slate-300">—</span>
-                                                                )}
-                                                            </td>
+                                                                </td>
 
-                                                            {/* DESCUENTO */}
-                                                            <td className="px-6 py-4 text-center">
-                                                                <div className="flex items-center justify-center gap-2">
+                                                                {/* % GANANCIA */}
+                                                                <td className="px-6 py-4 text-center">
+                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO ? (
+                                                                        <div className="flex flex-col items-center">
+                                                                            <div
+                                                                                className={`text-sm font-semibold ${margenGanancia > 0 ? "text-emerald-600" : "text-slate-500"
+                                                                                    }`}
+                                                                            >
+                                                                                {margenGanancia.toFixed(1)}%
+                                                                            </div>
 
-                                                                    {/* Checkbox */}
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={item.tieneDescuento || false}
-                                                                        onChange={(e) => {
-                                                                            const checked = e.target.checked;
+                                                                            {gananciaItemCLP > 0 && (
+                                                                                <div className="text-xs text-emerald-500 mt-1">
+                                                                                    + {formatearPrecio(gananciaItemCLP, moneda, tasa)}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    )}
+                                                                </td>
 
-                                                                            handleItemChange(index, "tieneDescuento", checked);
+                                                                {/* IVA */}
+                                                                <td className="px-6 py-4 text-center">
+                                                                    {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
+                                                                        <div className="flex flex-col items-center gap-1">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={item.tieneIVA || false}
+                                                                                onChange={(e) =>
+                                                                                    handleItemChange(index, "tieneIVA", e.target.checked)
+                                                                                }
+                                                                                className="w-4 h-4 text-cyan-600 border-slate-300 rounded"
+                                                                            />
 
-                                                                            // Si se apaga el descuento → limpiar porcentaje
-                                                                            if (!checked) {
-                                                                                handleItemChange(index, "porcentaje", 0);
-                                                                            }
-                                                                        }}
-                                                                        className="w-4 h-4"
-                                                                    />
+                                                                            {item.tieneIVA && valores.iva > 0 && (
+                                                                                <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                                                                    {formatearPrecio(valores.iva, moneda, tasa)}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    )}
+                                                                </td>
 
-                                                                    {/* Input SIEMPRE visible, pero desactivado si el checkbox no está activo */}
-                                                                    <input
-                                                                        type="number"
-                                                                        min={0}
-                                                                        max={100}
-                                                                        step={0.1}
-                                                                        value={item.porcentaje || 0}
-                                                                        disabled={!item.tieneDescuento}
-                                                                        onChange={(e) => {
-                                                                            let val = Number(e.target.value);
-                                                                            if (isNaN(val)) val = 0;
-                                                                            val = Math.min(100, Math.max(0, val));
+                                                                {/* DESCUENTO */}
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <div className="flex items-center justify-center gap-2">
 
-                                                                            handleItemChange(index, "porcentaje", val);
-                                                                        }}
-                                                                        className={`w-16 border rounded px-2 py-1 text-sm text-center ${item.tieneDescuento ? "border-slate-300 bg-white" : "bg-slate-100 text-slate-400"}`}
-                                                                    />
-                                                                    <span className="text-xs">%</span>
-                                                                </div>
-                                                            </td>
+                                                                        {/* Checkbox */}
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={item.tieneDescuento || false}
+                                                                            onChange={(e) => {
+                                                                                const checked = e.target.checked;
 
-                                                            {/* NETO */}
-                                                            <td className="px-6 py-4 text-right">
-                                                                {item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                    ? "—"
-                                                                    : formatearPrecio(valores.neto, moneda, tasa)}
-                                                            </td>
+                                                                                handleItemChange(index, "tieneDescuento", checked);
 
-                                                            {/* SUBTOTAL / TOTAL ITEM */}
-                                                            <td className="px-6 py-4 text-right font-bold">
-                                                                {item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                    ? "—"
-                                                                    : formatearPrecio(valores.total, moneda, tasa)}
-                                                            </td>
+                                                                                // Si se apaga el descuento → limpiar porcentaje
+                                                                                if (!checked) {
+                                                                                    handleItemChange(index, "porcentaje", 0);
+                                                                                }
+                                                                            }}
+                                                                            className="w-4 h-4"
+                                                                        />
 
-                                                            {/* ACCIÓN */}
-                                                            <td className="px-6 py-4 text-center">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    {item.tipo !== ItemTipoGestioo.ADICIONAL && (
+                                                                        {/* Input SIEMPRE visible, pero desactivado si el checkbox no está activo */}
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={100}
+                                                                            step={0.1}
+                                                                            value={item.porcentaje || 0}
+                                                                            disabled={!item.tieneDescuento}
+                                                                            onChange={(e) => {
+                                                                                let val = Number(e.target.value);
+                                                                                if (isNaN(val)) val = 0;
+                                                                                val = Math.min(100, Math.max(0, val));
+
+                                                                                handleItemChange(index, "porcentaje", val);
+                                                                            }}
+                                                                            className={`w-16 border rounded px-2 py-1 text-sm text-center ${item.tieneDescuento ? "border-slate-300 bg-white" : "bg-slate-100 text-slate-400"}`}
+                                                                        />
+                                                                        <span className="text-xs">%</span>
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* NETO */}
+                                                                <td className="px-6 py-4 text-right whitespace-nowrap">
+                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                        ? "—"
+                                                                        : formatearPrecio(valores.neto, moneda, tasa)}
+                                                                </td>
+
+                                                                {/* SUBTOTAL / TOTAL ITEM */}
+                                                                <td className="px-6 py-4 text-right font-bold whitespace-nowrap">
+                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                        ? "—"
+                                                                        : formatearPrecio(valores.total, moneda, tasa)}
+                                                                </td>
+
+                                                                {/* ACCIÓN */}
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <div className="flex items-center justify-center gap-2">
+                                                                        {item.tipo !== ItemTipoGestioo.ADICIONAL && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleEditarItem(item)}
+                                                                                className="p-2 text-slate-500 hover:text-slate-700"
+                                                                            >
+                                                                                <EditOutlined />
+                                                                            </button>
+                                                                        )}
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => handleEditarItem(item)}
-                                                                            className="p-2 text-slate-500 hover:text-slate-700"
+                                                                            onClick={() =>
+                                                                                handleRemoveItem(index)
+                                                                            }
+                                                                            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors duration-200"
+                                                                            title="Eliminar ítem"
                                                                         >
-                                                                            <EditOutlined />
+                                                                            <DeleteOutlined className="text-lg" />
                                                                         </button>
-                                                                    )}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() =>
-                                                                            handleRemoveItem(index)
-                                                                        }
-                                                                        className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors duration-200"
-                                                                        title="Eliminar ítem"
-                                                                    >
-                                                                        <DeleteOutlined className="text-lg" />
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
 
                                 {itemsLocal.length > 0 && (

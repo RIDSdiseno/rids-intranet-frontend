@@ -557,9 +557,7 @@ const TicketsPage: React.FC = () => {
   /* ===================== Render ===================== */
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50/40 via-white to-white">
-      <Header />
-
-      <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full">
         {/* Header de página */}
         <header className="mb-5 flex flex-col gap-3 md:gap-4 md:flex-row md:items-end md:justify-between">
           <div className="px-1">
@@ -927,7 +925,7 @@ const TicketsPage: React.FC = () => {
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 };

@@ -1,40 +1,26 @@
 import { useState } from "react";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+import { api } from "../../api/api";
 
 export const useApi = () => {
   const [loading, setLoading] = useState(false);
 
-  const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
+  const fetchApi = async (endpoint: string, options: any = {}) => {
     setLoading(true);
-
     try {
-      const res = await fetch(`${API_URL}${endpoint}`, {
-        credentials: "include",
-        ...options
+      const response = await api({
+        url: endpoint,
+        method: options.method || "GET",
+        data: options.body ? JSON.parse(options.body) : undefined,
+        headers: options.headers || {},
       });
 
-      const contentType = res.headers.get("content-type");
-
-      let body: any = null;
-      if (contentType && contentType.includes("application/json")) {
-        body = await res.json().catch(() => ({}));
-      }
-
-      if (!res.ok) {
-        const backendMessage =
-          body?.message ||
-          body?.error ||
-          res.statusText ||
-          "Error inesperado en el servidor";
-
-        throw new Error(backendMessage);
-      }
-
-      return body;
+      return response.data;
     } catch (error: any) {
-      // Re-lanzamos con un mensaje seguro
-      throw new Error(error.message || "Error desconocido");
+      throw new Error(
+        error.response?.data?.error ||
+        error.message ||
+        "Error en la API"
+      );
     } finally {
       setLoading(false);
     }

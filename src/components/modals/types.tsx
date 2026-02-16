@@ -172,6 +172,8 @@ export interface FormData {
 
   personaResponsable?: string;
 
+  estadoCotizacion: EstadoCotizacionGestioo;
+
   imagenFile?: File;
   imagen?: string;
 }

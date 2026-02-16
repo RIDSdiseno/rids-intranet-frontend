@@ -564,10 +564,8 @@ const OrdenesTaller: React.FC = () => {
                 <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
             </div>
 
-            <Header />
-
             {/* Contenido principal */}
-            <main className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
+            <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
                 <div className="rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
@@ -942,7 +940,7 @@ const OrdenesTaller: React.FC = () => {
                         </table>
                     </div>
                 </section>
-            </main>
+            </div>
 
             {previewOpen && previewOrden && (
                 <ModalPreviewOrden

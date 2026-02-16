@@ -582,9 +582,8 @@ const EmpresasPage: React.FC = () => {
   /* ====================== Render ====================== */
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
-        <Header />
-        <div className="p-6 flex justify-center items-center h-64">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
+        <div className="ml-64 transition-all duration-300">
           <div className="text-lg flex items-center gap-2 text-slate-600">
             <LoadingOutlined /> Cargando empresas...
           </div>
@@ -595,10 +594,9 @@ const EmpresasPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
-        <Header />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
         <div className="p-6">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+          <div className="ml-64 transition-all duration-300">
             <strong>Error:</strong> {error}
             <button
               onClick={() => fetchEmpresas()}
@@ -613,294 +611,294 @@ const EmpresasPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
-      <Header />
-
-      <main className="flex-1 p-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h1 className="text-3xl font-extrabold text-slate-800">
-            Dashboard de Empresas
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Análisis y estadísticas de todas las empresas.
-          </p>
-        </motion.div>
-
-        {/* Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="flex gap-2 mb-8 bg-white rounded-xl p-1 shadow-md inline-flex mt-6"
-        >
-          {["overview", "companies"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as "overview" | "companies")}
-              className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === tab
-                ? "bg-cyan-700 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
-                }`}
-            >
-              {tab === "overview" ? "Resumen" : "Empresas"}
-            </button>
-          ))}
-        </motion.div>
-
-        {/* === OVERVIEW === */}
-        {activeTab === "overview" && (
-          <>
-            {/* Cards */}
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
-              {computedStats.map((stat, idx) => (
-                <motion.div
-                  key={stat.name}
-                  className="bg-white rounded-xl shadow-md p-5 border border-slate-100 relative overflow-hidden"
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: idx * 0.1 }}
-                  whileHover={{
-                    scale: 1.03,
-                    boxShadow: "0 12px 24px rgba(0,0,0,.12)",
-                  }}
-                >
-                  <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-100/40 blur-2xl" />
-                  <div className="flex items-start justify-between">
-                    <div className="text-slate-600 font-medium">
-                      {stat.name}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {stat.icon}
-                      {isRefreshableStat(stat) && (
-                        <button
-                          onClick={stat.onRefresh}
-                          className="ml-1 rounded-lg border border-blue-200 text-blue-700 px-2 py-1 text-xs hover:bg-blue-50"
-                          title="Actualizar"
-                        >
-                          <ReloadOutlined />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-3 text-3xl font-bold text-slate-800">
-                    {stat.value}
-                  </div>
-                  <div className="text-sm text-slate-500 mt-1">
-                    {stat.change}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Row 1 (dos gráficos) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Equipos por empresa */}
-              <motion.div
-                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <LaptopOutlined className="text-green-700" />
-                    Equipos por Empresa (Top 8)
-                  </h2>
-                </div>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={equiposPorEmpresa}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 12, fill: "#374151" }}
-                        interval={0}
-                        height={50}
-                        angle={-45}
-                        textAnchor="end"
-                      />
-                      <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
-                      <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
-                      <Bar dataKey="equipos">
-                        {equiposPorEmpresa.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={DARK_PALETTE[(index + 3) % DARK_PALETTE.length]}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
-
-              {/* Más solicitantes */}
-              <motion.div
-                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.35 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    <span className="inline-flex items-center gap-2">
-                      <TeamOutlined className="text-blue-700" />
-                      Empresas con Más Solicitantes
-                    </span>
-                  </h2>
-                </div>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={solicitantesPorEmpresa}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 12, fill: "#374151" }}
-                        interval={0}
-                        height={50}
-                        angle={-45}
-                        textAnchor="end"
-                      />
-                      <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
-                      <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
-                      <Bar dataKey="solicitantes">
-                        {solicitantesPorEmpresa.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Row 2 (distribución, ancho completo) */}
-            <div className="grid grid-cols-1 gap-6 mb-8">
-              <motion.div
-                className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.45 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    <span className="inline-flex items-center gap-2">
-                      <PieChartOutlined className="text-purple-700" />
-                      Distribución por Tamaño
-                    </span>
-                  </h2>
-                </div>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={distribucionTamanioEmpresas}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={renderPieLabel}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {distribucionTamanioEmpresas.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={(props) => <CustomPieTooltip {...props} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
-            </div>
-          </>
-        )}
-
-        {/* === COMPANIES === */}
-        {activeTab === "companies" && (
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
+      <div className="flex-1">
+        <main className="flex-1 p-6">
+          {/* Header */}
           <motion.div
-            className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.6 }}
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-800">
-                Lista de Empresas
-              </h2>
-              <div className="flex gap-3">
-                <div className="relative">
-                  <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar empresas..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 w-64"
-                  />
-                </div>
-              </div>
-            </div>
+            <h1 className="text-3xl font-extrabold text-slate-800">
+              Dashboard de Empresas
+            </h1>
+            <p className="mt-2 text-slate-600">
+              Análisis y estadísticas de todas las empresas.
+            </p>
+          </motion.div>
 
-            <div className="space-y-3">
-              {filteredEmpresas.length === 0 ? (
-                <div className="h-32 flex flex-col items-center justify-center text-neutral-400">
-                  <div className="text-2xl mb-2">🏢</div>
-                  <div>No se encontraron empresas que coincidan con la búsqueda</div>
-                </div>
-              ) : (
-                filteredEmpresas.map((empresa, index) => (
+          {/* Tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex gap-2 mb-8 bg-white rounded-xl p-1 shadow-md inline-flex mt-6"
+          >
+            {["overview", "companies"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as "overview" | "companies")}
+                className={`px-6 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === tab
+                  ? "bg-cyan-700 text-white shadow-md"
+                  : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  }`}
+              >
+                {tab === "overview" ? "Resumen" : "Empresas"}
+              </button>
+            ))}
+          </motion.div>
+
+          {/* === OVERVIEW === */}
+          {activeTab === "overview" && (
+            <>
+              {/* Cards */}
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
+                {computedStats.map((stat, idx) => (
                   <motion.div
-                    key={empresa.id_empresa}
-                    className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all duration-300 group"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    key={stat.name}
+                    className="bg-white rounded-xl shadow-md p-5 border border-slate-100 relative overflow-hidden"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: idx * 0.1 }}
+                    whileHover={{
+                      scale: 1.03,
+                      boxShadow: "0 12px 24px rgba(0,0,0,.12)",
+                    }}
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors duration-300">
-                        <BuildOutlined className="text-blue-700" />
+                    <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-100/40 blur-2xl" />
+                    <div className="flex items-start justify-between">
+                      <div className="text-slate-600 font-medium">
+                        {stat.name}
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">
-                          {empresa.nombre}
-                        </h3>
-                        <p className="text-sm text-slate-600">
-                          {empresa.estadisticas.totalSolicitantes} solicitantes •{" "}
-                          {empresa.estadisticas.totalEquipos} equipos
-                        </p>
+                      <div className="flex items-center gap-2">
+                        {stat.icon}
+                        {isRefreshableStat(stat) && (
+                          <button
+                            onClick={stat.onRefresh}
+                            className="ml-1 rounded-lg border border-blue-200 text-blue-700 px-2 py-1 text-xs hover:bg-blue-50"
+                            title="Actualizar"
+                          >
+                            <ReloadOutlined />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <button
-                        onClick={() => openDetails(empresa)}
-                        className="text-blue-700 hover:text-blue-900 font-medium group-hover:translate-x-1 transition-transform duration-300"
-                      >
-                        Ver detalles →
-                      </button>
-                      <button
-                        onClick={() => openFichaEmpresa(empresa)}
-                        className="text-emerald-700 hover:text-emerald-900 text-sm"
-                      >
-                        Ver ficha →
-                      </button>
-
+                    <div className="mt-3 text-3xl font-bold text-slate-800">
+                      {stat.value}
+                    </div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      {stat.change}
                     </div>
                   </motion.div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        )}
-      </main>
+                ))}
+              </div>
+
+              {/* Row 1 (dos gráficos) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Equipos por empresa */}
+                <motion.div
+                  className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <LaptopOutlined className="text-green-700" />
+                      Equipos por Empresa (Top 8)
+                    </h2>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={equiposPorEmpresa}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: "#374151" }}
+                          interval={0}
+                          height={50}
+                          angle={-45}
+                          textAnchor="end"
+                        />
+                        <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
+                        <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
+                        <Bar dataKey="equipos">
+                          {equiposPorEmpresa.map((_, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={DARK_PALETTE[(index + 3) % DARK_PALETTE.length]}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </motion.div>
+
+                {/* Más solicitantes */}
+                <motion.div
+                  className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.35 }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-slate-800">
+                      <span className="inline-flex items-center gap-2">
+                        <TeamOutlined className="text-blue-700" />
+                        Empresas con Más Solicitantes
+                      </span>
+                    </h2>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={solicitantesPorEmpresa}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: "#374151" }}
+                          interval={0}
+                          height={50}
+                          angle={-45}
+                          textAnchor="end"
+                        />
+                        <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
+                        <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
+                        <Bar dataKey="solicitantes">
+                          {solicitantesPorEmpresa.map((_, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Row 2 (distribución, ancho completo) */}
+              <div className="grid grid-cols-1 gap-6 mb-8">
+                <motion.div
+                  className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.45 }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-slate-800">
+                      <span className="inline-flex items-center gap-2">
+                        <PieChartOutlined className="text-purple-700" />
+                        Distribución por Tamaño
+                      </span>
+                    </h2>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={distribucionTamanioEmpresas}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={renderPieLabel}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {distribucionTamanioEmpresas.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={(props) => <CustomPieTooltip {...props} />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </motion.div>
+              </div>
+            </>
+          )}
+
+          {/* === COMPANIES === */}
+          {activeTab === "companies" && (
+            <motion.div
+              className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-slate-800">
+                  Lista de Empresas
+                </h2>
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar empresas..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 w-64"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {filteredEmpresas.length === 0 ? (
+                  <div className="h-32 flex flex-col items-center justify-center text-neutral-400">
+                    <div className="text-2xl mb-2">🏢</div>
+                    <div>No se encontraron empresas que coincidan con la búsqueda</div>
+                  </div>
+                ) : (
+                  filteredEmpresas.map((empresa, index) => (
+                    <motion.div
+                      key={empresa.id_empresa}
+                      className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all duration-300 group"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors duration-300">
+                          <BuildOutlined className="text-blue-700" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">
+                            {empresa.nombre}
+                          </h3>
+                          <p className="text-sm text-slate-600">
+                            {empresa.estadisticas.totalSolicitantes} solicitantes •{" "}
+                            {empresa.estadisticas.totalEquipos} equipos
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <button
+                          onClick={() => openDetails(empresa)}
+                          className="text-blue-700 hover:text-blue-900 font-medium group-hover:translate-x-1 transition-transform duration-300"
+                        >
+                          Ver detalles →
+                        </button>
+                        <button
+                          onClick={() => openFichaEmpresa(empresa)}
+                          className="text-emerald-700 hover:text-emerald-900 text-sm"
+                        >
+                          Ver ficha →
+                        </button>
+
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </main>
+      </div>
 
       {/* Modal Detalles */}
       <EmpresaDetailsModal
@@ -926,7 +924,7 @@ const EmpresasPage: React.FC = () => {
         contactos={fichaData?.contactos ?? []}
       />
 
-    </div>
+    </div >
   );
 };
 

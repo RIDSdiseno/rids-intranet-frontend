@@ -58,6 +58,12 @@ import {
 } from "../components/modals/utils";
 
 type CotRow = CotizacionGestioo & {
+    tecnico?: {
+        id_tecnico: number;
+        nombre: string;
+        email: string;
+    } | null;
+
     _showEstadoMenu?: boolean;
 };
 
@@ -98,6 +104,7 @@ const Cotizaciones: React.FC = () => {
         entidadId: "",
         moneda: "CLP",
         tasaCambio: 1,
+        estadoCotizacion: EstadoCotizacionGestioo.BORRADOR,
         comentariosCotizacion: "",
         secciones: [{
             id: 1,
@@ -697,6 +704,24 @@ const Cotizaciones: React.FC = () => {
                 imagen: selectedCotizacion.imagen || null,
             };
 
+            // Actualizar entidad si fue modificada
+            const entidadId = selectedCotizacion.entidad?.id;
+
+            if (entidadId) {
+                await apiFetch(`/entidades/${entidadId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        nombre: selectedCotizacion.entidad?.nombre,
+                        rut: selectedCotizacion.entidad?.rut,
+                        correo: selectedCotizacion.entidad?.correo,
+                        telefono: selectedCotizacion.entidad?.telefono,
+                        direccion: selectedCotizacion.entidad?.direccion,
+                        origen: selectedCotizacion.entidad?.origen,
+                    })
+                });
+            }
+
             // ================================
             // 6️⃣ ENVIAR AL BACKEND
             // ================================
@@ -739,6 +764,7 @@ const Cotizaciones: React.FC = () => {
             entidadId: "",
             moneda: "CLP",
             tasaCambio: 1,
+            estadoCotizacion: EstadoCotizacionGestioo.BORRADOR,
             comentariosCotizacion: "",
             secciones: [{
                 id: 1,
@@ -1386,9 +1412,8 @@ const Cotizaciones: React.FC = () => {
 
     return (
         <div className="min-h-screen relative bg-gradient-to-b from-white via-white to-cyan-50">
-            <Header />
 
-            <main className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-8 pb-10">
+            <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-8 pb-10">
                 {/* CARD PRINCIPAL - TÍTULO, BUSCADOR Y FILTROS */}
                 <section className="bg-white border border-cyan-200 rounded-2xl shadow-sm px-6 py-6">
                     {/* Encabezado */}
@@ -1537,6 +1562,9 @@ const Cotizaciones: React.FC = () => {
                                         Tipo
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                        Representante de la Cotización 
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cliente
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
@@ -1637,6 +1665,12 @@ const Cotizaciones: React.FC = () => {
                                             {formatTipo(c.tipo)}
                                         </td>
 
+                                        {/* Técnico */}
+                                        <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                            {c.tecnico?.nombre || "---"}
+                                        </td>
+
+                                        {/* Cliente */}
                                         <td className="px-4 py-3 text-center text-sm text-slate-700">
                                             {c.entidad?.nombre || "---"}
                                         </td>
@@ -1710,7 +1744,7 @@ const Cotizaciones: React.FC = () => {
                                 {filtered.length === 0 && (
                                     <tr>
                                         <td
-                                            colSpan={8}
+                                            colSpan={9}
                                             className="py-6 text-center text-sm text-gray-500"
                                         >
                                             Sin resultados.
@@ -1726,7 +1760,7 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
                 </section>
-            </main>
+            </div>
 
             {/* Agregar el nuevo modal */}
             <GenerarPDFModal

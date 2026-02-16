@@ -108,11 +108,13 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
     // Motivo por el cual el botón de crear cotización está deshabilitado
     const motivoDeshabilitado = () => {
-        if (!formData.entidadId) return "Debes seleccionar una entidad antes de crear la cotización.";
-        if (items.length === 0) return "Agrega al menos un producto o servicio a la cotización.";
-        if (apiLoading) return "La cotización se está procesando, espera un momento.";
+        if (!formData.entidadId) return "Debes seleccionar una entidad.";
+        if (!formData.estadoCotizacion) return "Debes seleccionar el estado.";
+        if (items.length === 0) return "Agrega al menos un producto o servicio.";
+        if (apiLoading) return "La cotización se está procesando.";
         return "";
     };
+
 
     // Función para eliminar sección
     const eliminarSeccion = (seccionId: number) => {
@@ -519,7 +521,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                     <div className="space-y-6">
                         {/* BLOQUE PRINCIPAL */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                             {/* Información del Cliente */}
                             <div className="p-4 border border-cyan-200 rounded-2xl bg-white relative shadow-sm">
                                 <h3 className="font-semibold text-slate-700 mb-3">Información del Cliente</h3>
@@ -744,407 +746,436 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                                     {/* Estado */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
-                                        <select
-                                            className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                            defaultValue={EstadoCotizacionGestioo.BORRADOR}
-                                        >
-                                            <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                            <option value={EstadoCotizacionGestioo.GENERADA}>Generada</option>
-                                            <option value={EstadoCotizacionGestioo.ENVIADA}>Enviada</option>
-                                            <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
-                                            <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                        </select>
-                                    </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-2">
+                                                Estado Inicial <span className="text-rose-500">*</span>
+                                            </label>
 
-                                    {/* Moneda */}
-                                    <div className="border-t border-slate-200 pt-3">
-                                        <label className="block text-xs font-medium text-slate-600 mb-2">
-                                            Moneda de Cotización
-                                        </label>
-                                        <select
-                                            value={formData.moneda}
-                                            onChange={(e) =>
-                                                setFormData({
-                                                    ...formData,
-                                                    moneda: e.target.value as MonedaCotizacion,
-                                                    tasaCambio: e.target.value === "USD" ? (formData.tasaCambio || 950) : 1
-                                                })
-                                            }
-                                            className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
-                                        >
-                                            <option value="CLP">CLP - Pesos chilenos</option>
-                                            <option value="USD">USD - Dólares americanos</option>
-                                        </select>
+                                            <div className="space-y-2">
+                                                {Object.values(EstadoCotizacionGestioo).map((estado) => {
+                                                    const checked = formData.estadoCotizacion === estado;
 
-                                        {formData.moneda === "USD" && (
-                                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                <label className="block text-xs font-medium text-blue-700 mb-1">
-                                                    Tasa de Cambio (CLP → USD)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="1"
-                                                    value={formData.tasaCambio}
-                                                    onChange={(e) => {
-                                                        const tasa = Number(e.target.value);
-                                                        if (tasa < 1) return;
-                                                        setFormData({ ...formData, tasaCambio: tasa });
-                                                    }}
-                                                    className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400"
-                                                    placeholder="Ej: 950"
-                                                />
-                                                <p className="text-xs text-blue-600 mt-1">
-                                                    <strong>Equivalencia:</strong> 1 USD = {formData.tasaCambio.toLocaleString("es-CL")} CLP
-                                                </p>
+                                                    return (
+                                                        <label
+                                                            key={estado}
+                                                            className={`
+          flex items-center justify-between
+          px-4 py-2.5 rounded-xl
+          border transition-all cursor-pointer
+          ${checked
+                                                                    ? "border-cyan-500 bg-cyan-50"
+                                                                    : "border-slate-200 bg-white hover:border-cyan-300"
+                                                                }
+        `}
+                                                        >
+                                                            <span className="text-sm font-medium text-slate-700 capitalize">
+                                                                {estado.toLowerCase()}
+                                                            </span>
+
+                                                            <input
+                                                                type="radio"
+                                                                name="estadoCotizacion"
+                                                                checked={checked}
+                                                                onChange={() =>
+                                                                    setFormData({ ...formData, estadoCotizacion: estado })
+                                                                }
+                                                                className="w-4 h-4 accent-cyan-600"
+                                                            />
+                                                        </label>
+                                                    );
+                                                })}
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                                        </div>
 
-                        {/* SECCIONES DE COTIZACIÓN */}
-                        <div className="border border-cyan-200 rounded-2xl p-4 bg-white">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-2">
-                                    <FileTextOutlined className="text-cyan-600" />
-                                    <h3 className="font-semibold text-slate-700">Secciones de Cotización</h3>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={agregarSeccion}
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm hover:bg-cyan-700 transition"
-                                >
-                                    <PlusOutlined />
-                                    Nueva Sección
-                                </button>
-                            </div>
+                                        {/* Moneda */}
+                                        <div className="border-t border-slate-200 pt-3">
+                                            <label className="block text-xs font-medium text-slate-600 mb-2">
+                                                Moneda de Cotización
+                                            </label>
+                                            <select
+                                                value={formData.moneda}
+                                                onChange={(e) =>
+                                                    setFormData({
+                                                        ...formData,
+                                                        moneda: e.target.value as MonedaCotizacion,
+                                                        tasaCambio: e.target.value === "USD" ? (formData.tasaCambio || 950) : 1
+                                                    })
+                                                }
+                                                className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                            >
+                                                <option value="CLP">CLP - Pesos chilenos</option>
+                                                <option value="USD">USD - Dólares americanos</option>
+                                            </select>
 
-                            {/* Pestañas de secciones */}
-                            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-                                {formData.secciones.map((seccion) => {
-                                    const totalesSeccion = calcularTotalesSeccion(seccion.id);
-                                    const isActive = formData.seccionActiva === seccion.id;
-
-                                    return (
-                                        <div
-                                            key={seccion.id}
-                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors min-w-0 flex-shrink-0 ${isActive
-                                                ? 'bg-cyan-600 text-white'
-                                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                                }`}
-                                            onClick={() => cambiarSeccionActiva(seccion.id)}
-                                        >
-                                            <div className="flex flex-col min-w-0">
-                                                <span className="text-sm font-medium truncate">
-                                                    {seccion.nombre}
-                                                </span>
-                                                <span className={`text-xs ${isActive ? 'text-cyan-100' : 'text-slate-500'}`}>
-                                                    {formatearPrecio(totalesSeccion.total, formData.moneda, formData.tasaCambio)}
-                                                </span>
-                                            </div>
-                                            {formData.secciones.length > 1 && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        eliminarSeccion(seccion.id);
-                                                    }}
-                                                    className={`text-xs opacity-70 hover:opacity-100 ${isActive ? 'text-white' : 'text-slate-500'}`}
-                                                >
-                                                    <DeleteOutlined />
-                                                </button>
+                                            {formData.moneda === "USD" && (
+                                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                    <label className="block text-xs font-medium text-blue-700 mb-1">
+                                                        Tasa de Cambio (CLP → USD)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="1"
+                                                        value={formData.tasaCambio}
+                                                        onChange={(e) => {
+                                                            const tasa = Number(e.target.value);
+                                                            if (tasa < 1) return;
+                                                            setFormData({ ...formData, tasaCambio: tasa });
+                                                        }}
+                                                        className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="Ej: 950"
+                                                    />
+                                                    <p className="text-xs text-blue-600 mt-1">
+                                                        <strong>Equivalencia:</strong> 1 USD = {formData.tasaCambio.toLocaleString("es-CL")} CLP
+                                                    </p>
+                                                </div>
                                             )}
                                         </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Configuración de sección activa */}
-                            {seccionActiva && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-3 bg-slate-50 rounded-lg">
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Nombre de Sección
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={seccionActiva.nombre}
-                                            onChange={(e) => actualizarSeccion(seccionActiva.id, 'nombre', e.target.value)}
-                                            className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400"
-                                            placeholder="Ej: Hardware, Software, Servicios..."
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Descripción (opcional)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={seccionActiva.descripcion || ''}
-                                            onChange={(e) => actualizarSeccion(seccionActiva.id, 'descripcion', e.target.value)}
-                                            className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400"
-                                            placeholder="Descripción breve de la sección..."
-                                        />
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
-                            {/* Mensaje cuando no hay secciones */}
-                            {formData.secciones.length === 0 && (
-                                <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
-                                    <FileTextOutlined className="text-4xl mb-2 opacity-50" />
-                                    <p>No hay secciones creadas</p>
-                                    <p className="text-sm">Agrega secciones para organizar tu cotización</p>
+                            {/* SECCIONES DE COTIZACIÓN */}
+                            <div className="border border-cyan-200 rounded-2xl p-4 bg-white md:col-span-2">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <FileTextOutlined className="text-cyan-600" />
+                                        <h3 className="font-semibold text-slate-700">Secciones de Cotización</h3>
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={agregarSeccion}
-                                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 text-white text-sm hover:bg-cyan-700 transition"
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm hover:bg-cyan-700 transition"
                                     >
                                         <PlusOutlined />
-                                        Crear Primera Sección
+                                        Nueva Sección
                                     </button>
                                 </div>
-                            )}
-                        </div>
 
-                        {/* BOTONES DE PRODUCTOS / SERVICIOS - Solo si hay sección activa */}
-                        {seccionActiva && (
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => onCargarProductos(true)}
-                                    className="px-3 py-1.5 rounded-xl border border-cyan-300 text-cyan-700 hover:bg-cyan-50"
-                                >
-                                    + Seleccionar Producto
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={onCrearProducto}
-                                    className="px-3 py-1.5 rounded-xl border border-purple-300 text-purple-700 hover:bg-purple-50"
-                                >
-                                    + Crear Producto Nuevo
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={onCargarServicios}
-                                    className="px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                                >
-                                    + Servicio
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={onCrearServicio}
-                                    className="px-3 py-1.5 rounded-xl border border-cyan-400 text-cyan-700 hover:bg-cyan-50"
-                                >
-                                    + Nuevo servicio
-                                </button>
-
-                            </div>
-                        )}
-
-                        {/* TABLA DE ÍTEMS - Solo si hay sección activa */}
-                        {seccionActiva && (
-                            <div className="border border-cyan-200 rounded-2xl overflow-hidden">
-                                <div className="bg-cyan-50 px-4 py-3 border-b border-cyan-200">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <h4 className="font-semibold text-cyan-800">
-                                                {seccionActiva.nombre}
-                                            </h4>
-                                            {seccionActiva.descripcion && (
-                                                <p className="text-sm text-cyan-600 mt-1">
-                                                    {seccionActiva.descripcion}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-sm text-cyan-700 bg-white px-2 py-1 rounded-full border border-cyan-200">
-                                                {itemsSeccionActiva.length} items
-                                            </span>
-                                            <span className="text-sm font-medium text-cyan-800">
-                                                Total: {formatearPrecio(
-                                                    calcularTotalesSeccion(seccionActiva.id).total,
-                                                    formData.moneda,
-                                                    formData.tasaCambio
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <table className="w-full text-sm">
-                                    <thead className="bg-cyan-50 text-slate-700 border-b border-cyan-200">
-                                        <tr>
-                                            <th className="px-3 py-2 text-left border-r border-cyan-200">Tipo</th>
-                                            <th className="px-3 py-2 text-left border-r border-cyan-200">Nombre</th>
-                                            <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">Cant.</th>
-                                            <th className="px-3 py-2 text-center border-r border-cyan-200 w-28">P.Unitario</th>
-                                            <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Ganancia</th>
-                                            <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">IVA</th>
-                                            <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Desc</th>
-                                            <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Neto sin IVA</th>
-                                            <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Total con IVA</th>
-                                            <th className="px-3 py-2 text-right w-16"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {itemsSeccionActiva.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={9} className="text-center py-4 text-slate-400 border-b border-cyan-100">
-                                                    No hay productos o servicios en esta sección.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            itemsSeccionActiva.map((item, index) => renderItem(item, index))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                        {/* 🔥 DETALLE REAL DE PRODUCTOS */}
-                        {itemsSeccionActiva
-                            .filter(item => item.tipo === ItemTipoGestioo.PRODUCTO && item.descripcion)
-                            .length > 0 && (
-                                <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50">
-                                    <h4 className="text-sm font-semibold text-slate-700 mb-2">
-                                        Detalle de productos de esta cotización
-                                    </h4>
-
-                                    <ul className="space-y-2 text-sm text-slate-700">
-                                        {itemsSeccionActiva
-                                            .filter(item => item.tipo === ItemTipoGestioo.PRODUCTO)
-                                            .map((item, idx) => (
-                                                <li
-                                                    key={idx}
-                                                    className="border-b last:border-b-0 border-slate-200 pb-2 last:pb-0"
-                                                >
-                                                    {/* 🔥 Mostrar NOMBRE del producto */}
-                                                    <p className="font-semibold">{item.nombre || "Producto sin nombre"}</p>
-
-                                                    {/* 🔥 Mostrar DESCRIPCIÓN si existe */}
-                                                    {item.descripcion && (
-                                                        <p className="text-slate-600 whitespace-pre-line mt-1">
-                                                            {item.descripcion}
-                                                        </p>
-                                                    )}
-                                                </li>
-                                            ))}
-                                    </ul>
-                                </div>
-                            )
-                        }
-
-                        {/* RESUMEN DE SECCIONES */}
-                        {formData.secciones.length > 1 && (
-                            <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50">
-                                <h4 className="font-semibold text-slate-700 mb-3">Resumen por Sección</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {/* Pestañas de secciones */}
+                                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                                     {formData.secciones.map((seccion) => {
                                         const totalesSeccion = calcularTotalesSeccion(seccion.id);
-                                        const itemsCount = items.filter(item => item.seccionId === seccion.id).length;
+                                        const isActive = formData.seccionActiva === seccion.id;
 
                                         return (
                                             <div
                                                 key={seccion.id}
-                                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${formData.seccionActiva === seccion.id
-                                                    ? 'bg-cyan-100 border-cyan-300'
-                                                    : 'bg-white border-slate-200 hover:border-cyan-200'
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors min-w-0 flex-shrink-0 ${isActive
+                                                    ? 'bg-cyan-600 text-white'
+                                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                                     }`}
                                                 onClick={() => cambiarSeccionActiva(seccion.id)}
                                             >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h5 className="font-medium text-slate-800 text-sm">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-medium truncate">
                                                         {seccion.nombre}
-                                                    </h5>
-                                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                                                        {itemsCount} items
+                                                    </span>
+                                                    <span className={`text-xs ${isActive ? 'text-cyan-100' : 'text-slate-500'}`}>
+                                                        {formatearPrecio(totalesSeccion.total, formData.moneda, formData.tasaCambio)}
                                                     </span>
                                                 </div>
-                                                <p className="text-xs text-slate-600 mb-2 line-clamp-2">
-                                                    {seccion.descripcion || 'Sin descripción'}
-                                                </p>
-                                                <p className="text-sm font-bold text-cyan-700">
-                                                    {formatearPrecio(totalesSeccion.total, formData.moneda, formData.tasaCambio)}
-                                                </p>
+                                                {formData.secciones.length > 1 && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            eliminarSeccion(seccion.id);
+                                                        }}
+                                                        className={`text-xs opacity-70 hover:opacity-100 ${isActive ? 'text-white' : 'text-slate-500'}`}
+                                                    >
+                                                        <DeleteOutlined />
+                                                    </button>
+                                                )}
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        )}
 
-                        {/* COMENTARIOS DE LA COTIZACIÓN */}
-                        <div className="mt-2">
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Comentarios de la cotización
-                            </label>
-                            <textarea
-                                value={formData.comentariosCotizacion}
-                                onChange={(e) =>
-                                    setFormData({
-                                        ...formData,
-                                        comentariosCotizacion: e.target.value,
-                                    })
-                                }
-                                rows={3}
-                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                placeholder="Notas internas, condiciones especiales, indicaciones para el cliente, etc."
-                            />
-                        </div>
+                                {/* Configuración de sección activa */}
+                                {seccionActiva && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-3 bg-slate-50 rounded-lg">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Nombre de Sección
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={seccionActiva.nombre}
+                                                onChange={(e) => actualizarSeccion(seccionActiva.id, 'nombre', e.target.value)}
+                                                className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400"
+                                                placeholder="Ej: Hardware, Software, Servicios..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Descripción (opcional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={seccionActiva.descripcion || ''}
+                                                onChange={(e) => actualizarSeccion(seccionActiva.id, 'descripcion', e.target.value)}
+                                                className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400"
+                                                placeholder="Descripción breve de la sección..."
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
-                        {/* TOTALES GENERALES */}
-                        <div className="flex justify-end text-sm text-slate-700">
-                            <div className="text-right space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <p>Total productos antes de descuentos: {formatearPrecio(totales.subtotalBruto, formData.moneda, formData.tasaCambio)}</p>
-                                <p className="text-rose-600">
-                                    Descuentos Aplicados: -{formatearPrecio(totales.descuentos, formData.moneda, formData.tasaCambio)}
-                                </p>
-                                <p>Subtotal neto sin IVA: {formatearPrecio(totales.subtotal, formData.moneda, formData.tasaCambio)}</p>
-                                <p>IVA (19%): {formatearPrecio(totales.iva, formData.moneda, formData.tasaCambio)}</p>
-                                <p className="font-bold text-slate-900 border-t pt-1">
-                                    Total final: {formatearPrecio(totales.total, formData.moneda, formData.tasaCambio)}
-                                </p>
-                                {formData.moneda === "USD" && (
-                                    <p className="text-xs text-slate-500 border-t pt-1 mt-1">
-                                        Equivalente en CLP:{" "}
-                                        {formatearPrecio(
-                                            totales.total * formData.tasaCambio,
-                                            "CLP",
-                                            1
-                                        )}
-                                    </p>
+                                {/* Mensaje cuando no hay secciones */}
+                                {formData.secciones.length === 0 && (
+                                    <div className="text-center py-8 text-slate-500 border-2 border-dashed border-slate-200 rounded-xl">
+                                        <FileTextOutlined className="text-4xl mb-2 opacity-50" />
+                                        <p>No hay secciones creadas</p>
+                                        <p className="text-sm">Agrega secciones para organizar tu cotización</p>
+                                        <button
+                                            type="button"
+                                            onClick={agregarSeccion}
+                                            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 text-white text-sm hover:bg-cyan-700 transition"
+                                        >
+                                            <PlusOutlined />
+                                            Crear Primera Sección
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-                        </div>
 
-                        {/* BOTONES FINALES */}
-                        <div className="flex justify-between items-center pt-4 border-t">
-                            <div>
-                                <p className="text-slate-600 text-sm">
-                                    Estado inicial: <b>Borrador</b>
-                                </p>
+                            {/* BOTONES DE PRODUCTOS / SERVICIOS - Solo si hay sección activa */}
+                            {seccionActiva && (
+                                <div className="border border-cyan-200 rounded-2xl p-4 bg-white md:col-span-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onCargarProductos(true)}
+                                        className="px-3 py-1.5 rounded-xl border border-cyan-300 text-cyan-700 hover:bg-cyan-50"
+                                    >
+                                        + Seleccionar Producto
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={onCrearProducto}
+                                        className="px-3 py-1.5 rounded-xl border border-purple-300 text-purple-700 hover:bg-purple-50"
+                                    >
+                                        + Crear Producto Nuevo
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={onCargarServicios}
+                                        className="px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                        + Servicio
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={onCrearServicio}
+                                        className="px-3 py-1.5 rounded-xl border border-cyan-400 text-cyan-700 hover:bg-cyan-50"
+                                    >
+                                        + Nuevo servicio
+                                    </button>
+
+                                </div>
+                            )}
+
+                            {/* TABLA DE ÍTEMS - Solo si hay sección activa */}
+                            {seccionActiva && (
+                                <div className="border border-cyan-200 rounded-2xl p-4 bg-white md:col-span-2">
+                                    <div className="bg-cyan-50 px-4 py-3 border-b border-cyan-200">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="font-semibold text-cyan-800">
+                                                    {seccionActiva.nombre}
+                                                </h4>
+                                                {seccionActiva.descripcion && (
+                                                    <p className="text-sm text-cyan-600 mt-1">
+                                                        {seccionActiva.descripcion}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-sm text-cyan-700 bg-white px-2 py-1 rounded-full border border-cyan-200">
+                                                    {itemsSeccionActiva.length} items
+                                                </span>
+                                                <span className="text-sm font-medium text-cyan-800">
+                                                    Total: {formatearPrecio(
+                                                        calcularTotalesSeccion(seccionActiva.id).total,
+                                                        formData.moneda,
+                                                        formData.tasaCambio
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-cyan-50 text-slate-700 border-b border-cyan-200">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left border-r border-cyan-200">Tipo</th>
+                                                <th className="px-3 py-2 text-left border-r border-cyan-200">Nombre</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">Cant.</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-28">P.Unitario</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Ganancia</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">IVA</th>
+                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Desc</th>
+                                                <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Neto sin IVA</th>
+                                                <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Total con IVA</th>
+                                                <th className="px-3 py-2 text-right w-16"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {itemsSeccionActiva.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={9} className="text-center py-4 text-slate-400 border-b border-cyan-100">
+                                                        No hay productos o servicios en esta sección.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                itemsSeccionActiva.map((item, index) => renderItem(item, index))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* 🔥 DETALLE REAL DE PRODUCTOS */}
+                            {itemsSeccionActiva
+                                .filter(item => item.tipo === ItemTipoGestioo.PRODUCTO && item.descripcion)
+                                .length > 0 && (
+                                    <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50">
+                                        <h4 className="text-sm font-semibold text-slate-700 mb-2">
+                                            Detalle de productos de esta cotización
+                                        </h4>
+
+                                        <ul className="space-y-2 text-sm text-slate-700">
+                                            {itemsSeccionActiva
+                                                .filter(item => item.tipo === ItemTipoGestioo.PRODUCTO)
+                                                .map((item, idx) => (
+                                                    <li
+                                                        key={idx}
+                                                        className="border-b last:border-b-0 border-slate-200 pb-2 last:pb-0"
+                                                    >
+                                                        {/* 🔥 Mostrar NOMBRE del producto */}
+                                                        <p className="font-semibold">{item.nombre || "Producto sin nombre"}</p>
+
+                                                        {/* 🔥 Mostrar DESCRIPCIÓN si existe */}
+                                                        {item.descripcion && (
+                                                            <p className="text-slate-600 whitespace-pre-line mt-1">
+                                                                {item.descripcion}
+                                                            </p>
+                                                        )}
+                                                    </li>
+                                                ))}
+                                        </ul>
+                                    </div>
+                                )
+                            }
+
+                            {/* RESUMEN DE SECCIONES */}
+                            {formData.secciones.length > 1 && (
+                                <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50">
+                                    <h4 className="font-semibold text-slate-700 mb-3">Resumen por Sección</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {formData.secciones.map((seccion) => {
+                                            const totalesSeccion = calcularTotalesSeccion(seccion.id);
+                                            const itemsCount = items.filter(item => item.seccionId === seccion.id).length;
+
+                                            return (
+                                                <div
+                                                    key={seccion.id}
+                                                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${formData.seccionActiva === seccion.id
+                                                        ? 'bg-cyan-100 border-cyan-300'
+                                                        : 'bg-white border-slate-200 hover:border-cyan-200'
+                                                        }`}
+                                                    onClick={() => cambiarSeccionActiva(seccion.id)}
+                                                >
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h5 className="font-medium text-slate-800 text-sm">
+                                                            {seccion.nombre}
+                                                        </h5>
+                                                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                                            {itemsCount} items
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-600 mb-2 line-clamp-2">
+                                                        {seccion.descripcion || 'Sin descripción'}
+                                                    </p>
+                                                    <p className="text-sm font-bold text-cyan-700">
+                                                        {formatearPrecio(totalesSeccion.total, formData.moneda, formData.tasaCambio)}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* COMENTARIOS DE LA COTIZACIÓN */}
+                            <div className="mt-2">
+                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                    Comentarios de la cotización
+                                </label>
+                                <textarea
+                                    value={formData.comentariosCotizacion}
+                                    onChange={(e) =>
+                                        setFormData({
+                                            ...formData,
+                                            comentariosCotizacion: e.target.value,
+                                        })
+                                    }
+                                    rows={3}
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    placeholder="Notas internas, condiciones especiales, indicaciones para el cliente, etc."
+                                />
                             </div>
-                            <div className="flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={onClose}
-                                    className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={onCrearCotizacion}
-                                    disabled={!formData.entidadId || items.length === 0 || apiLoading || !!motivoDeshabilitado()}
-                                    title={motivoDeshabilitado()}
-                                    className="px-4 py-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {apiLoading ? "Creando..." : "Crear Cotización"}
-                                </button>
+
+                            {/* TOTALES GENERALES */}
+                            <div className="flex justify-end text-sm text-slate-700">
+                                <div className="text-right space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                    <p>Total productos antes de descuentos: {formatearPrecio(totales.subtotalBruto, formData.moneda, formData.tasaCambio)}</p>
+                                    <p className="text-rose-600">
+                                        Descuentos Aplicados: -{formatearPrecio(totales.descuentos, formData.moneda, formData.tasaCambio)}
+                                    </p>
+                                    <p>Subtotal neto sin IVA: {formatearPrecio(totales.subtotal, formData.moneda, formData.tasaCambio)}</p>
+                                    <p>IVA (19%): {formatearPrecio(totales.iva, formData.moneda, formData.tasaCambio)}</p>
+                                    <p className="font-bold text-slate-900 border-t pt-1">
+                                        Total final: {formatearPrecio(totales.total, formData.moneda, formData.tasaCambio)}
+                                    </p>
+                                    {formData.moneda === "USD" && (
+                                        <p className="text-xs text-slate-500 border-t pt-1 mt-1">
+                                            Equivalente en CLP:{" "}
+                                            {formatearPrecio(
+                                                totales.total * formData.tasaCambio,
+                                                "CLP",
+                                                1
+                                            )}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* BOTONES FINALES */}
+                            <div className="flex justify-between items-center pt-4 border-t">
+                                <div>
+                                    <p className="text-slate-600 text-sm">
+                                        Estado inicial: <b>{formData.estadoCotizacion}</b>
+                                    </p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={onCrearCotizacion}
+                                        disabled={!formData.entidadId || !formData.estadoCotizacion || items.length === 0 || !!motivoDeshabilitado() || apiLoading}
+                                        title={motivoDeshabilitado()}
+                                        className="px-4 py-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {apiLoading ? "Creando..." : "Crear Cotización"}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

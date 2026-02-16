@@ -1,4 +1,5 @@
 import React from "react";
+import { useState } from "react";
 import {
   LogOut,
   Home,
@@ -13,7 +14,10 @@ import {
   X,
   FileText,
   Briefcase, // <-- nuevo icono para Documentos
-  Package
+  Package,
+  User,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -158,173 +162,162 @@ const MobileGroup: React.FC<{ title: string; items: NavItem[]; onClickItem?: () 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-
-  const [openIdx, setOpenIdx] = React.useState<number | null>(null);
-  const [mobileOpen, setMobileOpen] = React.useState(false);
-  const wrapRef = React.useRef<HTMLDivElement | null>(null);
-
-  const isActive = (paths: string[]) => paths.some((p) => pathname.startsWith(p));
-
-  const baseBtn =
-    "px-4 py-2 rounded-xl text-base font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition whitespace-nowrap";
-  const activeBtn = "text-cyan-700 ring-1 ring-cyan-200 bg-cyan-50 hover:bg-cyan-50";
+  const [collapsed, setCollapsed] = useState(false);
 
   React.useEffect(() => {
-    const onClick = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpenIdx(null); };
-    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenIdx(null); setMobileOpen(false); } };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onEsc);
-    return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onEsc); };
-  }, []);
-
-  React.useEffect(() => { setMobileOpen(false); }, [pathname]);
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+  }, [collapsed]);
 
   const handleLogout = async () => {
-    try { await api.post("/auth/logout"); } catch { /* ignore */ }
-    finally { localStorage.removeItem("accessToken"); navigate("/login", { replace: true }); }
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      /* ignore */
+    } finally {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user"); // 👈 AQUÍ VA
+      navigate("/login", { replace: true });
+    }
   };
 
+  // Usuario mock - puedes obtenerlo de un contexto o store
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div ref={wrapRef} className="mx-auto max-w-7xl px-4 sm:px-6">
-        {/* Fila principal */}
-        <div className="flex h-20 items-center justify-between gap-3 md:gap-6">
-          {/* Marca */}
-          <Link to={HOME_PATH} className="flex items-center gap-3 group" aria-label="RIDS.CL - Inicio">
-            <img src="/login/LOGO_RIDS.png" alt="RIDS.CL" className="h-12 w-auto object-contain transition group-hover:scale-[1.03]" />
+    <>
+      <aside
+        className={`
+    h-screen shrink-0 flex flex-col
+    bg-slate-50 border-r border-slate-200 shadow-md
+    transition-all duration-300 ease-in-out
+    ${collapsed ? "w-20" : "w-64"}
+  `}
+      >
+        {/* LOGO + TOGGLE */}
+        <div className="h-20 flex items-center justify-between px-4 border-b border-slate-200">
+          <Link to={HOME_PATH} className={collapsed ? "mx-auto" : ""}>
+            <img
+              src="/login/LOGO_RIDS.png"
+              alt="RIDS.CL"
+              className={`
+                h-10 object-contain transition-all
+                ${collapsed ? "w-10 h-10" : ""}
+              `}
+            />
           </Link>
-
-          {/* Botón Mobile */}
           <button
-            className="md:hidden inline-flex items-center justify-center rounded-xl p-3 hover:bg-slate-100 text-slate-700 hover:text-slate-900"
-            onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600"
           >
-            {mobileOpen ? <X size={26} /> : <Menu size={26} />}
+            {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
           </button>
-
-          {/* Nav (Desktop) */}
-          <nav className="relative hidden md:flex items-center gap-2">
-            {NAV.map((entry, idx) =>
-              entry.type === "link" ? (
-                <Link key={entry.label} to={entry.to} className={`${baseBtn} ${isActive(entry.match) ? activeBtn : ""}`}>
-                  {entry.label}
-                </Link>
-              ) : (
-                <div key={entry.label} className="relative">
-                  <button
-                    onClick={() => setOpenIdx((o) => (o === idx ? null : idx))}
-                    onMouseEnter={() => setOpenIdx(idx)}
-                    className={`${baseBtn} ${(isActive(entry.match) || openIdx === idx) ? activeBtn : ""}`}
-                    aria-haspopup="true"
-                    aria-expanded={openIdx === idx}
-                  >
-                    {entry.label}
-                  </button>
-
-                  {/* Panel Dropdown */}
-                  <div
-                    onMouseLeave={() => setOpenIdx(null)}
-                    className={`absolute left-1/2 -translate-x-1/2 mt-3 w-[640px]
-                      rounded-2xl border border-slate-200 bg-white shadow-2xl ring-1 ring-black/5
-                      transition-all duration-200 origin-top
-                      ${openIdx === idx ? "opacity-100 scale-100 translate-y-0 pointer-events-auto" : "opacity-0 scale-[0.98] -translate-y-1 pointer-events-none"}`}
-                  >
-                    <div className="grid grid-cols-3 gap-3 p-4">
-                      {entry.items.map((it) => (
-                        <Link
-                          key={it.label}
-                          to={it.to}
-                          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-50 transition"
-                          onClick={() => setOpenIdx(null)}
-                        >
-                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100 group-hover:bg-cyan-100 group-hover:text-cyan-800 transition" aria-hidden>
-                            {it.icon}
-                          </span>
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-sm font-semibold text-slate-900">{it.label}</span>
-                            <span className="truncate text-xs text-slate-500">{hintFor(it.to)}</span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
-                      <Factory size={16} />
-                      <span>Plataforma operativa — RIDS.CL</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            )}
-          </nav>
-
-          {/* Acciones (derecha - Desktop) */}
-          <div className="hidden md:flex items-center gap-5 text-slate-700">
-            {/* Botón Documentos (antes era Ayuda) */}
-            <Link
-              to={DOCUMENTOS_PATH}
-              className="p-2 hover:text-slate-900 transition rounded-xl hover:bg-slate-100"
-              aria-label="Documentos"
-              title="Documentos"
-            >
-              <FileText className="h-6 w-6" />
-            </Link>
-
-
-
-            {/* Salir */}
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 text-base font-semibold text-red-600 hover:text-red-700 transition"
-              aria-label="Cerrar sesión"
-              title="Cerrar sesión"
-            >
-              <LogOut className="h-6 w-6" />
-              <span>Salir</span>
-            </button>
-          </div>
         </div>
 
-        {/* Mobile panel */}
-        <div className={`md:hidden overflow-hidden transition-[max-height,opacity] duration-300 ${mobileOpen ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xl mb-4">
-            <div className="p-3">
-              {NAV.map((entry) =>
-                entry.type === "link" ? (
-                  <MobileLink key={entry.label} to={entry.to} icon={entry.icon} onClick={() => setMobileOpen(false)}>
-                    {entry.label}
-                  </MobileLink>
-                ) : (
-                  <MobileGroup key={entry.label} title={entry.label} items={entry.items} onClickItem={() => setMobileOpen(false)} />
-                )
-              )}
-              {/* Acceso directo a Documentos en mobile */}
-              <MobileLink to={DOCUMENTOS_PATH} icon={<FileText size={20} />} onClick={() => setMobileOpen(false)}>
-                Documentos
-              </MobileLink>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+        {/* NAVEGACIÓN */}
+        <nav className="flex-1 overflow-y-auto px-2 py-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
+          {NAV.map((entry) =>
+            entry.type === "link" ? (
               <Link
-                to={DOCUMENTOS_PATH}
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 text-slate-600 hover:text-slate-800 transition"
+                key={entry.label}
+                to={entry.to}
+                className={`
+                  relative flex items-center gap-4 px-3 py-2.5 rounded-xl
+                  transition-all duration-200 group
+                  ${pathname.startsWith(entry.to)
+                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                    : "text-slate-700 hover:bg-slate-100"
+                  }
+                  ${collapsed ? "justify-center" : ""}
+                `}
+                title={collapsed ? entry.label : undefined}
               >
-                <FileText size={20} className="opacity-80" />
-                <span className="text-sm">Documentos</span>
+                <span className="shrink-0">{entry.icon}</span>
+                {!collapsed && <span>{entry.label}</span>}
+                {collapsed && (
+                  <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                    {entry.label}
+                  </span>
+                )}
               </Link>
+            ) : (
+              <div key={entry.label} className="space-y-1">
+                {!collapsed && (
+                  <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {entry.label}
+                  </div>
+                )}
+                {entry.items.map((it) => (
+                  <Link
+                    key={it.label}
+                    to={it.to}
+                    className={`
+                      relative flex items-center gap-4 px-3 py-2.5 rounded-lg
+                      transition-all duration-200 group
+                      ${pathname.startsWith(it.to)
+                        ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                        : "text-slate-600 hover:bg-slate-100"
+                      }
+                      ${collapsed ? "justify-center" : "pl-6"}
+                    `}
+                    title={collapsed ? it.label : undefined}
+                  >
+                    <span className="shrink-0">{it.icon}</span>
+                    {!collapsed && <span>{it.label}</span>}
+                    {collapsed && (
+                      <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                        {it.label}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )
+          )}
+        </nav>
+
+        {/* FOOTER: PERFIL + LOGOUT */}
+        <div className="border-t p-4 space-y-3">
+          {!collapsed ? (
+            <>
+              <div className="flex items-center gap-3 px-2">
+                <div className="w-9 h-9 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-700">
+                  <User size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">
+                    {user?.nombre ?? "Usuario"}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">
+                    {user?.email ?? ""}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700"
+                className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition text-sm font-medium"
               >
-                <LogOut size={20} /> Salir
+                <LogOut size={18} />
+                <span>Salir</span>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center space-y-3">
+              <div className="w-9 h-9 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-700">
+                <User size={20} />
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+                title="Cerrar sesión"
+              >
+                <LogOut size={20} />
               </button>
             </div>
-          </div>
+          )}
         </div>
-      </div>
-    </header>
+      </aside>
+
+    </>
   );
 };
 
