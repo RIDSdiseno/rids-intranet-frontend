@@ -64,6 +64,14 @@ type CotRow = CotizacionGestioo & {
         email: string;
     } | null;
 
+    facturas: {
+        id_factura: number;
+        numeroFactura: string;
+        estado: "PENDIENTE" | "PAGADA" | "ANULADA";
+        fechaEmision: string;
+        total: number;
+    }[];
+
     _showEstadoMenu?: boolean;
 };
 
@@ -93,6 +101,8 @@ const Cotizaciones: React.FC = () => {
     const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
     const [showNewProductoModal, setShowNewProductoModal] = useState(false);
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
+
+    const [filtroMes, setFiltroMes] = useState<string>("");
 
     // === ESTADOS PARA FORMULARIOS ===
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
@@ -238,16 +248,26 @@ const Cotizaciones: React.FC = () => {
     }, [showCreateModal]);
 
     // === FUNCIONES PRINCIPALES ===
-    const fetchCotizaciones = async () => {
+    const fetchCotizaciones = async (fechaDesde?: string, fechaHasta?: string) => {
         try {
-            const data = await apiFetch("/cotizaciones");
+            let url = "/cotizaciones";
+
+            if (fechaDesde && fechaHasta) {
+                url += `?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
+            }
+
+            const data = await apiFetch(url);
+
             const rows = Array.isArray(data.data) ? data.data : [];
+
             const normalizadas = rows.map((c: any) => ({
                 ...c,
                 moneda: c.moneda || "CLP",
                 tasaCambio: c.tasaCambio ?? 1,
             }));
+
             setCotizaciones(normalizadas);
+
         } catch (err) {
             handleApiError(err, "Error al cargar cotizaciones");
         }
@@ -415,11 +435,25 @@ const Cotizaciones: React.FC = () => {
     // === FUNCIONES PARA COTIZACIONES ===
     const handleDelete = async (id: number) => {
         if (!window.confirm("¿Seguro que deseas eliminar esta cotización?")) return;
+
         try {
             await apiFetch(`/cotizaciones/${id}`, { method: "DELETE" });
+
             setCotizaciones(prev => prev.filter(c => c.id !== id));
             showSuccess("Cotización eliminada correctamente");
-        } catch (error) {
+
+        } catch (error: any) {
+
+            // 🔥 Si es error 400 (validación), mostrar mensaje normal
+            if (error.message.includes("facturada")) {
+                setToast({
+                    type: "error",
+                    message: error.message
+                });
+                return;
+            }
+
+            // 🔥 Otros errores reales
             handleApiError(error, "Error al eliminar cotización");
         }
     };
@@ -544,6 +578,11 @@ const Cotizaciones: React.FC = () => {
         nuevoEstado: EstadoCotizacionGestioo
     ): Promise<void> => {
         try {
+
+            if (nuevoEstado === EstadoCotizacionGestioo.FACTURADA) {
+                showError("Las cotizaciones solo pueden facturarse desde el botón Facturar.");
+                return;
+            }
 
             await apiFetch(`/cotizaciones/${cot.id}`, {
                 method: "PUT",
@@ -1433,9 +1472,10 @@ const Cotizaciones: React.FC = () => {
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
-                                onClick={fetchCotizaciones}
+                                onClick={() => fetchCotizaciones()}
                                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-300 bg-white text-cyan-700 text-sm hover:bg-cyan-50 transition"
                             >
+
                                 <ReloadOutlined className="text-xs" />
                                 <span>Recargar</span>
                             </button>
@@ -1479,7 +1519,7 @@ const Cotizaciones: React.FC = () => {
                     </div>
 
                     {/* Filtros por origen / estado / tipo */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-5">
                         {/* Origen */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">
@@ -1515,7 +1555,7 @@ const Cotizaciones: React.FC = () => {
                                 <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
                                 <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
                                 <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                <option value={EstadoCotizacionGestioo.FACTURACION}>Facturación</option>
+                                <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
                             </select>
                         </div>
 
@@ -1537,6 +1577,43 @@ const Cotizaciones: React.FC = () => {
                                 <option value={TipoCotizacionGestioo.PROVEEDOR}>Proveedor</option>
                             </select>
                         </div>
+
+                        {/* Mes */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                Filtrar por Mes
+                            </label>
+
+                            <input
+                                type="month"
+                                value={filtroMes}
+                                onChange={(e) => {
+                                    const value = e.target.value; // 2026-02
+                                    setFiltroMes(value);
+
+                                    if (!value) {
+                                        fetchCotizaciones(); // reset
+                                        return;
+                                    }
+
+                                    const [year, month] = value.split("-");
+
+                                    const fechaDesde = `${year}-${month}-01`;
+
+                                    const fechaHasta = new Date(
+                                        Number(year),
+                                        Number(month),
+                                        0
+                                    )
+                                        .toISOString()
+                                        .split("T")[0];
+
+                                    fetchCotizaciones(fechaDesde, fechaHasta);
+                                }}
+                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                            />
+                        </div>
+
                     </div>
                 </section>
 
@@ -1568,6 +1645,9 @@ const Cotizaciones: React.FC = () => {
                                         Origen
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                        Factura
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Total
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
@@ -1577,164 +1657,262 @@ const Cotizaciones: React.FC = () => {
                             </thead>
 
                             <tbody className="divide-y divide-gray-200">
-                                {filtered.map((c: CotRow) => (
-                                    <tr key={c.id} className="hover:bg-cyan-50 transition">
-                                        <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
-                                            {c.id}
-                                        </td>
+                                {filtered.map((c: CotRow) => {
+                                    const factura = c.facturas?.[0];   // 🔥 AGREGAR ESTA LÍNEA
 
-                                        <td className="px-4 py-3 text-center text-sm text-slate-600">
-                                            {new Date(c.fecha).toLocaleDateString("es-CL")}
-                                        </td>
+                                    return (
+                                        <tr key={c.id} className="hover:bg-cyan-50 transition">
+                                            <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
+                                                {c.id}
+                                            </td>
 
-                                        <td className="px-4 py-3 text-center relative">
-                                            <div className="inline-block text-left">
+                                            <td className="px-4 py-3 text-center text-sm text-slate-600">
+                                                {new Date(c.fecha).toLocaleDateString("es-CL")}
+                                            </td>
 
-                                                {/* CHIP VISUAL (lo que ya tenías) */}
-                                                <button
-                                                    className={`
+                                            <td className="px-4 py-3 text-center relative">
+                                                <div className="inline-block text-left">
+
+                                                    {/* CHIP VISUAL (lo que ya tenías) */}
+                                                    <button
+                                                        className={`
         px-3 py-1 rounded-full text-xs font-semibold 
         transition
         ${c.estado === "BORRADOR"
-                                                            ? "bg-yellow-100 text-yellow-700"
-                                                            : c.estado === "APROBADA"
-                                                                ? "bg-green-100 text-green-700"
-                                                                : c.estado === "RECHAZADA"
-                                                                    ? "bg-red-100 text-red-700"
-                                                                    : c.estado === "FACTURACION"
-                                                                        ? "bg-purple-100 text-purple-700"
-                                                                        : "bg-gray-100 text-gray-600"
-                                                        }
+                                                                ? "bg-yellow-100 text-yellow-700"
+                                                                : c.estado === "APROBADA"
+                                                                    ? "bg-green-100 text-green-700"
+                                                                    : c.estado === "RECHAZADA"
+                                                                        ? "bg-red-100 text-red-700"
+                                                                        : c.estado === "FACTURADA"
+                                                                            ? "bg-purple-100 text-purple-700"
+                                                                            : "bg-gray-100 text-gray-600"
+                                                            }
     `}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setCotizaciones(prev =>
-                                                            prev.map(cot =>
-                                                                cot.id === c.id
-                                                                    ? { ...cot, _showEstadoMenu: !cot._showEstadoMenu }
-                                                                    : cot
-                                                            )
-                                                        );
-                                                    }}
-                                                >
-                                                    {formatEstado(c.estado)}
-                                                </button>
-
-                                                {/* MENÚ DESPLEGABLE */}
-                                                {c._showEstadoMenu && (
-                                                    <div
-                                                        className="absolute left-1/2 -translate-x-1/2 mt-2 w-36 bg-white shadow-lg rounded-md border border-slate-200 z-50"
-                                                        onClick={(e) => e.stopPropagation()}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCotizaciones(prev =>
+                                                                prev.map(cot =>
+                                                                    cot.id === c.id
+                                                                        ? { ...cot, _showEstadoMenu: !cot._showEstadoMenu }
+                                                                        : cot
+                                                                )
+                                                            );
+                                                        }}
                                                     >
-                                                        {[
-                                                            EstadoCotizacionGestioo.BORRADOR,
-                                                            EstadoCotizacionGestioo.APROBADA,
-                                                            EstadoCotizacionGestioo.RECHAZADA,
-                                                            EstadoCotizacionGestioo.FACTURACION
-                                                        ]
-                                                            .map((estado) => (
-                                                                <button
-                                                                    key={estado}
-                                                                    onClick={() => {
-                                                                        handleChangeEstado(c, estado);
-                                                                        setCotizaciones(prev =>
-                                                                            prev.map(cot =>
-                                                                                cot.id === c.id
-                                                                                    ? { ...cot, _showEstadoMenu: false }
-                                                                                    : cot
-                                                                            )
-                                                                        );
-                                                                    }}
-                                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                                                                >
-                                                                    {formatEstado(estado)}
-                                                                </button>
-                                                            ))}
+                                                        {formatEstado(c.estado)}
+                                                    </button>
+
+                                                    {/* MENÚ DESPLEGABLE */}
+                                                    {c._showEstadoMenu && (
+                                                        <div
+                                                            className="absolute left-1/2 -translate-x-1/2 mt-2 w-36 bg-white shadow-lg rounded-md border border-slate-200 z-50"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            {[
+                                                                EstadoCotizacionGestioo.BORRADOR,
+                                                                EstadoCotizacionGestioo.APROBADA,
+                                                                EstadoCotizacionGestioo.RECHAZADA,
+                                                            ]
+                                                                .map((estado) => (
+                                                                    <button
+                                                                        key={estado}
+                                                                        onClick={() => {
+                                                                            handleChangeEstado(c, estado);
+                                                                            setCotizaciones(prev =>
+                                                                                prev.map(cot =>
+                                                                                    cot.id === c.id
+                                                                                        ? { ...cot, _showEstadoMenu: false }
+                                                                                        : cot
+                                                                                )
+                                                                            );
+                                                                        }}
+                                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                                                    >
+                                                                        {formatEstado(estado)}
+                                                                    </button>
+                                                                ))}
+                                                        </div>
+                                                    )}
+
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                {formatTipo(c.tipo)}
+                                            </td>
+
+                                            {/* Técnico */}
+                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                {c.tecnico?.nombre || "---"}
+                                            </td>
+
+                                            {/* Cliente */}
+                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                {c.entidad?.nombre || "---"}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                {c.entidad?.origen || "---"}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-center text-sm">
+                                                {factura ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="font-semibold text-purple-700">
+                                                            {factura.numeroFactura}
+                                                        </span>
+
+                                                        <span
+                                                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
+                    ${factura.estado
+                                                                    === "PAGADA"
+                                                                    ? "bg-green-100 text-green-700"
+                                                                    : factura.estado
+                                                                        === "PENDIENTE"
+                                                                        ? "bg-yellow-100 text-yellow-700"
+                                                                        : "bg-red-100 text-red-700"
+                                                                }
+                `}
+                                                        >
+                                                            {factura.estado
+                                                            }
+                                                        </span>
                                                     </div>
+                                                ) : (
+                                                    <span className="text-slate-400">---</span>
                                                 )}
+                                            </td>
 
-                                            </div>
-                                        </td>
+                                            <td className="px-4 py-3 text-center text-sm font-bold text-slate-900">
+                                                {formatearPrecio(
+                                                    c.total,
+                                                    c.moneda || "CLP",
+                                                    c.tasaCambio ?? 1
+                                                )}
+                                            </td>
 
-                                        <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                            {formatTipo(c.tipo)}
-                                        </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex justify-center gap-2">
+                                                    {/* Ver - ahora abre el modal de generar PDF */}
+                                                    <button
+                                                        onClick={() => handlePreviewRealPDF(c)}
+                                                        className="text-blue-600 hover:text-blue-800 text-sm"
+                                                    >
+                                                        <EyeOutlined />
+                                                    </button>
 
-                                        {/* Técnico */}
-                                        <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                            {c.tecnico?.nombre || "---"}
-                                        </td>
+                                                    {/* Imprimir - ahora abre el modal de generar PDF */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedCotizacion(c);
+                                                            setShowGenerarPDFModal(true);
+                                                        }}
+                                                        className="text-indigo-600 hover:text-indigo-800 text-sm"
+                                                        title="Generar PDF"
+                                                    >
+                                                        <PrinterOutlined />
+                                                    </button>
 
-                                        {/* Cliente */}
-                                        <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                            {c.entidad?.nombre || "---"}
-                                        </td>
+                                                    {/* Editar */}
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowViewModal(false); // 🔥 CIERRA EL MODAL DE VISTA
+                                                            openEditModal(c);        // luego abre el modal de edición
+                                                        }}
+                                                        className="text-green-600 hover:text-green-800"
+                                                    >
+                                                        <EditOutlined />
+                                                    </button>
 
-                                        <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                            {c.entidad?.origen || "---"}
-                                        </td>
+                                                    {/* Duplicar */}
+                                                    <button
+                                                        onClick={() => duplicarCotizacion(c)}
+                                                        className="text-purple-600 hover:text-purple-800 text-sm"
+                                                        title="Duplicar cotización"
+                                                    >
+                                                        <CopyOutlined />
+                                                    </button>
 
-                                        <td className="px-4 py-3 text-center text-sm font-bold text-slate-900">
-                                            {formatearPrecio(
-                                                c.total,
-                                                c.moneda || "CLP",
-                                                c.tasaCambio ?? 1
-                                            )}
-                                        </td>
+                                                    {factura && factura.estado === "PENDIENTE" && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await apiFetch(`/cotizaciones/facturas/${factura.id_factura}/pagar`, {
+                                                                        method: "POST",
+                                                                    });
 
-                                        <td className="px-4 py-3 text-center">
-                                            <div className="flex justify-center gap-2">
-                                                {/* Ver - ahora abre el modal de generar PDF */}
-                                                <button
-                                                    onClick={() => handlePreviewRealPDF(c)}
-                                                    className="text-blue-600 hover:text-blue-800 text-sm"
-                                                >
-                                                    <EyeOutlined />
-                                                </button>
+                                                                    await fetchCotizaciones();
+                                                                    showSuccess("Factura marcada como pagada");
+                                                                } catch (error) {
+                                                                    handleApiError(error, "Error al marcar como pagada");
+                                                                }
+                                                            }}
+                                                            className="text-emerald-600 hover:text-emerald-800 text-sm"
+                                                            title="Marcar como pagada"
+                                                        >
+                                                            <CheckCircleOutlined />
+                                                        </button>
+                                                    )}
 
-                                                {/* Imprimir - ahora abre el modal de generar PDF */}
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedCotizacion(c);
-                                                        setShowGenerarPDFModal(true);
-                                                    }}
-                                                    className="text-indigo-600 hover:text-indigo-800 text-sm"
-                                                    title="Generar PDF"
-                                                >
-                                                    <PrinterOutlined />
-                                                </button>
+                                                    {c.estado === "APROBADA" &&
+                                                        (!c.facturas || c.facturas.length === 0) && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        await apiFetch(`/cotizaciones/${c.id}/facturar`, {
+                                                                            method: "POST",
+                                                                        });
 
-                                                {/* Editar */}
-                                                <button
-                                                    onClick={() => {
-                                                        setShowViewModal(false); // 🔥 CIERRA EL MODAL DE VISTA
-                                                        openEditModal(c);        // luego abre el modal de edición
-                                                    }}
-                                                    className="text-green-600 hover:text-green-800"
-                                                >
-                                                    <EditOutlined />
-                                                </button>
+                                                                        await fetchCotizaciones();
+                                                                        showSuccess("Cotización facturada correctamente");
+                                                                    } catch (error) {
+                                                                        handleApiError(error, "Error al facturar");
+                                                                    }
+                                                                }}
+                                                                className="text-purple-600 hover:text-purple-800 text-sm"
+                                                                title="Facturar"
+                                                            >
+                                                                <FileTextOutlined />
+                                                            </button>
+                                                        )}
+                                                    {factura && factura.estado !== "ANULADA" && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!window.confirm("¿Seguro que deseas anular esta factura?"))
+                                                                    return;
 
-                                                {/* Duplicar */}
-                                                <button
-                                                    onClick={() => duplicarCotizacion(c)}
-                                                    className="text-purple-600 hover:text-purple-800 text-sm"
-                                                    title="Duplicar cotización"
-                                                >
-                                                    <CopyOutlined />
-                                                </button>
+                                                                try {
+                                                                    await apiFetch(`/cotizaciones/${factura.id_factura}/anular`, {
+                                                                        method: "POST",
+                                                                    });
 
-                                                {/* Eliminar */}
-                                                <button
-                                                    onClick={() => handleDelete(c.id)}
-                                                    className="text-red-600 hover:text-red-800 text-sm"
-                                                >
-                                                    <DeleteOutlined />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                                    await fetchCotizaciones();
+                                                                    showSuccess("Factura anulada correctamente");
+
+                                                                } catch (error) {
+                                                                    handleApiError(error, "Error al anular factura");
+                                                                }
+                                                            }}
+                                                            className="text-red-600 hover:text-red-800 text-sm"
+                                                            title="Anular factura"
+                                                        >
+                                                            Anular
+                                                        </button>
+                                                    )}
+
+                                                    {/* Eliminar */}
+                                                    <button
+                                                        onClick={() => handleDelete(c.id)}
+                                                        className="text-red-600 hover:text-red-800 text-sm"
+                                                    >
+                                                        <DeleteOutlined />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
 
                                 {filtered.length === 0 && (
                                     <tr>

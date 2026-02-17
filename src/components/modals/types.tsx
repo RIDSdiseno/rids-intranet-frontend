@@ -1,26 +1,3 @@
-import {
-  PlusOutlined,
-  SearchOutlined,
-  EditOutlined,
-  EyeOutlined,
-  DeleteOutlined,
-  PrinterOutlined,
-  FileTextOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ReloadOutlined,
-  CloseCircleOutlined,
-  FilterOutlined,
-  BarcodeOutlined,
-  UserOutlined,
-  SettingOutlined,
-  PhoneOutlined,
-  EnvironmentOutlined,
-  InfoCircleOutlined,
-  BuildOutlined,
-  PercentageOutlined
-} from "@ant-design/icons";
-
 export const ORIGEN_MAP = {
   RIDS: "RIDS",
   ECONNET: "ECONNET",
@@ -31,7 +8,7 @@ export const EstadoCotizacionGestioo = {
   BORRADOR: "BORRADOR",
   APROBADA: "APROBADA",
   RECHAZADA: "RECHAZADA",
-  FACTURACION: "FACTURACION",
+  FACTURADA: "FACTURADA",
 } as const;
 
 

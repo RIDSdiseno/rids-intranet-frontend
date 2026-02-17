@@ -224,7 +224,7 @@ export const formatEstado = (estado: EstadoCotizacionGestioo) => {
     [EstadoCotizacionGestioo.BORRADOR]: "Borrador",
     [EstadoCotizacionGestioo.APROBADA]: "Aprobada",
     [EstadoCotizacionGestioo.RECHAZADA]: "Rechazada",
-    [EstadoCotizacionGestioo.FACTURACION]: "Facturación", // 👈 FALTABA ESTO
+    [EstadoCotizacionGestioo.FACTURADA]: "Facturada", // 👈 FALTABA ESTO
   };
   return estados[estado];
 };
@@ -376,25 +376,32 @@ export const calcularLineaItem = (item: any) => {
   };
 };
 
-export const estadoConfig = {
+export const estadoConfig: Record<
+  EstadoCotizacionGestioo,
+  {
+    label: string;
+    color: string;
+    active: string;
+  }
+> = {
   BORRADOR: {
     label: "Borrador",
     color: "bg-slate-100 text-slate-700 border-slate-300",
-    active: "bg-slate-700 text-white border-slate-700",
+    active: "bg-slate-600 text-white border-slate-600",
   },
   APROBADA: {
     label: "Aprobada",
-    color: "bg-green-100 text-green-700 border-green-300",
-    active: "bg-green-600 text-white border-green-600",
+    color: "bg-emerald-100 text-emerald-700 border-emerald-300",
+    active: "bg-emerald-600 text-white border-emerald-600",
   },
   RECHAZADA: {
     label: "Rechazada",
-    color: "bg-red-100 text-red-700 border-red-300",
-    active: "bg-red-600 text-white border-red-600",
+    color: "bg-rose-100 text-rose-700 border-rose-300",
+    active: "bg-rose-600 text-white border-rose-600",
   },
-  FACTURACION: {
-    label: "Facturación",
-    color: "bg-blue-100 text-blue-700 border-blue-300",
-    active: "bg-blue-600 text-white border-blue-600",
+  FACTURADA: {
+    label: "Facturada",
+    color: "bg-purple-100 text-purple-700 border-purple-300",
+    active: "bg-purple-600 text-white border-purple-600",
   },
 };

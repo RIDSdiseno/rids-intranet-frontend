@@ -31,12 +31,15 @@ import type {
   SolicitanteLite,
   Visita,
   EstadisticasEmpresa,
-  FichaEmpresaCompleta
+  FichaEmpresaCompleta,
+  DetalleEmpresa
 } from "../components/modals-empresa/types";
 
 import EmpresaDetailsModal from "../components/modals-empresa/EmpresaDetailsModal";
 
 import FichaEmpresaModal from "../components/modals-empresa/FichaEmpresaModal";
+
+import CrearEmpresaModal from "../components/modals-empresa/CrearEmpresa";
 
 /* ====================== Config ====================== */
 const API_URL =
@@ -85,17 +88,32 @@ function normalizeEstadisticas(input: unknown): EstadisticasEmpresa {
   };
 }
 
+function normalizeDetalleEmpresa(input: unknown): DetalleEmpresa | undefined {
+  if (!isRecord(input)) return undefined;
+
+  const id = asNumberOr(input.id, NaN);
+  if (!Number.isFinite(id)) return undefined;
+
+  return {
+    id,
+    rut: asNullableStringOr(input.rut, null),
+    direccion: asNullableStringOr(input.direccion, null),
+    direcciones: Array.isArray(input.direcciones)
+      ? input.direcciones as any
+      : null,
+    telefono: asNullableStringOr(input.telefono, null),
+    email: asNullableStringOr(input.email, null),
+    sitioWeb: asNullableStringOr(input.sitioWeb, null),
+    industria: asNullableStringOr(input.industria, null),
+  };
+}
+
 function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
-  const solicitantesRaw = Array.isArray(e.solicitantes) ? e.solicitantes : [];
 
   const id = asNumberOr(e.id_empresa, NaN);
 
-  // detalleEmpresa: mantener shape de EmpresaLite (puede ser null)
-  const detalleEmpresa =
-    isRecord(e.detalleEmpresa)
-      ? (e.detalleEmpresa as EmpresaLite["detalleEmpresa"])
-      : undefined;
+  const detalleEmpresa = normalizeDetalleEmpresa(e.detalleEmpresa);
 
   return {
     id_empresa: Number.isFinite(id) ? id : -1,
@@ -234,6 +252,8 @@ const EmpresasPage: React.FC = () => {
   const [fichaError, setFichaError] = useState<string | null>(null);
 
   const [fichaData, setFichaData] = useState<FichaEmpresaCompleta | null>(null);
+
+  const [createEmpresaOpen, setCreateEmpresaOpen] = useState(false);
 
   const fetchEmpresas = async (showRefresh = false) => {
     const ctrl = new AbortController();
@@ -572,16 +592,18 @@ const EmpresasPage: React.FC = () => {
 
       setEmpresaSel(() => ({
         ...data.empresa,
-        detalleEmpresa: data.empresa.detalleEmpresa
-          ? { ...data.empresa.detalleEmpresa }
-          : undefined,
+        detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa),
       }));
 
       // 🔥 Actualiza lista principal (si cambió nombre)
       setEmpresas(prev =>
         prev.map(e =>
           e.id_empresa === data.empresa.id_empresa
-            ? { ...e, nombre: data.empresa.nombre, detalleEmpresa: data.empresa.detalleEmpresa }
+            ? {
+              ...e,
+              nombre: data.empresa.nombre,
+              detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa),
+            }
             : e
         )
       );
@@ -863,21 +885,34 @@ const EmpresasPage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-slate-800">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+
+                <h2 className="text-lg font-semibold text-slate-900">
                   Lista de Empresas
                 </h2>
-                <div className="flex gap-3">
+
+                <div className="flex items-center gap-3">
+
+                  {/* Buscador */}
                   <div className="relative">
-                    <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Buscar empresas..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 w-64"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                     />
                   </div>
+
+                  {/* BOTÓN NUEVA EMPRESA */}
+                  <button
+                    onClick={() => setCreateEmpresaOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white
+                 bg-gradient-to-tr from-cyan-600 to-indigo-600
+                 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]
+                 hover:brightness-110 transition"
+                  >
+                    + Nueva empresa
+                  </button>
+
                 </div>
               </div>
 
@@ -944,6 +979,11 @@ const EmpresasPage: React.FC = () => {
         solicitantes={solicitantesSel}
         equipos={equiposSel}
         visitas={visitasSel}
+        onUpdated={() => {
+          if (empresaSel?.id_empresa) {
+            refreshEmpresaCompleta(empresaSel.id_empresa);
+          }
+        }}
       />
 
       {/* Modal ficha empresa */}
@@ -962,6 +1002,16 @@ const EmpresasPage: React.FC = () => {
           }
         }}
       />
+      {createEmpresaOpen && (
+        <CrearEmpresaModal
+          open={createEmpresaOpen}
+          onClose={() => setCreateEmpresaOpen(false)}
+          onCreated={() => {
+            setCreateEmpresaOpen(false);
+            fetchEmpresas(); // ✅ correcto
+          }}
+        />
+      )}
     </div >
   );
 };

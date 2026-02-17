@@ -22,6 +22,8 @@ import {
     type CotizacionItemGestioo,
 } from "./types";
 
+import { useApi } from "../modals/UseApi"; // ajusta la ruta si es necesario
+
 import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
 import EditServicioModal from "./EditServicio";
 
@@ -66,6 +68,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     // ESTADO LOCAL DE ÍTEMS
     // ==========================
     const [itemsLocal, setItemsLocal] = useState<CotizacionItemGestioo[]>([]);
+
+    const { fetchApi: apiFetch } = useApi();
 
     useEffect(() => {
         if (show && cotizacion) {
@@ -453,30 +457,32 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                 </label>
 
                                                 <div className="flex flex-wrap gap-3">
-                                                    {Object.entries(estadoConfig).map(([key, config]) => {
-                                                        const estado = key as EstadoCotizacionGestioo;
-                                                        const isActive = cotizacion.estado === estado;
+                                                    {Object.entries(estadoConfig)
+                                                        .filter(([key]) => key !== "FACTURADA")
+                                                        .map(([key, config]) => {
+                                                            const estado = key as EstadoCotizacionGestioo;
+                                                            const isActive = cotizacion.estado === estado;
 
-                                                        return (
-                                                            <button
-                                                                key={estado}
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    onUpdateCotizacion({
-                                                                        ...cotizacion,
-                                                                        estado,
-                                                                    })
-                                                                }
-                                                                className={`
+                                                            return (
+                                                                <button
+                                                                    key={estado}
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        onUpdateCotizacion({
+                                                                            ...cotizacion,
+                                                                            estado,
+                                                                        })
+                                                                    }
+                                                                    className={`
             px-4 py-2 rounded-full border text-sm font-semibold
             transition-all duration-200
             ${isActive ? config.active : config.color}
           `}
-                                                            >
-                                                                {config.label}
-                                                            </button>
-                                                        );
-                                                    })}
+                                                                >
+                                                                    {config.label}
+                                                                </button>
+                                                            );
+                                                        })}
                                                 </div>
                                             </div>
                                         </div>
@@ -1205,6 +1211,27 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 <PrinterOutlined className="text-lg" />
                                 <span>Generar PDF</span>
                             </button>
+
+                            {cotizacion.estado === "APROBADA" && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            await apiFetch(`/cotizaciones/${cotizacion.id}/facturar`, {
+                                                method: "POST",
+                                            });
+
+                                            onUpdate();
+                                        } catch (error) {
+                                            console.error(error);
+                                        }
+                                    }}
+                                    className="px-8 py-3.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition-all font-semibold shadow-lg flex items-center gap-3"
+                                >
+                                    <DollarOutlined />
+                                    Facturar
+                                </button>
+                            )}
 
                             <button
                                 type="button"

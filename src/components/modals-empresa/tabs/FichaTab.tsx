@@ -12,7 +12,8 @@ import {
     Tag,
     Divider,
     Tooltip,
-    Typography
+    Typography,
+    Select
 } from "antd";
 import {
     EditOutlined,
@@ -41,6 +42,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
     ficha,
     detalleEmpresa,
     contactos,
+    sucursales,
     onUpdated,
 }) => {
     const [editing, setEditing] = useState(false);
@@ -280,6 +282,17 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                         </div>
                                                     </div>
                                                 )}
+                                                {c.sucursal && (
+                                                    <div className="flex items-center">
+                                                        <EnvironmentOutlined className="text-gray-400 mr-2" />
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 mb-0">Sucursal</p>
+                                                            <Tag color="blue">
+                                                                {c.sucursal.nombre}
+                                                            </Tag>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </Card>
                                     </Col>
@@ -503,6 +516,23 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                     className="mb-2"
                                                 >
                                                     <Input placeholder="Teléfono" size="small" />
+                                                </Form.Item>
+                                            </Col>
+
+                                            <Col span={12} md={6}>
+                                                <Form.Item
+                                                    name={[name, "sucursalId"]}
+                                                    label="Sucursal"
+                                                >
+                                                    <Select
+                                                        placeholder="Seleccionar sucursal"
+                                                        size="small"
+                                                        allowClear
+                                                        options={sucursales.map((s) => ({
+                                                            value: s.id_sucursal,
+                                                            label: s.nombre,
+                                                        }))}
+                                                    />
                                                 </Form.Item>
                                             </Col>
                                         </Row>

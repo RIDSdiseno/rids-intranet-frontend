@@ -46,6 +46,14 @@ type EquipoRow = {
   empresa: string | null;
   idSolicitante: number | null;
   empresaId: number | null;
+  macWifi?: string | null;
+  so?: string | null;
+  tipoDd?: string | null;
+  estadoAlm?: string | null;
+  office?: string | null;
+  teamViewer?: string | null;
+  claveTv?: string | null;
+  revisado?: string | null;
 };
 
 type ApiList<T> = {
@@ -1427,7 +1435,7 @@ const EquiposPage: React.FC = () => {
       {editOpen && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40" onClick={cancelEdit} />
-          <div className="relative w-full max-w-2xl rounded-2xl border border-cyan-200 bg-white shadow-xl">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
             <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-900">Editar equipo #{editRow?.id_equipo}</h3>
               <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">
@@ -1556,6 +1564,55 @@ const EquiposPage: React.FC = () => {
 
               <div className="sm:col-span-2 text-[11px] text-slate-500 mt-1">
                 Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
+              </div>
+
+              {/* ===== FICHA TÉCNICA (solo lectura) ===== */}
+              <div className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Ficha Técnica
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-slate-500">MAC WiFi:</span>
+                    <div className="font-medium">{editRow?.macWifi || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Sistema Operativo:</span>
+                    <div className="font-medium">{editRow?.so || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Tipo Disco:</span>
+                    <div className="font-medium">{editRow?.tipoDd || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Estado Almacenamiento:</span>
+                    <div className="font-medium">{editRow?.estadoAlm || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Office:</span>
+                    <div className="font-medium">{editRow?.office || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">TeamViewer:</span>
+                    <div className="font-medium">{editRow?.teamViewer || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Clave TV:</span>
+                    <div className="font-medium">{editRow?.claveTv || "—"}</div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500">Revisado:</span>
+                    <div className="font-medium">{editRow?.revisado || "—"}</div>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -42,6 +42,7 @@ export interface DireccionEmpresa {
 }
 
 export interface DetalleEmpresa {
+    id: number;
     rut?: string | null;
     direccion?: string | null;
     direcciones?: DireccionEmpresa[] | null;
@@ -77,10 +78,15 @@ export interface FichaEmpresaCompleta {
 export interface ContactoEmpresa {
     id: number;
     nombre: string;
-    cargo: string;
+    cargo?: string | null;
     email?: string | null;
     telefono?: string | null;
     principal: boolean;
+    sucursalId?: number | null;
+    sucursal?: {
+        id_sucursal: number;
+        nombre: string;
+    } | null;
 }
 
 /* ================= FICHA TÉCNICA EMPRESA ================= */
@@ -235,14 +241,19 @@ export interface FichaTabProps {
     empresa: {
         id_empresa: number;
         nombre: string;
-        razonSocial?: string | null; // 👈 AÑADIR ESTO
+        razonSocial?: string | null;
     };
+
     ficha: {
         creadaEn: string;
         condicionesComerciales?: string | null;
     } | null;
+
     detalleEmpresa: DetalleEmpresa | null;
+
     contactos: ContactoEmpresa[];
+
+    sucursales: Sucursal[];   // 👈 AGREGAR ESTO
 
     onUpdated?: () => void;
 }
@@ -257,6 +268,7 @@ export interface EmpresaDetailsModalProps {
     solicitantes: SolicitanteLite[];
     equipos: EquipoLite[];
     visitas: Visita[];
+    onUpdated: () => void;
 }
 
 /* FichaEmpresaModal */

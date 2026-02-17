@@ -16,6 +16,16 @@ export const useApi = () => {
 
       return response.data;
     } catch (error: any) {
+
+      const status = error.response?.status;
+
+      if (status === 400) {
+        return Promise.reject({
+          type: "validation",
+          message: error.response?.data?.error
+        });
+      }
+
       throw new Error(
         error.response?.data?.error ||
         error.message ||

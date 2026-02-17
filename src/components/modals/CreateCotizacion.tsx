@@ -752,27 +752,29 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                             </label>
 
                                             <div className="flex flex-wrap gap-3">
-                                                {Object.entries(estadoConfig).map(([key, config]) => {
-                                                    const estado = key as EstadoCotizacionGestioo;
-                                                    const isActive = formData.estadoCotizacion === estado;
+                                                {Object.entries(estadoConfig)
+                                                    .filter(([key]) => key !== "FACTURADA")
+                                                    .map(([key, config]) => {
+                                                        const estado = key as EstadoCotizacionGestioo;
+                                                        const isActive = formData.estadoCotizacion === estado;
 
-                                                    return (
-                                                        <button
-                                                            key={estado}
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setFormData({ ...formData, estadoCotizacion: estado })
-                                                            }
-                                                            className={`
+                                                        return (
+                                                            <button
+                                                                key={estado}
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setFormData({ ...formData, estadoCotizacion: estado })
+                                                                }
+                                                                className={`
             px-4 py-2 rounded-full border text-sm font-semibold
             transition-all duration-200
             ${isActive ? config.active : config.color}
           `}
-                                                        >
-                                                            {config.label}
-                                                        </button>
-                                                    );
-                                                })}
+                                                            >
+                                                                {config.label}
+                                                            </button>
+                                                        );
+                                                    })}
                                             </div>
 
                                             {!formData.estadoCotizacion && (

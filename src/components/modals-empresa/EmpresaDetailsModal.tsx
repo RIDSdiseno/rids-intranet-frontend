@@ -32,7 +32,9 @@ import {
   message,
   Card,
   Statistic,
-  Button
+  Button,
+  Form,
+  Input
 } from "antd";
 
 import type { TabsProps, TableColumnsType, TableProps } from "antd";
@@ -50,6 +52,10 @@ import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+
+const API_URL =
+  (import.meta as ImportMeta).env?.VITE_API_URL ||
+  "http://localhost:4000/api";
 
 dayjs.extend(utc);
 
@@ -376,120 +382,107 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
 ];
 
 /* ===================== UI utils ===================== */
-const EmpresaInfoGeneral: React.FC<{ empresa: EmpresaLite | null }> = ({ empresa }) => {
+const EmpresaInfoGeneral: React.FC<{
+  empresa: EmpresaLite | null;
+  onUpdated?: () => void;
+}> = ({ empresa, onUpdated }) => {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (!empresa?.detalleEmpresa) return;
+
+    form.setFieldsValue({
+      rut: empresa.detalleEmpresa.rut,
+      email: empresa.detalleEmpresa.email,
+      telefono: empresa.detalleEmpresa.telefono,
+      direccion: empresa.detalleEmpresa.direccion,
+    });
+  }, [empresa]);
+
   if (!empresa) return null;
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      message.success(`${label} copiado`);
-    });
-  };
+  const handleSave = async () => {
+    try {
+      console.log("detalleEmpresa:", empresa?.detalleEmpresa);
 
-  const InfoItem = ({
-    icon,
-    label,
-    value,
-    copyable = false,
-    link = false
-  }: {
-    icon: React.ReactNode;
-    label: string;
-    value?: string | null;
-    copyable?: boolean;
-    link?: boolean;
-  }) => (
-    <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors">
-      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center text-blue-600">
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-slate-500 mb-1">{label}</div>
-        {value ? (
-          <div className={`flex items-center gap-2 ${link ? 'text-blue-600 hover:underline cursor-pointer' : 'text-slate-900'}`}
-            onClick={() => {
-              if (copyable) copyToClipboard(value, label);
-              if (link && value.includes('@')) window.location.href = `mailto:${value}`;
-            }}>
-            <span className="font-semibold truncate">{value}</span>
-            {copyable && (
-              <CopyOutlined className="text-slate-400 hover:text-slate-600 cursor-pointer" />
-            )}
-          </div>
-        ) : (
-          <span className="text-slate-400 italic">No especificado</span>
-        )}
-      </div>
-    </div>
-  );
+      const values = await form.validateFields();
+      setSaving(true);
+
+      await fetch(
+        `${API_URL}/detalle-empresa/${empresa.detalleEmpresa?.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        }
+      );
+
+      message.success("Datos actualizados");
+      setEditing(false);
+      onUpdated?.(); // 🔥 refresca todo
+    } catch {
+      message.error("Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Card
-      className="mb-6 border-0 shadow-sm bg-gradient-to-br from-white to-blue-50/50"
-      bodyStyle={{ padding: '24px' }}
+      className="mb-6 border-0 shadow-sm"
+      extra={
+        !editing ? (
+          <Button type="primary" onClick={() => setEditing(true)}>
+            Editar
+          </Button>
+        ) : (
+          <Space>
+            <Button onClick={() => setEditing(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="primary"
+              loading={saving}
+              onClick={handleSave}
+            >
+              Guardar
+            </Button>
+          </Space>
+        )
+      }
     >
-      <div className="flex justify-between items-start mb-6">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white grid place-items-center text-2xl font-bold shadow-lg">
-              {empresa.nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || "E"}
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-1">{empresa.nombre}</h1>
-            {empresa.detalleEmpresa?.industria && (
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                <BuildOutlined className="text-xs" />
-                {empresa.detalleEmpresa.industria}
-              </div>
-            )}
-          </div>
+      {!editing ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><b>RUT:</b> {empresa.detalleEmpresa?.rut ?? "No especificado"}</div>
+          <div><b>Email:</b> {empresa.detalleEmpresa?.email ?? "No especificado"}</div>
+          <div><b>Teléfono:</b> {empresa.detalleEmpresa?.telefono ?? "No especificado"}</div>
+          <div><b>Dirección:</b> {empresa.detalleEmpresa?.direccion ?? "No especificado"}</div>
         </div>
-      </div>
+      ) : (
+        <Form form={form} layout="vertical">
+          <Form.Item name="rut" label="RUT">
+            <Input />
+          </Form.Item>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InfoItem
-          icon={<IdcardOutlined />}
-          label="RUT"
-          value={empresa.detalleEmpresa?.rut}
-          copyable
-        />
-        <InfoItem
-          icon={<MailOutlined />}
-          label="Email"
-          value={empresa.detalleEmpresa?.email}
-          copyable
-          link
-        />
-        <InfoItem
-          icon={<PhoneOutlined />}
-          label="Teléfono"
-          value={empresa.detalleEmpresa?.telefono}
-          copyable
-        />
-        <InfoItem
-          icon={<EnvironmentOutlined />}
-          label="Dirección"
-          value={empresa.detalleEmpresa?.direccion}
-          copyable
-        />
-      </div>
+          <Form.Item name="email" label="Email">
+            <Input />
+          </Form.Item>
 
-      {empresa.detalleEmpresa?.sitioWeb && (
-        <div className="mt-4 pt-4 border-t border-slate-200">
-          <a
-            href={empresa.detalleEmpresa.sitioWeb.startsWith('http') ? empresa.detalleEmpresa.sitioWeb : `https://${empresa.detalleEmpresa.sitioWeb}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline"
-          >
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            {empresa.detalleEmpresa.sitioWeb}
-          </a>
-        </div>
+          <Form.Item name="telefono" label="Teléfono">
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="direccion" label="Dirección">
+            <Input />
+          </Form.Item>
+        </Form>
       )}
     </Card>
   );
 };
+
 
 const StatsOverview: React.FC<{
   solicitantes: SolicitanteLite[];
@@ -610,6 +603,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
   solicitantes,
   equipos,
   visitas,
+  onUpdated,
 }) => {
   const [tab, setTab] = useState<TabKey>("resumen");
   const [density, setDensity] = useState<"Cómodo" | "Compacto">("Cómodo");
@@ -863,7 +857,29 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
 
         {!loading && empresa && (
           <>
-            <EmpresaInfoGeneral empresa={empresa} />
+            {/* Header empresa */}
+            <div className="mb-8 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-4">
+                {/* Avatar inicial */}
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-lg font-semibold shadow-sm">
+                  {empresa.nombre?.charAt(0).toUpperCase()}
+                </div>
+
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+                    {empresa.nombre}
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Información y estadísticas generales
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <EmpresaInfoGeneral
+              empresa={empresa}
+              onUpdated={onUpdated}
+            />
 
             <div className="mb-6">
               <Tabs
