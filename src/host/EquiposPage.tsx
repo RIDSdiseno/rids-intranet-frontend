@@ -645,6 +645,7 @@ const EquiposPage: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editRow, setEditRow] = useState<EquipoRow | null>(null);
+
   type EquipoForm = {
     serial: string;
     marca: string;
@@ -653,7 +654,18 @@ const EquiposPage: React.FC = () => {
     ram: string;
     disco: string;
     propiedad: string;
+
+    // 🔥 DETALLE
+    macWifi: string;
+    so: string;
+    tipoDd: string;
+    estadoAlm: string;
+    office: string;
+    teamViewer: string;
+    claveTv: string;
+    revisado: string;
   };
+
   const [editForm, setEditForm] = useState<EquipoForm>({
     serial: "",
     marca: "",
@@ -662,6 +674,15 @@ const EquiposPage: React.FC = () => {
     ram: "",
     disco: "",
     propiedad: "",
+
+    macWifi: "",
+    so: "",
+    tipoDd: "",
+    estadoAlm: "",
+    office: "",
+    teamViewer: "",
+    claveTv: "",
+    revisado: "",
   });
 
   // Nueva cadena Empresa -> Solicitante
@@ -732,6 +753,7 @@ const EquiposPage: React.FC = () => {
 
   const startEdit = (row: EquipoRow) => {
     setEditRow(row);
+
     setEditForm({
       serial: row.serial || "",
       marca: row.marca || "",
@@ -740,7 +762,17 @@ const EquiposPage: React.FC = () => {
       ram: row.ram || "",
       disco: row.disco || "",
       propiedad: row.propiedad || "",
+
+      macWifi: row.macWifi || "",
+      so: row.so || "",
+      tipoDd: row.tipoDd || "",
+      estadoAlm: row.estadoAlm || "",
+      office: row.office || "",
+      teamViewer: row.teamViewer || "",
+      claveTv: row.claveTv || "",
+      revisado: row.revisado || "",
     });
+
     setEditEmpresaId(row.empresaId ?? null);
     setEditSolicitanteId(row.idSolicitante ?? null);
     setSolSearchE("");
@@ -1567,51 +1599,37 @@ const EquiposPage: React.FC = () => {
               </div>
 
               {/* ===== FICHA TÉCNICA (solo lectura) ===== */}
+              {/* ===== FICHA TÉCNICA (editable) ===== */}
               <div className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h4 className="text-sm font-semibold text-slate-700 mb-3">
                   Ficha Técnica
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-slate-500">MAC WiFi:</span>
-                    <div className="font-medium">{editRow?.macWifi || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Sistema Operativo:</span>
-                    <div className="font-medium">{editRow?.so || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Tipo Disco:</span>
-                    <div className="font-medium">{editRow?.tipoDd || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Estado Almacenamiento:</span>
-                    <div className="font-medium">{editRow?.estadoAlm || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Office:</span>
-                    <div className="font-medium">{editRow?.office || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">TeamViewer:</span>
-                    <div className="font-medium">{editRow?.teamViewer || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Clave TV:</span>
-                    <div className="font-medium">{editRow?.claveTv || "—"}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-500">Revisado:</span>
-                    <div className="font-medium">{editRow?.revisado || "—"}</div>
-                  </div>
+                  {[
+                    { key: "macWifi", label: "MAC WiFi" },
+                    { key: "so", label: "Sistema Operativo" },
+                    { key: "tipoDd", label: "Tipo Disco" },
+                    { key: "estadoAlm", label: "Estado Almacenamiento" },
+                    { key: "office", label: "Office" },
+                    { key: "teamViewer", label: "TeamViewer" },
+                    { key: "claveTv", label: "Clave TV" },
+                    { key: "revisado", label: "Revisado" },
+                  ].map((f) => (
+                    <label key={f.key} className="text-sm">
+                      <span className="block text-slate-600 mb-1">{f.label}</span>
+                      <input
+                        value={(editForm as any)[f.key]}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({
+                            ...prev,
+                            [f.key]: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      />
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>

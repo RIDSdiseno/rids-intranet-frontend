@@ -5,6 +5,7 @@ import FichaTab from "./tabs/FichaTab";
 import ChecklistTab from "./tabs/ChecklistTab";
 import FichaTecnicaTab from "./tabs/FichaTecnicaTab";
 import SucursalTab from "./tabs/SucursalTab";
+import ServidoresTab from "./tabs/ServidoresTab";
 
 import type {
   FichaEmpresaModalProps,
@@ -144,7 +145,17 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                   empresaId={localData.empresa.id_empresa}
                 />
               ),
-            }
+            },
+            {
+              key: "servidores",
+              label: "Servidores",
+              children: (
+                <ServidoresTab
+                  empresaId={localData.empresa.id_empresa}
+                />
+              ),
+            },
+
           ]}
         />
       )}
