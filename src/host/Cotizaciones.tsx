@@ -11,7 +11,8 @@ import {
     CloseCircleOutlined,
     FileTextOutlined,
     PrinterOutlined,
-    CopyOutlined
+    CopyOutlined,
+    ToolOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import Header from "../components/Header";
@@ -70,6 +71,11 @@ type CotRow = CotizacionGestioo & {
         estado: "PENDIENTE" | "PAGADA" | "ANULADA";
         fechaEmision: string;
         total: number;
+    }[];
+
+    trabajos?: {
+        id: number;
+        numeroOrden: string | null;
     }[];
 
     _showEstadoMenu?: boolean;
@@ -1397,6 +1403,21 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    const generarOrdenDesdeCotizacion = async (cot: CotRow) => {
+        if (!window.confirm(`¿Generar orden desde la cotización #${cot.id}?`)) return;
+
+        try {
+            await apiFetch(`/cotizaciones/${cot.id}/generar-orden`, {
+                method: "POST",
+            });
+
+            showSuccess("Orden generada correctamente");
+
+        } catch (error) {
+            handleApiError(error, "Error al generar orden");
+        }
+    };
+
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
 
@@ -1642,7 +1663,7 @@ const Cotizaciones: React.FC = () => {
                                         Cliente
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                        Origen
+                                        Orden OT
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Factura
@@ -1752,10 +1773,24 @@ const Cotizaciones: React.FC = () => {
                                                 {c.entidad?.nombre || "---"}
                                             </td>
 
-                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                {c.entidad?.origen || "---"}
+                                            {/* Trabajos */}
+                                            <td className="text-center">
+                                                {(c.trabajos?.length ?? 0) > 0 ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            const numeroOrden = c.trabajos?.[0]?.numeroOrden;
+                                                            alert(`Generando orden: ${numeroOrden}`);
+                                                        }}
+                                                        className="text-blue-600 hover:text-blue-800 text-sm"
+                                                    >
+                                                        {c.trabajos?.[0]?.numeroOrden || "Sin orden"}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-slate-400 text-xs">—</span>
+                                                )}
                                             </td>
 
+                                            {/* Factura */}
                                             <td className="px-4 py-3 text-center text-sm">
                                                 {factura ? (
                                                     <div className="flex flex-col items-center gap-1">
@@ -1898,6 +1933,16 @@ const Cotizaciones: React.FC = () => {
                                                             title="Anular factura"
                                                         >
                                                             Anular
+                                                        </button>
+                                                    )}
+
+                                                    {c.estado === "APROBADA" && !c.ordenGenerada && (
+                                                        <button
+                                                            onClick={() => generarOrdenDesdeCotizacion(c)}
+                                                            className="text-cyan-600 hover:text-cyan-800 text-sm"
+                                                            title="Generar Orden"
+                                                        >
+                                                            <ToolOutlined />
                                                         </button>
                                                     )}
 

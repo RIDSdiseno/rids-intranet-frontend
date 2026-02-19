@@ -90,6 +90,9 @@ export interface EntidadGestioo {
     telefono?: string;
     direccion?: string;
     origen?: OrigenGestioo;
+
+    // 🔥 AGREGAR ESTO
+    tipo?: "EMPRESA" | "PERSONA";
 }
 
 export interface EquipoGestioo {
@@ -111,19 +114,21 @@ export interface EquipoGestioo {
     empresaId?: number | null;
 }
 
-
 export interface DetalleTrabajoGestioo {
     id: number;
-    ordenGrupoId: number;
+    ordenGrupoId: number | null;
+
     fecha: string;
-    fechaIngreso?: string;
+    fechaIngreso?: string | null;
+
     tipoTrabajo: string;
-    tipoEntidad?: "EMPRESA" | "PERSONA";
     descripcion?: string | null;
     estado: string;
     notas?: string | null;
+
     area: "ENTRADA" | "DOMICILIO" | "REPARACION" | "SALIDA";
     prioridad: "BAJA" | "NORMAL" | "ALTA";
+
     entidad?: EntidadGestioo | null;
     equipo?: EquipoGestioo | null;
 
@@ -133,6 +138,16 @@ export interface DetalleTrabajoGestioo {
     } | null;
 
     incluyeCargador?: boolean;
+
+    // 🔥 AGREGAR ESTO
+    numeroOrden?: string | null;
+    cotizacionId?: number | null;
+    origenTrabajo?: "INDEPENDIENTE" | "DESDE_COTIZACION";
+
+    cotizacion?: {
+        id: number;
+        estado: "BORRADOR" | "APROBADA" | "RECHAZADA" | "FACTURADA";
+    } | null;
 }
 
 export interface Tecnico {

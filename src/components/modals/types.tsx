@@ -89,6 +89,8 @@ export interface CotizacionGestioo {
 
   personaResponsable?: string | null;
   imagen?: string | null;
+
+  ordenGenerada?: boolean;
 }
 
 export interface ItemCotizacionFrontend {

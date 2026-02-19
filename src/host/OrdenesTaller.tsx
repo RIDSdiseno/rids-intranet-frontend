@@ -12,12 +12,12 @@ import {
     CheckCircleOutlined,
     CloseCircleOutlined,
     EditOutlined,
-    SwapOutlined
+    SwapOutlined,
+    FileTextOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
-// HEADER
-import Header from "../components/Header";
+import { Select } from "antd";
 
 // TYPES    
 import type {
@@ -193,6 +193,7 @@ const OrdenesTaller: React.FC = () => {
     const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "en progreso" | "completada" | "cancelada">("todas");
     const [areaFiltro, setAreaFiltro] = useState<"todas" | Area>("todas");
     const [origenFiltro, setOrigenFiltro] = useState<"todas" | OrigenGestioo>("todas");
+    const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
 
     /* ======= Fetch ======= */
     const fetchOrdenes = async () => {
@@ -362,7 +363,7 @@ const OrdenesTaller: React.FC = () => {
             notas: o.notas ?? "",
             area: normalizeArea(o.area) as Area,
             fecha: o.fecha ? toDateTimeLocal(o.fecha) : getDateTimeLocalCL(),
-            tipoEntidad: o.tipoEntidad ?? "EMPRESA",
+            tipoEntidad: o.entidad?.tipo ?? "EMPRESA",
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
             equipoId: String(o.equipo?.id_equipo ?? ""),
@@ -493,6 +494,8 @@ const OrdenesTaller: React.FC = () => {
             const matchesArea = areaFiltro === "todas" || normalizeArea(o.area) === areaFiltro;
             const matchesOrigen = origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
 
+            const matchesEmpresa = empresaFiltro === "todas" || o.entidad?.nombre === empresaFiltro;
+
             const tipoLabel = o.equipo?.tipo ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue]) : "";
             const matchesEquipo =
                 !q ||
@@ -506,9 +509,9 @@ const OrdenesTaller: React.FC = () => {
                 !isNaN(qNumber) &&
                 (o.ordenGrupoId === qNumber || o.id === qNumber);
 
-            return matchesEstado && matchesArea && matchesOrigen && (matchesEquipo || matchesOrdenId);
+            return matchesEstado && matchesArea && matchesOrigen && matchesEmpresa && (matchesEquipo || matchesOrdenId);
         });
-    }, [ordenes, estadoFiltro, areaFiltro, origenFiltro, busquedaEquipo]);
+    }, [ordenes, estadoFiltro, areaFiltro, origenFiltro, empresaFiltro, busquedaEquipo]);
 
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
     const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
@@ -554,6 +557,58 @@ const OrdenesTaller: React.FC = () => {
 
         return base;
     }, [ordenes]);
+
+    const generarCotizacionDesdeOrden = async (orden: DetalleTrabajoGestioo) => {
+        const numeroOrden = orden.numeroOrden;
+
+        if (!numeroOrden) {
+            setToast({
+                type: "error",
+                message: "Esta orden no tiene número de orden asignado"
+            });
+            return;
+        }
+
+        if (orden.cotizacionId) {
+            setToast({
+                type: "error",
+                message: "Esta orden ya tiene una cotización asociada"
+            });
+            return;
+        }
+
+        if (!window.confirm(`¿Generar cotización desde la orden ${numeroOrden}?`)) return;
+
+        try {
+            const res = await fetch(
+                `${API_URL}/detalle-trabajo-gestioo/ordenes/${numeroOrden}/generar-cotizacion`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                }
+            );
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Error al generar cotización");
+            }
+
+            const data = await res.json();
+
+            setToast({
+                type: "success",
+                message: "Cotización creada correctamente"
+            });
+
+            fetchOrdenes();
+
+        } catch (error) {
+            setToast({
+                type: "error",
+                message: (error as Error).message
+            });
+        }
+    };
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -684,18 +739,31 @@ const OrdenesTaller: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Origen */}
-                        <div className="flex flex-wrap gap-2">
-                            {["todas", "RIDS", "ECONNET", "OTRO"].map((origen) => (
-                                <button
-                                    key={origen}
-                                    onClick={() => setOrigenFiltro(origen === "todas" ? "todas" : (origen as OrigenGestioo))}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition border ${origenFiltro === origen ? "bg-violet-600 text-white border-violet-600" : "bg-white text-violet-700 border-violet-200 hover:bg-violet-50"
-                                        }`}
-                                >
-                                    {origen === "todas" ? "Todos" : origen}
-                                </button>
-                            ))}
+                        {/* Empresas*/}
+                        <div className="min-w-[250px]">
+                            <Select
+                                showSearch
+                                placeholder="Filtrar por empresa"
+                                value={empresaFiltro}
+                                onChange={(value) => setEmpresaFiltro(value)}
+                                style={{ width: 250 }}
+                                optionFilterProp="label"
+                                size="middle"
+                                className="custom-empresa-select"
+                                options={[
+                                    { value: "todas", label: "Todas las empresas" },
+                                    ...Array.from(
+                                        new Set(
+                                            ordenes
+                                                .map((o) => o.entidad?.nombre)
+                                                .filter(Boolean)
+                                        )
+                                    ).map((e) => ({
+                                        value: e,
+                                        label: e,
+                                    })),
+                                ]}
+                            />
                         </div>
                     </div>
                 </div>
@@ -707,10 +775,10 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Origen", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Cotización", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
-                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" || h === "Origen" ? "w-28" : ""
+                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
                                                 }`}
                                         >
                                             {h}
@@ -810,18 +878,17 @@ const OrdenesTaller: React.FC = () => {
                                                     {o.entidad?.nombre ?? "—"}
                                                 </td>
 
-                                                {/* Origen */}
-                                                <td className="px-4 py-3 w-28 align-middle">
-                                                    <span
-                                                        className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${o.entidad?.origen === "RIDS"
-                                                            ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
-                                                            : o.entidad?.origen === "ECONNET"
-                                                                ? "bg-purple-50 text-purple-700 ring-purple-200"
-                                                                : "bg-slate-50 text-slate-700 ring-slate-200"
-                                                            }`}
-                                                    >
-                                                        {o.entidad?.origen ?? "—"}
-                                                    </span>
+                                                {/* Cotización */}
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.cotizacion ? (
+                                                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 ring-1 ring-purple-200">
+                                                            #{o.cotizacion.id} - {o.cotizacion.estado}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic text-xs">
+                                                            Sin cotizar
+                                                        </span>
+                                                    )}
                                                 </td>
 
                                                 {/* Técnico */}
@@ -893,9 +960,9 @@ const OrdenesTaller: React.FC = () => {
                                                             <EditOutlined />
                                                         </button>
 
-                                                        {o.area !== "SALIDA" && (
+                                                        {o.area !== "SALIDA" && !o.cotizacionId && (
                                                             <button
-                                                                onClick={() => duplicarOrdenSalida(o)}
+                                                                onClick={() => generarCotizacionDesdeOrden(o)}
                                                                 className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
                                                                 title="Generar orden de salida"
                                                             >
@@ -921,6 +988,16 @@ const OrdenesTaller: React.FC = () => {
                                                         >
                                                             <PrinterOutlined />
                                                         </button>
+
+                                                        {o.area !== "SALIDA" && (
+                                                            <button
+                                                                onClick={() => generarCotizacionDesdeOrden(o)}
+                                                                className="rounded-lg border border-purple-200 text-purple-700 p-2 hover:bg-purple-50"
+                                                                title="Generar cotización"
+                                                            >
+                                                                <FileTextOutlined />
+                                                            </button>
+                                                        )}
 
                                                         <button
                                                             onClick={() => handleDelete(o.id)}
