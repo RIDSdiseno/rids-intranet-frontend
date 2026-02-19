@@ -250,6 +250,8 @@ export const MODELOS_POR_MARCA = {
     SAMSUNG: ["530U3BI", "550P5C / 550P7C", "Galaxy Book",],
 } as const;
 
+export type ModelosPorMarca = typeof MODELOS_POR_MARCA;
+
 export const PROCESADORES = [
     // Intel
     "Intel Core i3",
@@ -300,7 +302,7 @@ export const DISCOS = [
     "1 TB HDD",
 ] as const;
 
-export type DiscoEquipo = typeof DISCOS[number];
+export type DiscoEquipo = typeof DISCOS[number]; 
 
 // ===============================
 // Helpers UI

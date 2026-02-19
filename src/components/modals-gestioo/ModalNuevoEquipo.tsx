@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import {
+    Select,
+    Input,
+    AutoComplete,
+    Row,
+    Col,
+    Spin,
+    Alert,
+    ConfigProvider,
+} from "antd";
+import {
+    LaptopOutlined,
+    NumberOutlined,
+    DesktopOutlined,
+    DashboardOutlined,
+    HddOutlined,
+    BuildOutlined,
+    GlobalOutlined,
+    SaveOutlined,
+    CloseOutlined,
+    InfoCircleOutlined,
+} from "@ant-design/icons";
 
 // TYPES
 import type {
     Empresa,
     Solicitante,
     MarcaEquipo,
-    ProcesadorEquipo,
-    RamEquipo,
-    DiscoEquipo,
     TipoEquipoValue,
 } from "./types";
 
@@ -22,6 +41,8 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
+const { Option } = Select;
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export interface ModalNuevoEquipoProps {
@@ -34,48 +55,37 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
     onSaved,
 }) => {
     // ===============================
-    // Estados principales
+    // Estados principales (sin cambios)
     // ===============================
-    const [marca, setMarca] = useState<MarcaEquipo | "">("");
+    const [marca, setMarca] = useState<MarcaEquipo | string>("");
     const [modelo, setModelo] = useState<string>("");
-    const [serie, setSerie] = useState("");
+    const [serie, setSerie] = useState<string>("");
     const [tipo, setTipo] = useState<TipoEquipoValue>(TipoEquipo.GENERICO);
-
-    const [procesador, setProcesador] = useState<ProcesadorEquipo | "">("");
-    const [ram, setRam] = useState<RamEquipo | "">("");
-    const [disco, setDisco] = useState<DiscoEquipo | "">("");
+    const [procesador, setProcesador] = useState<string>("");
+    const [ram, setRam] = useState<string>("");
+    const [disco, setDisco] = useState<string>("");
 
     // ===============================
     // Empresa / Solicitante
     // ===============================
     const [empresas, setEmpresas] = useState<Empresa[]>([]);
     const [empresaId, setEmpresaId] = useState<string>("");
-
     const [solicitantes, setSolicitantes] = useState<Solicitante[]>([]);
     const [idSolicitante, setIdSolicitante] = useState<string>("");
-
     const [loading, setLoading] = useState(false);
-
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // ===============================
-    // Limpiar mensaje de error al cambiar campos
+    // Efectos (sin cambios)
     // ===============================
     useEffect(() => {
         setErrorMsg(null);
     }, [marca, modelo, serie, empresaId, idSolicitante]);
 
-
-    // ===============================
-    // Reset modelo al cambiar marca
-    // ===============================
     useEffect(() => {
         setModelo("");
     }, [marca]);
 
-    // ===============================
-    // Cargar empresas
-    // ===============================
     useEffect(() => {
         fetch(`${API_URL}/empresas`, { credentials: "include" })
             .then((res) => res.json())
@@ -86,9 +96,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
             .catch(() => setEmpresas([]));
     }, []);
 
-    // ===============================
-    // Cargar solicitantes por empresa
-    // ===============================
     useEffect(() => {
         if (!empresaId) {
             setSolicitantes([]);
@@ -96,10 +103,9 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
             return;
         }
 
-        fetch(
-            `${API_URL}/solicitantes/by-empresa?empresaId=${empresaId}`,
-            { credentials: "include" }
-        )
+        fetch(`${API_URL}/solicitantes/by-empresa?empresaId=${empresaId}`, {
+            credentials: "include",
+        })
             .then((res) => res.json())
             .then((data) => {
                 setSolicitantes(data.items ?? []);
@@ -108,7 +114,7 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
     }, [empresaId]);
 
     // ===============================
-    // Guardar equipo
+    // Validaciones y guardado (sin cambios)
     // ===============================
     const handleSave = async () => {
         if (!marca) {
@@ -131,12 +137,10 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
             return;
         }
 
-        // Validar empresa seleccionada
         const empresaSeleccionada = empresas.find(
             (e) => String(e.id_empresa) === empresaId
         );
 
-        // Validar que la empresa exista
         if (!empresaSeleccionada) {
             setErrorMsg("Debe seleccionar una empresa válida.");
             return;
@@ -170,7 +174,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                 body: JSON.stringify(payload),
             });
 
-            // Manejo de errores
             if (!res.ok) {
                 const msg = await parseApiError(res);
                 setErrorMsg(msg);
@@ -183,15 +186,11 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
         } catch (err) {
             console.error(err);
             setErrorMsg("No se pudo crear el equipo. Intenta nuevamente.");
-        }
-        finally {
+        } finally {
             setLoading(false);
         }
     };
 
-    // ===============================
-    // Función para parsear errores de la API
-    // ===============================
     const parseApiError = async (res: Response): Promise<string> => {
         try {
             const data = await res.json();
@@ -222,164 +221,305 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
         }
     };
 
+    const modelosSugeridos =
+        MARCAS_EQUIPO.includes(marca as MarcaEquipo)
+            ? MODELOS_POR_MARCA[marca as MarcaEquipo]
+            : [];
+
     // ===============================
-    // Render
+    // Render con diseño mejorado y placeholders corregidos
     // ===============================
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative"
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl relative overflow-hidden"
             >
-                <div className="p-6">
-                    <h3 className="text-xl font-bold text-slate-800 mb-6">
-                        Nuevo Equipo
-                    </h3>
-
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                    >
-                        ✕
-                    </button>
-
-                    <div className="space-y-4">
-                        {/* MARCA */}
-                        <select
-                            value={marca}
-                            onChange={(e) => setMarca(e.target.value as MarcaEquipo)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            <option value="">— Seleccionar marca —</option>
-                            {MARCAS_EQUIPO.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                            ))}
-                        </select>
-
-                        {/* MODELO */}
-                        <select
-                            value={modelo}
-                            onChange={(e) => setModelo(e.target.value)}
-                            disabled={!marca}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white disabled:bg-slate-100"
-                        >
-                            <option value="">— Seleccionar modelo —</option>
-                            {marca &&
-                                MODELOS_POR_MARCA[marca]?.map((m) => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                        </select>
-
-                        {/* SERIE */}
-                        <input
-                            placeholder="Serie *"
-                            value={serie}
-                            onChange={(e) => setSerie(e.target.value)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm"
-                        />
-
-                        {/* TIPO */}
-                        <select
-                            value={tipo}
-                            onChange={(e) => setTipo(e.target.value as TipoEquipoValue)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            {Object.values(TipoEquipo).map((t) => (
-                                <option key={t} value={t}>
-                                    {TipoEquipoLabel[t]}
-                                </option>
-                            ))}
-                        </select>
-
-                        {/* PROCESADOR */}
-                        <select
-                            value={procesador}
-                            onChange={(e) => setProcesador(e.target.value as ProcesadorEquipo)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            <option value="">— Procesador —</option>
-                            {PROCESADORES.map((p) => (
-                                <option key={p} value={p}>{p}</option>
-                            ))}
-                        </select>
-
-                        {/* RAM */}
-                        <select
-                            value={ram}
-                            onChange={(e) => setRam(e.target.value as RamEquipo)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            <option value="">— RAM —</option>
-                            {RAMS.map((r) => (
-                                <option key={r} value={r}>{r}</option>
-                            ))}
-                        </select>
-
-                        {/* DISCO */}
-                        <select
-                            value={disco}
-                            onChange={(e) => setDisco(e.target.value as DiscoEquipo)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            <option value="">— Disco —</option>
-                            {DISCOS.map((d) => (
-                                <option key={d} value={d}>{d}</option>
-                            ))}
-                        </select>
-
-                        {/* EMPRESA */}
-                        <select
-                            value={empresaId}
-                            onChange={(e) => setEmpresaId(e.target.value)}
-                            className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                        >
-                            <option value="">— Empresa —</option>
-                            {empresas.map((emp) => (
-                                <option key={emp.id_empresa} value={emp.id_empresa}>
-                                    {emp.nombre}
-                                </option>
-                            ))}
-                        </select>
-
-                        {/* SOLICITANTE */}
-                        {empresaId && (
-                            <select
-                                value={idSolicitante}
-                                onChange={(e) => setIdSolicitante(e.target.value)}
-                                className="w-full border rounded-xl px-4 py-3 text-sm bg-white"
-                            >
-                                <option value="">— Solicitante —</option>
-                                {solicitantes.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                    </div>
-
-                    {/* MSJ de Error */}
-                    {errorMsg && (
-                        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
-                            {errorMsg}
+                {/* Header con gradiente */}
+                <div className="bg-white border-b border-slate-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <LaptopOutlined className="text-cyan-600 text-xl" />
+                            <h3 className="text-lg font-semibold text-slate-800 m-0">
+                                Nuevo Equipo
+                            </h3>
                         </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                        <button onClick={onClose} className="px-6 py-2 rounded-xl border">
-                            Cancelar
-                        </button>
 
                         <button
-                            onClick={handleSave}
-                            disabled={loading}
-                            className="px-6 py-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700"
+                            onClick={onClose}
+                            className="text-slate-400 hover:text-slate-600"
                         >
-                            {loading ? "Guardando..." : "Guardar Equipo"}
+                            <CloseOutlined />
                         </button>
                     </div>
+                </div>
+
+                {/* Contenido */}
+                <div className="p-6 max-h-[80vh] overflow-y-auto">
+                    <Spin spinning={loading} tip="Guardando...">
+                        {/* Información Básica */}
+                        <div className="mb-6">
+                            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <InfoCircleOutlined />
+                                INFORMACIÓN BÁSICA
+                            </h4>
+                            <Row gutter={16}>
+                                <Col span={8}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Marca <span className="text-red-500">*</span>
+                                        </label>
+                                        <AutoComplete
+                                            value={marca}
+                                            onChange={setMarca}
+                                            options={MARCAS_EQUIPO.map((m: string) => ({
+                                                value: m,
+                                                label: m,
+                                            }))}
+                                            placeholder="Seleccione marca"
+                                            filterOption={(input, option) =>
+                                                String(option?.value ?? "")
+                                                    .toUpperCase()
+                                                    .includes(input.toUpperCase())
+                                            }
+                                            className="w-full"
+                                        >
+                                            {/* El Input con prefix ahora está dentro de AutoComplete correctamente */}
+                                            <Input
+                                                className="ant-input-affix-wrapper-status-error"
+                                            />
+                                        </AutoComplete>
+                                    </div>
+                                </Col>
+                                <Col span={8}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Modelo <span className="text-red-500">*</span>
+                                        </label>
+                                        <AutoComplete
+                                            value={modelo}
+                                            onChange={setModelo}
+                                            options={modelosSugeridos.map((m: string) => ({
+                                                value: m,
+                                                label: m,
+                                            }))}
+                                            placeholder="Seleccione modelo"
+                                            disabled={!marca}
+                                            className="w-full"
+                                        >
+                                            <Input
+                                            />
+                                        </AutoComplete>
+                                    </div>
+                                </Col>
+                                <Col span={8}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Serie <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            value={serie}
+                                            onChange={(e) => setSerie(e.target.value)}
+                                            placeholder="Número de serie"
+                                            prefix={<NumberOutlined className="text-gray-400" />}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                </Col>
+                            </Row>
+                        </div>
+
+                        {/* Especificaciones Técnicas */}
+                        <div className="mb-6">
+                            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <DashboardOutlined />
+                                ESPECIFICACIONES TÉCNICAS
+                            </h4>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Tipo
+                                        </label>
+                                        <Select
+                                            value={tipo}
+                                            onChange={(value) => setTipo(value as TipoEquipoValue)}
+                                            className="w-full"
+                                            placeholder="Seleccione tipo"
+                                        >
+                                            {Object.values(TipoEquipo).map((t) => (
+                                                <Option key={t} value={t}>
+                                                    {TipoEquipoLabel[t]}
+                                                </Option>
+                                            ))}
+                                        </Select>
+                                    </div>
+                                </Col>
+                                <Col span={12}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Procesador
+                                        </label>
+                                        <AutoComplete
+                                            value={procesador}
+                                            onChange={setProcesador}
+                                            options={PROCESADORES.map((p: string) => ({
+                                                value: p,
+                                                label: p,
+                                            }))}
+                                            placeholder="Ej: Intel Core i5"
+                                            className="w-full"
+                                        >
+                                            <Input
+                                                prefix={<DashboardOutlined className="text-gray-400" />}
+                                            />
+                                        </AutoComplete>
+                                    </div>
+                                </Col>
+                            </Row>
+                            <Row gutter={16} className="mt-4">
+                                <Col span={12}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            RAM
+                                        </label>
+                                        <AutoComplete
+                                            value={ram}
+                                            onChange={setRam}
+                                            options={RAMS.map((r: string) => ({
+                                                value: r,
+                                                label: r,
+                                            }))}
+                                            placeholder="Ej: 16GB DDR4"
+                                            className="w-full"
+                                        >
+                                            <Input
+                                                prefix={<DashboardOutlined className="text-gray-400" />}
+                                            />
+                                        </AutoComplete>
+                                    </div>
+                                </Col>
+                                <Col span={12}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Disco
+                                        </label>
+                                        <AutoComplete
+                                            value={disco}
+                                            onChange={setDisco}
+                                            options={DISCOS.map((d: string) => ({
+                                                value: d,
+                                                label: d,
+                                            }))}
+                                            placeholder="Ej: 512GB SSD"
+                                            className="w-full"
+                                        >
+                                            <Input
+                                                prefix={<HddOutlined className="text-gray-400" />}
+                                            />
+                                        </AutoComplete>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </div>
+
+                        {/* Asignación */}
+                        <div className="mb-6">
+                            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <GlobalOutlined />
+                                ASIGNACIÓN
+                            </h4>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            Empresa
+                                        </label>
+                                        <Select
+                                            value={empresaId}
+                                            onChange={setEmpresaId}
+                                            className="w-full"
+                                            placeholder="— Seleccione empresa —"
+                                            showSearch
+                                            optionFilterProp="children"
+                                        >
+                                            <Option value="">— Seleccione empresa —</Option>
+                                            {empresas.map((emp) => (
+                                                <Option key={emp.id_empresa} value={String(emp.id_empresa)}>
+                                                    {emp.nombre}
+                                                </Option>
+                                            ))}
+                                        </Select>
+                                    </div>
+                                </Col>
+                                <Col span={12}>
+                                    {empresaId && (
+                                        <div className="space-y-1">
+                                            <label className="text-sm font-medium text-gray-700">
+                                                Solicitante
+                                            </label>
+                                            <Select
+                                                value={idSolicitante}
+                                                onChange={setIdSolicitante}
+                                                className="w-full"
+                                                placeholder="— Seleccione solicitante —"
+                                                showSearch
+                                                optionFilterProp="children"
+                                            >
+                                                <Option value="">— Seleccione solicitante —</Option>
+                                                {solicitantes.map((s) => (
+                                                    <Option key={s.id} value={String(s.id)}>
+                                                        {s.nombre}
+                                                    </Option>
+                                                ))}
+                                            </Select>
+                                        </div>
+                                    )}
+                                </Col>
+                            </Row>
+                        </div>
+
+                        {/* Mensaje de campos obligatorios */}
+                        <div className="text-xs text-gray-400 mb-4">
+                            Los campos marcados con <span className="text-red-500">*</span> son obligatorios
+                        </div>
+
+                        {/* Mensaje de Error */}
+                        {errorMsg && (
+                            <Alert
+                                message="Error"
+                                description={errorMsg}
+                                type="error"
+                                showIcon
+                                className="mb-4"
+                                closable
+                                onClose={() => setErrorMsg(null)}
+                            />
+                        )}
+                    </Spin>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t px-6 py-4 bg-gray-50 flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors flex items-center gap-2"
+                        disabled={loading}
+                    >
+                        <CloseOutlined />
+                        Cancelar
+                    </button>
+
+                    <button
+                        onClick={handleSave}
+                        disabled={loading}
+                        className="px-6 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <Spin size="small" /> : <SaveOutlined />}
+                        {loading ? "Guardando..." : "Guardar Equipo"}
+                    </button>
                 </div>
             </motion.div>
         </div>

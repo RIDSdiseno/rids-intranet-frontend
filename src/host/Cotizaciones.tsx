@@ -1936,16 +1936,6 @@ const Cotizaciones: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {c.estado === "APROBADA" && !c.ordenGenerada && (
-                                                        <button
-                                                            onClick={() => generarOrdenDesdeCotizacion(c)}
-                                                            className="text-cyan-600 hover:text-cyan-800 text-sm"
-                                                            title="Generar Orden"
-                                                        >
-                                                            <ToolOutlined />
-                                                        </button>
-                                                    )}
-
                                                     {/* Eliminar */}
                                                     <button
                                                         onClick={() => handleDelete(c.id)}
