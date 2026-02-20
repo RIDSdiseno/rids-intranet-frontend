@@ -1,6 +1,5 @@
 // src/host/Visitas.tsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import Header from "../components/Header";
 import XlsxPopulate from "xlsx-populate/browser/xlsx-populate";
 import {
   SearchOutlined,

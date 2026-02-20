@@ -1,14 +1,13 @@
-// App.tsx
-import React, { Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+// src/App.tsx
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import Header from "./components/Header";
 
-import LoginRids from "./host/login";
-import Home from "./host/Home";
-import SolicitanesPage from "./host/Solicitantes";
+/* =========================
+   Lazy Pages (HOST)
+========================= */
 
-import AppLayout from "./layouts/AppLayout";
-
-// Lazy pages
+const HomePage = lazy(() => import("./host/Home"));
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
 const TicketsPage = lazy(() => import("./host/Ticket"));
@@ -16,149 +15,94 @@ const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
 const ReportesPage = lazy(() => import("./host/Reportes"));
 const DocumentosPage = lazy(() => import("./host/DocumentosPage"));
 const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
-const Cotizaciones = lazy(() => import("./host/Cotizaciones"));
+const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
+const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
+
+const LoginPage = lazy(() => import("./host/login"));
 
 /* =========================
-   PrivateRoute inteligente
+   Auth
 ========================= */
-const PrivateRoute: React.FC<{
-  children: React.ReactNode;
-  allowedRoles?: string[];
-}> = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem("accessToken");
-  const rawUser = localStorage.getItem("user");
-  const user = rawUser ? JSON.parse(rawUser) : null;
 
-  if (!token || !user) {
-    return <Navigate to="/login" replace />;
-  }
+function isAuthed(): boolean {
+  return !!(
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("jwt")
+  );
+}
 
-  if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    return <Navigate to="/home" replace />;
-  }
+function ProtectedRoute() {
+  if (!isAuthed()) return <Navigate to="/login" replace />;
+  return <Outlet />;
+}
 
-  return <>{children}</>;
-};
+/* =========================
+   Layout con Sidebar
+========================= */
 
-const App: React.FC = () => {
-  const hasSession = !!localStorage.getItem("accessToken");
+function AppLayout() {
+  return (
+    <div className="flex min-h-screen">
+      <Header />
+      <main className="flex-1 bg-white overflow-auto">
+        <Suspense fallback={<div className="p-6">Cargando...</div>}>
+          <Outlet />
+        </Suspense>
+      </main>
+    </div>
+  );
+}
 
+/* =========================
+   APP
+========================= */
+
+export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<div style={{ padding: 16 }}>Cargando…</div>}>
-        <Routes>
+      <Routes>
 
-          {/* LOGIN */}
-          <Route path="/login" element={<LoginRids />} />
+        {/* LOGIN */}
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={<div>Cargando...</div>}>
+              <LoginPage />
+            </Suspense>
+          }
+        />
 
-          {/* RUTAS PRIVADAS CON LAYOUT */}
-          <Route
-            element={
-              <PrivateRoute>
-                <AppLayout />
-              </PrivateRoute>
-            }
-          >
+        {/* PROTEGIDO */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
 
-            {/* RUTAS DISPONIBLES A TODOS LOS AUTENTICADOS */}
-            <Route path="/home" element={<Home />} />
-            <Route path="/solicitantes" element={<SolicitanesPage />} />
-            <Route path="/equipos" element={<EquiposPage />} />
+            <Route path="/" element={<Navigate to="/home" replace />} />
+
+            <Route path="/home" element={<HomePage />} />
             <Route path="/visitas" element={<VisitasPage />} />
+            <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
+            <Route path="/equipos" element={<EquiposPage />} />
+            <Route path="/tickets" element={<TicketsPage />} />
             <Route path="/empresas" element={<EmpresasPage />} />
-
-            {/* RUTAS SOLO ADMIN */}
-            <Route
-              path="/OrdenesTaller"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <OrdenesTallerPage />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/Cotizaciones"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <Cotizaciones />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/clientes"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <ClientesPage />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/productos"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <ProductosPage />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/tickets"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <TicketsPage />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/helpdesk"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <TicketeraRids />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/reportes"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <ReportesPage />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/documentos"
-              element={
-                <PrivateRoute allowedRoles={["TECNICO"]}>
-                  <DocumentosPage />
-                </PrivateRoute>
-              }
-            />
+            <Route path="/reportes" element={<ReportesPage />} />
+            <Route path="/documentos" element={<DocumentosPage />} />
+            <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+            <Route path="/Cotizaciones" element={<CotizacionesPage />} />
+            <Route path="/clientes" element={<ClientesPage />} />
+            <Route path="/productos" element={<ProductosPage />} />
+            <Route path="/helpdesk" element={<TicketeraRids />} />
 
           </Route>
+        </Route>
 
-          {/* REDIRECCIONES */}
-          <Route
-            path="/"
-            element={<Navigate to={hasSession ? "/home" : "/login"} replace />}
-          />
-          <Route
-            path="*"
-            element={<Navigate to={hasSession ? "/home" : "/login"} replace />}
-          />
+        {/* fallback */}
+        <Route path="*" element={<Navigate to={isAuthed() ? "/home" : "/login"} replace />} />
 
-        </Routes>
-      </Suspense>
+      </Routes>
     </BrowserRouter>
   );
-};
-
-export default App;
+}
