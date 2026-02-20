@@ -3,15 +3,13 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 
-const API_URL =
-  (import.meta as ImportMeta).env?.VITE_API_URL ||
-  "http://localhost:4000/api";
-
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
 }
+
+import { api } from "../../api/api";
 
 const CrearEmpresaModal: React.FC<Props> = ({
   open,
@@ -42,7 +40,6 @@ const CrearEmpresaModal: React.FC<Props> = ({
 
       const body: any = { nombre };
 
-      // Si llenan detalle, enviarlo completo
       if (rut && direccion && telefono && email) {
         body.rut = rut;
         body.direccion = direccion;
@@ -50,24 +47,16 @@ const CrearEmpresaModal: React.FC<Props> = ({
         body.email = email;
       }
 
-      const res = await fetch(`${API_URL}/empresas`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.error || "Error al crear empresa");
-      }
+      await api.post("/empresas", body);
 
       onCreated();
       resetForm();
     } catch (err: any) {
-      setError(err.message);
+      setError(
+        err.response?.data?.error ||
+        err.message ||
+        "Error al crear empresa"
+      );
     } finally {
       setLoading(false);
     }

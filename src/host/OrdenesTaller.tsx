@@ -960,9 +960,9 @@ const OrdenesTaller: React.FC = () => {
                                                             <EditOutlined />
                                                         </button>
 
-                                                        {o.area !== "SALIDA" && !o.cotizacionId && (
+                                                        {o.area !== "SALIDA" && (
                                                             <button
-                                                                onClick={() => generarCotizacionDesdeOrden(o)}
+                                                                onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
                                                                 className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
                                                                 title="Generar orden de salida"
                                                             >

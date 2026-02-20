@@ -41,9 +41,9 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
-const { Option } = Select;
+import { api } from "../../api/api";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const { Option } = Select;
 
 export interface ModalNuevoEquipoProps {
     onClose: () => void;
@@ -87,13 +87,19 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
     }, [marca]);
 
     useEffect(() => {
-        fetch(`${API_URL}/empresas`, { credentials: "include" })
-            .then((res) => res.json())
-            .then((res) => {
-                const list = Array.isArray(res.data) ? res.data : [];
+        const loadEmpresas = async () => {
+            try {
+                const res = await api.get("/empresas");
+                const list = Array.isArray(res.data.data)
+                    ? res.data.data
+                    : res.data;
                 setEmpresas(list);
-            })
-            .catch(() => setEmpresas([]));
+            } catch {
+                setEmpresas([]);
+            }
+        };
+
+        loadEmpresas();
     }, []);
 
     useEffect(() => {
@@ -103,14 +109,18 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
             return;
         }
 
-        fetch(`${API_URL}/solicitantes/by-empresa?empresaId=${empresaId}`, {
-            credentials: "include",
-        })
-            .then((res) => res.json())
-            .then((data) => {
-                setSolicitantes(data.items ?? []);
-            })
-            .catch(() => setSolicitantes([]));
+        const loadSolicitantes = async () => {
+            try {
+                const res = await api.get(
+                    `/solicitantes/by-empresa?empresaId=${empresaId}`
+                );
+                setSolicitantes(res.data.items ?? []);
+            } catch {
+                setSolicitantes([]);
+            }
+        };
+
+        loadSolicitantes();
     }, [empresaId]);
 
     // ===============================
@@ -148,11 +158,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
 
         const propiedad = empresaSeleccionada.nombre;
 
-        if (!propiedad) {
-            alert("Debe seleccionar una empresa válida");
-            return;
-        }
-
         setLoading(true);
         try {
             const payload = {
@@ -167,57 +172,27 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                 idSolicitante: idSolicitante ? Number(idSolicitante) : null,
             };
 
-            const res = await fetch(`${API_URL}/equipos`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(payload),
-            });
+            const res = await api.post("/equipos", payload);
+            const data = res.data;
 
-            if (!res.ok) {
-                const msg = await parseApiError(res);
-                setErrorMsg(msg);
-                return;
-            }
-
-            const data = await res.json();
             onSaved(data.id ?? data.id_equipo);
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setErrorMsg("No se pudo crear el equipo. Intenta nuevamente.");
+
+            if (err.response?.status === 409) {
+                setErrorMsg("Ya existe un equipo registrado con esta serie.");
+            } else if (err.response?.status === 401) {
+                setErrorMsg("Tu sesión expiró. Vuelve a iniciar sesión.");
+            } else if (err.response?.status === 403) {
+                setErrorMsg("No tienes permisos para crear equipos.");
+            } else if (err.response?.status === 400) {
+                setErrorMsg(err.response?.data?.error || "Datos inválidos.");
+            } else {
+                setErrorMsg("Error interno del sistema.");
+            }
         } finally {
             setLoading(false);
-        }
-    };
-
-    const parseApiError = async (res: Response): Promise<string> => {
-        try {
-            const data = await res.json();
-
-            if (res.status === 400) {
-                return data.error || "Datos inválidos. Revisa los campos.";
-            }
-
-            if (res.status === 409) {
-                return "Ya existe un equipo registrado con esta serie.";
-            }
-
-            if (res.status === 401) {
-                return "Tu sesión expiró. Vuelve a iniciar sesión.";
-            }
-
-            if (res.status === 403) {
-                return "No tienes permisos para crear equipos.";
-            }
-
-            if (res.status >= 500) {
-                return "Error interno del sistema. Intenta más tarde.";
-            }
-
-            return data.error || "No se pudo crear el equipo.";
-        } catch {
-            return "Error inesperado al comunicarse con el servidor.";
         }
     };
 

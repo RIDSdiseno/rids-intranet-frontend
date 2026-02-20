@@ -48,6 +48,8 @@ type EquipoRow = {
   empresa: string | null;
   idSolicitante: number | null;
   empresaId: number | null;
+  createdAt: string;
+  updatedAt: string;
   macWifi?: string | null;
   so?: string | null;
   tipoDd?: string | null;
@@ -891,7 +893,8 @@ const EquiposPage: React.FC = () => {
     { key: "marca", label: "Marca", className: "min-w-[160px]" },
     { key: "modelo", label: "Modelo", className: "min-w-[200px]" },
     { key: "solicitante", label: "Solicitante", className: "min-w-[200px]" },
-    { key: "empresa", label: "Empresa", className: "min-w-[200px]" },
+    { key: "empresa", label: "Empresa", className: "min-w-[140px]" },
+    { key: "createdAt", label: "Fecha ingreso", className: "min-w-[150px]" },
   ] as const;
 
   return (
@@ -1167,6 +1170,19 @@ const EquiposPage: React.FC = () => {
                     <p className="text-xs text-slate-600 mt-0.5">
                       {toUC(e.serial)} • {e.procesador || "CPU —"} • {e.ram || "RAM —"} • {e.disco || "Disco —"}
                     </p>
+                    {e.createdAt && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Ingreso:{" "}
+                        {new Intl.DateTimeFormat("es-CL", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        }).format(new Date(e.createdAt))}
+                      </p>
+                    )}
                   </div>
                   {e.marca ? (
                     <button
@@ -1380,6 +1396,40 @@ const EquiposPage: React.FC = () => {
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                              {e.createdAt && (
+                                <div>
+                                  <div>
+                                    Ingreso:{" "}
+                                    {new Intl.DateTimeFormat("es-CL", {
+                                      year: "numeric",
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      hour12: false,
+                                    }).format(new Date(e.createdAt))}
+                                  </div>
+
+                                  {e.updatedAt &&
+                                    new Date(e.updatedAt).getTime() !==
+                                    new Date(e.createdAt).getTime() && (
+                                      <div className="text-slate-400">
+                                        Editado:{" "}
+                                        {new Intl.DateTimeFormat("es-CL", {
+                                          year: "numeric",
+                                          month: "2-digit",
+                                          day: "2-digit",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          hour12: false,
+                                        }).format(new Date(e.updatedAt))}
+                                      </div>
+                                    )}
+                                </div>
                               )}
                             </td>
 

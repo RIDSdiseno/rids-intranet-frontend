@@ -6,6 +6,7 @@ import ChecklistTab from "./tabs/ChecklistTab";
 import FichaTecnicaTab from "./tabs/FichaTecnicaTab";
 import SucursalTab from "./tabs/SucursalTab";
 import ServidoresTab from "./tabs/ServidoresTab";
+import EntityAuditTab from "./tabs/HistorialCambiosTab";
 
 import type {
   FichaEmpresaModalProps,
@@ -155,7 +156,15 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                 />
               ),
             },
-
+            {
+              key: "historial",
+              label: "Historial",
+              children: (
+                <EntityAuditTab
+                  endpoint={`/audit?empresaId=${localData.empresa.id_empresa}`}
+                />
+              ),
+            }
           ]}
         />
       )}
