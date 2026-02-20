@@ -220,7 +220,7 @@ function defaultForm(): FormState {
     empresaId: "",
     tecnicoId: "",
     fin: "",
-    status: "PENDIENTE",
+    status: "COMPLETADA",
     solicitanteId: "",
 
     soporteRemoto: true,
