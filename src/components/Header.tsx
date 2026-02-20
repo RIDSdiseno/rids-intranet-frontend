@@ -183,6 +183,49 @@ const Header: React.FC = () => {
   // Usuario mock - puedes obtenerlo de un contexto o store
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
+  const isCliente = user?.rol === "CLIENTE";
+
+  const filteredNav: NavEntry[] = NAV
+    .map((entry) => {
+
+      if (!isCliente) return entry; // ADMIN ve todo
+
+      // CLIENTE
+
+      if (entry.type === "link") {
+        if (entry.to === HOME_PATH) return entry;
+        return null;
+      }
+
+      if (entry.type === "group") {
+
+        // Solo grupo Operación completo
+        if (entry.label === "Operación") {
+          return entry;
+        }
+
+        // Grupo Informes → solo Empresas
+        if (entry.label === "Informes") {
+          const onlyEmpresas = entry.items.filter(
+            (it) => it.to === EMPRESAS_PATH
+          );
+
+          if (onlyEmpresas.length === 0) return null;
+
+          return {
+            ...entry,
+            items: onlyEmpresas,
+          };
+        }
+
+        // Oculta Gestión
+        return null;
+      }
+
+      return null;
+    })
+    .filter(Boolean) as NavEntry[];
+
   return (
     <>
       <aside
@@ -215,7 +258,7 @@ const Header: React.FC = () => {
 
         {/* NAVEGACIÓN */}
         <nav className="flex-1 overflow-y-auto px-2 py-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
-          {NAV.map((entry) =>
+          {filteredNav.map((entry) =>
             entry.type === "link" ? (
               <Link
                 key={entry.label}

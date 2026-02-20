@@ -8,7 +8,13 @@ import { api, setAccessToken } from "../api/api";
 type LoginResponse = {
   accessToken: string;
   refreshToken: string;
-  tecnico: { id_tecnico: number; nombre: string; email: string };
+  tecnico: {
+    id_tecnico: number;
+    nombre: string;
+    email: string;
+    rol: "ADMIN" | "CLIENTE" | string;
+    empresaId: number | null;
+  };
 };
 
 type ErrorResponse = { error?: string };
