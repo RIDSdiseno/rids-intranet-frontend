@@ -24,6 +24,8 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 
+import { useAuth } from "../components/hooks/useAuth";
+
 /* =================== Config =================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -314,9 +316,16 @@ const EquiposPage: React.FC = () => {
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 450);
 
+  const { user, isCliente } = useAuth();
+
   // Empresa (SELECT)
   const [empresaOptions, setEmpresaOptions] = useState<EmpresaOpt[]>([]);
-  const [empresaFilterId, setEmpresaFilterId] = useState<number | null>(null);
+  const [empresaFilterId, setEmpresaFilterId] = useState<number | null>(() => {
+    if (isCliente && user?.empresaId) {
+      return user.empresaId;
+    }
+    return null;
+  });
   const [empLoading, setEmpLoading] = useState(false);
   const [empError, setEmpError] = useState<string | null>(null);
 
@@ -598,10 +607,12 @@ const EquiposPage: React.FC = () => {
   const clearAll = () => {
     setQ("");
     setMarcaFilter("");
-    setEmpresaFilterId(null);
+
+    if (!isCliente) {
+      setEmpresaFilterId(null);
+    }
+
     setPage(1);
-    const c = new AbortController();
-    fetchList(c.signal);
   };
 
   const reload = () => {
@@ -957,6 +968,7 @@ const EquiposPage: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 justify-end">
                   <button
                     onClick={startCreate}
+                    disabled={isCliente}
                     className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white bg-gradient-to-tr from-indigo-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)] hover:brightness-110"
                     title="Crear nuevo equipo"
                     type="button"
@@ -1019,11 +1031,12 @@ const EquiposPage: React.FC = () => {
                       <select
                         value={empresaFilterId ?? ""}
                         onChange={(e) => {
+                          if (isCliente) return; // 🔒 bloqueado
                           const v = e.target.value;
                           setEmpresaFilterId(v === "" ? null : Number(v));
                           setPage(1);
                         }}
-                        disabled={empLoading}
+                        disabled={empLoading || isCliente}
                         className={`
             w-full rounded-xl border shadow-sm
             px-4 py-3 pl-10 pr-8
@@ -1041,7 +1054,9 @@ const EquiposPage: React.FC = () => {
                         aria-label="Filtrar por empresa"
                       >
                         {/* Opción VACÍA real */}
-                        <option value="">Todas las empresas</option>
+                        {!isCliente && (
+                          <option value="">Todas las empresas</option>
+                        )}
 
                         {empresaOptions.map((opt) => (
                           <option key={opt.id ?? -1} value={opt.id ?? ""}>
@@ -1073,7 +1088,7 @@ const EquiposPage: React.FC = () => {
 
             {/* Chips filtros activos */}
             <div className="mt-3 flex flex-wrap items-center gap-2 min-w-0">
-              {empresaFilterName && (
+              {empresaFilterName && !isCliente && (
                 <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs max-w-full">
                   <span className="shrink-0">Empresa:</span>
                   <strong className="truncate">{empresaFilterName}</strong>
@@ -1188,15 +1203,35 @@ const EquiposPage: React.FC = () => {
                 <div className="mt-3 flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => startEdit(e)}
-                    className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+                    onClick={() => {
+                      if (isCliente) return;
+                      startEdit(e);
+                    }}
+                    disabled={isCliente}
+                    className={clsx(
+                      "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                      "border-indigo-200 bg-indigo-50 text-indigo-900",
+                      isCliente
+                        ? "opacity-50 cursor-not-allowed pointer-events-none"
+                        : "hover:bg-indigo-100"
+                    )}
                   >
                     Editar
                   </button>
                   <button
                     type="button"
-                    onClick={() => deleteEquipo(e)}
-                    className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs border-rose-200 bg-rose-50 text-rose-900 hover:bg-rose-100"
+                    onClick={() => {
+                      if (isCliente) return;
+                      deleteEquipo(e);
+                    }}
+                    disabled={isCliente}
+                    className={clsx(
+                      "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                      "border-rose-200 bg-rose-50 text-rose-900",
+                      isCliente
+                        ? "opacity-50 cursor-not-allowed pointer-events-none"
+                        : "hover:bg-rose-100"
+                    )}
                   >
                     Eliminar
                   </button>
@@ -1352,17 +1387,36 @@ const EquiposPage: React.FC = () => {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => startEdit(e)}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 px-2 py-1 text-xs hover:bg-indigo-100"
-                                  title="Editar"
+                                  onClick={() => {
+                                    if (isCliente) return;
+                                    startEdit(e);
+                                  }}
+                                  disabled={isCliente}
+                                  className={clsx(
+                                    "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                                    "border-indigo-200 bg-indigo-50 text-indigo-900",
+                                    isCliente
+                                      ? "opacity-50 cursor-not-allowed pointer-events-none"
+                                      : "hover:bg-indigo-100"
+                                  )}
                                 >
                                   Editar
                                 </button>
+
                                 <button
                                   type="button"
-                                  onClick={() => deleteEquipo(e)}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-900 px-2 py-1 text-xs hover:bg-rose-100"
-                                  title="Eliminar"
+                                  onClick={() => {
+                                    if (isCliente) return;
+                                    deleteEquipo(e);
+                                  }}
+                                  disabled={isCliente}
+                                  className={clsx(
+                                    "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                                    "border-rose-200 bg-rose-50 text-rose-900",
+                                    isCliente
+                                      ? "opacity-50 cursor-not-allowed pointer-events-none"
+                                      : "hover:bg-rose-100"
+                                  )}
                                 >
                                   Eliminar
                                 </button>

@@ -19,12 +19,29 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import SyncGoogleModal from "../components/SyncGoogleModal";
 
+import { useAuth } from "../components/hooks/useAuth";
+
 // ========= Config API =========
 const API_URL: string =
   ((import.meta as unknown as ImportMeta).env?.VITE_API_URL as string) ||
   "http://localhost:4000/api";
 
-const api = axios.create({ baseURL: API_URL, withCredentials: true });
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+});
+
+// 🔐 Interceptor para agregar token automáticamente
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
 
 // ========= Tipos locales =========
 export type Empresa = { id_empresa: number; nombre: string, dominios?: string[]; };
@@ -351,7 +368,14 @@ export default function SolicitantesPage() {
   // filtros (empresaId aquí SOLO filtra la lista)
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState(q);
-  const [empresaId, setEmpresaId] = useState<number | null>(null);
+  const { user, isCliente } = useAuth();
+
+  const [empresaId, setEmpresaId] = useState<number | null>(() => {
+    if (isCliente && user?.empresaId) {
+      return user.empresaId;
+    }
+    return null;
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [orderBy, setOrderBy] = useState<"empresa" | "nombre" | "id">("empresa");
@@ -443,8 +467,10 @@ export default function SolicitantesPage() {
 
   // Empresas para selects (nuevo shape: { success, data, total })
   // Empresas para selects (nuevo shape: { success, data, total })
-  type EmpresaApi = { id_empresa: number; nombre: string, dominios: string[];
-  dominioPrincipal?: string | null; };
+  type EmpresaApi = {
+    id_empresa: number; nombre: string, dominios: string[];
+    dominioPrincipal?: string | null;
+  };
   type EmpresasListResponse = { success?: boolean; data: EmpresaApi[]; total?: number };
 
   useEffect(() => {
@@ -738,24 +764,26 @@ export default function SolicitantesPage() {
               </div>
 
               {/* Filtro empresa (SOLO filtra la lista/tabla) */}
-              <div className="md:col-span-3">
-                <select
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  value={empresaId ?? ""}
-                  onChange={(e) => {
-                    setEmpresaId(e.target.value ? Number(e.target.value) : null);
-                    setPage(1);
-                  }}
-                  aria-label="Filtrar por empresa"
-                >
-                  <option value="">Todas las empresas</option>
-                  {empresas.map((e) => (
-                    <option key={e.id_empresa} value={e.id_empresa}>
-                      {e.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!isCliente && (
+                <div className="md:col-span-3">
+                  <select
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    value={empresaId ?? ""}
+                    onChange={(e) => {
+                      setEmpresaId(e.target.value ? Number(e.target.value) : null);
+                      setPage(1);
+                    }}
+                    aria-label="Filtrar por empresa"
+                  >
+                    <option value="">Todas las empresas</option>
+                    {empresas.map((e) => (
+                      <option key={e.id_empresa} value={e.id_empresa}>
+                        {e.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Orden */}
               <div className="md:col-span-2">

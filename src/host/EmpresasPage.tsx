@@ -41,6 +41,8 @@ import FichaEmpresaModal from "../components/modals-empresa/FichaEmpresaModal";
 
 import CrearEmpresaModal from "../components/modals-empresa/CrearEmpresa";
 
+import { useAuth } from "../components/hooks/useAuth";
+
 /* ====================== Config ====================== */
 const API_URL =
   (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -233,10 +235,10 @@ const EmpresasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const { isCliente } = useAuth();
   const [activeTab, setActiveTab] = useState<"overview" | "companies">(
-    "overview"
+    isCliente ? "companies" : "overview"
   );
-
   // modal state
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -680,7 +682,9 @@ const EmpresasPage: React.FC = () => {
               Dashboard de Empresas
             </h1>
             <p className="mt-2 text-slate-600">
-              Análisis y estadísticas de todas las empresas.
+              {isCliente
+                ? "Información y estadísticas de tu empresa."
+                : "Análisis y estadísticas de todas las empresas."}
             </p>
           </motion.div>
 
@@ -691,7 +695,7 @@ const EmpresasPage: React.FC = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="flex gap-2 mb-8 bg-white rounded-xl p-1 shadow-md inline-flex mt-6"
           >
-            {["overview", "companies"].map((tab) => (
+            {(isCliente ? ["companies"] : ["overview", "companies"]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as "overview" | "companies")}
@@ -903,15 +907,17 @@ const EmpresasPage: React.FC = () => {
                   </div>
 
                   {/* BOTÓN NUEVA EMPRESA */}
-                  <button
-                    onClick={() => setCreateEmpresaOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white
-                 bg-gradient-to-tr from-cyan-600 to-indigo-600
-                 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]
-                 hover:brightness-110 transition"
-                  >
-                    + Nueva empresa
-                  </button>
+                  {!isCliente && (
+                    <button
+                      onClick={() => setCreateEmpresaOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white
+      bg-gradient-to-tr from-cyan-600 to-indigo-600
+      shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]
+      hover:brightness-110 transition"
+                    >
+                      + Nueva empresa
+                    </button>
+                  )}
 
                 </div>
               </div>
