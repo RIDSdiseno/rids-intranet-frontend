@@ -19,6 +19,8 @@ import CreateVisitaModal, {
   type VisitaForEdit,
 } from "../components/CreateVisitaModal";
 
+import { useAuth } from "../components/hooks/useAuth";
+
 /* ========= Tipado mínimo para xlsx-populate (sin any) ========= */
 type ValueT = string | number | boolean | Date | null | undefined;
 interface Styled { style(s: Record<string, ValueT>): this; }
@@ -86,7 +88,7 @@ const toSiNo = (v?: boolean) => (v ? "Sí" : "No");
 /* ====== agregación para “Resumen” ====== */
 function ymd(dateIso: string): string {
   const d = new Date(dateIso);
-  return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
 }
 function incCounter(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1);
@@ -138,19 +140,19 @@ function aggregateForResumen(items: Array<VisitaRow>) {
   const byDay = new Map<string, number>();
   for (const v of pool) incCounter(byDay, ymd(v.inicio));
   const daily: Row2D[] = Array.from(byDay.entries())
-    .sort(([a],[b]) => a.localeCompare(b))
-    .map(([d,c]) => [d, c]);
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([d, c]) => [d, c]);
 
   /* Checklist (conteo de “Sí” por ítem) */
   const checklist: Row2D[] = [
     ["Rendimiento del equipo", pool.filter(x => asTrue(x.rendimientoEquipo)).length],
-    ["CCleaner",               pool.filter(x => asTrue(x.ccleaner)).length],
-    ["Actualizaciones",        pool.filter(x => asTrue(x.actualizaciones)).length],
-    ["Licencia office",        pool.filter(x => asTrue(x.licenciaOffice)).length],
-    ["Antivirus",              pool.filter(x => asTrue(x.antivirus)).length],
-    ["Licencia Windows",       pool.filter(x => asTrue(x.licenciaWindows)).length],
-    ["Estado del disco",       pool.filter(x => asTrue(x.estadoDisco)).length],
-    ["Mantenimiento del reloj",pool.filter(x => asTrue(x.mantenimientoReloj)).length],
+    ["CCleaner", pool.filter(x => asTrue(x.ccleaner)).length],
+    ["Actualizaciones", pool.filter(x => asTrue(x.actualizaciones)).length],
+    ["Licencia office", pool.filter(x => asTrue(x.licenciaOffice)).length],
+    ["Antivirus", pool.filter(x => asTrue(x.antivirus)).length],
+    ["Licencia Windows", pool.filter(x => asTrue(x.licenciaWindows)).length],
+    ["Estado del disco", pool.filter(x => asTrue(x.estadoDisco)).length],
+    ["Mantenimiento del reloj", pool.filter(x => asTrue(x.mantenimientoReloj)).length],
   ];
 
   /* Pie / Tipos (INDEPENDIENTES) */
@@ -159,24 +161,24 @@ function aggregateForResumen(items: Array<VisitaRow>) {
 
   const pie: Row2D[] = [
     ["Solicitudes adicionales", adicionalesCount],
-    ["Solicitud Programada",    programadasCount],
+    ["Solicitud Programada", programadasCount],
   ];
 
   /* Por solicitante */
   const bySolicitanteAll = new Map<string, number>();
   for (const v of pool) incCounter(bySolicitanteAll, v.solicitanteRef?.nombre ?? v.solicitante ?? "No especificado");
   const bySolicitanteAllRows: Row2D[] = Array.from(bySolicitanteAll.entries())
-    .sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([u,n]) => [u, n]);
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([u, n]) => [u, n]);
 
   return { daily, checklist, pie, bySolicitanteAllRows };
 }
 const asPairs = (rows: Row2D[]) => rows.map(r => [String(r[0]), Number(r[1] || 0)] as [string, number]);
 
 /* ========= Excel helpers ========= */
-const HEADER = ["ID","Técnico","Empresa","Solicitante","Inicio","Estado","Impresoras","Teléfonos","Pie de página","Otros","Detalle otros","Actualizaciones","Antivirus","CCleaner","Estado disco","Lic. Office","Lic. Windows","Mant. reloj","Rend. equipo"] as const;
+const HEADER = ["ID", "Técnico", "Empresa", "Solicitante", "Inicio", "Estado", "Impresoras", "Teléfonos", "Pie de página", "Otros", "Detalle otros", "Actualizaciones", "Antivirus", "CCleaner", "Estado disco", "Lic. Office", "Lic. Windows", "Mant. reloj", "Rend. equipo"] as const;
 
-const PALETTE = ["D9F99D","E0F2FE","FDE68A","FBCFE8","FCA5A5","DDD6FE","A7F3D0","FDE2E2","FFE4E6","F5F5F4"];
+const PALETTE = ["D9F99D", "E0F2FE", "FDE68A", "FBCFE8", "FCA5A5", "DDD6FE", "A7F3D0", "FDE2E2", "FFE4E6", "F5F5F4"];
 function colorFor(key: string): string {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -204,18 +206,18 @@ function fillBlock(ws: WorksheetLike, startCellA1: string, rows: Array<[string, 
   }
 }
 function excelColWidthSetup(ws: WorksheetLike) {
-  const widths = [8,22,26,30,22,14,12,12,14,10,36,14,12,10,14,14,14,14,14];
-  widths.forEach((w,i) => ws.column(i + 1).width(w));
+  const widths = [8, 22, 26, 30, 22, 14, 12, 12, 14, 10, 36, 14, 12, 10, 14, 14, 14, 14, 14];
+  widths.forEach((w, i) => ws.column(i + 1).width(w));
 }
 function safeSheetName(raw: string) {
-  const base = (raw || "Empresa").replace(/[\\/:*?"[\]]/g,"_").slice(0,31);
+  const base = (raw || "Empresa").replace(/[\\/:*?"[\]]/g, "_").slice(0, 31);
   return base.length ? base : "Empresa";
 }
 function ensureUniqueSheetName(wb: WorkbookLike, desired: string) {
   let name = desired, i = 2;
   while (wb.sheet(name)) {
     const s = `_${i}`;
-    name = (desired.slice(0, 31 - s.length) + s).replace(/[\\/:*?"[\]]/g,"_");
+    name = (desired.slice(0, 31 - s.length) + s).replace(/[\\/:*?"[\]]/g, "_");
     i++;
   }
   return name;
@@ -234,7 +236,7 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
       bold: true, fontFamily: "Calibri", fontSize: 16, fontColor: COLOR_HEADER_TEXT,
       horizontalAlignment: "center", verticalAlignment: "center", fill: colorFor(empresa),
     });
-    ws.range(1,1,1,HEADER.length).merged(true);
+    ws.range(1, 1, 1, HEADER.length).merged(true);
     ws.row(1).height(28);
     for (let c = 0; c < HEADER.length; c++) {
       ws.cell(3, c + 1).value(HEADER[c]).style({
@@ -261,15 +263,15 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
           fontFamily: "Calibri", fontSize: 11, fontColor: COLOR_TEXT, verticalAlignment: "center",
         });
       }
-      if ((r - 4) % 2 === 1) ws.range(r,1,r,endCol).style({ fill: "F9FAFB" });
+      if ((r - 4) % 2 === 1) ws.range(r, 1, r, endCol).style({ fill: "F9FAFB" });
       r++;
     }
     const endRow = Math.max(startRow, r - 1);
     excelColWidthSetup(ws);
     if (rows.length > 0) {
-      ws.range(startRow,5,endRow,5).style({ numberFormat:"dd-mm-yyyy hh:mm" });
+      ws.range(startRow, 5, endRow, 5).style({ numberFormat: "dd-mm-yyyy hh:mm" });
       setAllBorders(ws, 3, 1, endRow, endCol);
-      ws.range(1,1,1,endCol).style({ border:true, borderColor:COLOR_BORDER });
+      ws.range(1, 1, 1, endCol).style({ border: true, borderColor: COLOR_BORDER });
     }
   }
 }
@@ -277,30 +279,30 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
 /* ========= Resumen ========= */
 function setupResumenSheet(ws: WorksheetLike) {
   const hdr = {
-    bold:true, fill:"F1F5F9", fontColor:COLOR_HEADER_TEXT,
-    border:true, borderColor:COLOR_BORDER,
-    horizontalAlignment:"center", verticalAlignment:"center",
+    bold: true, fill: "F1F5F9", fontColor: COLOR_HEADER_TEXT,
+    border: true, borderColor: COLOR_BORDER,
+    horizontalAlignment: "center", verticalAlignment: "center",
   } as Record<string, ValueT>;
   ws.cell("A1").value("Fecha").style(hdr); ws.cell("B1").value("Cantidad").style(hdr);
-  ws.cell("F1").value("Ítem").style(hdr);  ws.cell("G1").value("Cantidad").style(hdr);
-  ws.cell("K1").value("Tipo").style(hdr);  ws.cell("L1").value("Cantidad").style(hdr);
+  ws.cell("F1").value("Ítem").style(hdr); ws.cell("G1").value("Cantidad").style(hdr);
+  ws.cell("K1").value("Tipo").style(hdr); ws.cell("L1").value("Cantidad").style(hdr);
   ws.cell("P1").value("Solicitante").style(hdr); ws.cell("Q1").value("Cantidad").style(hdr);
   ws.column("A").width(14); ws.column("B").width(10);
   ws.column("F").width(24); ws.column("G").width(10);
   ws.column("K").width(20); ws.column("L").width(10);
   ws.column("P").width(26); ws.column("Q").width(10);
-  ws.range(2,1,2000,1).style({ numberFormat:"dd-mm-yyyy" });
-  ws.range(2,2,2000,2).style({ numberFormat:"#,##0" });
-  ws.range(2,7,2000,7).style({ numberFormat:"#,##0" });
-  ws.range(2,12,2000,12).style({ numberFormat:"#,##0" });
-  ws.range(2,17,2000,17).style({ numberFormat:"#,##0" });
-  ws.freezePanes?.(2,1);
+  ws.range(2, 1, 2000, 1).style({ numberFormat: "dd-mm-yyyy" });
+  ws.range(2, 2, 2000, 2).style({ numberFormat: "#,##0" });
+  ws.range(2, 7, 2000, 7).style({ numberFormat: "#,##0" });
+  ws.range(2, 12, 2000, 12).style({ numberFormat: "#,##0" });
+  ws.range(2, 17, 2000, 17).style({ numberFormat: "#,##0" });
+  ws.freezePanes?.(2, 1);
 }
-function styleResumenBlocks(ws: WorksheetLike, s:{daily:number; checklist:number; pie:number; users:number;}) {
-  if (s.daily>0)     setAllBorders(ws,1,1,1+s.daily,2);
-  if (s.checklist>0) setAllBorders(ws,1,6,1+s.checklist,7);
-  if (s.pie>0)       setAllBorders(ws,1,11,1+s.pie,12);
-  if (s.users>0)     setAllBorders(ws,1,16,1+s.users,17);
+function styleResumenBlocks(ws: WorksheetLike, s: { daily: number; checklist: number; pie: number; users: number; }) {
+  if (s.daily > 0) setAllBorders(ws, 1, 1, 1 + s.daily, 2);
+  if (s.checklist > 0) setAllBorders(ws, 1, 6, 1 + s.checklist, 7);
+  if (s.pie > 0) setAllBorders(ws, 1, 11, 1 + s.pie, 12);
+  if (s.users > 0) setAllBorders(ws, 1, 16, 1 + s.users, 17);
 }
 function mirrorResumenToHoja1(
   wb: WorkbookLike,
@@ -313,10 +315,10 @@ function mirrorResumenToHoja1(
     if (!ws1!.cell(c1).value()) ws1!.cell(c1).value(t1);
     if (!ws1!.cell(c2).value()) ws1!.cell(c2).value(t2);
   };
-  ensureHeader("A1","B1","Fecha","Cantidad");
-  ensureHeader("F1","G1","Ítem","Cantidad");
-  ensureHeader("K1","L1","Tipo","Cantidad");
-  ensureHeader("P1","Q1","Solicitante","Cantidad");
+  ensureHeader("A1", "B1", "Fecha", "Cantidad");
+  ensureHeader("F1", "G1", "Ítem", "Cantidad");
+  ensureHeader("K1", "L1", "Tipo", "Cantidad");
+  ensureHeader("P1", "Q1", "Solicitante", "Cantidad");
   const clearAndCopyBlock = (srcA1: string, dstA1: string, rows: number, maxRows = 10000) => {
     const s = wsResumen.cell(srcA1);
     const d = ws1!.cell(dstA1);
@@ -329,45 +331,45 @@ function mirrorResumenToHoja1(
       d.relativeCell(i, 1).value(s.relativeCell(i, 1).value());
     }
   };
-  clearAndCopyBlock("A2","A2", counts.daily);
-  clearAndCopyBlock("F2","F2", counts.checklist);
-  clearAndCopyBlock("K2","K2", counts.pie);
-  clearAndCopyBlock("P2","P2", counts.users);
+  clearAndCopyBlock("A2", "A2", counts.daily);
+  clearAndCopyBlock("F2", "F2", counts.checklist);
+  clearAndCopyBlock("K2", "K2", counts.pie);
+  clearAndCopyBlock("P2", "P2", counts.users);
   ws1.column("A").width(14); ws1.column("B").width(10);
   ws1.column("F").width(24); ws1.column("G").width(10);
   ws1.column("K").width(20); ws1.column("L").width(10);
   ws1.column("P").width(26); ws1.column("Q").width(10);
-  ws1.range(2,1,10000,1).style({ numberFormat:"dd-mm-yyyy" });
-  ws1.range(2,2,10000,2).style({ numberFormat:"#,##0" });
-  ws1.range(2,7,10000,7).style({ numberFormat:"#,##0" });
-  ws1.range(2,12,10000,12).style({ numberFormat:"#,##0" });
-  ws1.range(2,17,10000,17).style({ numberFormat:"#,##0" });
+  ws1.range(2, 1, 10000, 1).style({ numberFormat: "dd-mm-yyyy" });
+  ws1.range(2, 2, 10000, 2).style({ numberFormat: "#,##0" });
+  ws1.range(2, 7, 10000, 7).style({ numberFormat: "#,##0" });
+  ws1.range(2, 12, 10000, 12).style({ numberFormat: "#,##0" });
+  ws1.range(2, 17, 10000, 17).style({ numberFormat: "#,##0" });
   const s = counts;
-  if (s.daily>0)     setAllBorders(ws1,1,1,1+s.daily,2);
-  if (s.checklist>0) setAllBorders(ws1,1,6,1+s.checklist,7);
-  if (s.pie>0)       setAllBorders(ws1,1,11,1+s.pie,12);
-  if (s.users>0)     setAllBorders(ws1,1,16,1+s.users,17);
+  if (s.daily > 0) setAllBorders(ws1, 1, 1, 1 + s.daily, 2);
+  if (s.checklist > 0) setAllBorders(ws1, 1, 6, 1 + s.checklist, 7);
+  if (s.pie > 0) setAllBorders(ws1, 1, 11, 1 + s.pie, 12);
+  if (s.users > 0) setAllBorders(ws1, 1, 16, 1 + s.users, 17);
 }
 
 /* ========= Carga de plantilla robusta ========= */
 async function loadTemplateArrayBuffer(): Promise<ArrayBuffer> {
-  const tryFetch = async (url:string): Promise<ArrayBuffer|null> => {
+  const tryFetch = async (url: string): Promise<ArrayBuffer | null> => {
     try {
-      const resp = await fetch(url,{cache:"no-store"});
-      if(!resp.ok) return null;
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) return null;
       const buf = await resp.arrayBuffer();
-      const sig = new Uint8Array(buf.slice(0,2));
-      if(!(sig[0]===0x50&&sig[1]===0x4B)) return null;
+      const sig = new Uint8Array(buf.slice(0, 2));
+      if (!(sig[0] === 0x50 && sig[1] === 0x4B)) return null;
       return buf;
     } catch {
       return null;
     }
   };
-  const base = (BASE_URL||"/").replace(/\/+$/,"");
-  const a = await tryFetch(`${base}/visitas_template.xlsx`); if(a) return a;
-  const b = await tryFetch(`/visitas_template.xlsx`); if(b) return b;
-  const c = await tryFetch(`/assets/visitas_template.xlsx`); if(c) return c;
-  const wb = (await (XlsxPopulate as unknown as {fromBlankAsync():Promise<WorkbookLike>}).fromBlankAsync()) as WorkbookLike;
+  const base = (BASE_URL || "/").replace(/\/+$/, "");
+  const a = await tryFetch(`${base}/visitas_template.xlsx`); if (a) return a;
+  const b = await tryFetch(`/visitas_template.xlsx`); if (b) return b;
+  const c = await tryFetch(`/assets/visitas_template.xlsx`); if (c) return c;
+  const wb = (await (XlsxPopulate as unknown as { fromBlankAsync(): Promise<WorkbookLike> }).fromBlankAsync()) as WorkbookLike;
   wb.addSheet("Resumen");
   return wb.outputAsync();
 }
@@ -395,7 +397,7 @@ async function fetchAllVisitasForExport(
     if (tecnicoId) url.searchParams.set("tecnicoId", String(tecnicoId));
     if (empresaId) url.searchParams.set("empresaId", String(empresaId));
     if (monthFilter) url.searchParams.set("month", monthFilter);
-    if (yearFilter)  url.searchParams.set("year", yearFilter);
+    if (yearFilter) url.searchParams.set("year", yearFilter);
 
     url.searchParams.set("_ts", String(Date.now()));
 
@@ -503,10 +505,10 @@ const VisitasPage: React.FC = () => {
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(PAGE_SIZE));
       if (qDebounced.trim()) url.searchParams.set("q", qDebounced.trim());
-      if (tecnicoId)        url.searchParams.set("tecnicoId", String(tecnicoId));
-      if (empresaId)        url.searchParams.set("empresaId", String(empresaId));
-      if (monthFilter)      url.searchParams.set("month", monthFilter);
-      if (yearFilter)       url.searchParams.set("year", yearFilter);
+      if (tecnicoId) url.searchParams.set("tecnicoId", String(tecnicoId));
+      if (empresaId) url.searchParams.set("empresaId", String(empresaId));
+      if (monthFilter) url.searchParams.set("month", monthFilter);
+      if (yearFilter) url.searchParams.set("year", yearFilter);
       url.searchParams.set("_ts", String(Date.now()));
       const token = localStorage.getItem("accessToken");
       const res = await fetch(url.toString(), {
@@ -578,6 +580,14 @@ const VisitasPage: React.FC = () => {
     setYearFilter("");
     setPage(1);
   };
+
+  const { user, isCliente, isTecnico } = useAuth();
+
+  useEffect(() => {
+    if (isCliente && user?.empresaId) {
+      setEmpresaId(user.empresaId);
+    }
+  }, [isCliente, user]);
 
   const openRow = (row: VisitaRow) => {
     const visita: VisitaDetail = {
@@ -686,7 +696,7 @@ const VisitasPage: React.FC = () => {
 
       const tplArrayBuf = await loadTemplateArrayBuffer();
       const wb = await (XlsxPopulate as unknown as {
-        fromDataAsync(buf:ArrayBuffer):Promise<WorkbookLike>;
+        fromDataAsync(buf: ArrayBuffer): Promise<WorkbookLike>;
       }).fromDataAsync(tplArrayBuf) as WorkbookLike;
 
       let ws = wb.sheet("Resumen");
@@ -694,10 +704,10 @@ const VisitasPage: React.FC = () => {
       setupResumenSheet(ws);
 
       const { daily, checklist, pie, bySolicitanteAllRows } = aggregateForResumen(items);
-      fillBlock(ws,"A2", asPairs(daily), 2000);
-      fillBlock(ws,"F2", asPairs(checklist), 2000);
-      fillBlock(ws,"K2", asPairs(pie), 2000);
-      fillBlock(ws,"P2", asPairs(bySolicitanteAllRows), 2000);
+      fillBlock(ws, "A2", asPairs(daily), 2000);
+      fillBlock(ws, "F2", asPairs(checklist), 2000);
+      fillBlock(ws, "K2", asPairs(pie), 2000);
+      fillBlock(ws, "P2", asPairs(bySolicitanteAllRows), 2000);
 
       styleResumenBlocks(ws, {
         daily: daily.length,
@@ -722,7 +732,7 @@ const VisitasPage: React.FC = () => {
       const urlBlob = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = urlBlob;
-      a.download = `Visitas_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.download = `Visitas_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -734,161 +744,172 @@ const VisitasPage: React.FC = () => {
   };
 
   return (
-  <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
-    {/* Fondo */}
-    <div className="pointer-events-none absolute inset-0 -z-10">
-      <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
-      <div className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40" />
-      <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
-    </div>
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
+      {/* Fondo */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
+        <div className="absolute -top-32 -left-32 w-[60vw] max-w-[520px] aspect-square rounded-full blur-3xl bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40" />
+        <div className="absolute -bottom-40 -right-40 w-[65vw] max-w-[560px] aspect-square rounded-full blur-3xl bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40" />
+      </div>
 
-    {/* Hero / Toolbar */}
-    <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
-        <div className="absolute inset-0 opacity-60 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
-        <div className="relative p-4 sm:p-6 md:p-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
-            Visitas{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
-              RIDS.CL
-            </span>
-          </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-600">
-            Filtra por técnico, empresa, mes o texto libre. Exporta y gestiona en tiempo real.
-          </p>
+      {/* Hero / Toolbar */}
+      <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
+          <div className="absolute inset-0 opacity-60 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
+          <div className="relative p-4 sm:p-6 md:p-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+              Visitas{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-indigo-600">
+                RIDS.CL
+              </span>
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">
+              Filtra por técnico, empresa, mes o texto libre. Exporta y gestiona en tiempo real.
+            </p>
 
-          {/* Toolbar: búsqueda + filtros + acciones */}
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* Búsqueda */}
-            <div className="relative md:col-span-4">
-              <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
-              <input
-                value={q}
-                onChange={(e)=>{ setQ(e.target.value); setPage(1); }}
-                placeholder="Buscar…"
-                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-                aria-label="Buscar visitas"
-              />
-              {q.length > 0 && (
-                <button
-                  onClick={()=>setQ("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
-                  aria-label="Limpiar búsqueda"
-                  title="Limpiar"
-                  type="button"
+            {/* Toolbar: búsqueda + filtros + acciones */}
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Búsqueda */}
+              <div className="relative md:col-span-4">
+                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
+                <input
+                  value={q}
+                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                  placeholder="Buscar…"
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+                  aria-label="Buscar visitas"
+                />
+                {q.length > 0 && (
+                  <button
+                    onClick={() => setQ("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
+                    aria-label="Limpiar búsqueda"
+                    title="Limpiar"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro técnico */}
+              <div className="md:col-span-3">
+                <select
+                  value={tecnicoId}
+                  onChange={(e) => { const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  aria-label="Filtrar por técnico"
                 >
-                  <CloseCircleFilled />
-                </button>
+                  <option value="">Todos los técnicos</option>
+                  {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                </select>
+              </div>
+
+              {/* Filtro empresa */}
+              {!isCliente && (
+                <div className="md:col-span-3">
+                  <select
+                    value={empresaId}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEmpresaId(v ? Number(v) : "");
+                      setPage(1);
+                    }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm"
+                  >
+                    <option value="">Todas las empresas</option>
+                    {empresas.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                    ))}
+                  </select>
+                </div>
               )}
-            </div>
 
-            {/* Filtro técnico */}
-            <div className="md:col-span-3">
-              <select
-                value={tecnicoId}
-                onChange={(e)=>{ const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
-                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                aria-label="Filtrar por técnico"
-              >
-                <option value="">Todos los técnicos</option>
-                {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-              </select>
-            </div>
+              {/* Filtro mes */}
+              <div className="md:col-span-1">
+                <select
+                  value={monthFilter}
+                  onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  aria-label="Filtrar por mes"
+                >
+                  <option value="">Mes</option>
+                  <option value="1">Ene</option>
+                  <option value="2">Feb</option>
+                  <option value="3">Mar</option>
+                  <option value="4">Abr</option>
+                  <option value="5">May</option>
+                  <option value="6">Jun</option>
+                  <option value="7">Jul</option>
+                  <option value="8">Ago</option>
+                  <option value="9">Sep</option>
+                  <option value="10">Oct</option>
+                  <option value="11">Nov</option>
+                  <option value="12">Dic</option>
+                </select>
+              </div>
 
-            {/* Filtro empresa */}
-            <div className="md:col-span-3">
-              <select
-                value={empresaId}
-                onChange={(e)=>{ const v = e.target.value; setEmpresaId(v ? Number(v) : ""); setPage(1); }}
-                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                aria-label="Filtrar por empresa"
-              >
-                <option value="">Todas las empresas</option>
-                {empresas.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre}</option>)}
-              </select>
-            </div>
+              {/* Filtro año */}
+              <div className="md:col-span-1">
+                <select
+                  value={yearFilter}
+                  onChange={(e) => { setYearFilter(e.target.value); setPage(1); }}
+                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  aria-label="Filtrar por año"
+                >
+                  <option value="">Año</option>
+                  <option value="2024">2024</option>
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </div>
 
-            {/* Filtro mes */}
-            <div className="md:col-span-1">
-              <select
-                value={monthFilter}
-                onChange={(e)=>{ setMonthFilter(e.target.value); setPage(1); }}
-                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                aria-label="Filtrar por mes"
-              >
-                <option value="">Mes</option>
-                <option value="1">Ene</option>
-                <option value="2">Feb</option>
-                <option value="3">Mar</option>
-                <option value="4">Abr</option>
-                <option value="5">May</option>
-                <option value="6">Jun</option>
-                <option value="7">Jul</option>
-                <option value="8">Ago</option>
-                <option value="9">Sep</option>
-                <option value="10">Oct</option>
-                <option value="11">Nov</option>
-                <option value="12">Dic</option>
-              </select>
-            </div>
-
-            {/* Filtro año */}
-            <div className="md:col-span-1">
-              <select
-                value={yearFilter}
-                onChange={(e)=>{ setYearFilter(e.target.value); setPage(1); }}
-                className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                aria-label="Filtrar por año"
-              >
-                <option value="">Año</option>
-                <option value="2024">2024</option>
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-              </select>
-            </div>
-
-            {/* Acciones */}
-            <div className="md:col-span-12 lg:col-span-12 xl:col-span-12">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {/* Limpiar */}
-                <button
-                  onClick={clearAll}
-                  type="button"
-                  className="
+              {/* Acciones */}
+              <div className="md:col-span-12 lg:col-span-12 xl:col-span-12">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {/* Limpiar */}
+                  <button
+                    onClick={clearAll}
+                    type="button"
+                    className="
                     inline-flex items-center justify-center gap-2
                     rounded-2xl border border-cyan-200/70 bg-white/90
                     px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 active:scale-[0.98]
                     transition duration-200 w-full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
-                  title="Limpiar filtros"
-                >
-                  <CloseCircleFilled className="hidden sm:inline" />
-                  <span className="truncate">Limpiar</span>
-                </button>
+                    title="Limpiar filtros"
+                  >
+                    <CloseCircleFilled className="hidden sm:inline" />
+                    <span className="truncate">Limpiar</span>
+                  </button>
 
-                {/* Exportar */}
-                <button
-                  onClick={onExportEmpresas}
-                  disabled={!data || (data?.total ?? 0) === 0}
-                  type="button"
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
-                    "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                    (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
-                  )}
-                  title="Exportar"
-                >
-                  <DownloadOutlined className="hidden sm:inline" />
-                  <span className="truncate">Exportar</span>
-                </button>
+                  {/* Exportar */}
+                  <button
+                    onClick={onExportEmpresas}
+                    disabled={!data || (data?.total ?? 0) === 0}
+                    type="button"
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
+                      "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                      (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
+                    )}
+                    title="Exportar"
+                  >
+                    <DownloadOutlined className="hidden sm:inline" />
+                    <span className="truncate">Exportar</span>
+                  </button>
 
-                {/* Nueva visita */}
-                <button
-                  onClick={()=>setOpenCreate(true)}
-                  type="button"
-                  className="
+                  {/* Nueva visita */}
+                  <button
+                    onClick={() => {
+                      if (isCliente) return;
+                      setOpenCreate(true);
+                    }}
+                    disabled={isCliente}
+                    type="button"
+                    className="
                     inline-flex items-center justify-center gap-2
                     rounded-2xl px-3 py-2.5 text-sm font-medium text-white
                     bg-gradient-to-tr from-emerald-600 to-cyan-600
@@ -897,251 +918,257 @@ const VisitasPage: React.FC = () => {
                     transition duration-200 w-full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
-                  title="Nueva visita"
-                >
-                  <span className="sm:hidden">+</span>
-                  <span className="hidden sm:inline">+ Nueva</span>
-                </button>
+                    title="Nueva visita"
+                  >
+                    <span className="sm:hidden">+</span>
+                    <span className="hidden sm:inline">+ Nueva</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Separador */}
-          <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
+            {/* Separador */}
+            <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
-    <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
-      {/* Cards (mobile) */}
-      <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading ? "true" : "false"}>
-        {loading && (
-          <div className="space-y-3">
-            {Array.from({length:6}).map((_,i)=>(
-              <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
-                <div className="h-4 w-24 bg-cyan-50 rounded mb-2" />
-                <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
-                <div className="h-3 w-1/2 bg-cyan-50 rounded" />
-              </div>
-            ))}
-          </div>
-        )}
-        {!loading && error && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
-        )}
-        {!loading && !error && data?.items?.length === 0 && (
-          <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
-        )}
-        {!loading && !error && data?.items?.map((v)=>{
-          const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-          const isDeleting = deletingId === v.id_visita;
-          return (
-            <article key={v.id_visita} className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md">
-              <header className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs text-slate-500">#{v.id_visita}</div>
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {v.empresa?.nombre ?? `#${v.empresaId}`}
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
-                  </p>
+      {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
+      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+        {/* Cards (mobile) */}
+        <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+          {loading && (
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
+                  <div className="h-4 w-24 bg-cyan-50 rounded mb-2" />
+                  <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
+                  <div className="h-3 w-1/2 bg-cyan-50 rounded" />
                 </div>
-                <StatusBadge status={v.status} />
-              </header>
+              ))}
+            </div>
+          )}
+          {!loading && error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
+          )}
+          {!loading && !error && data?.items?.length === 0 && (
+            <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
+          )}
+          {!loading && !error && data?.items?.map((v) => {
+            const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+            const isDeleting = deletingId === v.id_visita;
+            return (
+              <article key={v.id_visita} className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md">
+                <header className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-slate-500">#{v.id_visita}</div>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {v.empresa?.nombre ?? `#${v.empresaId}`}
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
+                    </p>
+                  </div>
+                  <StatusBadge status={v.status} />
+                </header>
 
-              <p className="text-sm text-slate-700 mt-2">
-                <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
-              </p>
+                <p className="text-sm text-slate-700 mt-2">
+                  <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
+                </p>
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <button
-                  onClick={()=>openRow(v)}
-                  className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
-                >
-                  Detalle
-                </button>
-                <button
-                  onClick={()=>onClickEdit(v)}
-                  className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
-                >
-                  <EditOutlined />Editar
-                </button>
-                <button
-                  onClick={()=>onClickDelete(v)}
-                  disabled={isDeleting}
-                  className={clsx(
-                    "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
-                    isDeleting
-                      ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
-                      : "border-rose-200 text-rose-700 hover:bg-rose-50"
-                  )}
-                >
-                  <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-
-      {/* Tabla (desktop) */}
-      <section
-        className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
-        aria-live="polite"
-        aria-busy={loading ? "true" : "false"}
-      >
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
-              <tr>
-                {["ID","Técnico","Empresa","Solicitante","Inicio","Estado","Acciones"].map((h)=>(
-                  <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-slate-800">
-              {loading && <TableSkeletonRows cols={7} rows={8} />}
-              {!loading && error && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
-              )}
-              {!loading && !error && data?.items?.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
-              )}
-              {!loading && !error && data?.items?.map((v)=>{
-                const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-                const isDeleting = deletingId === v.id_visita;
-                return (
-                  <tr
-                    key={v.id_visita}
-                    className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => openRow(v)}
+                    className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
-                    <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
-                    <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
-                    <td className="px-4 py-3">
-                      <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
-                    </td>
-                    <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
-                    <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={()=>openRow(v)}
-                          className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-1 hover:bg-cyan-50 transition"
-                        >
-                          Detalle
-                        </button>
-                        <button
-                          onClick={()=>onClickEdit(v)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
-                        >
-                          <EditOutlined /> Editar
-                        </button>
-                        <button
-                          onClick={()=>onClickDelete(v)}
-                          disabled={isDeleting}
-                          className={clsx(
-                            "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
-                            isDeleting
-                              ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
-                              : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                    Detalle
+                  </button>
+                  {!isCliente && (
+                    <button
+                      onClick={() => onClickEdit(v)}
+                      className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                    >
+                      <EditOutlined />Editar
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onClickDelete(v)}
+                    disabled={isDeleting}
+                    className={clsx(
+                      "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                      isDeleting
+                        ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                        : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                    )}
+                  >
+                    <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        {/* Tabla (desktop) */}
+        <section
+          className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
+          aria-live="polite"
+          aria-busy={loading ? "true" : "false"}
+        >
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
+                <tr>
+                  {["ID", "Técnico", "Empresa", "Solicitante", "Inicio", "Estado", "Acciones"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-slate-800">
+                {loading && <TableSkeletonRows cols={7} rows={8} />}
+                {!loading && error && (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
+                )}
+                {!loading && !error && data?.items?.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
+                )}
+                {!loading && !error && data?.items?.map((v) => {
+                  const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+                  const isDeleting = deletingId === v.id_visita;
+                  return (
+                    <tr
+                      key={v.id_visita}
+                      className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
+                      <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
+                      <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
+                      <td className="px-4 py-3">
+                        <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
+                      </td>
+                      <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
+                      <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => openRow(v)}
+                            className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-1 hover:bg-cyan-50 transition"
+                          >
+                            Detalle
+                          </button>
+                          {!isCliente && (
+                            <button
+                              onClick={() => onClickEdit(v)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                            >
+                              <EditOutlined /> Editar
+                            </button>
                           )}
-                        >
-                          <DeleteOutlined /> {isDeleting ? "Eliminando…" : "Eliminar"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer paginación */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
-          <div className="text-sm text-slate-700 text-center sm:text-left">
-            {data ? (
-              showingRange ? (
-                <>
-                  Mostrando{" "}
-                  <strong className="text-slate-900">{showingRange.start}</strong>–
-                  <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
-                  <strong className="text-slate-900">{data.total}</strong> • Página{" "}
-                  <strong className="text-slate-900">{data.page}</strong> de{" "}
-                  <strong className="text-slate-900">{totalPages}</strong>
-                </>
-              ) : "—"
-            ) : "—"}
+                          {!isCliente && (
+                            <button
+                              onClick={() => onClickDelete(v)}
+                              disabled={isDeleting}
+                              className={clsx(
+                                "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                                isDeleting
+                                  ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                                  : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                              )}
+                            >
+                              <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
-            <button
-              onClick={refreshNow}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition"
-              title="Recargar"
-              type="button"
-            >
-              <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
-            </button>
-            <button
-              onClick={()=>canPrev && setPage(p=>p-1)}
-              disabled={!canPrev || loading}
-              className={clsx(
-                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                (!canPrev || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-              )}
-              aria-label="Página anterior"
-              type="button"
-            >
-              <LeftOutlined />
-              <span className="hidden sm:inline">Anterior</span>
-            </button>
-            <button
-              onClick={()=>canNext && setPage(p=>p+1)}
-              disabled={!canNext || loading}
-              className={clsx(
-                "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-              )}
-              aria-label="Página siguiente"
-              type="button"
-            >
-              <span className="hidden sm:inline">Siguiente</span>
-              <RightOutlined />
-            </button>
+          {/* Footer paginación */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
+            <div className="text-sm text-slate-700 text-center sm:text-left">
+              {data ? (
+                showingRange ? (
+                  <>
+                    Mostrando{" "}
+                    <strong className="text-slate-900">{showingRange.start}</strong>–
+                    <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
+                    <strong className="text-slate-900">{data.total}</strong> • Página{" "}
+                    <strong className="text-slate-900">{data.page}</strong> de{" "}
+                    <strong className="text-slate-900">{totalPages}</strong>
+                  </>
+                ) : "—"
+              ) : "—"}
+            </div>
+
+            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
+              <button
+                onClick={refreshNow}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition"
+                title="Recargar"
+                type="button"
+              >
+                <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
+              </button>
+              <button
+                onClick={() => canPrev && setPage(p => p - 1)}
+                disabled={!canPrev || loading}
+                className={clsx(
+                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                  (!canPrev || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+                )}
+                aria-label="Página anterior"
+                type="button"
+              >
+                <LeftOutlined />
+                <span className="hidden sm:inline">Anterior</span>
+              </button>
+              <button
+                onClick={() => canNext && setPage(p => p + 1)}
+                disabled={!canNext || loading}
+                className={clsx(
+                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                  (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+                )}
+                aria-label="Página siguiente"
+                type="button"
+              >
+                <span className="hidden sm:inline">Siguiente</span>
+                <RightOutlined />
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
 
-    {/* Modales */}
-    <VisitaDetailModal open={openDetail} onClose={()=>setOpenDetail(false)} visita={selected} />
+      {/* Modales */}
+      <VisitaDetailModal open={openDetail} onClose={() => setOpenDetail(false)} visita={selected} />
 
-    <CreateVisitaModal
-      open={openCreate}
-      onClose={()=>setOpenCreate(false)}
-      onCreated={()=>{ setOpenCreate(false); refreshNow(); }}
-      tecnicos={tecnicos}
-      empresas={empresas}
-    />
+      <CreateVisitaModal
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onCreated={() => { setOpenCreate(false); refreshNow(); }}
+        tecnicos={tecnicos}
+        empresas={empresas}
+      />
 
-    <CreateVisitaModal
-      open={openEdit}
-      mode="edit"
-      visita={editVisita ?? undefined}
-      onClose={()=>{ setOpenEdit(false); setEditVisita(null); }}
-      onCreated={()=>{}}
-      onUpdated={()=>{ setOpenEdit(false); setEditVisita(null); refreshNow(); }}
-      tecnicos={tecnicos}
-      empresas={empresas}
-    />
-  </div>
-);
+      <CreateVisitaModal
+        open={openEdit}
+        mode="edit"
+        visita={editVisita ?? undefined}
+        onClose={() => { setOpenEdit(false); setEditVisita(null); }}
+        onCreated={() => { }}
+        onUpdated={() => { setOpenEdit(false); setEditVisita(null); refreshNow(); }}
+        tecnicos={tecnicos}
+        empresas={empresas}
+      />
+    </div>
+  );
 
 };
 export default VisitasPage;
