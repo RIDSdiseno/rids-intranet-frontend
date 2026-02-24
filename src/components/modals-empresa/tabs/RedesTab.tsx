@@ -19,10 +19,7 @@ import {
     EditOutlined,
     StarFilled,
 } from "@ant-design/icons";
-
-const API_URL =
-    (import.meta as ImportMeta).env?.VITE_API_URL ||
-    "http://localhost:4000/api";
+import { api } from "../../../api/api"; // 🔥 ajusta ruta
 
 interface Props {
     empresaId: number;
@@ -36,37 +33,23 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
     const [editing, setEditing] = useState<any>(null);
     const [form] = Form.useForm();
 
-    /* =========================
-       LOAD DATA
-    ========================= */
     const load = async () => {
         setLoading(true);
-
         try {
             const [ispRes, sucRes] = await Promise.all([
-                fetch(`${API_URL}/ficha-empresa/${empresaId}/isp`),
-                fetch(`${API_URL}/ficha-empresa/${empresaId}/sucursales`),
+                api.get(`/ficha-empresa/${empresaId}/isp`),
+                api.get(`/ficha-empresa/${empresaId}/sucursales`),
             ]);
-
-            const ispJson = await ispRes.json();
-            const sucJson = await sucRes.json();
-
-            setIsps(ispJson);
-            setSucursales(sucJson);
+            setIsps(ispRes.data);
+            setSucursales(sucRes.data);
         } catch {
             message.error("Error cargando redes");
         }
-
         setLoading(false);
     };
 
-    useEffect(() => {
-        load();
-    }, [empresaId]);
+    useEffect(() => { load(); }, [empresaId]);
 
-    /* =========================
-       CREATE / UPDATE
-    ========================= */
     const openCreate = () => {
         setEditing(null);
         form.resetFields();
@@ -81,22 +64,12 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
 
     const save = async () => {
         const values = await form.validateFields();
-
         try {
             if (editing) {
-                await fetch(`${API_URL}/ficha-empresa/isp/${editing.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(values),
-                });
+                await api.put(`/ficha-empresa/isp/${editing.id}`, values);
             } else {
-                await fetch(`${API_URL}/ficha-empresa/${empresaId}/isp`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(values),
-                });
+                await api.post(`/ficha-empresa/${empresaId}/isp`, values);
             }
-
             message.success("Red guardada");
             setModalOpen(false);
             load();
@@ -105,39 +78,29 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
         }
     };
 
-    /* =========================
-       DELETE
-    ========================= */
     const remove = async (id: number) => {
-        await fetch(`${API_URL}/ficha-empresa/isp/${id}`, {
-            method: "DELETE",
-        });
-
-        message.success("Red eliminada");
-        load();
+        try {
+            await api.delete(`/ficha-empresa/isp/${id}`);
+            message.success("Red eliminada");
+            load();
+        } catch {
+            message.error("Error eliminando red");
+        }
     };
 
-    /* =========================
-       SET PRINCIPAL
-    ========================= */
     const setPrincipal = async (isp: any) => {
-        await fetch(`${API_URL}/ficha-empresa/isp/${isp.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...isp, esPrincipal: true }),
-        });
-
-        load();
+        try {
+            await api.put(`/ficha-empresa/isp/${isp.id}`, { ...isp, esPrincipal: true });
+            load();
+        } catch {
+            message.error("Error actualizando red principal");
+        }
     };
 
     return (
         <Card
             loading={loading}
-            title={
-                <div>
-                    <CloudOutlined /> Redes / ISP
-                </div>
-            }
+            title={<div><CloudOutlined /> Redes / ISP</div>}
             extra={
                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
                     Nueva Red
@@ -151,98 +114,45 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
                     type="inner"
                     title={
                         <Space>
-                            {isp.esPrincipal && (
-                                <Tag color="gold">
-                                    <StarFilled /> Principal
-                                </Tag>
-                            )}
+                            {isp.esPrincipal && <Tag color="gold"><StarFilled /> Principal</Tag>}
                             {isp.operador || "Sin operador"}
                         </Space>
                     }
                     extra={
                         <Space>
                             {!isp.esPrincipal && (
-                                <Button size="small" onClick={() => setPrincipal(isp)}>
-                                    Hacer Principal
-                                </Button>
+                                <Button size="small" onClick={() => setPrincipal(isp)}>Hacer Principal</Button>
                             )}
-                            <Button
-                                size="small"
-                                icon={<EditOutlined />}
-                                onClick={() => openEdit(isp)}
-                            />
-                            <Button
-                                size="small"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => remove(isp.id)}
-                            />
+                            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(isp)} />
+                            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(isp.id)} />
                         </Space>
                     }
                 >
                     <Row gutter={12}>
-                        <Col span={12}>
-                            <b>Servicio:</b> {isp.servicio || "—"}
-                        </Col>
-                        <Col span={12}>
-                            <b>IP:</b> {isp.ipRed || "—"}
-                        </Col>
-                        <Col span={12}>
-                            <b>WiFi:</b> {isp.wifiNombre || "—"}
-                        </Col>
-                        <Col span={12}>
-                            <b>Sucursal:</b>{" "}
-                            {isp.sucursal?.nombre || "Empresa (General)"}
-                        </Col>
+                        <Col span={12}><b>Servicio:</b> {isp.servicio || "—"}</Col>
+                        <Col span={12}><b>IP:</b> {isp.ipRed || "—"}</Col>
+                        <Col span={12}><b>WiFi:</b> {isp.wifiNombre || "—"}</Col>
+                        <Col span={12}><b>Sucursal:</b> {isp.sucursal?.nombre || "Empresa (General)"}</Col>
                     </Row>
                 </Card>
             ))}
 
-            {/* ========================= MODAL ========================= */}
-            <Modal
-                open={modalOpen}
-                onCancel={() => setModalOpen(false)}
-                onOk={save}
-                title={editing ? "Editar Red" : "Nueva Red"}
-            >
+            <Modal open={modalOpen} onCancel={() => setModalOpen(false)} onOk={save} title={editing ? "Editar Red" : "Nueva Red"}>
                 <Form layout="vertical" form={form}>
-                    <Form.Item name="operador" label="Operador">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item name="servicio" label="Servicio">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item name="ipRed" label="IP Pública">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item name="wifiNombre" label="WiFi">
-                        <Input />
-                    </Form.Item>
-
-                    <Form.Item name="telefono" label="Teléfono ISP">
-                        <Input />
-                    </Form.Item>
-
+                    <Form.Item name="operador" label="Operador"><Input /></Form.Item>
+                    <Form.Item name="servicio" label="Servicio"><Input /></Form.Item>
+                    <Form.Item name="ipRed" label="IP Pública"><Input /></Form.Item>
+                    <Form.Item name="wifiNombre" label="WiFi"><Input /></Form.Item>
+                    <Form.Item name="telefono" label="Teléfono ISP"><Input /></Form.Item>
                     <Form.Item name="sucursalId" label="Sucursal">
                         <Select allowClear placeholder="Seleccionar sucursal">
                             {sucursales.map((s) => (
-                                <Select.Option key={s.id_sucursal} value={s.id_sucursal}>
-                                    {s.nombre}
-                                </Select.Option>
+                                <Select.Option key={s.id_sucursal} value={s.id_sucursal}>{s.nombre}</Select.Option>
                             ))}
                         </Select>
                     </Form.Item>
-
-                    <Form.Item name="esPrincipal" valuePropName="checked">
-                        <Select
-                            options={[
-                                { label: "Sí (Principal)", value: true },
-                                { label: "No", value: false },
-                            ]}
-                        />
+                    <Form.Item name="esPrincipal" label="¿Es principal?">
+                        <Select options={[{ label: "Sí (Principal)", value: true }, { label: "No", value: false }]} />
                     </Form.Item>
                 </Form>
             </Modal>

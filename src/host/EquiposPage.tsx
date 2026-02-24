@@ -75,6 +75,7 @@ type SolicitanteLite = {
   nombre: string;
   empresa?: { id_empresa: number; nombre: string } | null;
 };
+
 type ListSolicitantesResponse = {
   page: number;
   pageSize: number;
@@ -87,6 +88,39 @@ type ListSolicitantesResponse = {
     empresa: { id_empresa: number; nombre: string } | null;
   }>;
 };
+
+type HistChange = { before: unknown; after: unknown };
+
+type ActorLite = { nombre: string } | string;
+
+type EquipoHistorialItem = {
+  id?: string | number;
+  action?: string;
+  createdAt: string;
+
+  // puede venir como string (email/nombre) o como objeto {nombre}
+  actor?: ActorLite | null;
+
+  // aquí guardas los before/after por campo
+  changes?: Record<string, HistChange> | null;
+
+  // por si tu backend usa "diff" en vez de changes
+  diff?: Record<string, HistChange> | null;
+
+  message?: string | null;
+};
+
+type ApiHistorial = { total: number; items: EquipoHistorialItem[] };
+
+function actorName(actor: ActorLite | null | undefined) {
+  if (!actor) return "Sistema";
+  if (typeof actor === "string") return actor;
+  return actor.nombre ?? "Sistema";
+}
+
+function getChanges(h: EquipoHistorialItem) {
+  return h.changes ?? h.diff ?? null;
+}
 
 /* =================== Helpers =================== */
 function clsx(...xs: Array<string | false | null | undefined>) {
@@ -356,6 +390,10 @@ const EquiposPage: React.FC = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
+  const [histLoading, setHistLoading] = useState(false);
+  const [histError, setHistError] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<EquipoHistorialItem[]>([]);
+
   // Funciones helper para formatear fechas
   const formatMes = (mesString: string) => {
     if (!mesString) return '';
@@ -454,6 +492,37 @@ const EquiposPage: React.FC = () => {
       setError((err as Error)?.message || "Error al cargar equipos");
     } finally {
       if (seq === reqSeqRef.current) setLoading(false);
+    }
+  }
+
+  async function fetchHistorialEquipo(id_equipo: number, signal?: AbortSignal) {
+    setHistLoading(true);
+    setHistError(null);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`${API_URL}/equipos/${id_equipo}/historial`, {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const json = (await res.json()) as ApiHistorial;
+      setHistorial(json.items ?? []);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setHistError((err as Error).message || "Error al cargar historial");
+      setHistorial([]);
+    } finally {
+      setHistLoading(false);
     }
   }
 
@@ -658,6 +727,30 @@ const EquiposPage: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editRow, setEditRow] = useState<EquipoRow | null>(null);
+
+  /* ================== VER (VISTA PREVIA) ================== */
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewRow, setViewRow] = useState<EquipoRow | null>(null);
+
+  const startView = (row: EquipoRow) => {
+    setViewRow(row);
+    setViewOpen(true);
+
+    // limpia y carga historial
+    setHistorial([]);
+    const c = new AbortController();
+    fetchHistorialEquipo(row.id_equipo, c.signal);
+
+    // opcional: cancelar si cierras rápido
+    return () => c.abort();
+  };
+
+  const closeView = () => {
+    setViewOpen(false);
+    setViewRow(null);
+    setHistorial([]);
+    setHistError(null);
+  };
 
   type EquipoForm = {
     serial: string;
@@ -1216,6 +1309,14 @@ const EquiposPage: React.FC = () => {
                   ) : null}
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => startView(e)}
+                  className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100"
+                >
+                  Ver
+                </button>
+
                 <div className="mt-3 flex items-center gap-2">
                   <button
                     type="button"
@@ -1433,8 +1534,15 @@ const EquiposPage: React.FC = () => {
                               )}
                             </td>
 
-                            <td className="px-4 py-3 rounded-r-xl whitespace-nowrap">
-                              <div className="flex items-center gap-2">
+                            <td className="px-4 py-3 rounded-r-xl whitespace-nowrap align-middle">
+                              <div className="flex items-center gap-2 h-full">
+                                <button
+                                  type="button"
+                                  onClick={() => startView(e)}
+                                  className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100"
+                                >
+                                  Ver
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1702,7 +1810,6 @@ const EquiposPage: React.FC = () => {
                 Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
               </div>
 
-              {/* ===== FICHA TÉCNICA (solo lectura) ===== */}
               {/* ===== FICHA TÉCNICA (editable) ===== */}
               <div className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h4 className="text-sm font-semibold text-slate-700 mb-3">
@@ -1762,6 +1869,179 @@ const EquiposPage: React.FC = () => {
                 {editSaving ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal Vista ===== */}
+      {viewOpen && viewRow && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40" onClick={closeView} />
+
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
+
+            <div className="px-6 py-4 border-b border-cyan-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Ficha del Equipo #{viewRow.id_equipo}
+              </h3>
+              <button onClick={closeView} className="text-slate-500 hover:text-slate-700">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+
+              {/* Datos principales */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Información General
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div><strong>Serial:</strong> {toUC(viewRow.serial)}</div>
+                  <div><strong>Marca:</strong> {viewRow.marca}</div>
+                  <div><strong>Modelo:</strong> {viewRow.modelo}</div>
+                  <div><strong>CPU:</strong> {viewRow.procesador}</div>
+                  <div><strong>RAM:</strong> {viewRow.ram}</div>
+                  <div><strong>Disco:</strong> {viewRow.disco}</div>
+                  <div><strong>Propiedad:</strong> {viewRow.propiedad}</div>
+                </div>
+              </div>
+
+              {/* Relación */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Relación
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div><strong>Empresa:</strong> {viewRow.empresa}</div>
+                  <div><strong>Solicitante:</strong> {viewRow.solicitante}</div>
+                </div>
+              </div>
+
+              {/* Fechas */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Fechas
+                </h4>
+
+                <div className="text-sm space-y-1">
+                  <div>
+                    <strong>Ingreso:</strong>{" "}
+                    {new Date(viewRow.createdAt).toLocaleString("es-CL", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: false,
+                    })}
+                  </div>
+                  {viewRow.updatedAt && (
+                    <div>
+                      <strong>Última edición:</strong>{" "}
+                      {new Date(viewRow.updatedAt).toLocaleString("es-CL", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: false,
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ficha Técnica */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Ficha Técnica
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div><strong>MAC WiFi:</strong> {viewRow.macWifi || "—"}</div>
+                  <div><strong>Sistema Operativo:</strong> {viewRow.so || "—"}</div>
+                  <div><strong>Tipo Disco:</strong> {viewRow.tipoDd || "—"}</div>
+                  <div><strong>Estado Almacenamiento:</strong> {viewRow.estadoAlm || "—"}</div>
+                  <div><strong>Office:</strong> {viewRow.office || "—"}</div>
+                  <div><strong>TeamViewer:</strong> {viewRow.teamViewer || "—"}</div>
+                  <div><strong>Clave TV:</strong> {viewRow.claveTv || "—"}</div>
+                  <div><strong>Revisado:</strong> {viewRow.revisado || "—"}</div>
+                </div>
+              </div>
+
+              {/* Historial */}
+              <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
+                <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Historial equipo #{viewRow?.id_equipo}
+                  </h3>
+                  <button onClick={closeView} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">✕</button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                  {histLoading && <div className="text-sm text-slate-600">Cargando historial…</div>}
+                  {histError && <div className="text-sm text-rose-700">{histError}</div>}
+
+                  {!histLoading && !histError && historial.length === 0 && (
+                    <div className="text-sm text-slate-600">Sin historial.</div>
+                  )}
+
+                  {historial.map((h, idx) => (
+                    <div key={h.id ?? `${h.createdAt}-${idx}`} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs font-semibold text-slate-800">
+                          {h.action} • {actorName(h.actor)}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(h.createdAt).toLocaleString("es-CL", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: false,
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 space-y-1 text-xs">
+                        {getChanges(h) ? (
+                          Object.entries(getChanges(h)!).map(([k, v]) => (
+                            <div key={k} className="flex flex-wrap gap-2">
+                              <span className="font-semibold text-slate-700">{k}:</span>
+                              <span className="text-slate-500">antes:</span>
+                              <span className="font-mono">{String(v?.before ?? "—")}</span>
+                              <span className="text-slate-500">→</span>
+                              <span className="text-slate-500">después:</span>
+                              <span className="font-mono">{String(v?.after ?? "—")}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-slate-500">Sin detalle de cambios.</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="px-6 py-4 border-t border-cyan-100 bg-slate-50 text-right">
+              <button
+                onClick={closeView}
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-slate-200 bg-white hover:bg-slate-100"
+              >
+                Cerrar
+              </button>
+            </div>
+
           </div>
         </div>
       )}

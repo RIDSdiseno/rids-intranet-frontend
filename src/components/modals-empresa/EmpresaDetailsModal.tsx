@@ -1,4 +1,4 @@
-// src/components/EmpresaDetailsModal.tsx (versión modificada)
+// src/components/EmpresaDetailsModal.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CloseOutlined,
@@ -52,10 +52,7 @@ import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-
-const API_URL =
-  (import.meta as ImportMeta).env?.VITE_API_URL ||
-  "http://localhost:4000/api";
+import { api } from "../../api/api"; // 🔥 ajusta ruta
 
 dayjs.extend(utc);
 
@@ -66,21 +63,15 @@ const formatDateTime24 = (date?: string | Date | null) => {
 
 const countVisitDaysInCurrentMonth = (visitas: Visita[]): number => {
   const now = dayjs();
-
   const uniqueDays = new Set<string>();
-
   visitas.forEach(v => {
     const date = v.inicio ?? v.fecha;
     if (!date) return;
-
     const d = dayjs.utc(date);
-
-    // solo visitas del mes actual
     if (d.isSame(now, "month")) {
-      uniqueDays.add(d.format("YYYY-MM-DD")); // clave por día
+      uniqueDays.add(d.format("YYYY-MM-DD"));
     }
   });
-
   return uniqueDays.size;
 };
 
@@ -88,7 +79,6 @@ const getVisitasMesActual = (visitas: Visita[]): Visita[] => {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
-
   return visitas.filter(v => {
     const d = new Date(v.inicio ?? v.fecha ?? "");
     return (
@@ -105,7 +95,6 @@ const getTimeAgo = (date?: string | Date | null): string => {
   const then = new Date(date);
   const diffMs = now.getTime() - then.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
   if (diffDays === 0) return "Hoy";
   if (diffDays === 1) return "Ayer";
   if (diffDays < 7) return `Hace ${diffDays} días`;
@@ -118,10 +107,8 @@ const diffMinutes = (a?: string | Date | null, b?: string | Date | null): string
   const da = toTimestamp(a);
   const db = toTimestamp(b);
   if (Number.isNaN(da) || Number.isNaN(db)) return null;
-
   const mins = Math.max(0, Math.round((db - da) / 60000));
   if (!Number.isFinite(mins)) return null;
-
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
@@ -135,28 +122,13 @@ const getVisitTecnico = (v: Visita): string => {
   return typeof v.tecnico === "string" ? v.tecnico : (v.tecnico?.nombre ?? "—");
 };
 const getVisitMotivo = (v: Visita) =>
-  v.otrosDetalle ??
-  v.motivo ??
-  v.solicitanteRef?.nombre ??
-  "—";
+  v.otrosDetalle ?? v.motivo ?? v.solicitanteRef?.nombre ?? "—";
 
 const estadoTag = (estado?: string | null) => {
   const value = (estado ?? "").toUpperCase();
-  if (value === "COMPLETADA") return (
-    <Tag color="green">
-      COMPLETADA
-    </Tag>
-  );
-  if (value === "PENDIENTE") return (
-    <Tag color="orange">
-      PENDIENTE
-    </Tag>
-  );
-  if (value === "CANCELADA") return (
-    <Tag color="red">
-      CANCELADA
-    </Tag>
-  );
+  if (value === "COMPLETADA") return <Tag color="green">COMPLETADA</Tag>;
+  if (value === "PENDIENTE") return <Tag color="orange">PENDIENTE</Tag>;
+  if (value === "CANCELADA") return <Tag color="red">CANCELADA</Tag>;
   return <Tag>{estado ?? "—"}</Tag>;
 };
 
@@ -183,9 +155,7 @@ const useSolicitantesColumns = (dense: boolean): TableColumnsType<SolicitanteLit
     title: "Nombre",
     dataIndex: "nombre",
     ellipsis: true,
-    render: (text: string) => (
-      <div className="font-medium text-slate-800">{text}</div>
-    ),
+    render: (text: string) => <div className="font-medium text-slate-800">{text}</div>,
   },
   {
     title: "Contacto",
@@ -196,9 +166,8 @@ const useSolicitantesColumns = (dense: boolean): TableColumnsType<SolicitanteLit
         {email && (
           <div className="flex items-center gap-1 text-sm">
             <MailOutlined className="text-slate-400 text-xs" />
-            <span className="text-blue-600 hover:underline cursor-pointer" onClick={() => {
-              navigator.clipboard.writeText(email).then(() => message.success("Email copiado"));
-            }}>
+            <span className="text-blue-600 hover:underline cursor-pointer"
+              onClick={() => navigator.clipboard.writeText(email).then(() => message.success("Email copiado"))}>
               {email}
             </span>
           </div>
@@ -218,11 +187,7 @@ const useSolicitantesColumns = (dense: boolean): TableColumnsType<SolicitanteLit
     width: 100,
     align: "center",
     render: (arr?: EquipoLite[]) => (
-      <Badge
-        count={arr?.length ?? 0}
-        style={{ backgroundColor: '#3b82f6' }}
-        showZero
-      />
+      <Badge count={arr?.length ?? 0} style={{ backgroundColor: '#3b82f6' }} showZero />
     ),
   },
 ];
@@ -239,9 +204,7 @@ const useEquiposColumns = (): TableColumnsType<EquipoLite> => [
     title: "Serial",
     dataIndex: "serial",
     ellipsis: true,
-    render: (v: string | null) => v ? (
-      <Tag color="geekblue" className="font-mono">{v}</Tag>
-    ) : "—"
+    render: (v: string | null) => v ? <Tag color="geekblue" className="font-mono">{v}</Tag> : "—",
   },
   {
     title: "Marca/Modelo",
@@ -258,24 +221,9 @@ const useEquiposColumns = (): TableColumnsType<EquipoLite> => [
     ellipsis: true,
     render: (_: unknown, record: EquipoLite) => (
       <div className="space-y-1 text-sm">
-        {record.procesador && (
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500">CPU:</span>
-            <span className="font-medium">{record.procesador}</span>
-          </div>
-        )}
-        {record.ram && (
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500">RAM:</span>
-            <span className="font-medium">{record.ram}</span>
-          </div>
-        )}
-        {record.disco && (
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500">DISCO:</span>
-            <span className="font-medium">{record.disco}</span>
-          </div>
-        )}
+        {record.procesador && <div className="flex items-center gap-1"><span className="text-slate-500">CPU:</span><span className="font-medium">{record.procesador}</span></div>}
+        {record.ram && <div className="flex items-center gap-1"><span className="text-slate-500">RAM:</span><span className="font-medium">{record.ram}</span></div>}
+        {record.disco && <div className="flex items-center gap-1"><span className="text-slate-500">DISCO:</span><span className="font-medium">{record.disco}</span></div>}
       </div>
     ),
   },
@@ -283,9 +231,7 @@ const useEquiposColumns = (): TableColumnsType<EquipoLite> => [
     title: "Propiedad",
     dataIndex: "propiedad",
     width: 120,
-    render: (v: string | null) => (
-      v ? <Tag color={v === 'Empresa' ? 'green' : 'orange'}>{v}</Tag> : "—"
-    ),
+    render: (v: string | null) => v ? <Tag color={v === 'Empresa' ? 'green' : 'orange'}>{v}</Tag> : "—",
   },
   {
     title: "Solicitante",
@@ -320,16 +266,14 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
     render: (_: unknown, r: Visita) => {
       const formatted = formatDateTime24(r.inicio ?? r.fecha);
       const [date, time] = formatted.split(",");
-
       return (
         <div className="space-y-1">
           <div className="font-medium">{date}</div>
-          <div className="text-xs text-slate-500">{time.trim()}</div>
+          <div className="text-xs text-slate-500">{time?.trim()}</div>
         </div>
       );
     },
   },
-
   {
     title: "Estado",
     key: "estado",
@@ -362,11 +306,7 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
     width: 110,
     render: (_: unknown, r: Visita) => {
       const duration = diffMinutes(r.inicio, r.fin);
-      return duration ? (
-        <Tag color="blue">
-          {duration}
-        </Tag>
-      ) : "—";
+      return duration ? <Tag color="blue">{duration}</Tag> : "—";
     },
   },
   {
@@ -381,7 +321,7 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
   },
 ];
 
-/* ===================== UI utils ===================== */
+/* ===================== EmpresaInfoGeneral ===================== */
 const EmpresaInfoGeneral: React.FC<{
   empresa: EmpresaLite | null;
   onUpdated?: () => void;
@@ -392,7 +332,6 @@ const EmpresaInfoGeneral: React.FC<{
 
   useEffect(() => {
     if (!empresa?.detalleEmpresa) return;
-
     form.setFieldsValue({
       rut: empresa.detalleEmpresa.rut,
       email: empresa.detalleEmpresa.email,
@@ -405,23 +344,15 @@ const EmpresaInfoGeneral: React.FC<{
 
   const handleSave = async () => {
     try {
-      console.log("detalleEmpresa:", empresa?.detalleEmpresa);
-
       const values = await form.validateFields();
       setSaving(true);
 
-      await fetch(
-        `${API_URL}/detalle-empresa/${empresa.detalleEmpresa?.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        }
-      );
+      // 🔥 usa api en lugar de fetch nativo
+      await api.put(`/detalle-empresa/${empresa.detalleEmpresa?.id}`, values);
 
       message.success("Datos actualizados");
       setEditing(false);
-      onUpdated?.(); // 🔥 refresca todo
+      onUpdated?.();
     } catch {
       message.error("Error al guardar");
     } finally {
@@ -434,21 +365,11 @@ const EmpresaInfoGeneral: React.FC<{
       className="mb-6 border-0 shadow-sm"
       extra={
         !editing ? (
-          <Button type="primary" onClick={() => setEditing(true)}>
-            Editar
-          </Button>
+          <Button type="primary" onClick={() => setEditing(true)}>Editar</Button>
         ) : (
           <Space>
-            <Button onClick={() => setEditing(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="primary"
-              loading={saving}
-              onClick={handleSave}
-            >
-              Guardar
-            </Button>
+            <Button onClick={() => setEditing(false)}>Cancelar</Button>
+            <Button type="primary" loading={saving} onClick={handleSave}>Guardar</Button>
           </Space>
         )
       }
@@ -462,43 +383,27 @@ const EmpresaInfoGeneral: React.FC<{
         </div>
       ) : (
         <Form form={form} layout="vertical">
-          <Form.Item name="rut" label="RUT">
-            <Input />
-          </Form.Item>
-
-          <Form.Item name="email" label="Email">
-            <Input />
-          </Form.Item>
-
-          <Form.Item name="telefono" label="Teléfono">
-            <Input />
-          </Form.Item>
-
-          <Form.Item name="direccion" label="Dirección">
-            <Input />
-          </Form.Item>
+          <Form.Item name="rut" label="RUT"><Input /></Form.Item>
+          <Form.Item name="email" label="Email"><Input /></Form.Item>
+          <Form.Item name="telefono" label="Teléfono"><Input /></Form.Item>
+          <Form.Item name="direccion" label="Dirección"><Input /></Form.Item>
         </Form>
       )}
     </Card>
   );
 };
 
-
+/* ===================== StatsOverview ===================== */
 const StatsOverview: React.FC<{
   solicitantes: SolicitanteLite[];
   equipos: EquipoLite[];
   visitas: Visita[];
 }> = ({ solicitantes, equipos, visitas }) => {
   const visitDaysThisMonth = countVisitDaysInCurrentMonth(visitas);
-
   const visitasMesActual = getVisitasMesActual(visitas);
 
-  const equiposPorSolicitante = solicitantes.length > 0
-    ? (equipos.length / solicitantes.length).toFixed(1)
-    : '0.0';
-
   const lastVisit = visitas.length > 0
-    ? visitas.sort((a, b) => {
+    ? [...visitas].sort((a, b) => {
       const dateA = new Date(a.inicio || a.fecha || 0);
       const dateB = new Date(b.inicio || b.fecha || 0);
       return dateB.getTime() - dateA.getTime();
@@ -509,65 +414,33 @@ const StatsOverview: React.FC<{
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px' }}>
         <Statistic
-          title={
-            <div className="flex items-center gap-2 text-slate-600">
-              <TeamOutlined />
-              <span>Solicitantes</span>
-            </div>
-          }
+          title={<div className="flex items-center gap-2 text-slate-600"><TeamOutlined /><span>Solicitantes</span></div>}
           value={solicitantes.length}
           valueStyle={{ color: '#3b82f6', fontSize: '28px' }}
         />
       </Card>
-
       <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px' }}>
         <Statistic
-          title={
-            <div className="flex items-center gap-2 text-slate-600">
-              <LaptopOutlined />
-              <span>Equipos</span>
-            </div>
-          }
+          title={<div className="flex items-center gap-2 text-slate-600"><LaptopOutlined /><span>Equipos</span></div>}
           value={equipos.length}
           valueStyle={{ color: '#10b981', fontSize: '28px' }}
-          suffix={
-            <div className="text-sm text-slate-500">
-              {solicitantes.length > 0 ? (
-                <div className="flex items-center gap-1">
-                </div>
-              ) : null}
-            </div>
-          }
         />
       </Card>
-
       <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px' }}>
         <Statistic
-          title={
-            <div className="flex items-center gap-2 text-slate-600">
-              <CalendarOutlined />
-              <span>Registros de Visitas en el mes actual</span>
-            </div>
-          }
+          title={<div className="flex items-center gap-2 text-slate-600"><CalendarOutlined /><span>Registros de Visitas en el mes actual</span></div>}
           value={visitasMesActual.length}
           valueStyle={{ color: '#8b5cf6', fontSize: '28px' }}
         />
       </Card>
-
       <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px' }}>
         <Statistic
-          title={
-            <div className="flex items-center gap-2 text-slate-600">
-              <CalendarOutlined />
-              <span>Visitas realizadas este mes</span>
-            </div>
-          }
+          title={<div className="flex items-center gap-2 text-slate-600"><CalendarOutlined /><span>Visitas realizadas este mes</span></div>}
           value={visitDaysThisMonth}
           valueStyle={{ color: '#0ea5e9', fontSize: '28px' }}
           suffix="visitas"
         />
       </Card>
-
       {lastVisit && (
         <div className="col-span-2 lg:col-span-4">
           <Card className="border-0 shadow-sm" bodyStyle={{ padding: '16px' }}>
@@ -593,7 +466,7 @@ const StatsOverview: React.FC<{
   );
 };
 
-/* ===================== Componente ===================== */
+/* ===================== Componente principal ===================== */
 const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
   open,
   onClose,
@@ -613,7 +486,6 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
   }, [open]);
 
   const compact = density === "Compacto";
-
   const solicitantesColumns = useSolicitantesColumns(compact);
   const equiposColumns = useEquiposColumns();
   const visitasColumns = useVisitasColumns();
@@ -636,146 +508,80 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
       (index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-slate-50/60 hover:bg-blue-50"),
   };
 
-  const tabItems: TabsProps["items"] = useMemo(
-    () => [
-      {
-        key: "resumen",
-        label: (
-          <Space size={6}>
-            <span className="font-medium">Resumen</span>
-          </Space>
-        ),
-        children: (
-          <div className="space-y-6">
-            <StatsOverview
-              solicitantes={solicitantes}
-              equipos={equipos}
-              visitas={visitas}
-            />
+  const tabItems: TabsProps["items"] = useMemo(() => [
+    {
+      key: "resumen",
+      label: <Space size={6}><span className="font-medium">Resumen</span></Space>,
+      children: (
+        <div className="space-y-6">
+          <StatsOverview solicitantes={solicitantes} equipos={equipos} visitas={visitas} />
+        </div>
+      ),
+    },
+    {
+      key: "solicitantes",
+      label: (
+        <Space size={6}>
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-purple-400 flex items-center justify-center text-white">
+            <TeamOutlined className="text-xs" />
           </div>
-        ),
-      },
-      {
-        key: "solicitantes",
-        label: (
-          <Space size={6}>
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-purple-400 flex items-center justify-center text-white">
-              <TeamOutlined className="text-xs" />
-            </div>
-            <span className="font-medium">Solicitantes</span>
-            <Badge
-              count={solicitantes.length}
-              style={{ backgroundColor: '#6366f1' }}
-              showZero
-            />
-          </Space>
-        ),
-        children:
-          solicitantes.length === 0 ? (
-            <div className="py-16 text-center">
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <div>
-                    <div className="text-lg font-medium text-slate-700 mb-2">Sin solicitantes</div>
-                    <div className="text-slate-500">Esta empresa no tiene solicitantes registrados</div>
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-              <Table<SolicitanteLite>
-                rowKey="id_solicitante"
-                columns={solicitantesColumns}
-                dataSource={solicitantes}
-                {...tableCommon}
-              />
-            </Card>
-          ),
-      },
-      {
-        key: "equipos",
-        label: (
-          <Space size={6}>
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-green-400 flex items-center justify-center text-white">
-              <LaptopOutlined className="text-xs" />
-            </div>
-            <span className="font-medium">Equipos</span>
-            <Badge
-              count={equipos.length}
-              style={{ backgroundColor: '#10b981' }}
-              showZero
-            />
-          </Space>
-        ),
-        children:
-          equipos.length === 0 ? (
-            <div className="py-16 text-center">
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <div>
-                    <div className="text-lg font-medium text-slate-700 mb-2">Sin equipos</div>
-                    <div className="text-slate-500">No hay equipos registrados para esta empresa</div>
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-              <Table<EquipoLite>
-                rowKey="id_equipo"
-                columns={equiposColumns}
-                dataSource={equipos}
-                {...tableCommon}
-              />
-            </Card>
-          ),
-      },
-      {
-        key: "visitas",
-        label: (
-          <Space size={6}>
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center text-white">
-              <CalendarOutlined className="text-xs" />
-            </div>
-            <span className="font-medium">Visitas</span>
-            <Badge
-              count={visitas.length}
-              style={{ backgroundColor: '#f59e0b' }}
-              showZero
-            />
-          </Space>
-        ),
-        children:
-          visitas.length === 0 ? (
-            <div className="py-16 text-center">
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <div>
-                    <div className="text-lg font-medium text-slate-700 mb-2">Sin visitas</div>
-                    <div className="text-slate-500">No hay visitas registradas para esta empresa</div>
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-              <Table<Visita>
-                rowKey="id_visita"
-                columns={visitasColumns}
-                dataSource={visitas}
-                {...tableCommon}
-              />
-            </Card>
-          ),
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [solicitantes, equipos, visitas, density]
-  );
+          <span className="font-medium">Solicitantes</span>
+          <Badge count={solicitantes.length} style={{ backgroundColor: '#6366f1' }} showZero />
+        </Space>
+      ),
+      children: solicitantes.length === 0 ? (
+        <div className="py-16 text-center">
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin solicitantes</div><div className="text-slate-500">Esta empresa no tiene solicitantes registrados</div></div>} />
+        </div>
+      ) : (
+        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+          <Table<SolicitanteLite> rowKey="id_solicitante" columns={solicitantesColumns} dataSource={solicitantes} {...tableCommon} />
+        </Card>
+      ),
+    },
+    {
+      key: "equipos",
+      label: (
+        <Space size={6}>
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-green-400 flex items-center justify-center text-white">
+            <LaptopOutlined className="text-xs" />
+          </div>
+          <span className="font-medium">Equipos</span>
+          <Badge count={equipos.length} style={{ backgroundColor: '#10b981' }} showZero />
+        </Space>
+      ),
+      children: equipos.length === 0 ? (
+        <div className="py-16 text-center">
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin equipos</div><div className="text-slate-500">No hay equipos registrados para esta empresa</div></div>} />
+        </div>
+      ) : (
+        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+          <Table<EquipoLite> rowKey="id_equipo" columns={equiposColumns} dataSource={equipos} {...tableCommon} />
+        </Card>
+      ),
+    },
+    {
+      key: "visitas",
+      label: (
+        <Space size={6}>
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center text-white">
+            <CalendarOutlined className="text-xs" />
+          </div>
+          <span className="font-medium">Visitas</span>
+          <Badge count={visitas.length} style={{ backgroundColor: '#f59e0b' }} showZero />
+        </Space>
+      ),
+      children: visitas.length === 0 ? (
+        <div className="py-16 text-center">
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin visitas</div><div className="text-slate-500">No hay visitas registradas para esta empresa</div></div>} />
+        </div>
+      ) : (
+        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+          <Table<Visita> rowKey="id_visita" columns={visitasColumns} dataSource={visitas} {...tableCommon} />
+        </Card>
+      ),
+    },
+  ], [solicitantes, equipos, visitas, density]);
 
   const onChangeDensity = (v: string | number) => {
     if (v === "Cómodo" || v === "Compacto") setDensity(v);
@@ -790,13 +596,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
       styles={{
         header: { padding: 0 },
         body: { padding: 0 },
-        footer: {
-          padding: '16px 24px',
-          borderTop: '1px solid #f1f5f9',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }
+        footer: { padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
       }}
       closeIcon={
         <div className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
@@ -818,10 +618,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
           <Space>
             <Segmented
               size="small"
-              options={[
-                { label: 'Cómodo', value: 'Cómodo' },
-                { label: 'Compacto', value: 'Compacto' }
-              ]}
+              options={[{ label: 'Cómodo', value: 'Cómodo' }, { label: 'Compacto', value: 'Compacto' }]}
               value={density}
               onChange={onChangeDensity}
             />
@@ -830,14 +627,10 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
         </div>
       }
     >
-      {/* Contenido */}
       <div className="px-6 pt-4 pb-6 h-full overflow-y-auto">
         {loading && (
           <div className="h-96 flex flex-col items-center justify-center gap-4">
-            <Spin
-              indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />}
-              size="large"
-            />
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} size="large" />
             <div className="text-lg font-medium text-slate-700">Cargando detalles de la empresa...</div>
             <div className="text-slate-500">Estamos preparando toda la información</div>
           </div>
@@ -845,41 +638,25 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
 
         {!loading && error && (
           <div className="mb-6">
-            <Alert
-              type="error"
-              message="Error al cargar datos"
-              description={error}
-              showIcon
-              closable
-            />
+            <Alert type="error" message="Error al cargar datos" description={error} showIcon closable />
           </div>
         )}
 
         {!loading && empresa && (
           <>
-            {/* Header empresa */}
             <div className="mb-8 pb-6 border-b border-slate-100">
               <div className="flex items-center gap-4">
-                {/* Avatar inicial */}
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-lg font-semibold shadow-sm">
                   {empresa.nombre?.charAt(0).toUpperCase()}
                 </div>
-
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-                    {empresa.nombre}
-                  </h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Información y estadísticas generales
-                  </p>
+                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{empresa.nombre}</h2>
+                  <p className="text-sm text-slate-500 mt-1">Información y estadísticas generales</p>
                 </div>
               </div>
             </div>
 
-            <EmpresaInfoGeneral
-              empresa={empresa}
-              onUpdated={onUpdated}
-            />
+            <EmpresaInfoGeneral empresa={empresa} onUpdated={onUpdated} />
 
             <div className="mb-6">
               <Tabs
@@ -887,10 +664,7 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
                 onChange={(k) => setTab(k as TabKey)}
                 items={tabItems}
                 className="custom-tabs"
-                tabBarStyle={{
-                  marginBottom: '24px',
-                  borderBottom: '1px solid #f1f5f9'
-                }}
+                tabBarStyle={{ marginBottom: '24px', borderBottom: '1px solid #f1f5f9' }}
               />
             </div>
           </>

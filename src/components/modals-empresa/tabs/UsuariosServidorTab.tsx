@@ -1,9 +1,7 @@
-// UsuariosServidorTable.tsx (mejorado)
 import React, { useEffect, useState } from "react";
 import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Row, Col, Select } from "antd";
 import {
     UserOutlined,
-    LockOutlined,
     DesktopOutlined,
     TagOutlined,
     CheckCircleOutlined,
@@ -12,6 +10,7 @@ import {
     DeleteOutlined,
     PlusOutlined,
 } from "@ant-design/icons";
+import { api } from "../../../api/api"; // 🔥 ajusta ruta
 
 interface Props {
     servidorId: number;
@@ -28,8 +27,6 @@ interface UsuarioServidor {
     estado?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-
 const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
     const [usuarios, setUsuarios] = useState<UsuarioServidor[]>([]);
     const [open, setOpen] = useState(false);
@@ -37,43 +34,40 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
     const [form] = Form.useForm();
 
     const fetchUsuarios = async () => {
-        const res = await fetch(`${API_URL}/ficha-empresa/servidores/${servidorId}/usuarios`);
-        const json = await res.json();
-        if (json.success) setUsuarios(json.data);
+        try {
+            const { data } = await api.get(`/ficha-empresa/servidores/${servidorId}/usuarios`);
+            if (data.success) setUsuarios(data.data);
+        } catch {
+            message.error("Error cargando usuarios");
+        }
     };
 
-    useEffect(() => {
-        fetchUsuarios();
-    }, [servidorId]);
+    useEffect(() => { fetchUsuarios(); }, [servidorId]);
 
     const handleSubmit = async () => {
-        const values = await form.validateFields();
-
-        if (editing) {
-            await fetch(`${API_URL}/ficha-empresa/servidor-usuarios/${editing.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(values),
-            });
-        } else {
-            await fetch(`${API_URL}/ficha-empresa/servidores/${servidorId}/usuarios`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(values),
-            });
+        try {
+            const values = await form.validateFields();
+            if (editing) {
+                await api.put(`/ficha-empresa/servidor-usuarios/${editing.id}`, values);
+            } else {
+                await api.post(`/ficha-empresa/servidores/${servidorId}/usuarios`, values);
+            }
+            setOpen(false);
+            setEditing(null);
+            form.resetFields();
+            fetchUsuarios();
+        } catch {
+            message.error("Error guardando usuario");
         }
-
-        setOpen(false);
-        setEditing(null);
-        form.resetFields();
-        fetchUsuarios();
     };
 
     const handleDelete = async (id: number) => {
-        await fetch(`${API_URL}/ficha-empresa/servidor-usuarios/${id}`, {
-            method: "DELETE",
-        });
-        fetchUsuarios();
+        try {
+            await api.delete(`/ficha-empresa/servidor-usuarios/${id}`);
+            fetchUsuarios();
+        } catch {
+            message.error("Error eliminando usuario");
+        }
     };
 
     return (
@@ -84,11 +78,7 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
                     type="primary"
                     size="small"
                     icon={<PlusOutlined />}
-                    onClick={() => {
-                        setEditing(null);
-                        form.resetFields();
-                        setOpen(true);
-                    }}
+                    onClick={() => { setEditing(null); form.resetFields(); setOpen(true); }}
                 >
                     Nuevo usuario
                 </Button>
@@ -120,15 +110,7 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
                         title: "Acciones",
                         render: (_, record) => (
                             <div className="flex gap-2">
-                                <Button
-                                    size="small"
-                                    icon={<EditOutlined />}
-                                    onClick={() => {
-                                        setEditing(record);
-                                        form.setFieldsValue(record);
-                                        setOpen(true);
-                                    }}
-                                />
+                                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditing(record); form.setFieldsValue(record); setOpen(true); }} />
                                 <Popconfirm title="Eliminar usuario?" onConfirm={() => handleDelete(record.id)}>
                                     <Button size="small" icon={<DeleteOutlined />} danger />
                                 </Popconfirm>
@@ -140,23 +122,13 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
             />
 
             <Modal
-                title={
-                    <span>
-                        <UserOutlined style={{ marginRight: 8 }} />
-                        {editing ? "Editar Usuario" : "Nuevo Usuario"}
-                    </span>
-                }
+                title={<span><UserOutlined style={{ marginRight: 8 }} />{editing ? "Editar Usuario" : "Nuevo Usuario"}</span>}
                 open={open}
-                onCancel={() => setOpen(false)}
-                onOk={handleSubmit}
+                onCancel={() => { setOpen(false); setEditing(null); form.resetFields(); }}
                 width={700}
                 footer={[
-                    <Button key="cancel" onClick={() => setOpen(false)}>
-                        Cancelar
-                    </Button>,
-                    <Button key="submit" type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
-                        {editing ? "Actualizar" : "Crear"}
-                    </Button>,
+                    <Button key="cancel" onClick={() => { setOpen(false); setEditing(null); form.resetFields(); }}>Cancelar</Button>,
+                    <Button key="submit" type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>{editing ? "Actualizar" : "Crear"}</Button>,
                 ]}
             >
                 <Form form={form} layout="vertical">
@@ -172,7 +144,6 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
                             </Form.Item>
                         </Col>
                     </Row>
-
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item name="contrasena" label="Contraseña" rules={[{ required: true, message: "Campo obligatorio" }]}>
@@ -185,7 +156,6 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
                             </Form.Item>
                         </Col>
                     </Row>
-
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item name="tipo" label="Tipo">

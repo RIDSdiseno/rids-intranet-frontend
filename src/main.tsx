@@ -4,14 +4,23 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 
-
 import { MsalProvider } from "@azure/msal-react";
-import { pca } from "./auth/msal"; // <-- crea src/auth/msal.ts como te indiqué
+import { pca } from "./auth/msal";
+
+import { ConfigProvider } from "antd";
+import esES from "antd/locale/es_ES";
+
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+
+dayjs.locale("es");
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <MsalProvider instance={pca}>
-      <App />
+      <ConfigProvider locale={esES}>
+        <App />
+      </ConfigProvider>
     </MsalProvider>
   </React.StrictMode>
 );

@@ -15,11 +15,7 @@ import type {
 } from "./types";
 import RedesTab from "./tabs/RedesTab";
 
-
-
-const API_URL =
-  (import.meta as ImportMeta).env?.VITE_API_URL ||
-  "http://localhost:4000/api";
+import { api } from "../../api/api"; // ajusta la ruta según tu proyecto
 
 const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   open,
@@ -43,14 +39,10 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
     if (!open || !empresa) return;
 
     const loadFichaCompleta = async () => {
-      const res = await fetch(
-        `${API_URL}/ficha-empresa/${empresa.id_empresa}/completa`
+
+      const { data } = await api.get(
+        `/ficha-empresa/${empresa.id_empresa}/completa`
       );
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-
       setLocalData(data);
     };
 
@@ -62,13 +54,11 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   const refetchFicha = async () => {
     if (!localData?.empresa) return;
 
-    const res = await fetch(
-      `${API_URL}/ficha-empresa/${localData.empresa.id_empresa}/completa`
+    const { data } = await api.get(
+      `/ficha-empresa/${localData.empresa.id_empresa}/completa`
     );
 
-    if (!res.ok) return;
-
-    const data = await res.json();
+    if (!data) return;
 
     setLocalData(data);
   };
@@ -161,7 +151,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Historial",
               children: (
                 <EntityAuditTab
-                  endpoint={`/audit?empresaId=${localData.empresa.id_empresa}`}
+                  endpoint={`/audit/empresa/${localData.empresa.id_empresa}`}
                 />
               ),
             }

@@ -211,51 +211,29 @@ async function fetchSolicitantes(
   return res.json();
 }
 
-async function fetchEmpresasDesdeEquipos(): Promise<EmpresaOpt[]> {
-  const empresas = new Map<number, string>();
+type EmpresasResponse = {
+  success: boolean;
+  data: Array<{ id_empresa: number; nombre: string }>;
+  total: number;
+};
 
-  const page1 = new URL(`${API_URL}/equipos`);
-  page1.searchParams.set("page", "1");
-  page1.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-  page1.searchParams.set("_ts", String(Date.now()));
-
-  const res1 = await fetch(page1.toString(), {
+async function fetchEmpresas(): Promise<EmpresaOpt[]> {
+  const res = await fetch(`${API_URL}/empresas`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json", ...authHeaders() },
+    headers: { Accept: "application/json", ...authHeaders() },
   });
-  if (!res1.ok) throw new Error(`HTTP ${res1.status}`);
-  const first = await res1.json();
-  const totalPages: number = first?.totalPages || 1;
 
-  const consume = (pl: ApiList<EquipoLite>) => {
-    for (const it of pl.items) {
-      if (it.empresaId != null && it.empresa) empresas.set(it.empresaId, it.empresa);
-    }
-  };
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
+  const json = (await res.json()) as EmpresasResponse;
 
-  consume(first);
-
-  for (let p = 2; p <= totalPages; p++) {
-    const u = new URL(`${API_URL}/equipos`);
-    u.searchParams.set("page", String(p));
-    u.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-    u.searchParams.set("_ts", String(Date.now()));
-    const rx = await fetch(u.toString(), {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json", ...authHeaders() },
-    });
-    if (!rx.ok) throw new Error(`HTTP ${rx.status}`);
-    const pj = await rx.json();
-    consume(pj);
-  }
-
-  return Array.from(empresas.entries())
-    .map(([id, nombre]) => ({ id, nombre }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const arr = (json.data ?? []).map((e) => ({ id: e.id_empresa, nombre: e.nombre }));
+  arr.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return arr;
 }
 
 async function postEquipo(payload: CreateEquipoPayload) {
+
   const res = await fetch(`${API_URL}/equipos`, {
     method: "POST",
     headers: {
@@ -349,7 +327,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
       try {
         setEmpError(null);
         setLoadingEmpresas(true);
-        const emps = await fetchEmpresasDesdeEquipos();
+        const emps = await fetchEmpresas();
         setEmpresas(emps);
       } catch {
         setEmpresas([]);

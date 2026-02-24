@@ -24,20 +24,15 @@ import {
     WifiOutlined,
     UserOutlined,
     HomeOutlined,
-    EyeOutlined,
     DeleteOutlined
 } from "@ant-design/icons";
-
-const API_URL =
-    (import.meta as ImportMeta).env?.VITE_API_URL ||
-    "http://localhost:4000/api";
+import { api } from "../../../api/api"; // 🔥 ajusta ruta
 
 interface Props {
     empresaId: number;
 }
 
 const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
-    /* ===================== STATE ===================== */
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -50,25 +45,8 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     const load = async () => {
         try {
             setLoading(true);
-
-            const res = await fetch(
-                `${API_URL}/ficha-empresa/${empresaId}/sucursales`
-            );
-
-            if (!res.ok) {
-                setData([]);
-                return;
-            }
-
-            const json = await res.json();
-
-            // 🔥 validación defensiva
-            if (Array.isArray(json)) {
-                setData(json);
-            } else {
-                setData([]);
-            }
-
+            const { data: json } = await api.get(`/ficha-empresa/${empresaId}/sucursales`);
+            setData(Array.isArray(json) ? json : []);
         } catch {
             setData([]);
         } finally {
@@ -77,15 +55,11 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     };
 
     useEffect(() => {
-        // 🔥 limpiar estado ANTES de cargar nueva empresa
         setData([]);
         setLoading(true);
-
-        // cerrar modal si estaba abierto
         setModalOpen(false);
         setEditingSucursalId(null);
         form.resetFields();
-
         load();
     }, [empresaId]);
 
@@ -94,10 +68,8 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
         if (!modalOpen) return;
 
         if (editingSucursalId) {
-            // 1️⃣ cargar sucursal
-            fetch(`${API_URL}/ficha-empresa/sucursales/${editingSucursalId}`)
-                .then(r => r.json())
-                .then(data => {
+            api.get(`/ficha-empresa/sucursales/${editingSucursalId}`)
+                .then(({ data }) => {
                     form.setFieldsValue({
                         nombre: data.nombre ?? "",
                         direccion: data.direccion ?? "",
@@ -106,23 +78,14 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                     });
                 });
 
-            // 2️⃣ cargar WiFi
-            fetch(`${API_URL}/ficha-empresa/sucursales/${editingSucursalId}/red`)
-                .then(r => r.json())
-                .then(red => {
-                    if (red) {
-                        form.setFieldsValue({
-                            redSucursal: red,
-                        });
-                    }
-                });
+            api.get(`/ficha-empresa/sucursales/${editingSucursalId}/red`)
+                .then(({ data: red }) => {
+                    if (red) form.setFieldsValue({ redSucursal: red });
+                })
+                .catch(() => { }); // red puede no existir
         } else {
-            // NUEVA SUCURSAL
             form.resetFields();
-            form.setFieldsValue({
-                responsableSucursals: [],
-                redSucursal: {},
-            });
+            form.setFieldsValue({ responsableSucursals: [], redSucursal: {} });
         }
     }, [modalOpen, editingSucursalId, form]);
 
@@ -132,45 +95,26 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
             const values = await form.validateFields();
             const { redSucursal, ...sucursalData } = values;
 
-            /* ===== 1️⃣ GUARDAR SUCURSAL ===== */
-            const url = editingSucursalId
-                ? `${API_URL}/ficha-empresa/sucursales/${editingSucursalId}`
-                : `${API_URL}/ficha-empresa/${empresaId}/sucursales`;
+            // 1️⃣ Guardar sucursal
+            let sucursalId: number;
 
-            const method = editingSucursalId ? "PUT" : "POST";
+            if (editingSucursalId) {
+                await api.put(`/ficha-empresa/sucursales/${editingSucursalId}`, sucursalData);
+                sucursalId = editingSucursalId;
+            } else {
+                const { data: saved } = await api.post(`/ficha-empresa/${empresaId}/sucursales`, sucursalData);
+                sucursalId = saved.id_sucursal;
+            }
 
-            const res = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(sucursalData),
-            });
-
-            if (!res.ok) throw new Error("Error guardando sucursal");
-
-            const savedSucursal = await res.json();
-            const sucursalId = editingSucursalId ?? savedSucursal.id_sucursal;
-
-            /* ===== 2️⃣ GUARDAR WIFI (solo si tiene datos) ===== */
+            // 2️⃣ Guardar WiFi (solo si tiene datos)
             const hasWifiData = redSucursal &&
                 Object.values(redSucursal).some(v => v && String(v).trim() !== "");
 
             if (hasWifiData) {
-                await fetch(
-                    `${API_URL}/ficha-empresa/sucursales/${sucursalId}/red`,
-                    {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(redSucursal),
-                    }
-                );
+                await api.put(`/ficha-empresa/sucursales/${sucursalId}/red`, redSucursal);
             }
 
-            message.success(
-                editingSucursalId
-                    ? "Sucursal actualizada correctamente"
-                    : "Sucursal creada correctamente"
-            );
-
+            message.success(editingSucursalId ? "Sucursal actualizada correctamente" : "Sucursal creada correctamente");
             setModalOpen(false);
             setEditingSucursalId(null);
             load();
@@ -180,10 +124,25 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
         }
     };
 
+    /* ===================== DELETE ===================== */
+    const onDelete = async () => {
+        if (!deleteSucursalId) return;
+        try {
+            setDeleting(true);
+            await api.delete(`/ficha-empresa/sucursales/${deleteSucursalId}`);
+            message.success("Sucursal eliminada correctamente");
+            setDeleteSucursalId(null);
+            load();
+        } catch {
+            message.error("No se pudo eliminar la sucursal");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     /* ===================== UI ===================== */
     return (
         <div className="p-2">
-            {/* ======= HEADER ======= */}
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h3 className="text-lg font-semibold mb-1">Sucursales</h3>
@@ -194,40 +153,23 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                 <Button
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => {
-                        setEditingSucursalId(null);
-                        setModalOpen(true);
-                    }}
-                    className="flex items-center"
+                    onClick={() => { setEditingSucursalId(null); setModalOpen(true); }}
                 >
                     Nueva sucursal
                 </Button>
             </div>
 
-            {/* ======= LISTADO ======= */}
             {data.length === 0 && !loading ? (
                 <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                        <span className="text-gray-500">
-                            Esta empresa no tiene sucursales registradas
-                        </span>
-                    }
+                    description={<span className="text-gray-500">Esta empresa no tiene sucursales registradas</span>}
                     className="py-8"
                 />
             ) : (
                 <List
                     loading={loading}
                     dataSource={data}
-                    grid={{
-                        gutter: 16,
-                        xs: 1,
-                        sm: 1,
-                        md: 2,
-                        lg: 2,
-                        xl: 3,
-                        xxl: 3,
-                    }}
+                    grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 3, xxl: 3 }}
                     renderItem={(sucursal) => (
                         <List.Item>
                             <Card
@@ -239,43 +181,26 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                             <span className="font-medium truncate">{sucursal.nombre}</span>
                                         </div>
                                         {sucursal.redSucursal && (
-                                            <Badge
-                                                count={<WifiOutlined className="text-xs" />}
-                                                style={{ backgroundColor: '#52c41a' }}
-                                                title="WiFi configurado"
-                                            />
+                                            <Badge count={<WifiOutlined className="text-xs" />} style={{ backgroundColor: '#52c41a' }} title="WiFi configurado" />
                                         )}
                                     </div>
                                 }
                                 extra={
                                     <Space>
                                         <Tooltip title="Editar sucursal">
-                                            <Button
-                                                type="text"
-                                                size="small"
-                                                icon={<EditOutlined />}
-                                                onClick={() => {
-                                                    setEditingSucursalId(sucursal.id_sucursal);
-                                                    setModalOpen(true);
-                                                }}
+                                            <Button type="text" size="small" icon={<EditOutlined />}
+                                                onClick={() => { setEditingSucursalId(sucursal.id_sucursal); setModalOpen(true); }}
                                             />
                                         </Tooltip>
-
                                         <Tooltip title="Eliminar sucursal">
-                                            <Button
-                                                type="text"
-                                                size="small"
-                                                danger
-                                                icon={<DeleteOutlined />}
+                                            <Button type="text" size="small" danger icon={<DeleteOutlined />}
                                                 onClick={() => setDeleteSucursalId(sucursal.id_sucursal)}
                                             />
                                         </Tooltip>
                                     </Space>
                                 }
-
                             >
                                 <div className="space-y-3">
-                                    {/* Información básica */}
                                     <div className="space-y-2">
                                         {sucursal.direccion && (
                                             <div className="flex items-start">
@@ -286,7 +211,6 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                                 </div>
                                             </div>
                                         )}
-
                                         {sucursal.telefono && (
                                             <div className="flex items-center">
                                                 <PhoneOutlined className="text-gray-400 mr-2" />
@@ -298,7 +222,6 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                         )}
                                     </div>
 
-                                    {/* WiFi */}
                                     {sucursal.redSucursal ? (
                                         <div className="bg-gray-50 p-3 rounded">
                                             <div className="flex items-center mb-2">
@@ -307,20 +230,13 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                             </div>
                                             <div className="space-y-1 text-sm">
                                                 {sucursal.redSucursal.wifiNombre && (
-                                                    <p className="mb-0">
-                                                        <span className="text-gray-600">SSID:</span>{' '}
-                                                        <span className="font-medium">{sucursal.redSucursal.wifiNombre}</span>
-                                                    </p>
+                                                    <p className="mb-0"><span className="text-gray-600">SSID:</span>{' '}<span className="font-medium">{sucursal.redSucursal.wifiNombre}</span></p>
                                                 )}
                                                 {sucursal.redSucursal.claveWifi && (
                                                     <p className="mb-0">
                                                         <span className="text-gray-600">Clave:</span>{' '}
-                                                        <code
-                                                            className="bg-gray-100 px-1 rounded cursor-pointer"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(sucursal.redSucursal.claveWifi);
-                                                                message.success("Clave copiada");
-                                                            }}
+                                                        <code className="bg-gray-100 px-1 rounded cursor-pointer"
+                                                            onClick={() => { navigator.clipboard.writeText(sucursal.redSucursal.claveWifi); message.success("Clave copiada"); }}
                                                         >
                                                             {sucursal.redSucursal.claveWifi}
                                                         </code>
@@ -335,23 +251,16 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                         </div>
                                     )}
 
-                                    {/* Responsables */}
                                     <div>
                                         <div className="flex items-center mb-2">
                                             <UserOutlined className="text-gray-500 mr-2" />
                                             <span className="text-sm font-medium">Responsables</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
-                                            {Array.isArray(sucursal.responsableSucursals) &&
-                                                sucursal.responsableSucursals.length > 0 ? (
+                                            {Array.isArray(sucursal.responsableSucursals) && sucursal.responsableSucursals.length > 0 ? (
                                                 sucursal.responsableSucursals.map((r: any) => (
-                                                    <Tag
-                                                        key={r.id}
-                                                        color="blue"
-                                                        className="m-0"
-                                                    >
-                                                        {r.nombre}
-                                                        {r.cargo && ` (${r.cargo})`}
+                                                    <Tag key={r.id} color="blue" className="m-0">
+                                                        {r.nombre}{r.cargo && ` (${r.cargo})`}
                                                     </Tag>
                                                 ))
                                             ) : (
@@ -366,122 +275,73 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                 />
             )}
 
-            {/* ======= MODAL ======= */}
+            {/* ======= MODAL CREAR/EDITAR ======= */}
             <Modal
                 open={modalOpen}
-                title={
-                    <div className="flex items-center">
-                        <EnvironmentOutlined className="mr-2 text-blue-500" />
-                        {editingSucursalId ? "Editar sucursal" : "Nueva sucursal"}
-                    </div>
-                }
-                onCancel={() => {
-                    setModalOpen(false);
-                    setEditingSucursalId(null);
-                    form.resetFields(); // 🔥 clave
-                }}
+                title={<div className="flex items-center"><EnvironmentOutlined className="mr-2 text-blue-500" />{editingSucursalId ? "Editar sucursal" : "Nueva sucursal"}</div>}
+                onCancel={() => { setModalOpen(false); setEditingSucursalId(null); form.resetFields(); }}
                 onOk={onSave}
                 destroyOnClose
                 width={700}
                 okText="Guardar"
                 cancelText="Cancelar"
-                okButtonProps={{ className: "bg-blue-500" }}
             >
                 <Form layout="vertical" form={form} className="pt-4">
                     <Row gutter={16}>
                         <Col span={24}>
-                            <Form.Item
-                                name="nombre"
-                                label="Nombre"
-                                rules={[{ required: true, message: "Ingrese el nombre" }]}
-                            >
-                                <Input
-                                    placeholder="Nombre de la sucursal"
-                                    prefix={<EnvironmentOutlined className="text-gray-300" />}
-                                />
+                            <Form.Item name="nombre" label="Nombre" rules={[{ required: true, message: "Ingrese el nombre" }]}>
+                                <Input placeholder="Nombre de la sucursal" prefix={<EnvironmentOutlined className="text-gray-300" />} />
                             </Form.Item>
                         </Col>
-
                         <Col span={12}>
                             <Form.Item name="direccion" label="Dirección">
-                                <Input
-                                    placeholder="Dirección completa"
-                                    prefix={<HomeOutlined className="text-gray-300" />}
-                                />
+                                <Input placeholder="Dirección completa" prefix={<HomeOutlined className="text-gray-300" />} />
                             </Form.Item>
                         </Col>
-
                         <Col span={12}>
                             <Form.Item name="telefono" label="Teléfono">
-                                <Input
-                                    placeholder="Teléfono"
-                                    prefix={<PhoneOutlined className="text-gray-300" />}
-                                />
+                                <Input placeholder="Teléfono" prefix={<PhoneOutlined className="text-gray-300" />} />
                             </Form.Item>
                         </Col>
                     </Row>
 
                     <Divider orientation="left" className="!mt-8 !mb-4">
-                        <WifiOutlined className="mr-2" />
-                        WiFi de la sucursal
+                        <WifiOutlined className="mr-2" />WiFi de la sucursal
                     </Divider>
-
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item
-                                label="Nombre de la red"
-                                name={["redSucursal", "wifiNombre"]}
-                            >
+                            <Form.Item label="Nombre de la red" name={["redSucursal", "wifiNombre"]}>
                                 <Input placeholder="SSID" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item
-                                label="Contraseña WiFi"
-                                name={["redSucursal", "claveWifi"]}
-                            >
+                            <Form.Item label="Contraseña WiFi" name={["redSucursal", "claveWifi"]}>
                                 <Input placeholder="Contraseña" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item
-                                label="IP de red"
-                                name={["redSucursal", "ipRed"]}
-                            >
+                            <Form.Item label="IP de red" name={["redSucursal", "ipRed"]}>
                                 <Input placeholder="Ej: 192.168.1.1" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item
-                                label="Observaciones"
-                                name={["redSucursal", "observaciones"]}
-                            >
+                            <Form.Item label="Observaciones" name={["redSucursal", "observaciones"]}>
                                 <Input.TextArea rows={2} placeholder="Observaciones adicionales" />
                             </Form.Item>
                         </Col>
                     </Row>
 
                     <Divider orientation="left" className="!mt-8 !mb-4">
-                        <UserOutlined className="mr-2" />
-                        Responsables de la sucursal
+                        <UserOutlined className="mr-2" />Responsables de la sucursal
                     </Divider>
-
                     <Form.List name="responsableSucursals">
                         {(fields, { add, remove }) => (
                             <div className="space-y-3">
                                 {fields.map(({ key, name }) => (
-                                    <Card
-                                        key={key}
-                                        size="small"
-                                        className="border-l-2 border-l-blue-200"
-                                    >
+                                    <Card key={key} size="small" className="border-l-2 border-l-blue-200">
                                         <Row gutter={8} align="middle">
                                             <Col span={5}>
-                                                <Form.Item
-                                                    name={[name, "nombre"]}
-                                                    rules={[{ required: true, message: "Nombre requerido" }]}
-                                                    className="mb-0"
-                                                >
+                                                <Form.Item name={[name, "nombre"]} rules={[{ required: true, message: "Nombre requerido" }]} className="mb-0">
                                                     <Input placeholder="Nombre" size="small" />
                                                 </Form.Item>
                                             </Col>
@@ -501,26 +361,12 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                                                 </Form.Item>
                                             </Col>
                                             <Col span={3}>
-                                                <Button
-                                                    danger
-                                                    type="text"
-                                                    size="small"
-                                                    icon={<DeleteOutlined />}
-                                                    onClick={() => remove(name)}
-                                                    className="w-full"
-                                                />
+                                                <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => remove(name)} className="w-full" />
                                             </Col>
                                         </Row>
                                     </Card>
                                 ))}
-
-                                <Button
-                                    type="dashed"
-                                    onClick={() => add()}
-                                    block
-                                    icon={<PlusOutlined />}
-                                    className="mt-2"
-                                >
+                                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} className="mt-2">
                                     Agregar responsable
                                 </Button>
                             </div>
@@ -528,47 +374,17 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                     </Form.List>
                 </Form>
             </Modal>
-            {/* ======= MODAL CONFIRM DELETE ======= */}
+
             {/* ======= MODAL CONFIRM DELETE ======= */}
             <Modal
                 open={deleteSucursalId !== null}
                 title="¿Eliminar sucursal?"
-                onCancel={() => {
-                    if (!deleting) setDeleteSucursalId(null);
-                }}
-                onOk={async () => {
-                    try {
-                        if (!deleteSucursalId) return;
-
-                        setDeleting(true); // 🔥 activar spinner
-
-                        const res = await fetch(
-                            `${API_URL}/ficha-empresa/sucursales/${deleteSucursalId}`,
-                            { method: "DELETE" }
-                        );
-
-                        if (!res.ok) throw new Error();
-
-                        message.success("Sucursal eliminada correctamente");
-
-                        setDeleteSucursalId(null);
-                        load(); // recargar lista
-                    } catch (error) {
-                        console.error(error);
-                        message.error("No se pudo eliminar la sucursal");
-                    } finally {
-                        setDeleting(false); // 🔥 apagar spinner
-                    }
-                }}
+                onCancel={() => { if (!deleting) setDeleteSucursalId(null); }}
+                onOk={onDelete}
                 okText="Sí, eliminar"
                 cancelText="Cancelar"
-                okButtonProps={{
-                    danger: true,
-                    loading: deleting, // 🔥 SPINNER EN BOTÓN
-                }}
-                cancelButtonProps={{
-                    disabled: deleting, // 🔥 bloquear cancelar mientras elimina
-                }}
+                okButtonProps={{ danger: true, loading: deleting }}
+                cancelButtonProps={{ disabled: deleting }}
             >
                 <p>Esta acción no se puede deshacer.</p>
             </Modal>

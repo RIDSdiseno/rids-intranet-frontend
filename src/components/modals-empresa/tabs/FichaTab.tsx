@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
     Card,
-    Descriptions,
     Button,
     Form,
     Input,
@@ -30,13 +29,10 @@ import {
     StarFilled
 } from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
+import { api } from "../../../api/api"; // 🔥 ajusta ruta
 
 const { Text } = Typography;
-const API_URL =
-    (import.meta as ImportMeta).env?.VITE_API_URL ||
-    "http://localhost:4000/api";
 
-/* ===================== Componente ===================== */
 const FichaTab: React.FC<FichaTabProps> = ({
     empresa,
     ficha,
@@ -49,55 +45,35 @@ const FichaTab: React.FC<FichaTabProps> = ({
     const [saving, setSaving] = useState(false);
     const [form] = Form.useForm();
 
-    /* ===================== Sync data ===================== */
     useEffect(() => {
         if (!ficha) return;
-
         form.setFieldsValue({
             razonSocial: empresa.razonSocial,
             rut: detalleEmpresa?.rut,
-            direccion: detalleEmpresa?.direccion ?? "", // 🔵 principal
-            direcciones:
-                Array.isArray(detalleEmpresa?.direcciones)
-                    ? detalleEmpresa.direcciones
-                    : [], // 🟢 solo sucursales
+            direccion: detalleEmpresa?.direccion ?? "",
+            direcciones: Array.isArray(detalleEmpresa?.direcciones) ? detalleEmpresa.direcciones : [],
             condicionesComerciales: ficha?.condicionesComerciales,
             contactos: contactos ?? [],
         });
-
     }, [empresa, ficha, detalleEmpresa, contactos, form]);
 
     if (!ficha) {
-        return (
-            <div className="p-6 text-slate-500 text-sm">
-                Cargando ficha de la empresa…
-            </div>
-        );
+        return <div className="p-6 text-slate-500 text-sm">Cargando ficha de la empresa…</div>;
     }
 
-    /* ===================== Save ===================== */
     const onSave = async () => {
         try {
             const values = await form.validateFields();
             setSaving(true);
 
-            const res = await fetch(
-                `${API_URL}/ficha-empresa/${empresa.id_empresa}/ficha`,
-                {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        razonSocial: values.razonSocial,
-                        rut: values.rut,
-                        direccion: values.direccion,         // 🔵 principal
-                        direcciones: values.direcciones ?? [], // 🟢 sucursales
-                        condicionesComerciales: values.condicionesComerciales,
-                        contactos: values.contactos ?? [],
-                    }),
-                }
-            );
-
-            if (!res.ok) throw new Error();
+            await api.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
+                razonSocial: values.razonSocial,
+                rut: values.rut,
+                direccion: values.direccion,
+                direcciones: values.direcciones ?? [],
+                condicionesComerciales: values.condicionesComerciales,
+                contactos: values.contactos ?? [],
+            });
 
             message.success("Ficha actualizada correctamente");
             setEditing(false);
@@ -109,47 +85,29 @@ const FichaTab: React.FC<FichaTabProps> = ({
         }
     };
 
-    /* ===================== UI ===================== */
     return (
         <Card
             className="shadow-sm"
             title={
                 <div className="flex items-center">
                     <FileTextOutlined className="text-blue-500 mr-2" />
-                    <span className="font-semibold">
-                        Ficha Empresa · {empresa.nombre}
-                    </span>
+                    <span className="font-semibold">Ficha Empresa · {empresa.nombre}</span>
                 </div>
             }
             extra={
                 <Space>
                     {!editing ? (
                         <Tooltip title="Editar ficha de empresa">
-                            <Button
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => setEditing(true)}
-                            >
+                            <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)}>
                                 Editar
                             </Button>
                         </Tooltip>
                     ) : (
                         <div className="flex gap-2">
-                            <Button
-                                onClick={() => {
-                                    setEditing(false);
-                                    form.resetFields();
-                                }}
-                            >
+                            <Button onClick={() => { setEditing(false); form.resetFields(); }}>
                                 Cancelar
                             </Button>
-                            <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                loading={saving}
-                                onClick={onSave}
-                                className="bg-blue-500 hover:bg-blue-600"
-                            >
+                            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>
                                 Guardar
                             </Button>
                         </div>
@@ -158,18 +116,14 @@ const FichaTab: React.FC<FichaTabProps> = ({
             }
         >
             {!editing ? (
-                /* ======= MODO VISUALIZACIÓN ======= */
                 <div className="space-y-6">
-                    {/* Información básica */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="p-4 bg-gray-50 rounded">
                             <div className="flex items-center mb-2">
                                 <IdcardOutlined className="text-gray-400 mr-2" />
                                 <span className="text-sm font-medium text-gray-600">Razón social</span>
                             </div>
-                            <p className="text-base font-semibold">
-                                {empresa.razonSocial || "—"}
-                            </p>
+                            <p className="text-base font-semibold">{empresa.razonSocial || "—"}</p>
                         </div>
 
                         <div className="p-4 bg-gray-50 rounded">
@@ -177,9 +131,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 <IdcardOutlined className="text-gray-400 mr-2" />
                                 <span className="text-sm font-medium text-gray-600">RUT</span>
                             </div>
-                            <p className="text-base font-semibold">
-                                {detalleEmpresa?.rut || "—"}
-                            </p>
+                            <p className="text-base font-semibold">{detalleEmpresa?.rut || "—"}</p>
                         </div>
 
                         <div className="p-4 bg-gray-50 rounded md:col-span-2">
@@ -188,18 +140,12 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 <span className="text-sm font-medium text-gray-600">Dirección</span>
                             </div>
                             <div className="space-y-3">
-
-                                {/* 🔵 Dirección principal */}
                                 {detalleEmpresa?.direccion && (
                                     <div className="flex items-center gap-2">
                                         <Tag color="green">Principal</Tag>
-                                        <span className="font-semibold">
-                                            {detalleEmpresa.direccion}
-                                        </span>
+                                        <span className="font-semibold">{detalleEmpresa.direccion}</span>
                                     </div>
                                 )}
-
-                                {/* 🟢 Sucursales */}
                                 {Array.isArray(detalleEmpresa?.direcciones) &&
                                     detalleEmpresa.direcciones.map((d: any, index: number) => (
                                         <div key={index} className="flex items-center gap-2">
@@ -211,36 +157,28 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         </div>
                     </div>
 
-                    {/* Condiciones comerciales */}
                     {ficha.condicionesComerciales && (
                         <div className="p-4 bg-blue-50 rounded border border-blue-100">
                             <div className="flex items-center mb-2">
                                 <FileTextOutlined className="text-blue-400 mr-2" />
                                 <span className="text-sm font-medium text-blue-600">Condiciones comerciales</span>
                             </div>
-                            <p className="text-gray-700 whitespace-pre-line">
-                                {ficha.condicionesComerciales}
-                            </p>
+                            <p className="text-gray-700 whitespace-pre-line">{ficha.condicionesComerciales}</p>
                         </div>
                     )}
 
-                    {/* Contactos */}
                     <div>
                         <Divider orientation="left">
                             <UserOutlined className="mr-2" />
                             Contactos / Jefes
                         </Divider>
-
                         {contactos.length > 0 ? (
                             <Row gutter={[16, 16]}>
                                 {contactos.map((c) => (
                                     <Col xs={24} md={12} lg={8} key={c.id}>
                                         <Card
                                             size="small"
-                                            className={`h-full border-l-4 ${c.principal
-                                                ? 'border-l-yellow-500 bg-yellow-50'
-                                                : 'border-l-blue-200'
-                                                }`}
+                                            className={`h-full border-l-4 ${c.principal ? 'border-l-yellow-500 bg-yellow-50' : 'border-l-blue-200'}`}
                                             title={
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-medium truncate">{c.nombre}</span>
@@ -262,7 +200,6 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                         </div>
                                                     </div>
                                                 )}
-
                                                 {c.email && (
                                                     <div className="flex items-center">
                                                         <MailOutlined className="text-gray-400 mr-2" />
@@ -272,7 +209,6 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                         </div>
                                                     </div>
                                                 )}
-
                                                 {c.telefono && (
                                                     <div className="flex items-center">
                                                         <PhoneOutlined className="text-gray-400 mr-2" />
@@ -287,9 +223,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                         <EnvironmentOutlined className="text-gray-400 mr-2" />
                                                         <div>
                                                             <p className="text-xs text-gray-500 mb-0">Sucursal</p>
-                                                            <Tag color="blue">
-                                                                {c.sucursal.nombre}
-                                                            </Tag>
+                                                            <Tag color="blue">{c.sucursal.nombre}</Tag>
                                                         </div>
                                                     </div>
                                                 )}
@@ -306,80 +240,48 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         )}
                     </div>
 
-                    {/* Información del sistema */}
                     <Divider orientation="left">
                         <CalendarOutlined className="mr-2" />
                         Información del sistema
                     </Divider>
-
                     <div className="p-4 bg-gray-50 rounded">
                         <div className="flex items-center">
                             <CalendarOutlined className="text-gray-400 mr-2" />
                             <span className="text-sm font-medium text-gray-600">Fecha creación ficha</span>
                             <span className="ml-auto text-sm">
                                 {new Date(ficha.creadaEn).toLocaleString("es-CL", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    hour12: false,        // 🔥 CLAVE
+                                    day: "2-digit", month: "2-digit", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit", hour12: false,
                                 })}
                             </span>
                         </div>
                     </div>
                 </div>
             ) : (
-                /* ======= MODO EDICIÓN ======= */
                 <Form layout="vertical" form={form} className="space-y-6">
                     <Row gutter={16}>
                         <Col span={24} md={12}>
-                            <Form.Item
-                                label={
-                                    <span className="font-medium">
-                                        <IdcardOutlined className="mr-2" />
-                                        Razón social
-                                    </span>
-                                }
-                                name="razonSocial"
-                            >
+                            <Form.Item label={<span className="font-medium"><IdcardOutlined className="mr-2" />Razón social</span>} name="razonSocial">
                                 <Input placeholder="Razón social de la empresa" />
                             </Form.Item>
                         </Col>
-
                         <Col span={24} md={12}>
-                            <Form.Item
-                                label={
-                                    <span className="font-medium">
-                                        <IdcardOutlined className="mr-2" />
-                                        RUT
-                                    </span>
-                                }
-                                name="rut"
-                            >
+                            <Form.Item label={<span className="font-medium"><IdcardOutlined className="mr-2" />RUT</span>} name="rut">
                                 <Input placeholder="RUT de la empresa" />
                             </Form.Item>
                         </Col>
-
                         <Col span={24}>
                             <Form.Item
-                                label={
-                                    <span className="font-medium">
-                                        <EnvironmentOutlined className="mr-2" />
-                                        Dirección Principal
-                                    </span>
-                                }
+                                label={<span className="font-medium"><EnvironmentOutlined className="mr-2" />Dirección Principal</span>}
                                 name="direccion"
                                 rules={[{ required: true, message: "Dirección principal requerida" }]}
                             >
                                 <Input placeholder="Dirección principal de la empresa" />
                             </Form.Item>
                         </Col>
-
                         <Col span={24}>
                             <Divider orientation="left">
-                                <EnvironmentOutlined className="mr-2" />
-                                Otras Direcciones
+                                <EnvironmentOutlined className="mr-2" />Otras Direcciones
                             </Divider>
                             <Form.List name="direcciones">
                                 {(fields, { add, remove }) => (
@@ -390,76 +292,42 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                                 size="small"
                                                 className="border-l-2 border-l-blue-200"
                                                 extra={
-                                                    <Button
-                                                        danger
-                                                        type="link"
-                                                        size="small"
-                                                        icon={<DeleteOutlined />}
-                                                        onClick={() => remove(name)}
-                                                    >
+                                                    <Button danger type="link" size="small" icon={<DeleteOutlined />} onClick={() => remove(name)}>
                                                         Eliminar
                                                     </Button>
                                                 }
                                             >
                                                 <Row gutter={12}>
                                                     <Col span={8}>
-                                                        <Form.Item
-                                                            name={[name, "tipo"]}
-                                                            label="Tipo"
-                                                            rules={[{ required: true, message: "Tipo requerido" }]}
-                                                        >
+                                                        <Form.Item name={[name, "tipo"]} label="Tipo" rules={[{ required: true, message: "Tipo requerido" }]}>
                                                             <Input placeholder="Principal / Sucursal / Oficina" size="small" />
                                                         </Form.Item>
                                                     </Col>
                                                     <Col span={16}>
-                                                        <Form.Item
-                                                            name={[name, "direccion"]}
-                                                            label="Dirección"
-                                                            rules={[{ required: true, message: "Dirección requerida" }]}
-                                                        >
+                                                        <Form.Item name={[name, "direccion"]} label="Dirección" rules={[{ required: true, message: "Dirección requerida" }]}>
                                                             <Input placeholder="Dirección completa" size="small" />
                                                         </Form.Item>
                                                     </Col>
                                                 </Row>
                                             </Card>
                                         ))}
-
-                                        <Button
-                                            type="dashed"
-                                            onClick={() => add()}
-                                            block
-                                            icon={<PlusOutlined />}
-                                        >
+                                        <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
                                             Agregar dirección
                                         </Button>
                                     </div>
                                 )}
                             </Form.List>
                         </Col>
-
                         <Col span={24}>
-                            <Form.Item
-                                label={
-                                    <span className="font-medium">
-                                        <FileTextOutlined className="mr-2" />
-                                        Condiciones comerciales
-                                    </span>
-                                }
-                                name="condicionesComerciales"
-                            >
-                                <Input.TextArea
-                                    rows={4}
-                                    placeholder="Describa las condiciones comerciales especiales..."
-                                />
+                            <Form.Item label={<span className="font-medium"><FileTextOutlined className="mr-2" />Condiciones comerciales</span>} name="condicionesComerciales">
+                                <Input.TextArea rows={4} placeholder="Describa las condiciones comerciales especiales..." />
                             </Form.Item>
                         </Col>
                     </Row>
 
                     <Divider orientation="left">
-                        <UserOutlined className="mr-2" />
-                        Contactos / Jefes
+                        <UserOutlined className="mr-2" />Contactos / Jefes
                     </Divider>
-
                     <Form.List name="contactos">
                         {(fields, { add, remove }) => (
                             <div className="space-y-4">
@@ -469,83 +337,46 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                         size="small"
                                         className="border-l-2 border-l-blue-200"
                                         extra={
-                                            <Button
-                                                danger
-                                                type="link"
-                                                size="small"
-                                                icon={<DeleteOutlined />}
-                                                onClick={() => remove(name)}
-                                            >
+                                            <Button danger type="link" size="small" icon={<DeleteOutlined />} onClick={() => remove(name)}>
                                                 Eliminar
                                             </Button>
                                         }
                                     >
                                         <Row gutter={12}>
                                             <Col span={12} md={6}>
-                                                <Form.Item
-                                                    name={[name, "nombre"]}
-                                                    label="Nombre"
-                                                    rules={[{ required: true, message: "Nombre requerido" }]}
-                                                    className="mb-2"
-                                                >
+                                                <Form.Item name={[name, "nombre"]} label="Nombre" rules={[{ required: true, message: "Nombre requerido" }]} className="mb-2">
                                                     <Input placeholder="Nombre completo" size="small" />
                                                 </Form.Item>
                                             </Col>
                                             <Col span={12} md={6}>
-                                                <Form.Item
-                                                    name={[name, "cargo"]}
-                                                    label="Cargo"
-                                                    className="mb-2"
-                                                >
+                                                <Form.Item name={[name, "cargo"]} label="Cargo" className="mb-2">
                                                     <Input placeholder="Cargo/Posición" size="small" />
                                                 </Form.Item>
                                             </Col>
                                             <Col span={12} md={6}>
-                                                <Form.Item
-                                                    name={[name, "email"]}
-                                                    label="Email"
-                                                    className="mb-2"
-                                                >
+                                                <Form.Item name={[name, "email"]} label="Email" className="mb-2">
                                                     <Input placeholder="email@empresa.com" size="small" />
                                                 </Form.Item>
                                             </Col>
                                             <Col span={12} md={6}>
-                                                <Form.Item
-                                                    name={[name, "telefono"]}
-                                                    label="Teléfono"
-                                                    className="mb-2"
-                                                >
+                                                <Form.Item name={[name, "telefono"]} label="Teléfono" className="mb-2">
                                                     <Input placeholder="Teléfono" size="small" />
                                                 </Form.Item>
                                             </Col>
-
                                             <Col span={12} md={6}>
-                                                <Form.Item
-                                                    name={[name, "sucursalId"]}
-                                                    label="Sucursal"
-                                                >
+                                                <Form.Item name={[name, "sucursalId"]} label="Sucursal">
                                                     <Select
                                                         placeholder="Seleccionar sucursal"
                                                         size="small"
                                                         allowClear
-                                                        options={sucursales.map((s) => ({
-                                                            value: s.id_sucursal,
-                                                            label: s.nombre,
-                                                        }))}
+                                                        options={sucursales.map((s) => ({ value: s.id_sucursal, label: s.nombre }))}
                                                     />
                                                 </Form.Item>
                                             </Col>
                                         </Row>
                                     </Card>
                                 ))}
-
-                                <Button
-                                    type="dashed"
-                                    onClick={() => add()}
-                                    block
-                                    icon={<PlusOutlined />}
-                                    className="mt-2"
-                                >
+                                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} className="mt-2">
                                     Agregar contacto
                                 </Button>
                             </div>

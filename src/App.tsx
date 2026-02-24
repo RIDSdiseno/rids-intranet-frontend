@@ -8,6 +8,7 @@ import Header from "./components/Header";
 ========================= */
 
 const HomePage = lazy(() => import("./host/Home"));
+const SolicitantesPage = lazy(() => import("./host/Solicitantes"));
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
 const TicketsPage = lazy(() => import("./host/Ticket"));
@@ -83,6 +84,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/home" replace />} />
 
             <Route path="/home" element={<HomePage />} />
+            <Route path="/solicitantes" element={<SolicitantesPage />} />
             <Route path="/visitas" element={<VisitasPage />} />
             <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
             <Route path="/equipos" element={<EquiposPage />} />

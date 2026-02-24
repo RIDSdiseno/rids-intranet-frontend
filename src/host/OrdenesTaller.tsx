@@ -557,7 +557,8 @@ const OrdenesTaller: React.FC = () => {
 
         return base;
     }, [ordenes]);
-
+    
+    {/*
     const generarCotizacionDesdeOrden = async (orden: DetalleTrabajoGestioo) => {
         const numeroOrden = orden.numeroOrden;
 
@@ -608,7 +609,7 @@ const OrdenesTaller: React.FC = () => {
                 message: (error as Error).message
             });
         }
-    };
+    }; */}
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -775,7 +776,7 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Cotización", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
@@ -878,7 +879,7 @@ const OrdenesTaller: React.FC = () => {
                                                     {o.entidad?.nombre ?? "—"}
                                                 </td>
 
-                                                {/* Cotización */}
+                                                {/* Cotización 
                                                 <td className="px-4 py-3 align-middle">
                                                     {o.cotizacion ? (
                                                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 ring-1 ring-purple-200">
@@ -889,7 +890,7 @@ const OrdenesTaller: React.FC = () => {
                                                             Sin cotizar
                                                         </span>
                                                     )}
-                                                </td>
+                                                </td> */}
 
                                                 {/* Técnico */}
                                                 <td className="px-4 py-3 align-middle">
@@ -988,7 +989,7 @@ const OrdenesTaller: React.FC = () => {
                                                         >
                                                             <PrinterOutlined />
                                                         </button>
-
+                                                        {/*
                                                         {o.area !== "SALIDA" && (
                                                             <button
                                                                 onClick={() => generarCotizacionDesdeOrden(o)}
@@ -997,7 +998,7 @@ const OrdenesTaller: React.FC = () => {
                                                             >
                                                                 <FileTextOutlined />
                                                             </button>
-                                                        )}
+                                                        )} */}
 
                                                         <button
                                                             onClick={() => handleDelete(o.id)}

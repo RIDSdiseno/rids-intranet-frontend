@@ -1,4 +1,4 @@
-// ServidoresTab.tsx (mejorado)
+// ServidoresTab.tsx
 import React, { useEffect, useState } from "react";
 import {
   Table,
@@ -19,11 +19,11 @@ import {
   CheckCircleOutlined,
   DesktopOutlined,
   UserOutlined,
-  LockOutlined,
   GlobalOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import UsuariosServidorTable from "./UsuariosServidorTab";
+import { api } from "../../../api/api"; // 🔥 ajusta la ruta según tu estructura
 
 interface Servidor {
   id: number;
@@ -38,8 +38,6 @@ interface Props {
   empresaId: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-
 const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   const [servidores, setServidores] = useState<Servidor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,9 +48,8 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   const fetchServidores = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/ficha-empresa/${empresaId}/servidores`);
-      const json = await res.json();
-      if (json.success) setServidores(json.data);
+      const { data } = await api.get(`/ficha-empresa/${empresaId}/servidores`);
+      if (data.success) setServidores(data.data);
     } catch {
       message.error("Error cargando servidores");
     } finally {
@@ -69,20 +66,10 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
       const values = await form.validateFields();
 
       if (editing) {
-        const res = await fetch(`${API_URL}/ficha-empresa/servidores/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        });
-        if (!res.ok) throw new Error();
+        await api.put(`/ficha-empresa/servidores/${editing.id}`, values);
         message.success("Servidor actualizado");
       } else {
-        const res = await fetch(`${API_URL}/ficha-empresa/servidores`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...values, empresaId }),
-        });
-        if (!res.ok) throw new Error();
+        await api.post(`/ficha-empresa/servidores`, { ...values, empresaId });
         message.success("Servidor creado");
       }
 
@@ -96,18 +83,22 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   };
 
   const handleDelete = async (id: number) => {
-    await fetch(`${API_URL}/ficha-empresa/servidores/${id}`, {
-      method: "DELETE",
-    });
-    message.success("Servidor eliminado");
-    fetchServidores();
+    try {
+      await api.delete(`/ficha-empresa/servidores/${id}`);
+      message.success("Servidor eliminado");
+      fetchServidores();
+    } catch {
+      message.error("Error eliminando servidor");
+    }
   };
 
   const toggleProbado = async (id: number) => {
-    await fetch(`${API_URL}/ficha-empresa/servidores/${id}/probado`, {
-      method: "PATCH",
-    });
-    fetchServidores();
+    try {
+      await api.patch(`/ficha-empresa/servidores/${id}/probado`);
+      fetchServidores();
+    } catch {
+      message.error("Error actualizando estado");
+    }
   };
 
   const columns: ColumnsType<Servidor> = [
@@ -178,27 +169,38 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
           </span>
         }
         open={open}
-        onCancel={() => setOpen(false)}
-        onOk={handleSubmit}
-        width={600}
+        onCancel={() => {
+          setOpen(false);
+          setEditing(null);
+          form.resetFields();
+        }}
         footer={[
-          <Button key="cancel" onClick={() => setOpen(false)}>
+          <Button key="cancel" onClick={() => { setOpen(false); setEditing(null); form.resetFields(); }}>
             Cancelar
           </Button>,
           <Button key="submit" type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
             {editing ? "Actualizar" : "Crear"}
           </Button>,
         ]}
+        width={600}
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="nombre" label="Nombre del Servidor" rules={[{ required: true, message: "Campo obligatorio" }]}>
+              <Form.Item
+                name="nombre"
+                label="Nombre del Servidor"
+                rules={[{ required: true, message: "Campo obligatorio" }]}
+              >
                 <Input prefix={<DesktopOutlined />} placeholder="Ej: Servidor Principal" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="nombreUsuario" label="Nombre Usuario" rules={[{ required: true, message: "Campo obligatorio" }]}>
+              <Form.Item
+                name="nombreUsuario"
+                label="Nombre Usuario"
+                rules={[{ required: true, message: "Campo obligatorio" }]}
+              >
                 <Input prefix={<UserOutlined />} placeholder="Ej: admin" />
               </Form.Item>
             </Col>
@@ -206,12 +208,20 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="contrasena" label="Contraseña" rules={[{ required: true, message: "Campo obligatorio" }]}>
+              <Form.Item
+                name="contrasena"
+                label="Contraseña"
+                rules={[{ required: true, message: "Campo obligatorio" }]}
+              >
                 <Input placeholder="••••••••" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="ipExterna" label="IP Externa" rules={[{ required: true, message: "Campo obligatorio" }]}>
+              <Form.Item
+                name="ipExterna"
+                label="IP Externa"
+                rules={[{ required: true, message: "Campo obligatorio" }]}
+              >
                 <Input prefix={<GlobalOutlined />} placeholder="Ej: 192.168.1.100" />
               </Form.Item>
             </Col>

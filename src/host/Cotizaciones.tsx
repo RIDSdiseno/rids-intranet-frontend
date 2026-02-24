@@ -1662,9 +1662,10 @@ const Cotizaciones: React.FC = () => {
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cliente
                                     </th>
+                                    {/*
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Orden OT
-                                    </th>
+                                    </th> */}
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Factura
                                     </th>
