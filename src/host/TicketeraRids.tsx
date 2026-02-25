@@ -104,6 +104,8 @@ type Tecnico = {
     online?: boolean;
 };
 
+type AreaFilter = "TODAS" | "SOPORTE" | "INFORMATICA" | "VENTAS";
+
 // Detalle del ticket con mensajes
 type TicketMessage = {
     id: number;
@@ -157,6 +159,7 @@ export default function TicketeraRids() {
     const [statusFilter, setStatusFilter] = useState<string | undefined>();
     const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
     const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>();
+    const [areaFilter, setAreaFilter] = useState<AreaFilter>("TODAS");
 
     const [internalNoteText, setInternalNoteText] = useState("");
 
@@ -223,6 +226,13 @@ export default function TicketeraRids() {
         RESOLVED: <CheckCircleOutlined style={{ color: "#52c41a" }} />,
         CLOSED: <CheckCircleOutlined style={{ color: "#8c8c8c" }} />,
     };
+
+    const AREA_OPTIONS: Array<{ value: AreaFilter; label: string }> = [
+        { value: "TODAS", label: "Todas las \u00e1reas" },
+        { value: "SOPORTE", label: "Soporte" },
+        { value: "INFORMATICA", label: "Inform\u00e1tica" },
+        { value: "VENTAS", label: "Ventas" },
+    ];
 
     // Formulario para crear ticket
     const [form, setForm] = useState({
@@ -414,6 +424,8 @@ export default function TicketeraRids() {
             if (statusFilter) params.append("status", statusFilter);
             if (priorityFilter) params.append("priority", priorityFilter);
             if (assigneeFilter) params.append("assigneeId", assigneeFilter.toString());
+            const selectedArea = areaFilter === "TODAS" ? undefined : areaFilter;
+            if (selectedArea) params.append("area", selectedArea);
             if (searchText) params.append("search", searchText);
 
             if (dateRange) {
@@ -478,7 +490,7 @@ export default function TicketeraRids() {
     // Recargar tickets al cambiar filtros o búsqueda
     useEffect(() => {
         loadTickets();
-    }, [statusFilter, priorityFilter, assigneeFilter, dateRange]);
+    }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
 
     // Actualizar filtro de estado al cambiar de tab
     useEffect(() => {
@@ -1153,6 +1165,14 @@ export default function TicketeraRids() {
                                         value: t.id_tecnico,
                                         label: t.nombre,
                                     }))}
+                                />
+
+                                <Select
+                                    placeholder="\u00c1rea"
+                                    style={{ width: 170 }}
+                                    value={areaFilter}
+                                    onChange={setAreaFilter}
+                                    options={AREA_OPTIONS}
                                 />
 
                                 <Button icon={<FilterOutlined />} onClick={loadTickets}>
