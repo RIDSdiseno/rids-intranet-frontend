@@ -47,9 +47,9 @@ function ProtectedRoute() {
 
 function AppLayout() {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 bg-white overflow-auto">
+      <main className="flex-1 bg-white overflow-y-auto">
         <Suspense fallback={<div className="p-6">Cargando...</div>}>
           <Outlet />
         </Suspense>

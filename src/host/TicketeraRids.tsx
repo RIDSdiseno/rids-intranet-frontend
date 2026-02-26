@@ -58,6 +58,8 @@ import { socket } from "../lib/socket";
 
 import { notification } from "antd";
 
+import { api } from "../api/api";
+
 /* ===================== CONFIG ===================== */
 const API_URL =
     (import.meta as any).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -337,8 +339,8 @@ export default function TicketeraRids() {
                 if (!att) return '';
 
                 return `<img src="${att.url.startsWith("http")
-                        ? att.url
-                        : `${API_URL.replace('/api', '')}${att.url}`
+                    ? att.url
+                    : `${API_URL.replace('/api', '')}${att.url}`
                     }" loading="lazy" />`;
             }
         );
@@ -433,13 +435,12 @@ export default function TicketeraRids() {
                 params.append("to", dateRange[1]);
             }
 
-            const res = await fetch(`${API_URL}/helpdesk/tickets?${params.toString()}`);
-            const json = await res.json();
+            const { data } = await api.get(`/helpdesk/tickets?${params.toString()}`);
 
-            setTickets(json.tickets ?? []);
-            setTotalTickets(json.total ?? 0);
-            setStatusCounts(json.counts ?? {});
-        } catch {
+            setTickets(data?.tickets ?? []);
+            setTotalTickets(data?.total ?? 0);
+            setStatusCounts(data?.counts ?? {});
+        } catch (error) {
             message.error("Error al cargar tickets");
         } finally {
             setLoading(false);
@@ -448,19 +449,17 @@ export default function TicketeraRids() {
 
     // Cargar empresas para el formulario de creación
     const loadEmpresas = async () => {
-        const res = await fetch(`${API_URL}/empresas`);
-        const json = await res.json();
-        setEmpresas(json?.data ?? []);
+        const { data } = await api.get("/empresas");
+        setEmpresas(data?.data ?? []);
     };
 
     // Cargar solicitantes al seleccionar empresa en el formulario de creación
     const loadSolicitantes = async (empresaId: number) => {
-        const res = await fetch(
-            `${API_URL}/solicitantes/by-empresa?empresaId=${empresaId}`
+        const { data } = await api.get(
+            `/solicitantes/by-empresa?empresaId=${empresaId}`
         );
-        const json = await res.json();
         setSolicitantes(
-            (json.items ?? []).map((s: any) => ({
+            (data?.items ?? []).map((s: any) => ({
                 value: s.id,
                 label: s.nombre,
             }))
@@ -469,9 +468,8 @@ export default function TicketeraRids() {
 
     // Cargar técnicos para filtro y asignación
     const loadTecnicos = async () => {
-        const res = await fetch(`${API_URL}/tecnicos`);
-        const json = await res.json();
-        setTecnicos(Array.isArray(json) ? json : []);
+        const { data } = await api.get("/tecnicos");
+        setTecnicos(Array.isArray(data) ? data : []);
     };
 
     // Scroll automático al final de los mensajes
@@ -586,10 +584,10 @@ export default function TicketeraRids() {
         const onTicketUpdated = async (payload: any) => {
             // Si está abierto el detalle → refrescar solo ese ticket
             if (payload.ticketId === ticketDetalle?.id) {
-                const res = await fetch(`${API_URL}/helpdesk/tickets/${payload.ticketId}`);
-                const json = await res.json();
-                if (json.ok) {
-                    setTicketDetalle(json.ticket);
+                const { data } = await api.get(`/helpdesk/tickets/${payload.ticketId}`);
+
+                if (data?.ok) {
+                    setTicketDetalle(data.ticket);
                 }
             }
 
@@ -672,19 +670,11 @@ export default function TicketeraRids() {
                 formData.append("attachments", file);
             });
 
-            const res = await fetch(
-                `${API_URL}/helpdesk/tickets/${ticketDetalle.id}/reply`,
-                {
-                    method: "POST",
-                    body: formData, // 🚨 SIN Content-Type
-                }
+            await api.post(
+                `/helpdesk/tickets/${ticketDetalle.id}/reply`,
+                formData,
+                { headers: { "Content-Type": "multipart/form-data" } }
             );
-
-            const json = await res.json();
-
-            if (!res.ok || !json.ok) {
-                throw new Error();
-            }
 
             if (isInternal) {
                 setInternalNoteText("");
@@ -713,16 +703,10 @@ export default function TicketeraRids() {
         }
 
         try {
-            const res = await fetch(`${API_URL}/helpdesk/tickets`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
-            });
-
-            const json = await res.json();
-            if (!res.ok || !json.ok) throw new Error();
+            await api.post("/helpdesk/tickets", form);
 
             message.success("Ticket creado correctamente");
+
             setDrawerCrear(false);
             setForm({
                 empresaId: undefined,
@@ -732,6 +716,7 @@ export default function TicketeraRids() {
                 priority: "NORMAL",
                 assigneeId: undefined,
             });
+
             loadTickets();
         } catch {
             message.error("Error al crear ticket");
@@ -748,12 +733,11 @@ export default function TicketeraRids() {
         setInternalNoteText("");
 
         try {
-            const res = await fetch(`${API_URL}/helpdesk/tickets/${ticket.id}`);
-            const json = await res.json();
-            if (!json.ok) throw new Error();
+            const { data } = await api.get(`/helpdesk/tickets/${ticket.id}`);
+            if (!data?.ok) throw new Error();
             setTicketDetalle({
-                ...json.ticket,
-                messages: (json.ticket.messages ?? []).map((m: any) => ({
+                ...data.ticket,
+                messages: (data.ticket.messages ?? []).map((m: any) => ({
                     ...m,
                     cc: m.cc ? m.cc.split(",") : [],
                 })),
@@ -774,11 +758,7 @@ export default function TicketeraRids() {
         if (!ticketDetalle) return;
 
         try {
-            await fetch(`${API_URL}/helpdesk/tickets/${ticketDetalle.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
+            await api.patch(`/helpdesk/tickets/${ticketDetalle.id}`, payload);
 
             await abrirDetalle({ id: ticketDetalle.id } as Ticket);
             await loadTickets();
@@ -923,13 +903,9 @@ export default function TicketeraRids() {
         if (selectedTickets.length === 0) return;
 
         try {
-            await fetch(`${API_URL}/helpdesk/tickets/bulk`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ticketIds: selectedTickets,
-                    status: "CLOSED",
-                }),
+            await api.patch("/helpdesk/tickets/bulk", {
+                ticketIds: selectedTickets,
+                status: "CLOSED",
             });
 
             message.success("Tickets cerrados correctamente");
@@ -955,21 +931,10 @@ export default function TicketeraRids() {
         }
 
         try {
-            const res = await fetch(`${API_URL}/helpdesk/tickets/bulk`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ticketIds: selectedTickets,
-                    assigneeId: selectedTechnicianId,
-                }),
+            await api.patch("/helpdesk/tickets/bulk", {
+                ticketIds: selectedTickets,
+                assigneeId: selectedTechnicianId,
             });
-
-            const json = await res.json();
-
-            if (!res.ok || !json.ok) {
-                message.error("Error al asignar tickets");
-                return;
-            }
 
             message.success("Tickets asignados correctamente");
             setSelectedTickets([]);

@@ -6,23 +6,29 @@ export const useApi = () => {
 
   const fetchApi = async (endpoint: string, options: any = {}) => {
     setLoading(true);
+
     try {
+      const isFormData = options.body instanceof FormData;
+
       const response = await api({
         url: endpoint,
         method: options.method || "GET",
-        data: options.body ? JSON.parse(options.body) : undefined,
+        data: isFormData
+          ? options.body
+          : options.body
+            ? JSON.parse(options.body)
+            : undefined,
         headers: options.headers || {},
       });
 
       return response.data;
     } catch (error: any) {
-
       const status = error.response?.status;
 
       if (status === 400) {
         return Promise.reject({
           type: "validation",
-          message: error.response?.data?.error
+          message: error.response?.data?.error,
         });
       }
 

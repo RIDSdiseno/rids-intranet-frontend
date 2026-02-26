@@ -51,6 +51,7 @@ type EquipoRow = {
   createdAt: string;
   updatedAt: string;
   macWifi?: string | null;
+  redEthernet?: string | null;
   so?: string | null;
   tipoDd?: string | null;
   estadoAlm?: string | null;
@@ -58,6 +59,12 @@ type EquipoRow = {
   teamViewer?: string | null;
   claveTv?: string | null;
   revisado?: string | null;
+  adminRidsUsuario?: string | null;
+  adminRidsPassword?: string | null;
+  usuarioEmpresa?: string | null;
+  passwordEmpresa?: string | null;
+  usuarioPersonal?: string | null;
+  passwordPersonal?: string | null;
 };
 
 type ApiList<T> = {
@@ -121,6 +128,35 @@ function actorName(actor: ActorLite | null | undefined) {
 function getChanges(h: EquipoHistorialItem) {
   return h.changes ?? h.diff ?? null;
 }
+
+// labels para campos (ajusta según tu modelo y necesidades)
+const fieldLabels: Record<string, string> = {
+  serial: "Serial",
+  marca: "Marca",
+  modelo: "Modelo",
+  procesador: "CPU",
+  ram: "RAM",
+  disco: "Disco",
+  propiedad: "Propiedad",
+  empresaId: "Empresa",
+  idSolicitante: "Solicitante",
+  macWifi: "MAC WiFi",
+  so: "Sistema Operativo",
+  tipoDd: "Tipo Disco",
+  estadoAlm: "Estado Almacenamiento",
+  office: "Office",
+  teamViewer: "TeamViewer",
+  redEthernet: "Red Ethernet (MAC)",
+  claveTv: "Clave TV",
+  revisado: "Revisado",
+};
+
+// labels según las acciones que tengas en tu backend
+const actionLabels: Record<string, string> = {
+  CREATE: "Equipo creado",
+  UPDATE: "Equipo actualizado",
+  DELETE: "Equipo eliminado",
+};
 
 /* =================== Helpers =================== */
 function clsx(...xs: Array<string | false | null | undefined>) {
@@ -763,6 +799,7 @@ const EquiposPage: React.FC = () => {
 
     // 🔥 DETALLE
     macWifi: string;
+    redEthernet: string;
     so: string;
     tipoDd: string;
     estadoAlm: string;
@@ -770,6 +807,15 @@ const EquiposPage: React.FC = () => {
     teamViewer: string;
     claveTv: string;
     revisado: string;
+    adminRidsUsuario: string;
+    adminRidsPassword: string;
+
+    usuarioEmpresa: string;
+    passwordEmpresa: string;
+
+    usuarioPersonal: string;
+    passwordPersonal: string;
+
   };
 
   const [editForm, setEditForm] = useState<EquipoForm>({
@@ -782,6 +828,7 @@ const EquiposPage: React.FC = () => {
     propiedad: "",
 
     macWifi: "",
+    redEthernet: "",
     so: "",
     tipoDd: "",
     estadoAlm: "",
@@ -789,6 +836,13 @@ const EquiposPage: React.FC = () => {
     teamViewer: "",
     claveTv: "",
     revisado: "",
+    adminRidsUsuario: "",
+    adminRidsPassword: "",
+    usuarioEmpresa: "",
+    passwordEmpresa: "",
+    usuarioPersonal: "",
+    passwordPersonal: "",
+
   });
 
   // Nueva cadena Empresa -> Solicitante
@@ -857,6 +911,7 @@ const EquiposPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editOpen, editEmpresaId]); // ← QUITA solSearchEDeb
 
+  // Iniciar edición: carga datos del equipo en el form y abre modal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
   const startEdit = (row: EquipoRow) => {
     setEditRow(row);
 
@@ -870,6 +925,7 @@ const EquiposPage: React.FC = () => {
       propiedad: row.propiedad || "",
 
       macWifi: row.macWifi || "",
+      redEthernet: row.redEthernet || "",
       so: row.so || "",
       tipoDd: row.tipoDd || "",
       estadoAlm: row.estadoAlm || "",
@@ -877,6 +933,12 @@ const EquiposPage: React.FC = () => {
       teamViewer: row.teamViewer || "",
       claveTv: row.claveTv || "",
       revisado: row.revisado || "",
+      adminRidsUsuario: row.adminRidsUsuario || "",
+      adminRidsPassword: row.adminRidsPassword || "",
+      usuarioEmpresa: row.usuarioEmpresa || "",
+      passwordEmpresa: row.passwordEmpresa || "",
+      usuarioPersonal: row.usuarioPersonal || "",
+      passwordPersonal: row.passwordPersonal || "",
     });
 
     setEditEmpresaId(row.empresaId ?? null);
@@ -894,9 +956,19 @@ const EquiposPage: React.FC = () => {
   const saveEdit = async () => {
     if (!editRow) return;
 
-    for (const k of Object.keys(editForm) as (keyof typeof editForm)[]) {
+    const requiredFields: (keyof typeof editForm)[] = [
+      "serial",
+      "marca",
+      "modelo",
+      "procesador",
+      "ram",
+      "disco",
+      "propiedad",
+    ];
+
+    for (const k of requiredFields) {
       if (!String(editForm[k] ?? "").trim()) {
-        alert(`El campo "${String(k).toUpperCase()}" es obligatorio.`);
+        alert(`El campo "${k.toUpperCase()}" es obligatorio.`);
         return;
       }
     }
@@ -1819,6 +1891,7 @@ const EquiposPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   {[
                     { key: "macWifi", label: "MAC WiFi" },
+                    { key: "redEthernet", label: "MAC Ethernet" },
                     { key: "so", label: "Sistema Operativo" },
                     { key: "tipoDd", label: "Tipo Disco" },
                     { key: "estadoAlm", label: "Estado Almacenamiento" },
@@ -1841,6 +1914,85 @@ const EquiposPage: React.FC = () => {
                       />
                     </label>
                   ))}
+                </div>
+              </div>
+              {/* ===== ACCESOS ===== */}
+              <div className="sm:col-span-2 mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Accesos y Usuarios
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+                  {/* Admin RIDS */}
+                  <div className="sm:col-span-2 font-medium text-slate-600 mt-2">
+                    Administrador RIDS
+                  </div>
+
+                  <input
+                    placeholder="Usuario Admin RIDS"
+                    value={editForm.adminRidsUsuario}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, adminRidsUsuario: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
+                  <input
+                    placeholder="Contraseña Admin RIDS"
+                    value={editForm.adminRidsPassword}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, adminRidsPassword: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
+                  {/* Usuario Empresa */}
+                  <div className="sm:col-span-2 font-medium text-slate-600 mt-4">
+                    Usuario Empresa
+                  </div>
+
+                  <input
+                    placeholder="Usuario Empresa"
+                    value={editForm.usuarioEmpresa}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, usuarioEmpresa: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
+                  <input
+                    placeholder="Contraseña Usuario Empresa"
+                    value={editForm.passwordEmpresa}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, passwordEmpresa: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
+                  {/* Usuario Personal */}
+                  <div className="sm:col-span-2 font-medium text-slate-600 mt-4">
+                    Usuario Personal
+                  </div>
+
+                  <input
+                    placeholder="Usuario Personal"
+                    value={editForm.usuarioPersonal}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, usuarioPersonal: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
+                  <input
+                    placeholder="Contraseña Usuario Personal"
+                    value={editForm.passwordPersonal}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, passwordPersonal: e.target.value }))
+                    }
+                    className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                  />
+
                 </div>
               </div>
             </div>
@@ -1964,6 +2116,7 @@ const EquiposPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div><strong>MAC WiFi:</strong> {viewRow.macWifi || "—"}</div>
+                  <div><strong>MAC Ethernet:</strong> {viewRow.redEthernet || "—"}</div>
                   <div><strong>Sistema Operativo:</strong> {viewRow.so || "—"}</div>
                   <div><strong>Tipo Disco:</strong> {viewRow.tipoDd || "—"}</div>
                   <div><strong>Estado Almacenamiento:</strong> {viewRow.estadoAlm || "—"}</div>
@@ -1974,8 +2127,54 @@ const EquiposPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* ===== ACCESOS ===== */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-slate-700">
+                    Accesos
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+                  {/* Admin RIDS */}
+                  <div>
+                    <strong>Admin RIDS:</strong>{" "}
+                    {viewRow.adminRidsUsuario || "—"}
+                    <br />
+                    <span className="text-slate-500">
+                      Contraseña:{" "}
+                      {viewRow.adminRidsPassword}
+                    </span>
+                  </div>
+
+                  {/* Usuario Empresa */}
+                  <div>
+                    <strong>Usuario Empresa:</strong>{" "}
+                    {viewRow.usuarioEmpresa || "—"}
+                    <br />
+                    <span className="text-slate-500">
+                      Contraseña:{" "}
+                      {viewRow.passwordEmpresa}
+                    </span>
+                  </div>
+
+                  {/* Usuario Personal */}
+                  <div>
+                    <strong>Usuario Personal:</strong>{" "}
+                    {viewRow.usuarioPersonal || "—"}
+                    <br />
+                    <span className="text-slate-500">
+                      Contraseña:{" "}
+                      {viewRow.passwordPersonal}
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+
               {/* Historial */}
-              <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
+              <div className="mt-6">
                 <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-slate-900">
                     Historial equipo #{viewRow?.id_equipo}
@@ -1991,43 +2190,120 @@ const EquiposPage: React.FC = () => {
                     <div className="text-sm text-slate-600">Sin historial.</div>
                   )}
 
-                  {historial.map((h, idx) => (
-                    <div key={h.id ?? `${h.createdAt}-${idx}`} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs font-semibold text-slate-800">
-                          {h.action} • {actorName(h.actor)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {new Date(h.createdAt).toLocaleString("es-CL", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                            hour12: false,
-                          })}
-                        </div>
-                      </div>
 
-                      <div className="mt-2 space-y-1 text-xs">
-                        {getChanges(h) ? (
-                          Object.entries(getChanges(h)!).map(([k, v]) => (
-                            <div key={k} className="flex flex-wrap gap-2">
-                              <span className="font-semibold text-slate-700">{k}:</span>
-                              <span className="text-slate-500">antes:</span>
-                              <span className="font-mono">{String(v?.before ?? "—")}</span>
-                              <span className="text-slate-500">→</span>
-                              <span className="text-slate-500">después:</span>
-                              <span className="font-mono">{String(v?.after ?? "—")}</span>
+                  {historial.map((h, idx) => {
+                    const changes = getChanges(h);
+
+                    const realChanges = changes
+                      ? Object.entries(changes).filter(([_, v]) => {
+                        const before = v?.before ?? "";
+                        const after = v?.after ?? "";
+                        return String(before) !== String(after);
+                      })
+                      : [];
+
+                    if (h.action === "CREATE") {
+                      return (
+                        <div
+                          key={h.id ?? `${h.createdAt}-${idx}`}
+                          className="relative pl-6 border-l border-slate-200 pb-6"
+                        >
+                          <div className="absolute left-[-6px] top-2 w-3 h-3 rounded-full bg-emerald-500"></div>
+
+                          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                                CREATE
+                              </span>
+
+                              <span className="text-xs text-slate-500">
+                                {new Date(h.createdAt).toLocaleString("es-CL")}
+                              </span>
                             </div>
-                          ))
-                        ) : (
-                          <div className="text-slate-500">Sin detalle de cambios.</div>
-                        )}
+
+                            <div className="mt-2 text-xs text-emerald-700 font-medium">
+                              Equipo creado.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={h.id ?? `${h.createdAt}-${idx}`}
+                        className="relative pl-6 border-l border-slate-200 pb-6"
+                      >
+                        {/* Punto timeline */}
+                        <div className="absolute left-[-6px] top-2 w-3 h-3 rounded-full bg-indigo-500"></div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+
+                              {/* Badge acción */}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${h.action === "CREATE"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : h.action === "UPDATE"
+                                    ? "bg-indigo-100 text-indigo-700"
+                                    : h.action === "DELETE"
+                                      ? "bg-rose-100 text-rose-700"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                              >
+                                {actionLabels[h.action ?? ""] ?? h.action}
+                              </span>
+
+                              <span className="text-xs font-medium text-slate-800">
+                                {actorName(h.actor)}
+                              </span>
+                            </div>
+
+                            <div className="text-xs text-slate-500">
+                              {new Date(h.createdAt).toLocaleString("es-CL", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                hour12: false,
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 space-y-2 text-xs">
+
+                            {/* Si hay cambios reales */}
+                            {realChanges.length > 0 ? (
+                              realChanges.map(([k, v]) => (
+                                <div key={k} className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-slate-700 min-w-[140px]">
+                                    {fieldLabels[k] ?? k}:
+                                  </span>
+
+                                  <span className="text-slate-500 font-mono">
+                                    {String(v?.before ?? "—")}
+                                  </span>
+
+                                  <span className="text-slate-400 mx-1">→</span>
+
+                                  <span className="text-slate-900 font-mono font-semibold">
+                                    {String(v?.after ?? "—")}
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-slate-500 italic">
+                                Sin cambios relevantes.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

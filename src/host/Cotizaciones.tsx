@@ -90,6 +90,12 @@ const Cotizaciones: React.FC = () => {
 
     // === ESTADOS PRINCIPALES ===
     const [cotizaciones, setCotizaciones] = useState<CotRow[]>([]);
+
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCotizaciones, setTotalCotizaciones] = useState(0);
+    const PAGE_SIZE = 15;
+
     const [query, setQuery] = useState("");
     const [selectedCotizacion, setSelectedCotizacion] = useState<CotizacionGestioo | null>(null);
     const [toast, setToast] = useState<Toast | null>(null);
@@ -243,9 +249,21 @@ const Cotizaciones: React.FC = () => {
 
     // === EFECTOS ===
     useEffect(() => {
-        fetchCotizaciones();
+        fetchCotizaciones(1);
         fetchEntidades();
     }, []);
+
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        debounceRef.current = setTimeout(() => {
+            fetchCotizaciones(1);
+        }, 400);
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [query, filtrosHistorial, filtroMes]);
 
     useEffect(() => {
         if (showCreateModal) {
@@ -254,25 +272,44 @@ const Cotizaciones: React.FC = () => {
     }, [showCreateModal]);
 
     // === FUNCIONES PRINCIPALES ===
-    const fetchCotizaciones = async (fechaDesde?: string, fechaHasta?: string) => {
+    const fetchCotizaciones = async (
+        currentPage = 1
+    ) => {
         try {
-            let url = "/cotizaciones";
+            let url = `/cotizaciones/paginacion?page=${currentPage}&limit=${PAGE_SIZE}`;
 
-            if (fechaDesde && fechaHasta) {
-                url += `?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
+            if (query) {
+                url += `&search=${encodeURIComponent(query)}`;
+            }
+
+            if (filtrosHistorial.origen) {
+                url += `&origen=${filtrosHistorial.origen}`;
+            }
+
+            if (filtrosHistorial.estado) {
+                url += `&estado=${filtrosHistorial.estado}`;
+            }
+
+            if (filtrosHistorial.tipo) {
+                url += `&tipo=${filtrosHistorial.tipo}`;
+            }
+
+            if (filtroMes) {
+                const [year, month] = filtroMes.split("-");
+                const fechaDesde = `${year}-${month}-01`;
+                const fechaHasta = new Date(Number(year), Number(month), 0)
+                    .toISOString()
+                    .split("T")[0];
+
+                url += `&fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
             }
 
             const data = await apiFetch(url);
 
-            const rows = Array.isArray(data.data) ? data.data : [];
-
-            const normalizadas = rows.map((c: any) => ({
-                ...c,
-                moneda: c.moneda || "CLP",
-                tasaCambio: c.tasaCambio ?? 1,
-            }));
-
-            setCotizaciones(normalizadas);
+            setCotizaciones(data.data || []);
+            setTotalPages(data.pages || 1);
+            setTotalCotizaciones(data.total || 0);
+            setPage(currentPage); // 🔥 importante
 
         } catch (err) {
             handleApiError(err, "Error al cargar cotizaciones");
@@ -1436,37 +1473,12 @@ const Cotizaciones: React.FC = () => {
 
     // === FILTROS ===
     const q = query.toLowerCase();
-    const filtered: CotRow[] = cotizaciones.filter((c) => {
-        const nombre = c.entidad?.nombre?.toLowerCase() || "";
-        const estado = c.estado?.toLowerCase() || "";
-        const tipo = c.tipo?.toLowerCase() || "";
-
-        const matchSearch =
-            nombre.includes(q) ||
-            estado.includes(q) ||
-            tipo.includes(q) ||
-            String(c.id).includes(query);
-
-        const matchOrigen =
-            filtrosHistorial.origen ? c.entidad?.origen === filtrosHistorial.origen : true;
-
-        const matchEstado =
-            filtrosHistorial.estado ? c.estado === filtrosHistorial.estado : true;
-
-        const matchTipo =
-            filtrosHistorial.tipo ? c.tipo === filtrosHistorial.tipo : true;
-
-        return matchSearch && matchOrigen && matchEstado && matchTipo;
-    });
 
     const totales = calcularTotales(
         showEditModal && selectedCotizacion
             ? selectedCotizacion.items
             : items
     );
-
-    const totalMostrado = filtered.length;
-    const totalCotizaciones = cotizaciones.length;
 
     return (
         <div className="min-h-screen relative bg-gradient-to-b from-white via-white to-cyan-50">
@@ -1493,7 +1505,7 @@ const Cotizaciones: React.FC = () => {
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
-                                onClick={() => fetchCotizaciones()}
+                                onClick={() => fetchCotizaciones(page)}
                                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-300 bg-white text-cyan-700 text-sm hover:bg-cyan-50 transition"
                             >
 
@@ -1609,27 +1621,19 @@ const Cotizaciones: React.FC = () => {
                                 type="month"
                                 value={filtroMes}
                                 onChange={(e) => {
-                                    const value = e.target.value; // 2026-02
+                                    const value = e.target.value;
                                     setFiltroMes(value);
+                                    setPage(1); // 👈 reset página
 
                                     if (!value) {
-                                        fetchCotizaciones(); // reset
+                                        fetchCotizaciones(1);
                                         return;
                                     }
 
                                     const [year, month] = value.split("-");
-
                                     const fechaDesde = `${year}-${month}-01`;
-
-                                    const fechaHasta = new Date(
-                                        Number(year),
-                                        Number(month),
-                                        0
-                                    )
-                                        .toISOString()
-                                        .split("T")[0];
-
-                                    fetchCotizaciones(fechaDesde, fechaHasta);
+                                    const fechaHasta = new Date(Number(year), Number(month), 0)
+                                        .toISOString().split("T")[0];
                                 }}
                                 className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                             />
@@ -1654,18 +1658,11 @@ const Cotizaciones: React.FC = () => {
                                         Estado
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                        Tipo
-                                    </th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cotización generado por:
                                     </th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Cliente
                                     </th>
-                                    {/*
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                        Orden OT
-                                    </th> */}
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                         Factura
                                     </th>
@@ -1679,7 +1676,7 @@ const Cotizaciones: React.FC = () => {
                             </thead>
 
                             <tbody className="divide-y divide-gray-200">
-                                {filtered.map((c: CotRow) => {
+                                {cotizaciones.map((c: CotRow) => {
                                     const factura = c.facturas?.[0];   // 🔥 AGREGAR ESTA LÍNEA
 
                                     return (
@@ -1760,10 +1757,6 @@ const Cotizaciones: React.FC = () => {
                                                 </div>
                                             </td>
 
-                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                {formatTipo(c.tipo)}
-                                            </td>
-
                                             {/* Técnico */}
                                             <td className="px-4 py-3 text-center text-sm text-slate-700">
                                                 {c.tecnico?.nombre || "---"}
@@ -1774,7 +1767,7 @@ const Cotizaciones: React.FC = () => {
                                                 {c.entidad?.nombre || "---"}
                                             </td>
 
-                                            {/* Trabajos */}
+                                            {/* Trabajos 
                                             <td className="text-center">
                                                 {(c.trabajos?.length ?? 0) > 0 ? (
                                                     <button
@@ -1789,7 +1782,7 @@ const Cotizaciones: React.FC = () => {
                                                 ) : (
                                                     <span className="text-slate-400 text-xs">—</span>
                                                 )}
-                                            </td>
+                                            </td> */}
 
                                             {/* Factura */}
                                             <td className="px-4 py-3 text-center text-sm">
@@ -1820,7 +1813,7 @@ const Cotizaciones: React.FC = () => {
                                                 )}
                                             </td>
 
-                                            <td className="px-4 py-3 text-center text-sm font-bold text-slate-900">
+                                            <td className="px-4 py-3 text-center text-sm font-bold text-slate-900 whitespace-nowrap">
                                                 {formatearPrecio(
                                                     c.total,
                                                     c.moneda || "CLP",
@@ -1950,7 +1943,7 @@ const Cotizaciones: React.FC = () => {
                                     );
                                 })}
 
-                                {filtered.length === 0 && (
+                                {cotizaciones.length === 0 && (
                                     <tr>
                                         <td
                                             colSpan={9}
@@ -1962,10 +1955,81 @@ const Cotizaciones: React.FC = () => {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                    {/* Footer - contador de cotizaciones */}
+                    <div className="px-4 py-3 border-t border-cyan-100 bg-white flex items-center justify-between gap-4">
+                        {/* Contador */}
+                        <span className="text-xs text-slate-500 whitespace-nowrap">
+                            Mostrando {cotizaciones.length} de {totalCotizaciones} cotizaciones
+                        </span>
 
-                        {/* Footer - contador de cotizaciones */}
-                        <div className="px-4 py-3 border-t border-cyan-100 bg-white text-center text-xs text-slate-500">
-                            Mostrando {totalMostrado} de {totalCotizaciones} cotizaciones
+                        {/* Paginador */}
+                        <div className="flex items-center gap-1.5">
+                            {/* Anterior */}
+                            <button
+                                onClick={() => fetchCotizaciones(page - 1)}
+                                disabled={page <= 1}
+                                className="px-3 py-1.5 rounded-lg border border-cyan-200 text-sm text-cyan-700 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                            >
+                                ← Anterior
+                            </button>
+
+                            {/* Números */}
+                            {(() => {
+                                const visiblePages: (number | "...")[] = [];
+
+                                const start = Math.max(1, page - 1);
+                                const end = Math.min(totalPages, page + 1);
+
+                                if (start > 1) {
+                                    visiblePages.push(1);
+                                    if (start > 2) visiblePages.push("...");
+                                }
+
+                                for (let i = start; i <= end; i++) {
+                                    visiblePages.push(i);
+                                }
+
+                                if (end < totalPages) {
+                                    if (end < totalPages - 1) visiblePages.push("...");
+                                    visiblePages.push(totalPages);
+                                }
+
+                                return visiblePages.map((p, idx) =>
+                                    p === "..." ? (
+                                        <span
+                                            key={`e-${idx}`}
+                                            className="px-1 text-slate-400 text-sm"
+                                        >
+                                            …
+                                        </span>
+                                    ) : (
+                                        <button
+                                            key={p}
+                                            onClick={() => fetchCotizaciones(p)}
+                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition ${page === p
+                                                ? "bg-cyan-600 text-white shadow-sm"
+                                                : "border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                                                }`}
+                                        >
+                                            {p}
+                                        </button>
+                                    )
+                                );
+                            })()}
+
+                            {/* Siguiente */}
+                            <button
+                                onClick={() => {
+                                    const next = page + 1;
+                                    setPage(next);
+                                    fetchCotizaciones(next);
+                                }}
+                                disabled={page >= totalPages}
+                                className="px-3 py-1.5 rounded-lg border border-cyan-200 text-sm text-cyan-700 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                            >
+                                Siguiente →
+                            </button>
                         </div>
                     </div>
                 </section>
@@ -2188,6 +2252,20 @@ const Cotizaciones: React.FC = () => {
                 show={showNewProductoModal}
                 onClose={() => {
                     setShowNewProductoModal(false);
+
+                    // 🔥 RESET FORM
+                    setProductoForm({
+                        nombre: "",
+                        descripcion: "",
+                        precio: 0,
+                        porcGanancia: 30,
+                        precioTotal: 0,
+                        categoria: "",
+                        stock: 0,
+                        serie: "",
+                        imagen: "",
+                        imagenFile: null,
+                    });
 
                     document.body.classList.remove("modal-nested-open");
                 }}

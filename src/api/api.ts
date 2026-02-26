@@ -28,14 +28,19 @@ type RetriableConfig = AxiosRequestConfig & { _retried?: boolean };
 let isRefreshing = false;
 let queue: Array<() => void> = [];
 
+interface ApiErrorResponse {
+    error?: string;
+}
+
 api.interceptors.response.use(
     (res) => res,
-    async (error: AxiosError) => {
+    async (error: AxiosError<ApiErrorResponse>) => {
         const originalConfig = error.config as RetriableConfig | undefined;
         if (!originalConfig) return Promise.reject(error);
 
         if (
             error.response?.status === 401 &&
+            error.response?.data?.error === "TOKEN_EXPIRED" &&
             !originalConfig._retried &&
             !originalConfig.url?.includes("/auth/login") &&
             !originalConfig.url?.includes("/auth/refresh")
@@ -56,6 +61,7 @@ api.interceptors.response.use(
                 } catch (e) {
                     setAccessToken(null);
                     queue = [];
+                    window.location.href = "/login";
                     return Promise.reject(e);
                 } finally {
                     isRefreshing = false;

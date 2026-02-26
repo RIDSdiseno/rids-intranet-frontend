@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
     DeleteOutlined,
@@ -68,6 +68,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     // ESTADO LOCAL DE ÍTEMS
     // ==========================
     const [itemsLocal, setItemsLocal] = useState<CotizacionItemGestioo[]>([]);
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const { fetchApi: apiFetch } = useApi();
 

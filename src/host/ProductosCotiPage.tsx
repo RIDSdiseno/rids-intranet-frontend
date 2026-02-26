@@ -43,6 +43,9 @@ interface Producto {
     proveedor?: string;
     fecha_creacion?: string;
     estado?: string;
+
+    imagen?: string | null;
+    imagenFile?: File | null;
 }
 
 /* ==========================================
@@ -193,7 +196,7 @@ const ModalProducto: React.FC<ModalProductoProps> = ({
                                                 precioTotal:
                                                     prev.porcGanancia
                                                         ? Number(e.target.value) +
-                                                          (Number(e.target.value) * (prev.porcGanancia ?? 0)) / 100
+                                                        (Number(e.target.value) * (prev.porcGanancia ?? 0)) / 100
                                                         : prev.precioTotal
                                             }))
                                         }
@@ -293,6 +296,55 @@ const ModalProducto: React.FC<ModalProductoProps> = ({
                                         setForm((prev) => ({ ...prev, descripcion: e.target.value }))
                                     }
                                 />
+                            </div>
+
+                            {/* IMAGEN */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Imagen del Producto
+                                </label>
+
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            imagenFile: e.target.files?.[0] || null
+                                        }))
+                                    }
+                                    className="w-full px-3 py-2.5 border rounded-lg border-slate-300"
+                                />
+
+                                {(form.imagenFile || form.imagen) && (
+                                    <div className="mt-3 relative inline-block group">
+                                        <img
+                                            src={
+                                                form.imagenFile
+                                                    ? URL.createObjectURL(form.imagenFile)
+                                                    : form.imagen!
+                                            }
+                                            alt="preview"
+                                            className="w-32 h-32 object-cover rounded-xl border shadow-sm"
+                                        />
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    imagen: null,
+                                                    imagenFile: null
+                                                }))
+                                            }
+                                            className="absolute -top-2 -right-2 bg-white text-slate-600 
+                hover:text-red-600 hover:bg-red-50 rounded-full w-7 h-7 
+                flex items-center justify-center shadow-md border border-slate-200"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -494,6 +546,8 @@ const ProductosPage: React.FC = () => {
         serie: "",
         sku: "",
         proveedor: "",
+        imagen: null,
+        imagenFile: null,
     });
 
     const showNotification = useCallback(
@@ -628,6 +682,8 @@ const ProductosPage: React.FC = () => {
             serie: "",
             sku: "",
             proveedor: "",
+            imagen: null,
+            imagenFile: null,
         });
     };
 
@@ -643,6 +699,7 @@ const ProductosPage: React.FC = () => {
             precioTotal: Number(p.precioTotal || p.precio) || 0,
             porcGanancia: Number(p.porcGanancia) || 0,
             stock: Number(p.stock) || 0,
+            imagenFile: null,
         });
         setShowEdit(true);
     };
@@ -659,59 +716,68 @@ const ProductosPage: React.FC = () => {
         }
 
         setIsSaving(true);
-        try {
-            // 1️⃣ Sacar serie del form para NO enviarla
-            const { serie, ...resto } = form;
 
-            // 2️⃣ Construir payload sin serie
-            const payload = {
+        try {
+            const { serie, imagenFile, ...resto } = form;
+
+            // 1️⃣ Crear producto primero
+            const res = await api.post("/productos-gestioo", {
                 ...resto,
                 precio: Number(form.precio) || 0,
                 precioTotal: Number(form.precioTotal || form.precio) || 0,
                 porcGanancia: Number(form.porcGanancia) || 0,
                 stock: Number(form.stock) || 0,
-            };
+            });
 
-            // 3️⃣ Enviar al backend
-            await api.post("/productos-gestioo", payload);
+            const nuevoProducto = res.data;
+
+            // 2️⃣ Si hay imagen → subirla
+            if (imagenFile) {
+                const formData = new FormData();
+                formData.append("productoId", String(nuevoProducto.id));
+                formData.append("imagen", imagenFile);
+
+                await api.post("/upload-imagenes/upload", formData);
+            }
 
             showNotification("success", "Producto creado exitosamente");
             setShowCreate(false);
             resetForm();
             loadProductos();
+
         } catch (err) {
-            console.error("❌ Error creando producto", err);
+            console.error(err);
             showNotification("error", "Error al crear el producto");
         } finally {
             setIsSaving(false);
         }
     };
 
-
     const handleUpdate = async () => {
         if (!form.id) return;
-        if (!form.nombre.trim() || form.precio <= 0) {
-            showNotification("error", "Nombre y precio son obligatorios");
-            return;
-        }
 
         setIsSaving(true);
-        try {
-            const payload = {
-                ...form,
-                precio: Number(form.precio) || 0,
-                precioTotal: Number(form.precioTotal || form.precio) || 0,
-                porcGanancia: Number(form.porcGanancia) || 0,
-                stock: Number(form.stock) || 0,
-            };
 
-            await api.put(`/productos-gestioo/${form.id}`, payload);
+        try {
+            const { imagenFile, ...resto } = form;
+
+            await api.put(`/productos-gestioo/${form.id}`, resto);
+
+            if (imagenFile) {
+                const formData = new FormData();
+                formData.append("productoId", String(form.id));
+                formData.append("imagen", imagenFile);
+
+                await api.post("/upload-imagenes/upload", formData);
+            }
+
             showNotification("success", "Producto actualizado exitosamente");
             setShowEdit(false);
             resetForm();
             loadProductos();
+
         } catch (err) {
-            console.error("❌ Error actualizando producto", err);
+            console.error(err);
             showNotification("error", "Error al actualizar el producto");
         } finally {
             setIsSaving(false);
@@ -985,15 +1051,23 @@ const ProductosPage: React.FC = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div>
-                                                                <div className="text-sm font-semibold text-slate-900">
-                                                                    {p.nombre}
-                                                                </div>
-                                                                {p.descripcion && (
-                                                                    <div className="text-xs text-slate-500 truncate max-w-xs">
-                                                                        {p.descripcion}
-                                                                    </div>
+                                                            <div className="flex items-center gap-3">
+                                                                {p.imagen && (
+                                                                    <img
+                                                                        src={p.imagen}
+                                                                        className="w-10 h-10 object-cover rounded-lg border"
+                                                                    />
                                                                 )}
+                                                                <div>
+                                                                    <div className="text-sm font-semibold text-slate-900">
+                                                                        {p.nombre}
+                                                                    </div>
+                                                                    {p.descripcion && (
+                                                                        <div className="text-xs text-slate-500 truncate max-w-xs">
+                                                                            {p.descripcion}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">

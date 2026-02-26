@@ -95,9 +95,27 @@ type CreateEquipoPayload = {
   marca: string;
   modelo: string;
   procesador: string;
-  ram: string; // `${ramGb}GB`
+  ram: string;
   disco: string;
   propiedad: string;
+
+  // 🔥 DETALLE
+  macWifi?: string;
+  redEthernet?: string;
+  so?: string;
+  tipoDd?: string;
+  estadoAlm?: string;
+  office?: string;
+  teamViewer?: string;
+  claveTv?: string;
+  revisado?: string;
+
+  adminRidsUsuario?: string;
+  adminRidsPassword?: string;
+  usuarioEmpresa?: string;
+  passwordEmpresa?: string;
+  usuarioPersonal?: string;
+  passwordPersonal?: string;
 };
 
 type CrearEquipoModalProps = {
@@ -386,6 +404,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           values.idSolicitante === null || values.idSolicitante === undefined
             ? null
             : values.idSolicitante,
+
         serial: (values.serial || "").trim().toUpperCase(),
         marca: values.marca.trim(),
         modelo: values.modelo.trim(),
@@ -393,6 +412,24 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         ram: `${Number(values.ramGb)}GB`,
         disco: values.disco.trim(),
         propiedad: values.propiedad.trim(),
+
+        // 🔥 detalle
+        macWifi: values.macWifi,
+        redEthernet: values.redEthernet,
+        so: values.so,
+        tipoDd: values.tipoDd,
+        estadoAlm: values.estadoAlm,
+        office: values.office,
+        teamViewer: values.teamViewer,
+        claveTv: values.claveTv,
+        revisado: values.revisado,
+
+        adminRidsUsuario: values.adminRidsUsuario,
+        adminRidsPassword: values.adminRidsPassword,
+        usuarioEmpresa: values.usuarioEmpresa,
+        passwordEmpresa: values.passwordEmpresa,
+        usuarioPersonal: values.usuarioPersonal,
+        passwordPersonal: values.passwordPersonal,
       };
 
       const nuevo = await postEquipo(payload);
@@ -826,14 +863,46 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   <Select
                     options={[
                       { label: "Empresa", value: "Empresa" },
-                      { label: "Cliente", value: "Cliente" },
-                      { label: "Leasing", value: "Leasing" },
-                      { label: "Otro (especificar en notas)", value: "Otro" },
+                      { label: "Equipo Personal", value: "Equipo Personal" }, // 👈 AQUÍ
                     ]}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
                   />
                 </Form.Item>
               </motion.div>
+            </div>
+          </motion.div>
+
+          {/* Detalle técnico */}
+          <motion.div
+            className="mt-4 rounded-xl border border-slate-200/60 bg-white p-3 sm:p-4"
+            {...fadeUp}
+          >
+            <div className="mb-3 flex items-center gap-2 text-slate-700 font-medium">
+              Detalle técnico
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                { name: "macWifi", label: "MAC WiFi" },
+                { name: "redEthernet", label: "Red Ethernet (MAC)" },
+                { name: "so", label: "Sistema Operativo" },
+                { name: "tipoDd", label: "Tipo Disco" },
+                { name: "estadoAlm", label: "Estado Almacenamiento" },
+                { name: "office", label: "Office" },
+                { name: "teamViewer", label: "TeamViewer" },
+                { name: "claveTv", label: "Clave TV" },
+                { name: "revisado", label: "Revisado" },
+                { name: "adminRidsUsuario", label: "Admin RIDS Usuario" },
+                { name: "adminRidsPassword", label: "Admin RIDS Password" },
+                { name: "usuarioEmpresa", label: "Usuario Empresa" },
+                { name: "passwordEmpresa", label: "Password Empresa" },
+                { name: "usuarioPersonal", label: "Usuario Personal" },
+                { name: "passwordPersonal", label: "Password Personal" },
+              ].map((f) => (
+                <Form.Item key={f.name} name={f.name} label={f.label}>
+                  <Input allowClear />
+                </Form.Item>
+              ))}
             </div>
           </motion.div>
 

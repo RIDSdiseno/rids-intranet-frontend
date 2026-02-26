@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
     EditOutlined,
@@ -78,15 +78,16 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         });
     }, [show, producto]);
 
-    // 👇 return recién acá
-    if (!show || !producto) return null;
-
     // ======================================================
     // VALIDACIONES
     // ======================================================
     const nombreInvalido = !formData.nombre.trim();
     const precioInvalido = formData.precio <= 0;
     const precioVentaInvalido = formData.precioTotal <= 0;
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    if (!show || !producto) return null;
 
     const tieneErrores =
         nombreInvalido || precioInvalido || precioVentaInvalido;
@@ -110,6 +111,18 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
             stock: formData.stock,
             codigo: formData.codigo,
         });
+    };
+
+    const handleRemoveImage = () => {
+        setFormData((prev) => ({
+            ...prev,
+            imagen: null,
+            imagenFile: null,
+        }));
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     };
 
     // ======================================================
@@ -332,6 +345,62 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <div className="mt-3 text-xs text-amber-700 flex items-center gap-2">
                                 <InfoCircleOutlined />
                                 Revisa los valores de costo y precio de venta.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* IMAGEN */}
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Imagen del Producto
+                        </label>
+
+                        {/* Input */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) =>
+                                setFormData((prev) => ({
+                                    ...prev,
+                                    imagenFile: e.target.files?.[0] || null,
+                                }))
+                            }
+                            className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
+                        />
+
+                        {/* Preview */}
+                        {(formData.imagenFile || formData.imagen) && (
+                            <div className="mt-3 relative inline-block group">
+                                <img
+                                    src={
+                                        formData.imagenFile
+                                            ? URL.createObjectURL(formData.imagenFile)
+                                            : formData.imagen!
+                                    }
+                                    alt="preview"
+                                    className="w-32 h-32 object-cover rounded-xl border shadow-sm"
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveImage}
+                                    className="
+          absolute -top-2 -right-2
+          bg-white
+          text-slate-600
+          hover:text-red-600
+          hover:bg-red-50
+          rounded-full
+          w-7 h-7
+          flex items-center justify-center
+          shadow-md
+          transition
+          border border-slate-200
+        "
+                                >
+                                    ✕
+                                </button>
                             </div>
                         )}
                     </div>

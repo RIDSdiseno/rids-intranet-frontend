@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     BarcodeOutlined,
@@ -6,6 +6,7 @@ import {
     InfoCircleOutlined,
     CloseCircleOutlined,
     CheckCircleOutlined,
+    CloseOutlined,
 } from "@ant-design/icons";
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import type { ProductoForm } from "./types";
@@ -52,6 +53,16 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
             return "El precio de venta debe ser mayor a 0.";
         if (apiLoading) return "Creando producto, por favor espere.";
         return "";
+    };
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const handleRemoveImage = () => {
+        onFormChange("imagenFile", null);
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     };
 
     // ==========================
@@ -304,22 +315,43 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                             Imagen del Producto
                         </label>
                         <input
+                            ref={fileInputRef}
                             type="file"
                             accept="image/*"
                             onChange={(e) =>
-                                onFormChange(
-                                    "imagenFile",
-                                    e.target.files?.[0] || null
-                                )
+                                onFormChange("imagenFile", e.target.files?.[0] || null)
                             }
                             className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm"
                         />
                         {formData.imagenFile && (
-                            <img
-                                src={URL.createObjectURL(formData.imagenFile)}
-                                alt="preview"
-                                className="mt-2 w-32 h-32 object-cover rounded-xl border"
-                            />
+                            <div className="mt-3 relative inline-block group">
+                                <img
+                                    src={URL.createObjectURL(formData.imagenFile)}
+                                    alt="preview"
+                                    className="w-32 h-32 object-cover rounded-xl border shadow-sm"
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveImage}
+                                    className="
+        absolute -top-2 -right-2
+        bg-white
+        text-slate-600
+        hover:text-red-600
+        hover:bg-red-50
+        rounded-full
+        w-7 h-7
+        flex items-center justify-center
+        shadow-md
+        transition-all
+        duration-200
+        border border-slate-200
+      "
+                                >
+                                    <CloseOutlined className="text-sm" />
+                                </button>
+                            </div>
                         )}
                     </div>
 
