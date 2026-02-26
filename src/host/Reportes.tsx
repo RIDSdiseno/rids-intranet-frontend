@@ -708,13 +708,31 @@ const ReportesPage: React.FC = () => {
 
       const visitasTipoChartUrl = data.visitasPorTipo?.length ? await generatePieChart("chart-visitas-tipo-docx", data.visitasPorTipo.map(x => x.tipo), data.visitasPorTipo.map(x => x.cantidad), "Visitas: Programadas vs Adicionales") : null;
       const visitasTecnicoChartUrl = data.visitasPorTecnico?.length ? await generateBarChart("chart-visitas-tecnico-docx", data.visitasPorTecnico.map(x => x.tecnico), data.visitasPorTecnico.map(x => x.cantidad), "Visitas por técnico", "#10B981") : null;
-      const mantStatusChartUrl = data.mantenciones?.porStatus?.length ? await generatePieChart("chart-mant-status-docx", data.mantenciones.porStatus.map(x => x.status), data.mantenciones.porStatus.map(x => x.cantidad), "Mantenciones remotas por estado") : null;
+      const mantPorStatus = data.mantenciones?.porStatus ?? [];
+
+      const soloUnEstado =
+        mantPorStatus.length === 1 &&
+        mantPorStatus[0].status?.toUpperCase() === "COMPLETADA";
+
+      let mantStatusChartUrl: string | null = null;
+
+      if (!soloUnEstado && mantPorStatus.length > 0) {
+        mantStatusChartUrl = await generatePieChart(
+          "chart-mant-status-docx",
+          mantPorStatus.map(x => x.status),
+          mantPorStatus.map(x => x.cantidad),
+          "Mantenciones remotas por estado"
+        );
+      }
+      const mantStatusBytes =
+        mantStatusChartUrl
+          ? dataUrlToUint8Array(mantStatusChartUrl)
+          : null;
       const { labels: marcasLabels, values: marcasValues } = computeEquiposPorMarca(data.inventario?.equipos ?? []);
       const invMarcaChartUrl = marcasLabels.length ? await generateBarChart("chart-inv-marca-docx", marcasLabels, marcasValues, "Inventario: equipos por marca", "#8B5CF6") : null;
 
       const visitasTipoBytes = visitasTipoChartUrl ? dataUrlToUint8Array(visitasTipoChartUrl) : null;
       const visitasTecnicoBytes = visitasTecnicoChartUrl ? dataUrlToUint8Array(visitasTecnicoChartUrl) : null;
-      const mantStatusBytes = mantStatusChartUrl ? dataUrlToUint8Array(mantStatusChartUrl) : null;
       const invMarcaBytes = invMarcaChartUrl ? dataUrlToUint8Array(invMarcaChartUrl) : null;
 
       // Dentro de exportDOCX, junto a los otros charts:
@@ -722,7 +740,7 @@ const ReportesPage: React.FC = () => {
         data.tickets?.topUsuarios?.length
           ? await generateBarChart(
             "chart-top-usuarios-docx",
-            data.tickets.topUsuarios.slice(0, 5).map(u => u.usuario.split(" ")[0]), // solo primer nombre para que quepa
+            data.tickets.topUsuarios.slice(0, 5).map(u => u.email || u.usuario), // solo primer nombre para que quepa
             data.tickets.topUsuarios.slice(0, 5).map(u => u.cantidad),
             "Top usuarios con más tickets",
             "#6366F1"
@@ -759,8 +777,32 @@ const ReportesPage: React.FC = () => {
         ...(visitasTipoBytes ? [new Paragraph({ children: [new ImageRun({ data: visitasTipoBytes, type: "png", transformation: { width: 480, height: 320 } })] })] : tablePro("Distribución de visitas por tipo.", ["Tipo", "Cantidad"], visitasPorTipoRows)),
         H2("Visitas por técnico"),
         ...(visitasTecnicoBytes ? [new Paragraph({ children: [new ImageRun({ data: visitasTecnicoBytes, type: "png", transformation: { width: 600, height: 320 } })] })] : tablePro("Cantidad de visitas por técnico.", ["Técnico", "Cantidad"], visitasPorTecnicoRows)),
-        H2("Mantenciones remotas por estado"),
-        ...(mantStatusBytes ? [new Paragraph({ children: [new ImageRun({ data: mantStatusBytes, type: "png", transformation: { width: 480, height: 320 } })] })] : tablePro("Mantenciones remotas agrupadas por estado.", ["Status", "Cantidad"], mantPorStatusRows)),
+        H2("Estado de mantenciones remotas"),
+
+        ...(soloUnEstado
+          ? [
+            Body(
+              `Durante el periodo, el 100% de las mantenciones remotas fueron completadas exitosamente (${mantPorStatus[0].cantidad} registros).`
+            ),
+          ]
+          : mantStatusBytes
+            ? [
+              new Paragraph({
+                children: [
+                  new ImageRun({
+                    data: mantStatusBytes,
+                    type: "png",
+                    transformation: { width: 480, height: 320 },
+                  }),
+                ],
+              }),
+            ]
+            : tablePro(
+              "Mantenciones remotas agrupadas por estado.",
+              ["Status", "Cantidad"],
+              mantPorStatus
+            )
+        ),
         H2("Inventario: equipos por marca"),
         ...(invMarcaBytes ? [new Paragraph({ children: [new ImageRun({ data: invMarcaBytes, type: "png", transformation: { width: 600, height: 320 } })] })] : tablePro("Distribución de equipos por marca.", ["Marca", "Cantidad"], marcasLabels.map(marca => ({ Marca: marca, Cantidad: String(marcasValues[marcasLabels.indexOf(marca)] ?? 0) })))),
       ];

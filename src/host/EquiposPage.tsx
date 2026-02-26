@@ -2221,8 +2221,9 @@ const EquiposPage: React.FC = () => {
                               </span>
                             </div>
 
-                            <div className="mt-2 text-xs text-emerald-700 font-medium">
-                              Equipo creado.
+                            <div>
+                              <b>Creado por:</b>{" "}
+                              {actorName(h.actor)}
                             </div>
                           </div>
                         </div>

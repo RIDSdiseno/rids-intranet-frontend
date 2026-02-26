@@ -240,6 +240,13 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false) => {
         return `$${Math.round(valorCLP).toLocaleString("es-CL")}`;
     };
 
+    const truncarTexto = (texto: string, maxCaracteres = 250): string => {
+        if (!texto) return "";
+        const limpio = texto.replace(/\n/g, " ").trim();
+        if (limpio.length <= maxCaracteres) return limpio;
+        return limpio.substring(0, maxCaracteres).trimEnd() + "...";
+    };
+
     // ================================
     // FUNCIÓN PARA CALCULAR VALORES
     // ================================
@@ -317,24 +324,9 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false) => {
         ${item.sku || ""}
     </td>
     <td style="padding:8px;text-align:left;vertical-align:top;">
-        <div style="font-weight:600;margin-bottom:4px;">${item.nombre}</div>
-         ${item.descripcion ? `
-<div style="
-    font-size:9px !important;
-    color:#555;
-    white-space:normal;
-    word-wrap:break-word;
-    max-width:280px;
-    line-height:1.3;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-">
-    ${item.descripcion}
-</div>
-` : ""}
-    </td>
+    <div style="font-weight:600;font-size:11px;margin-bottom:3px;">${item.nombre}</div>
+   ${item.descripcion ? `<div style="font-size:9px;color:#666;line-height:1.4;">${truncarTexto(item.descripcion, 250)}</div>` : ""}
+</td>
     <td style="padding:8px;text-align:right;vertical-align:top;">
         ${formatPDF(Number(item.precio) || 0)}
     </td>
@@ -409,26 +401,9 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false) => {
         ${item.sku || ""}
     </td>
     <td style="padding:8px;text-align:left;vertical-align:top;">
-        <div style="font-weight:600;margin-bottom:4px;">${item.nombre}</div>
-       ${item.descripcion ? `
-<div style="
-    font-size:9px;
-    color:#555;
-    margin:2px 0 0 0;
-    padding:0;
-    line-height:1.3;
-    white-space:normal;
-    word-wrap:break-word;
-    max-width:280px;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-">
-    ${item.descripcion}
-</div>
-` : ""}
-    </td>
+    <div style="font-weight:600;font-size:11px;margin-bottom:3px;">${item.nombre}</div>
+    ${item.descripcion ? `<div style="font-size:9px;color:#666;line-height:1.4;">${truncarTexto(item.descripcion, 250)}</div>` : ""}
+</td>
     <td style="padding:8px;text-align:right;vertical-align:top;">
         ${formatPDF(Number(item.precio) || 0)}
     </td>
@@ -549,14 +524,10 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false) => {
         text-align: center;
     }
     tbody td div {
-        font-size: 10px !important;
-        padding: 3px 5px !important;  
-        margin-top: 2px !important;   
-        margin-bottom: 2px !important;  
-        line-height: 1.1 !important;
-        background: transparent !important;
-        color: #302f2fff !important;
-    }
+    background: transparent;
+    color: #302f2f;
+}
+
     th, td {
         border: 1px solid #d0d0d0;
         line-height: 1.2;

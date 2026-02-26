@@ -1460,8 +1460,15 @@ const Cotizaciones: React.FC = () => {
 
     // Nueva función simplificada para vista previa
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
-        setSelectedCotizacion(cot);
-        setShowGenerarPDFModal(true);
+        try {
+            const data = await apiFetch(`/cotizaciones/${cot.id}`);
+            const cotCompleta = data.data;
+
+            setSelectedCotizacion(cotCompleta);
+            setShowGenerarPDFModal(true);
+        } catch (error) {
+            handleApiError(error, "Error al cargar la cotización para PDF");
+        }
     };
 
     // Función para manejar el resultado del modal
@@ -1833,10 +1840,7 @@ const Cotizaciones: React.FC = () => {
 
                                                     {/* Imprimir - ahora abre el modal de generar PDF */}
                                                     <button
-                                                        onClick={() => {
-                                                            setSelectedCotizacion(c);
-                                                            setShowGenerarPDFModal(true);
-                                                        }}
+                                                        onClick={() => handlePreviewRealPDF(c)}
                                                         className="text-indigo-600 hover:text-indigo-800 text-sm"
                                                         title="Generar PDF"
                                                     >

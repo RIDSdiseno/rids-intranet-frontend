@@ -25,7 +25,17 @@ function clsx(...xs: Array<string | false | null | undefined>) {
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago" });
+    return new Date(iso).toLocaleString("es-CL", {
+      timeZone: "America/Santiago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,      // ✅ 24h
+      hourCycle: "h23",   // ✅ fuerza 00–23 (más robusto)
+    });
   } catch {
     return String(iso);
   }
@@ -574,8 +584,8 @@ export default function MantencionesRemotasPage() {
         ? user.empresaId
         : null
       : form.empresaId === ""
-      ? null
-      : Number(form.empresaId);
+        ? null
+        : Number(form.empresaId);
 
     if (!empresaFinal) throw new Error("No se pudo detectar la empresa.");
     if (form.solicitanteId === "") throw new Error("Debes seleccionar un solicitante.");
@@ -655,9 +665,9 @@ export default function MantencionesRemotasPage() {
       const patch =
         "cccleaner" in (patchRaw as Record<string, unknown>)
           ? ({
-              ...patchRaw,
-              ccleaner: (patchRaw as Record<string, unknown>)["cccleaner"],
-            } as MantencionRemotaUpsert)
+            ...patchRaw,
+            ccleaner: (patchRaw as Record<string, unknown>)["cccleaner"],
+          } as MantencionRemotaUpsert)
           : patchRaw;
 
       await updateMantencionRemota(editing.id_mantencion, patch);
@@ -1314,8 +1324,8 @@ function MantencionUpsertModal(props: {
                       {!isCliente && form.empresaId === ""
                         ? "Primero selecciona empresa"
                         : solState === "loading"
-                        ? "Cargando solicitantes..."
-                        : "Selecciona solicitante"}
+                          ? "Cargando solicitantes..."
+                          : "Selecciona solicitante"}
                     </option>
 
                     {solicitantes.map((s) => (
