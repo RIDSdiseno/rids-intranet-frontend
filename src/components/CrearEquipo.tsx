@@ -877,32 +877,101 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             className="mt-4 rounded-xl border border-slate-200/60 bg-white p-3 sm:p-4"
             {...fadeUp}
           >
-            <div className="mb-3 flex items-center gap-2 text-slate-700 font-medium">
-              Detalle técnico
+            <div className="mb-4 flex items-center gap-2 text-slate-700 font-medium">
+              Detalles Técnicos
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                { name: "macWifi", label: "MAC WiFi" },
-                { name: "redEthernet", label: "Red Ethernet (MAC)" },
-                { name: "so", label: "Sistema Operativo" },
-                { name: "tipoDd", label: "Tipo Disco" },
-                { name: "estadoAlm", label: "Estado Almacenamiento" },
-                { name: "office", label: "Office" },
-                { name: "teamViewer", label: "TeamViewer" },
-                { name: "claveTv", label: "Clave TV" },
-                { name: "revisado", label: "Revisado" },
-                { name: "adminRidsUsuario", label: "Admin RIDS Usuario" },
-                { name: "adminRidsPassword", label: "Admin RIDS Password" },
-                { name: "usuarioEmpresa", label: "Usuario Empresa" },
-                { name: "passwordEmpresa", label: "Password Empresa" },
-                { name: "usuarioPersonal", label: "Usuario Personal" },
-                { name: "passwordPersonal", label: "Password Personal" },
-              ].map((f) => (
-                <Form.Item key={f.name} name={f.name} label={f.label}>
-                  <Input allowClear />
+            {/* HARDWARE */}
+            <div className="mb-5">
+              <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                Hardware y Sistema
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  {
+                    name: "macWifi",
+                    label: "MAC WiFi",
+                    placeholder: "Ej: 3C:52:82:AB:91:F4",
+                  },
+                  {
+                    name: "redEthernet",
+                    label: "Red Ethernet (MAC)",
+                    placeholder: "Ej: 00:1B:44:11:3A:B7",
+                  },
+                  {
+                    name: "so",
+                    label: "Sistema Operativo",
+                    placeholder: "Ej: Windows 11 Pro 23H2 / macOS Sonoma",
+                  },
+                  {
+                    name: "tipoDd",
+                    label: "Tipo Disco",
+                    placeholder: "Ej: SSD NVMe / HDD 1TB",
+                  },
+                  {
+                    name: "estadoAlm",
+                    label: "Estado Almacenamiento",
+                    placeholder: "Ej: 320GB libres de 512GB",
+                  },
+                  {
+                    name: "office",
+                    label: "Office",
+                    placeholder: "Ej: Microsoft 365 Apps / Office 2021",
+                  },
+                  {
+                    name: "teamViewer",
+                    label: "TeamViewer ID",
+                    placeholder: "Ej: 123 456 789",
+                  },
+                  {
+                    name: "claveTv",
+                    label: "Clave TeamViewer",
+                    placeholder: "Contraseña actual de TeamViewer",
+                  },
+                ].map((f) => (
+                  <Form.Item key={f.name} name={f.name} label={f.label}>
+                    <Input
+                      allowClear
+                      placeholder={f.placeholder}
+                      className={`${T.ring}`}
+                    />
+                  </Form.Item>
+                ))}
+              </div>
+            </div>
+
+            {/* CREDENCIALES */}
+            <div>
+              <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                Credenciales
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Form.Item name="adminRidsUsuario" label="Admin RIDS Usuario">
+                  <Input allowClear placeholder="Ej: admin / rids" />
                 </Form.Item>
-              ))}
+
+                <Form.Item name="adminRidsPassword" label="Admin RIDS Password">
+                  <Input.Password allowClear placeholder="Contraseña administrador" />
+                </Form.Item>
+
+                <Form.Item name="usuarioEmpresa" label="Usuario Empresa">
+                  <Input allowClear placeholder="Ej: usuario@empresa.cl" />
+                </Form.Item>
+
+                <Form.Item name="passwordEmpresa" label="Password Empresa">
+                  <Input.Password allowClear placeholder="Contraseña corporativa" />
+                </Form.Item>
+
+                <Form.Item name="usuarioPersonal" label="Usuario Personal">
+                  <Input allowClear placeholder="Ej: usuario personal del equipo" />
+                </Form.Item>
+
+                <Form.Item name="passwordPersonal" label="Password Personal">
+                  <Input.Password allowClear placeholder="Contraseña cuenta personal" />
+                </Form.Item>
+              </div>
             </div>
           </motion.div>
 

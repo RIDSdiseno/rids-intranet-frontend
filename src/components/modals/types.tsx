@@ -182,6 +182,7 @@ export interface FiltrosHistorial {
   origen: string;
   estado: string;
   tipo: string;
+  tecnico?: string;
 }
 
 export interface SeccionCotizacion {
