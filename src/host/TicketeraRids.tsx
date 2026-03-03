@@ -770,6 +770,26 @@ export default function TicketeraRids() {
         }
     };
 
+    const handleDelete = async (ticketId: number) => {
+        console.log("🗑 Intentando eliminar ticket:", ticketId);
+        Modal.confirm({
+            title: "¿Eliminar ticket?",
+            content: "Esta acción no se puede deshacer",
+            okText: "Eliminar",
+            okType: "danger",
+            cancelText: "Cancelar",
+            onOk: async () => {
+                try {
+                    await api.delete(`/helpdesk/tickets/${ticketId}`);
+                    message.success("Ticket eliminado correctamente");
+                    loadTickets();
+                } catch {
+                    message.error("No se pudo eliminar el ticket");
+                }
+            },
+        });
+    };
+
     /* ===================== UI HELPERS ===================== */
     // Función para asignar colores a prioridades
     const priorityColor = (p: string) => {
@@ -1450,10 +1470,28 @@ export default function TicketeraRids() {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Button type="text" icon={<MoreOutlined />} onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Menú contextual aquí
-                                                }} />
+                                                <Dropdown
+                                                    menu={{
+                                                        items: [
+                                                            {
+                                                                key: "delete",
+                                                                label: "Eliminar",
+                                                                danger: true,
+                                                                onClick: (e) => {
+                                                                    e.domEvent.stopPropagation();
+                                                                    handleDelete(ticket.id);
+                                                                },
+                                                            },
+                                                        ],
+                                                    }}
+                                                    trigger={["click"]}
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        icon={<MoreOutlined />}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </Dropdown>
                                             </div>
                                         </div>
                                     </div>

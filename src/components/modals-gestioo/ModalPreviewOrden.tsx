@@ -93,15 +93,15 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                     </div>
 
                     <Section
-                        title="Trabajo solicitado"
-                        content={orden.tipoTrabajo}
-                    />
-
-                    <Section
                         title="Descripción"
                         content={
                             orden.descripcion ?? "Sin descripción registrada"
                         }
+                    />
+
+                    <Section
+                        title="Trabajo solicitado"
+                        content={orden.tipoTrabajo}
                     />
 
                     <Section

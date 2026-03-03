@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Select } from "antd";
+import { Select, Tooltip } from "antd";
 import {
     PlusOutlined,
     SearchOutlined,
@@ -15,7 +15,6 @@ import {
     ToolOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import Header from "../components/Header";
 import { useApi } from "../components/modals/UseApi";
 import {
     ViewCotizacionModal,
@@ -58,6 +57,23 @@ import {
     calcularLineaItem
 } from "../components/modals/utils";
 
+type EstadoDTE =
+    | "EMITIDO"
+    | "RECIBIDO"
+    | "ACEPTADO"
+    | "RECHAZADO"
+    | "OBSERVADO"
+    | "ANULADO";
+
+const estados: EstadoDTE[] = [
+    "EMITIDO",
+    "RECIBIDO",
+    "ACEPTADO",
+    "RECHAZADO",
+    "OBSERVADO",
+    "ANULADO"
+];
+
 type CotRow = CotizacionGestioo & {
     tecnico?: {
         id_tecnico: number;
@@ -68,9 +84,13 @@ type CotRow = CotizacionGestioo & {
     facturas: {
         id_factura: number;
         numeroFactura: string;
-        estado: "PENDIENTE" | "PAGADA" | "ANULADA";
+        estadoSII: EstadoDTE
+        tipoDTE: number;
+        folioSII: string;
         fechaEmision: string;
         total: number;
+        trackId?: string | null;
+        _showEstadoMenu?: boolean;
     }[];
 
     trabajos?: {
@@ -79,6 +99,21 @@ type CotRow = CotizacionGestioo & {
     }[];
 
     _showEstadoMenu?: boolean;
+};
+
+const getTipoDTELabel = (tipo: number) => {
+    switch (tipo) {
+        case 33:
+            return "Factura Electrónica";
+        case 34:
+            return "Factura Exenta";
+        case 61:
+            return "Nota de Crédito";
+        case 56:
+            return "Nota de Débito";
+        default:
+            return `DTE ${tipo}`;
+    }
 };
 
 // Función para mostrar errores
@@ -115,6 +150,10 @@ const Cotizaciones: React.FC = () => {
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
 
     const [filtroMes, setFiltroMes] = useState<string>("");
+
+    const [tecnicos, setTecnicos] = useState<
+        { id_tecnico: number; nombre: string }[]
+    >([]);
 
     // === ESTADOS PARA FORMULARIOS ===
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
@@ -188,7 +227,8 @@ const Cotizaciones: React.FC = () => {
     const [filtrosHistorial, setFiltrosHistorial] = useState<FiltrosHistorial>({
         origen: "",
         estado: "",
-        tipo: ""
+        tipo: "",
+        tecnico: ""
     });
 
     // === ESTADOS PARA CATÁLOGOS ===
@@ -215,25 +255,40 @@ const Cotizaciones: React.FC = () => {
     const handleApiError = useCallback((error: any, defaultMessage: string) => {
         console.error("API Error:", error);
 
-        const raw = error.message || defaultMessage;
+        let raw = "";
 
-        // Mapeo de errores comunes → mensajes claros
-        let userMessage = defaultMessage;
-
-        if (raw.includes("ECONNET") && raw.includes("enum")) {
-            userMessage = "El origen seleccionado no es válido. Intente usar: RIDS, ECONNET o OTRO.";
+        if (typeof error?.message === "string") {
+            raw = error.message;
+        } else if (typeof error === "string") {
+            raw = error;
+        } else if (error?.message && typeof error.message === "object") {
+            raw = JSON.stringify(error.message);
+        } else {
+            raw = defaultMessage;
         }
 
-        if (raw.includes("Unique constraint") || raw.includes("unique")) {
-            userMessage = "El RUT ya existe. No se pueden duplicar entidades.";
-        }
+        let userMessage = raw || defaultMessage;
 
-        if (raw.includes("not-null")) {
-            userMessage = "Falta un campo obligatorio. Por favor complete todos los datos.";
-        }
+        if (typeof raw === "string") {
+            if (raw.includes("ECONNET") && raw.includes("enum")) {
+                userMessage =
+                    "El origen seleccionado no es válido. Intente usar: RIDS, ECONNET o OTRO.";
+            }
 
-        if (raw.includes("500") || raw.includes("Internal Server Error")) {
-            userMessage = "Ocurrió un error interno. Por favor inténtelo de nuevo.";
+            if (raw.includes("Unique constraint") || raw.includes("unique")) {
+                userMessage =
+                    "El RUT ya existe. No se pueden duplicar entidades.";
+            }
+
+            if (raw.includes("not-null")) {
+                userMessage =
+                    "Falta un campo obligatorio. Por favor complete todos los datos.";
+            }
+
+            if (raw.includes("Internal Server Error")) {
+                userMessage =
+                    "Ocurrió un error interno. Por favor inténtelo de nuevo.";
+            }
         }
 
         setToast({ type: "error", message: userMessage });
@@ -241,6 +296,14 @@ const Cotizaciones: React.FC = () => {
         setTimeout(() => setToast(null), 5000);
     }, []);
 
+    const fetchTecnicos = async () => {
+        try {
+            const data = await apiFetch("/tecnicos"); // o tu endpoint real
+            setTecnicos(data.data || data);
+        } catch (error) {
+            handleApiError(error, "Error al cargar técnicos");
+        }
+    };
 
     const showSuccess = useCallback((message: string) => {
         setToast({ type: "success", message });
@@ -251,6 +314,7 @@ const Cotizaciones: React.FC = () => {
     useEffect(() => {
         fetchCotizaciones(1);
         fetchEntidades();
+        fetchTecnicos();
     }, []);
 
     useEffect(() => {
@@ -280,6 +344,10 @@ const Cotizaciones: React.FC = () => {
 
             if (query) {
                 url += `&search=${encodeURIComponent(query)}`;
+            }
+
+            if (filtrosHistorial.tecnico) {
+                url += `&tecnico=${filtrosHistorial.tecnico}`;
             }
 
             if (filtrosHistorial.origen) {
@@ -634,7 +702,7 @@ const Cotizaciones: React.FC = () => {
             });
 
             // 🔥 RECARGAR DESDE BD REAL
-            await fetchCotizaciones();
+            await fetchCotizaciones(page);
 
             showSuccess("Estado actualizado correctamente");
 
@@ -827,7 +895,7 @@ const Cotizaciones: React.FC = () => {
 
             setShowEditModal(false);
             showSuccess("Cotización actualizada correctamente");
-            await fetchCotizaciones();
+            await fetchCotizaciones(page);
 
         } catch (error) {
             handleApiError(error, "Error al actualizar cotización");
@@ -1440,21 +1508,6 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const generarOrdenDesdeCotizacion = async (cot: CotRow) => {
-        if (!window.confirm(`¿Generar orden desde la cotización #${cot.id}?`)) return;
-
-        try {
-            await apiFetch(`/cotizaciones/${cot.id}/generar-orden`, {
-                method: "POST",
-            });
-
-            showSuccess("Orden generada correctamente");
-
-        } catch (error) {
-            handleApiError(error, "Error al generar orden");
-        }
-    };
-
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
 
@@ -1599,22 +1652,28 @@ const Cotizaciones: React.FC = () => {
                             </select>
                         </div>
 
-                        {/* Tipo */}
+                        {/* Técnico */}
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">
-                                Filtrar por Tipo
+                                Filtrar por Técnico
                             </label>
+
                             <select
-                                value={filtrosHistorial.tipo}
+                                value={filtrosHistorial.tecnico || ""}
                                 onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({ ...prev, tipo: e.target.value }))
+                                    setFiltrosHistorial(prev => ({
+                                        ...prev,
+                                        tecnico: e.target.value
+                                    }))
                                 }
                                 className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                             >
-                                <option value="">Todos los tipos</option>
-                                <option value={TipoCotizacionGestioo.CLIENTE}>Cliente</option>
-                                <option value={TipoCotizacionGestioo.INTERNA}>Interna</option>
-                                <option value={TipoCotizacionGestioo.PROVEEDOR}>Proveedor</option>
+                                <option value="">Todos los técnicos</option>
+                                {tecnicos.map(t => (
+                                    <option key={t.id_tecnico} value={t.id_tecnico}>
+                                        {t.nombre}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
@@ -1710,8 +1769,8 @@ const Cotizaciones: React.FC = () => {
                                                                     ? "bg-green-100 text-green-700"
                                                                     : c.estado === "RECHAZADA"
                                                                         ? "bg-red-100 text-red-700"
-                                                                        : c.estado === "FACTURADA"
-                                                                            ? "bg-purple-100 text-purple-700"
+                                                                        : c.estado === EstadoCotizacionGestioo.FACTURADA
+                                                                            ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white"
                                                                             : "bg-gray-100 text-gray-600"
                                                             }
     `}
@@ -1774,52 +1833,171 @@ const Cotizaciones: React.FC = () => {
                                                 {c.entidad?.nombre || "---"}
                                             </td>
 
-                                            {/* Trabajos 
-                                            <td className="text-center">
-                                                {(c.trabajos?.length ?? 0) > 0 ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            const numeroOrden = c.trabajos?.[0]?.numeroOrden;
-                                                            alert(`Generando orden: ${numeroOrden}`);
-                                                        }}
-                                                        className="text-blue-600 hover:text-blue-800 text-sm"
-                                                    >
-                                                        {c.trabajos?.[0]?.numeroOrden || "Sin orden"}
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-slate-400 text-xs">—</span>
-                                                )}
-                                            </td> */}
-
                                             {/* Factura */}
                                             <td className="px-4 py-3 text-center text-sm">
                                                 {factura ? (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <span className="font-semibold text-purple-700">
-                                                            {factura.numeroFactura}
+
+                                                        {/* Folio */}
+                                                        <span className="font-semibold text-cyan-800">
+                                                            Folio: {factura.folioSII}
                                                         </span>
 
-                                                        <span
-                                                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
-                    ${factura.estado
-                                                                    === "PAGADA"
-                                                                    ? "bg-green-100 text-green-700"
-                                                                    : factura.estado
-                                                                        === "PENDIENTE"
-                                                                        ? "bg-yellow-100 text-yellow-700"
-                                                                        : "bg-red-100 text-red-700"
-                                                                }
-                `}
-                                                        >
-                                                            {factura.estado
-                                                            }
+                                                        {/* Tipo DTE */}
+                                                        <span className="text-xs text-slate-500">
+                                                            {getTipoDTELabel(factura.tipoDTE)}
                                                         </span>
+
+                                                        {/* Estado SII */}
+                                                        <div className="relative inline-block">
+
+                                                            {/* CHIP */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setCotizaciones(prev =>
+                                                                        prev.map(cot =>
+                                                                            cot.id === c.id
+                                                                                ? {
+                                                                                    ...cot,
+                                                                                    facturas: cot.facturas.map(f =>
+                                                                                        f.id_factura === factura.id_factura
+                                                                                            ? { ...f, _showEstadoMenu: !f._showEstadoMenu }
+                                                                                            : f
+                                                                                    )
+                                                                                }
+                                                                                : cot
+                                                                        )
+                                                                    );
+                                                                }}
+                                                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
+      ${factura.estadoSII === "ACEPTADO"
+                                                                        ? "bg-green-100 text-green-700"
+                                                                        : factura.estadoSII === "RECHAZADO"
+                                                                            ? "bg-red-100 text-red-700"
+                                                                            : factura.estadoSII === "ANULADO"
+                                                                                ? "bg-gray-200 text-gray-700"
+                                                                                : factura.estadoSII === "OBSERVADO"
+                                                                                    ? "bg-orange-100 text-orange-700"
+                                                                                    : factura.estadoSII === "EMITIDO"
+                                                                                        ? "bg-blue-100 text-blue-700"
+                                                                                        : "bg-yellow-100 text-yellow-700"
+                                                                    }
+    `}
+                                                            >
+                                                                {factura.estadoSII || "SIN CONSULTAR"}
+                                                            </button>
+
+                                                            {/* MENÚ */}
+                                                            {factura._showEstadoMenu && (
+                                                                <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-36 bg-white shadow-lg rounded-md border border-slate-200 z-50">
+                                                                    {estados.map((estado) => (
+                                                                        <button
+                                                                            key={estado}
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    await apiFetch(`/cotizaciones/facturas/${factura.id_factura}/estado`, {
+                                                                                        method: "PATCH",
+                                                                                        headers: { "Content-Type": "application/json" },
+                                                                                        body: JSON.stringify({ estado })
+                                                                                    });
+
+                                                                                    setCotizaciones(prev =>
+                                                                                        prev.map(cot =>
+                                                                                            cot.id === c.id
+                                                                                                ? {
+                                                                                                    ...cot,
+                                                                                                    facturas: cot.facturas.map(f =>
+                                                                                                        f.id_factura === factura.id_factura
+                                                                                                            ? {
+                                                                                                                ...f,
+                                                                                                                estadoSII: estado as EstadoDTE,
+                                                                                                                _showEstadoMenu: false
+                                                                                                            }
+                                                                                                            : f
+                                                                                                    )
+                                                                                                }
+                                                                                                : cot
+                                                                                        )
+                                                                                    );
+
+                                                                                    showSuccess("Estado actualizado");
+
+                                                                                } catch (error) {
+                                                                                    handleApiError(error, "Error actualizando estado");
+                                                                                }
+                                                                            }}
+                                                                            className="block w-full text-left px-3 py-2 text-xs hover:bg-slate-100"
+                                                                        >
+                                                                            {estado}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Consultar SII 
+                                                        {factura.trackId ? (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        await apiFetch(
+                                                                            `/cotizaciones/facturas/${factura.id_factura}/consultar-sii`,
+                                                                            { method: "POST" }
+                                                                        );
+
+                                                                        await fetchCotizaciones(page);
+                                                                        showSuccess("Estado actualizado desde SII");
+
+                                                                    } catch (error) {
+                                                                        handleApiError(error, "Error al consultar SII");
+                                                                    }
+                                                                }}
+                                                                className="text-indigo-600 hover:text-indigo-800 text-xs"
+                                                            >
+                                                                Consultar SII
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">
+                                                                Sin seguimiento SII
+                                                            </span>
+                                                        )} */}
+
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-400">---</span>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const folio = prompt("Ingrese folio SII:");
+                                                            const tipoDTE = prompt("Ingrese tipo DTE (33, 34, etc):");
+
+                                                            if (!folio || !tipoDTE) return;
+
+                                                            try {
+                                                                await apiFetch(`/cotizaciones/${c.id}/vincular-factura-sii`, {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({
+                                                                        folioSII: folio,                // 🔥 CAMBIO AQUÍ
+                                                                        tipoDTE: Number(tipoDTE),
+                                                                        rutEmisor: "76758352-4"         // 🔥 AGREGA ESTO (tu empresa)
+                                                                    })
+                                                                });
+
+                                                                await fetchCotizaciones(page);
+                                                                showSuccess("Factura vinculada correctamente");
+
+                                                            } catch (error) {
+                                                                handleApiError(error, "Error al vincular factura");
+                                                            }
+                                                        }}
+                                                        className="text-blue-600 hover:text-blue-800 text-xs"
+                                                    >
+                                                        Vincular factura
+                                                    </button>
                                                 )}
                                             </td>
 
+                                            {/* Total */}
                                             <td className="px-4 py-3 text-center text-sm font-bold text-slate-900 whitespace-nowrap">
                                                 {formatearPrecio(
                                                     c.total,
@@ -1827,7 +2005,8 @@ const Cotizaciones: React.FC = () => {
                                                     c.tasaCambio ?? 1
                                                 )}
                                             </td>
-
+                                            
+                                            {/* Acciones */}
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex justify-center gap-2">
                                                     {/* Ver - ahora abre el modal de generar PDF */}
@@ -1866,7 +2045,28 @@ const Cotizaciones: React.FC = () => {
                                                     >
                                                         <CopyOutlined />
                                                     </button>
+                                                    {/*
+                                                    {factura && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await apiFetch(`/cotizaciones/facturas/${factura.id_factura}/consultar-sii`, {
+                                                                        method: "POST",
+                                                                    });
 
+                                                                    await fetchCotizaciones(page);
+                                                                    showSuccess("Estado actualizado desde SII");
+
+                                                                } catch (error) {
+                                                                    handleApiError(error, "Error al consultar SII");
+                                                                }
+                                                            }}
+                                                            className="text-indigo-600 hover:text-indigo-800 text-xs"
+                                                        >
+                                                            Consultar SII
+                                                        </button>
+                                                    )} */}
+                                                    {/*
                                                     {factura && factura.estado === "PENDIENTE" && (
                                                         <button
                                                             onClick={async () => {
@@ -1875,7 +2075,7 @@ const Cotizaciones: React.FC = () => {
                                                                         method: "POST",
                                                                     });
 
-                                                                    await fetchCotizaciones();
+                                                                    await fetchCotizaciones(page);
                                                                     showSuccess("Factura marcada como pagada");
                                                                 } catch (error) {
                                                                     handleApiError(error, "Error al marcar como pagada");
@@ -1886,29 +2086,35 @@ const Cotizaciones: React.FC = () => {
                                                         >
                                                             <CheckCircleOutlined />
                                                         </button>
-                                                    )}
-
-                                                    {c.estado === "APROBADA" &&
+                                                    )} */}
+                                                    
+                                                    {/* Emitir factura - SOLO SI ESTÁ APROBADA Y NO TIENE FACTURA VINCULADA */}
+                                                    {c.estado === EstadoCotizacionGestioo.APROBADA &&
                                                         (!c.facturas || c.facturas.length === 0) && (
                                                             <button
                                                                 onClick={async () => {
+                                                                    if (!window.confirm("¿Desea emitir factura electrónica?")) return;
+
                                                                     try {
-                                                                        await apiFetch(`/cotizaciones/${c.id}/facturar`, {
+                                                                        await apiFetch(`/cotizaciones/${c.id}/emitir-sii`, {
                                                                             method: "POST",
                                                                         });
 
-                                                                        await fetchCotizaciones();
-                                                                        showSuccess("Cotización facturada correctamente");
+                                                                        await fetchCotizaciones(page);
+
+                                                                        showSuccess("Factura emitida correctamente");
+
                                                                     } catch (error) {
-                                                                        handleApiError(error, "Error al facturar");
+                                                                        handleApiError(error, "Error al emitir factura");
                                                                     }
                                                                 }}
                                                                 className="text-purple-600 hover:text-purple-800 text-sm"
-                                                                title="Facturar"
+                                                                title="Emitir Factura"
                                                             >
                                                                 <FileTextOutlined />
                                                             </button>
                                                         )}
+                                                    {/*
                                                     {factura && factura.estado !== "ANULADA" && (
                                                         <button
                                                             onClick={async () => {
@@ -1920,7 +2126,7 @@ const Cotizaciones: React.FC = () => {
                                                                         method: "POST",
                                                                     });
 
-                                                                    await fetchCotizaciones();
+                                                                    await fetchCotizaciones(page);
                                                                     showSuccess("Factura anulada correctamente");
 
                                                                 } catch (error) {
@@ -1932,7 +2138,7 @@ const Cotizaciones: React.FC = () => {
                                                         >
                                                             Anular
                                                         </button>
-                                                    )}
+                                                    )} */}
 
                                                     {/* Eliminar */}
                                                     <button

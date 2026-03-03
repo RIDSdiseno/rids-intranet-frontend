@@ -1885,7 +1885,7 @@ const EquiposPage: React.FC = () => {
               {/* ===== FICHA TÉCNICA (editable) ===== */}
               <div className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                  Ficha Técnica
+                  Detalles Técnicos
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
