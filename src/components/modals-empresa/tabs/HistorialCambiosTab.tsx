@@ -41,11 +41,16 @@ const IGNORED_FIELDS = [
     "actualizadaEn",
     "createdAt",
     "id_equipo",
-    "idSolicitante",
+    //"idSolicitante",
     "empresaId",
     "empresa_id",
     "id",
 ];
+const FIELD_LABELS: Record<string, string> = {
+    id_solicitante: "ID Solicitante",
+    nombreSolicitante: "Solicitante", // <--- Para que se vea bonito
+    // Puedes agregar más aquí si otros campos salen raros
+};
 
 const ACTION_LABELS: Record<string, string> = {
     CREATE: "CREADO",
@@ -74,102 +79,64 @@ const ENTITY_LABELS: Record<string, string> = {
     MantencionRemota: "Mantención Remota",
 };
 
+// 1. Formateador de nombres de campo (limpio)
 const formatFieldName = (field: string) => {
-    return field.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
+    // Primero, revisamos si existe en nuestro diccionario de etiquetas
+    if (FIELD_LABELS[field]) return FIELD_LABELS[field];
+
+    // Si no está en el diccionario, aplicamos el formato automático
+    return field
+        .replace(/([A-Z])/g, " $1") // Separa CamelCase
+        .replace(/_/g, " ")        // Reemplaza guiones bajos por espacios
+        .replace(/^./, (str) => str.toUpperCase()); // Capitaliza la primera letra
 };
 
+// 2. Lógica común para mostrar cambios
+const renderChangeValue = (key: string, value: any, action: string) => {
+    const label = formatFieldName(key);
+    
+    // Caso especial: UPDATE con objeto {before, after}
+    if (action === "UPDATE" && value && typeof value === "object" && "before" in value && "after" in value) {
+        return (
+            <div key={key}>
+                <b>{label}</b>: {String(value.before ?? "-")} → {String(value.after ?? "-")}
+            </div>
+        );
+    }
+    
+    // Caso estándar: CREATE, DELETE o valores simples
+    return (
+        <div key={key}>
+            <b>{label}</b>: {String(value ?? "-")}
+        </div>
+    );
+};
+
+// 3. Función simplificada para la tabla
 const formatChanges = (changes: any, action: string) => {
     if (!changes) return "-";
-
+    console.log("🔍 [DEBUG FRONTEND] Objeto changes recibido:", changes);
     const entries = Object.entries(changes).filter(([key]) => !IGNORED_FIELDS.includes(key));
     if (!entries.length) return "-";
 
-    if (action === "CREATE") {
-        return (
-            <div>
-                {entries
-                    .filter(([_, value]: any) => typeof value !== "object")
-                    .map(([key, value]: any) => (
-                        <div key={key}>
-                            <b>{formatFieldName(key)}</b>: {String(value)}
-                        </div>
-                    ))}
-            </div>
-        );
-    }
-
-    if (action === "UPDATE") {
-        return (
-            <div>
-                {entries
-                    .filter(
-                        ([_, value]: any) =>
-                            value && typeof value === "object" && "before" in value && "after" in value
-                    )
-                    .map(([key, value]: any) => (
-                        <div key={key}>
-                            <b>{formatFieldName(key)}</b>: {String(value.before ?? "-")} →{" "}
-                            {String(value.after ?? "-")}
-                        </div>
-                    ))}
-            </div>
-        );
-    }
-
-    if (action === "DELETE") {
-        return <Tag color="red">Registro eliminado</Tag>;
-    }
-
-    return "-";
+    return <div>{entries.map(([key, val]) => renderChangeValue(key, val, action))}</div>;
 };
 
+// 4. Función simplificada para el detalle expandible
 const renderFullDetails = (row: AuditRow) => {
     if (!row.changes) return "Sin detalles";
-
-    const entries = Object.entries(row.changes);
+    
+    // Si es DELETE, filtramos lo que venga en cambios
+    const entries = Object.entries(row.changes).filter(([key]) => !IGNORED_FIELDS.includes(key));
+    
     if (!entries.length) return "Sin cambios registrados";
 
-    if (row.action === "DELETE") {
-        return (
-            <div>
-                <h4>Datos antes de eliminar:</h4>
-                {entries.map(([key, value]: any) => (
-                    <div key={key}>
-                        <b>{formatFieldName(key)}</b>: {String(value)}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-
-    if (row.action === "UPDATE") {
-        return (
-            <div>
-                <h4>Campos modificados:</h4>
-                {entries.map(([key, value]: any) => (
-                    <div key={key}>
-                        <b>{formatFieldName(key)}</b>: {String(value.before ?? "-")} →{" "}
-                        {String(value.after ?? "-")}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-
-    if (row.action === "CREATE") {
-        return (
-            <div>
-                <h4>Datos creados:</h4>
-                {entries.map(([key, value]: any) => (
-                    <div key={key}>
-                        <b>{formatFieldName(key)}</b>: {String(value)}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-
-    return null;
+    return (
+        <div>
+            <h4>Detalle de {ACTION_LABELS[row.action] ?? row.action}:</h4>
+            {entries.map(([key, val]) => renderChangeValue(key, val, row.action))}
+        </div>
+    );
 };
 
 export default function EntityAuditTab({ endpoint }: Props) {
