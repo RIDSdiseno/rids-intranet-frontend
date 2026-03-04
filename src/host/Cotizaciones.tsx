@@ -15,7 +15,7 @@ import {
     ToolOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import { useApi } from "../components/modals/UseApi";
+import { useApi } from "../components/modals-cotizaciones/UseApi";
 import {
     ViewCotizacionModal,
     CreateCotizacionModal,
@@ -29,7 +29,7 @@ import {
     NewProductoModal,
     GenerarPDFModal,
     NewServicioModal
-} from "../components/modals";
+} from "../components/modals-cotizaciones";
 import type {
     CotizacionGestioo,
     EntidadGestioo,
@@ -41,12 +41,12 @@ import type {
     FiltrosHistorial,
     Toast,
     CotizacionItemGestioo
-} from "../components/modals/types";
+} from "../components/modals-cotizaciones/types";
 import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
     EstadoCotizacionGestioo
-} from "../components/modals/types";
+} from "../components/modals-cotizaciones/types";
 import {
     calcularTotales,
     formatEstado,
@@ -55,7 +55,7 @@ import {
     validarCotizacion,
     normalizarItemCotizacion,
     calcularLineaItem
-} from "../components/modals/utils";
+} from "../components/modals-cotizaciones/utils";
 
 type EstadoDTE =
     | "EMITIDO"
@@ -712,56 +712,75 @@ const Cotizaciones: React.FC = () => {
     };
 
     // DUPLICAR COTIZACIÓN
+    // DUPLICAR COTIZACIÓN
     const duplicarCotizacion = async (cot: CotizacionGestioo) => {
         try {
+
             const confirmar = window.confirm(
                 `¿Deseas duplicar la cotización N° ${cot.id} como una copia?`
             );
             if (!confirmar) return;
 
-            // ---------------------------------
-            // 1️⃣ Generar texto de copia con fecha
-            // ---------------------------------
-            const fecha = new Date().toLocaleDateString("es-CL"); // DD/MM/YYYY
+            // ================================
+            // 1️⃣ TRAER COTIZACIÓN COMPLETA
+            // ================================
+
+            const res = await apiFetch(`/cotizaciones/${cot.id}`);
+            const cotCompleta = res.data;
+
+            if (!cotCompleta.items || cotCompleta.items.length === 0) {
+                showError("La cotización no tiene items para duplicar");
+                return;
+            }
+
+            // ================================
+            // 2️⃣ GENERAR TEXTO DE COPIA
+            // ================================
+
+            const fecha = new Date().toLocaleDateString("es-CL");
             const etiquetaCopia = `(Copia ${fecha})`;
 
-            const comentarioOriginal = cot.comentariosCotizacion || "";
+            const comentarioOriginal = cotCompleta.comentariosCotizacion || "";
 
-            // Evitar duplicar etiquetas si ya tiene "(Copia …)"
             const comentarioCopia = comentarioOriginal.includes("(Copia")
                 ? comentarioOriginal
                 : `${comentarioOriginal} ${etiquetaCopia}`.trim();
 
-            // ---------------------------------
-            // 2️⃣ Armar payload para crear nueva cotización
-            // ---------------------------------
-            const payload = {
-                tipo: cot.tipo,
-                estado: EstadoCotizacionGestioo.BORRADOR,
-                entidadId: cot.entidadId,
-                moneda: cot.moneda,
-                tasaCambio: cot.tasaCambio ?? 1,
-                personaResponsable: cot.personaResponsable ?? null,
+            // ================================
+            // 3️⃣ ARMAR PAYLOAD
+            // ================================
 
-                // ⭐ Comentario con "(Copia DD/MM/YYYY)"
+            const payload = {
+
+                tipo: cotCompleta.tipo,
+                estado: EstadoCotizacionGestioo.BORRADOR,
+                entidadId: cotCompleta.entidadId,
+                moneda: cotCompleta.moneda,
+                tasaCambio: cotCompleta.tasaCambio ?? 1,
+                personaResponsable: cotCompleta.personaResponsable ?? null,
+
                 comentariosCotizacion: comentarioCopia,
 
-                // Copiar secciones
-                secciones: cot.secciones?.map((s) => ({
+                secciones: cotCompleta.secciones?.map((s: any) => ({
                     nombre: s.nombre,
                     descripcion: s.descripcion ?? "",
                     orden: s.orden ?? 0
                 })) ?? [],
 
-                items: cot.items.map(item =>
-                    normalizarItemCotizacion(item, cot.moneda, cot.tasaCambio ?? 1)
-                ),
+                items: cotCompleta.items.map((item: any) =>
+                    normalizarItemCotizacion(
+                        item,
+                        cotCompleta.moneda,
+                        cotCompleta.tasaCambio ?? 1
+                    )
+                )
 
             };
 
-            // ---------------------------------
-            // 3️⃣ Crear en el backend
-            // ---------------------------------
+            // ================================
+            // 4️⃣ CREAR COTIZACIÓN
+            // ================================
+
             const nueva = await apiFetch("/cotizaciones", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -770,25 +789,29 @@ const Cotizaciones: React.FC = () => {
 
             const clon = nueva.data;
 
-            // 🔥 NORMALIZAR ANTES DE ABRIR
+            // ================================
+            // 5️⃣ NORMALIZAR
+            // ================================
+
             const moneda = clon.moneda || "CLP";
             const tasa = moneda === "USD" ? clon.tasaCambio ?? 1 : 1;
 
             const clonNormalizado = {
                 ...clon,
-                items: clon.items.map((item: any) =>
+                items: clon.items?.map((item: any) =>
                     normalizarItemCotizacion(item, moneda, tasa)
-                )
+                ) ?? []
             };
 
-            // 👇 recién aquí abrir modal
             setSelectedCotizacion(clonNormalizado);
             setShowEditModal(true);
 
             showSuccess(`Cotización duplicada correctamente (#${clon.id})`);
 
         } catch (error) {
+
             handleApiError(error, "Error al duplicar cotización");
+
         }
     };
 
@@ -2005,7 +2028,7 @@ const Cotizaciones: React.FC = () => {
                                                     c.tasaCambio ?? 1
                                                 )}
                                             </td>
-                                            
+
                                             {/* Acciones */}
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex justify-center gap-2">
@@ -2087,7 +2110,7 @@ const Cotizaciones: React.FC = () => {
                                                             <CheckCircleOutlined />
                                                         </button>
                                                     )} */}
-                                                    
+
                                                     {/* Emitir factura - SOLO SI ESTÁ APROBADA Y NO TIENE FACTURA VINCULADA */}
                                                     {c.estado === EstadoCotizacionGestioo.APROBADA &&
                                                         (!c.facturas || c.facturas.length === 0) && (

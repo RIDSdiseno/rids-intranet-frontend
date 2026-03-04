@@ -22,7 +22,7 @@ import {
     type CotizacionItemGestioo,
 } from "./types";
 
-import { useApi } from "../modals/UseApi"; // ajusta la ruta si es necesario
+import { useApi } from "./UseApi"; // ajusta la ruta si es necesario
 
 import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
 import EditServicioModal from "./EditServicio";
