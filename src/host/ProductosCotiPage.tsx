@@ -95,7 +95,7 @@ const ModalProducto: React.FC<ModalProductoProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto transform transition-all">
 
                 <form onSubmit={handleSubmit}>
                     <div className="p-6">

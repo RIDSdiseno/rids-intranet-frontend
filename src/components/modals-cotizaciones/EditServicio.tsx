@@ -111,11 +111,16 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                         <input
                             type="number"
                             min={0}
-                            step={0.01}
+                            step={1}
                             value={formData.precio}
                             onChange={(e) =>
                                 setFormData(p => ({ ...p, precio: Number(e.target.value) }))
                             }
+                            //Se redondea al hacer click afura para que no pongan numeros decimales
+                            onBlur={(e) => {
+                                const valorLimpio = Math.round(Number(e.target.value) || 0);
+                                setFormData(p => ({ ...p, precio: valorLimpio }));
+                            }}
                             className="w-full border rounded-xl px-4 py-2 focus:ring-2 focus:ring-cyan-400"
                         />
                     </div>

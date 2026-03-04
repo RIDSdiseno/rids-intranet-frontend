@@ -610,18 +610,19 @@ export default function TicketeraRids() {
 
     // Función para establecer rango de fechas según días atrás (hoy, últimos 7 días, este mes)
     const setLastDays = (days: number) => {
-        const to = new Date();
-        const from = new Date();
-        from.setDate(to.getDate() - days);
+        const now = new Date();
 
-        setDateRange([
-            from.toISOString().split("T")[0],
-            to.toISOString().split("T")[0],
+        const from = new Date();
+     from.setDate(now.getDate() - days);
+        from.setHours(0, 0, 0, 0);
+
+     setDateRange([
+        from.toISOString(),
+        now.toISOString(),
         ]);
 
         setActiveRange(`last-${days}`);
-
-        setPage(1);
+     setPage(1);
     };
 
     const setToday = () => {
