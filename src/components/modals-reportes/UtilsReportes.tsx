@@ -13,7 +13,7 @@ import {
     LineElement,
     PointElement,
 } from "chart.js";
-import type { VisitaRow, TicketRow, EquipoRow } from "../modals-reportes/typesReportes";
+import type { VisitaRow, TicketRow, EquipoRow } from "./typesReportes";
 
 Chart.register(
     CategoryScale, LinearScale, BarElement, BarController,

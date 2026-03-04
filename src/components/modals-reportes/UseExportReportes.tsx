@@ -22,7 +22,7 @@ import {
   obtenerTopUsuariosGeneral,
   generateBarChart, generatePieChart, generateLineChart,
   dataUrlToUint8Array, generarFolio,
-} from "../modals-reportes/utilsReportes";
+} from "./utilsReportes";
 
 const API_URL =
   (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";
