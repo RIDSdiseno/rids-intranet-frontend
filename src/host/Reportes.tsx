@@ -498,3 +498,4 @@ const ReportesPage: React.FC = () => {
 };
 
 export default ReportesPage;
+
