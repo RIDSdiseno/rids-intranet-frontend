@@ -33,7 +33,7 @@ import {
   generarFolio,
   contarMantenimientos,
   contarExtras,
-} from "../components/modals-reportes/utilsReportes";
+} from "../components/modals-reportes/UtilsReportes";
 
 // ─── Config ───────────────────────────────────────────────────────────────
 
