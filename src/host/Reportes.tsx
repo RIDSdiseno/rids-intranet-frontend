@@ -473,10 +473,6 @@ const ReportesPage: React.FC = () => {
               >
                 {loadingIA ? <><LoadingOutlined className="animate-spin" />Analizando…</> : <><RobotOutlined />Recomendaciones con IA</>}
               </button>
-              {/*
-              <Button type="primary" icon={<RobotOutlined />} loading={loadingIA} onClick={generarInformeIA}>
-                Generar informe mensual con IA
-              </Button> */}
             </div>
           </div>
         </motion.div>
