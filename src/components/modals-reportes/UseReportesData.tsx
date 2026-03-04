@@ -11,7 +11,7 @@ import type {
   TicketsResp,
   TicketLike,
   ReporteGeneralData,
-} from "../modals-reportes/typesReportes";
+} from "./typesReportes";
 
 const API_URL =
   (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";

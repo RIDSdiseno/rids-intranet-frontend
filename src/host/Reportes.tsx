@@ -19,7 +19,7 @@ import { Button, Input, message } from "antd";
 import type { ReporteGeneralData } from "../components/modals-reportes/typesReportes";
 
 // Hooks
-import { useReportesData } from "../components/modals-reportes/Usereportesdata";
+import { useReportesData } from "../components/modals-reportes/UseReportesData";
 import { useExportReportes } from "../components/modals-reportes/UseExportReportes";
 
 // Components
