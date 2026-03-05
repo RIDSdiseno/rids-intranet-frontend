@@ -696,32 +696,37 @@ export default function TicketeraRids() {
     };
 
     /* ===================== CREATE TICKET ===================== */
-    const crearTicket = async () => {
-        if (!form.empresaId || !form.requesterId || !form.subject) {
-            message.warning("Empresa, contacto y asunto son obligatorios");
-            return;
-        }
+   const crearTicket = async () => {
+    if (!form.empresaId || !form.requesterId || !form.subject) {
+        message.warning("Empresa, contacto y asunto son obligatorios");
+        return;
+    }
 
-        try {
-            await api.post("/helpdesk/tickets", form);
+    try {
+        const payload = { ...form, description: form.message };
+        const res = await api.post("/helpdesk/tickets", payload);
+        const ticketData = res.data?.data;
 
-            message.success("Ticket creado correctamente");
-
-            setDrawerCrear(false);
-            setForm({
-                empresaId: undefined,
-                requesterId: undefined,
-                subject: "",
-                message: "",
-                priority: "NORMAL",
-                assigneeId: undefined,
+        if (ticketData?.resumen_ia) {
+            notification.success({
+                message: `Ticket creado - Área: ${ticketData.area_asignada || 'General'}`,
+                description: `Resumen IA: ${ticketData.resumen_ia}`,
+                duration: 8,
             });
-
-            loadTickets();
-        } catch {
-            message.error("Error al crear ticket");
+        } else {
+            message.success("Ticket creado correctamente");
         }
-    };
+
+        setDrawerCrear(false);
+        setForm({
+            empresaId: undefined, requesterId: undefined, subject: "", 
+            message: "", priority: "NORMAL", assigneeId: undefined
+        });
+        loadTickets();
+    } catch {
+        message.error("Error al crear ticket");
+    }
+};
 
     /* ===================== DETALLE ===================== */
     const abrirDetalle = async (ticket: Ticket) => {

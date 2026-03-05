@@ -23,6 +23,7 @@ import {
   PhoneOutlined,
   MailOutlined,
   UserOutlined,
+  ThunderboltOutlined, // 👈 Icono para el botón
 } from "@ant-design/icons";
 
 import { useNavigate } from "react-router-dom";
@@ -555,6 +556,7 @@ const ReportesPage: React.FC = () => {
   const [docxTitulo, setDocxTitulo] = useState<string>("Informe Operativo");
   const [docxSubtitulo, setDocxSubtitulo] = useState<string>(TEXTO_FIJO.subtitulo);
   const [recomendaciones, setRecomendaciones] = useState<string>("");
+  const [generatingNarrative, setGeneratingNarrative] = useState(false); // 👈 Estado IA
 
   const previewRef = useRef<HTMLDivElement>(null);
   const [dataPrev, setDataPrev] = useState<ReporteEmpresaData | null>(null);
@@ -649,6 +651,31 @@ const ReportesPage: React.FC = () => {
     } catch (error) {
       console.error(error);
       setExportStatus({ exporting: false, error: "Error al cargar datos para previsualización" });
+    }
+  };
+
+  // 🤖 FUNCIÓN IA: Generar resumen ejecutivo basado en datos
+  const generarResumenIA = async () => {
+    if (!dataPrev) return;
+    setGeneratingNarrative(true);
+    try {
+        // Simulación: En producción enviarías dataPrev.kpis a tu endpoint de IA
+        await new Promise(r => setTimeout(r, 2000));
+        
+        const resumenIA = `Durante el periodo analizado, la empresa ${dataPrev.empresa.nombre} presentó una actividad estable con un total de ${dataPrev.kpis.tickets.total} tickets y ${dataPrev.kpis.visitas.count} visitas técnicas. Se destaca una alta tasa de resolución en mantenciones remotas. Se recomienda evaluar la renovación de equipos antiguos dado el volumen de incidencias de hardware.`;
+        
+        // Actualizamos la data local para que salga en el PDF/DOCX
+        setDataPrev({
+            ...dataPrev,
+            narrativa: {
+                ...dataPrev.narrativa,
+                resumen: resumenIA
+            }
+        });
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setGeneratingNarrative(false);
     }
   };
 
@@ -1088,6 +1115,18 @@ const ReportesPage: React.FC = () => {
               {/* Resumen */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                 <div className="font-semibold text-slate-800 mb-2">Resumen (backend)</div>
+                <div className="font-semibold text-slate-800 mb-2 flex justify-between items-center">
+                    <span>Resumen Ejecutivo</span>
+                    {/* 🤖 Botón para regenerar resumen */}
+                    <button 
+                        onClick={generarResumenIA} 
+                        disabled={generatingNarrative}
+                        className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 transition flex items-center gap-1"
+                    >
+                        {generatingNarrative ? <LoadingOutlined /> : <ThunderboltOutlined />}
+                        {generatingNarrative ? "Redactando..." : "Mejorar con IA"}
+                    </button>
+                </div>
                 <div className="text-slate-700 text-sm leading-relaxed">{dataPrev.narrativa?.resumen || "—"}</div>
               </div>
 
