@@ -227,7 +227,7 @@ export interface EstadisticasEmpresa {
 
 /* ================= TABS / MODALS ================= */
 
-export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen" | "redes";
+export type TabKey = "solicitantes" | "equipos" | "visitas" | "resumen" | "redes" | "ia";
 
 /* ChecklistTab */
 export interface ChecklistTabProps {

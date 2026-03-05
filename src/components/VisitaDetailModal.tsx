@@ -66,20 +66,32 @@ function initials(name?: string | null) {
   const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (first + last).toUpperCase();
 }
+
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("es-CL");
+    return new Intl.DateTimeFormat("es-CL", {
+      timeZone: "America/Santiago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,    // ✅ 24 horas
+      hourCycle: "h23", // ✅ extra seguro
+    }).format(new Date(iso));
   } catch {
     return iso ?? "—";
   }
 }
+
 function statusStyles(statusRaw?: string) {
   const s = (statusRaw ?? "").toUpperCase();
-  if (s.includes("COMPLE"))   return "bg-emerald-50 text-emerald-800 border border-emerald-200";
-  if (s.includes("PROGRE"))   return "bg-sky-50 text-sky-800 border border-sky-200";
-  if (s.includes("PEND"))     return "bg-amber-50 text-amber-800 border border-amber-200";
-  if (s.includes("CANCEL"))   return "bg-rose-50 text-rose-800 border border-rose-200";
+  if (s.includes("COMPLE")) return "bg-emerald-50 text-emerald-800 border border-emerald-200";
+  if (s.includes("PROGRE")) return "bg-sky-50 text-sky-800 border border-sky-200";
+  if (s.includes("PEND")) return "bg-amber-50 text-amber-800 border border-amber-200";
+  if (s.includes("CANCEL")) return "bg-rose-50 text-rose-800 border border-rose-200";
   return "bg-neutral-50 text-neutral-700 border border-neutral-200";
 }
 

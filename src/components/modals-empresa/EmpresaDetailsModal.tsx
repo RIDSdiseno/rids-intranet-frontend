@@ -11,11 +11,7 @@ import {
   EnvironmentOutlined,
   IdcardOutlined,
   UserOutlined,
-  BuildOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  CopyOutlined
+  RobotOutlined
 } from "@ant-design/icons";
 import {
   Drawer,
@@ -53,6 +49,8 @@ import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { api } from "../../api/api"; // 🔥 ajusta ruta
+
+import InventarioIA from "./InventarioIA";
 
 dayjs.extend(utc);
 
@@ -581,6 +579,21 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
         </Card>
       ),
     },
+    {
+      key: "ia",
+      label: (
+        <Space size={6}>
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white">
+            <RobotOutlined className="text-xs" />
+          </div>
+          <span className="font-medium">Análisis IA</span>
+        </Space>
+      ),
+      children: empresa ? (
+        <InventarioIA empresaId={empresa.id_empresa} />
+      ) : null,
+    }
+
   ], [solicitantes, equipos, visitas, density]);
 
   const onChangeDensity = (v: string | number) => {

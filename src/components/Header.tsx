@@ -80,6 +80,7 @@ const NAV: NavEntry[] = [
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
       { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <Wrench size={20} /> },
+      { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
     ],
     match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH],
   },
@@ -98,13 +99,27 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "Informes",
     items: [
-      { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
       { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
     ],
     match: [EMPRESAS_PATH, REPORTES_PATH],
   },
-  { type: "link", label: "Tickets", to: TICKETS_PATH, icon: <Ticket size={20} />, match: [TICKETS_PATH] },
-  { type: "link", label: "Helpdesk", to: HELPDESK_PATH, icon: <FileText size={20} />, match: [HELPDESK_PATH] },
+  {
+    type: "group",
+    label: "Ticketera",
+    items: [
+      {
+        label: "Tickets",
+        to: TICKETS_PATH,
+        icon: <Ticket size={18} />,
+      },
+      {
+        label: "Helpdesk",
+        to: HELPDESK_PATH,
+        icon: <FileText size={18} />,
+      },
+    ],
+    match: [TICKETS_PATH, HELPDESK_PATH]
+  }
 ];
 
 /* ================== HELPERS ================== */
@@ -222,10 +237,9 @@ const Header: React.FC = () => {
               className={`
                 relative flex items-center gap-4 px-3 py-2.5 rounded-xl
                 transition-all duration-200 group
-                ${
-                  isActivePath(pathname, entry.to)
-                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                    : "text-slate-700 hover:bg-slate-100"
+                ${isActivePath(pathname, entry.to)
+                  ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                  : "text-slate-700 hover:bg-slate-100"
                 }
                 ${collapsed ? "justify-center" : ""}
               `}
@@ -256,10 +270,9 @@ const Header: React.FC = () => {
                   className={`
                     relative flex items-center gap-4 px-3 py-2.5 rounded-lg
                     transition-all duration-200 group
-                    ${
-                      isActivePath(pathname, it.to)
-                        ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                        : "text-slate-600 hover:bg-slate-100"
+                    ${isActivePath(pathname, it.to)
+                      ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                      : "text-slate-600 hover:bg-slate-100"
                     }
                     ${collapsed ? "justify-center" : "pl-6"}
                   `}

@@ -116,11 +116,6 @@ const getTipoDTELabel = (tipo: number) => {
     }
 };
 
-// Función para mostrar errores
-const showError = (msg: string) => {
-    alert(msg); // <- reemplaza con tu showToast si quieres
-};
-
 const Cotizaciones: React.FC = () => {
 
     // === ESTADOS PRINCIPALES ===
@@ -253,48 +248,46 @@ const Cotizaciones: React.FC = () => {
 
     // === MANEJO DE ERRORES Y ÉXITOS ===
     const handleApiError = useCallback((error: any, defaultMessage: string) => {
+
         console.error("API Error:", error);
 
-        let raw = "";
+        let message =
+            error?.response?.data?.error ||
+            error?.response?.data?.message ||
+            error?.data?.error ||
+            error?.data?.message ||
+            error?.message ||
+            defaultMessage;
 
-        if (typeof error?.message === "string") {
-            raw = error.message;
-        } else if (typeof error === "string") {
-            raw = error;
-        } else if (error?.message && typeof error.message === "object") {
-            raw = JSON.stringify(error.message);
-        } else {
-            raw = defaultMessage;
+        if (typeof message !== "string") {
+            message = defaultMessage;
         }
 
-        let userMessage = raw || defaultMessage;
-
-        if (typeof raw === "string") {
-            if (raw.includes("ECONNET") && raw.includes("enum")) {
-                userMessage =
-                    "El origen seleccionado no es válido. Intente usar: RIDS, ECONNET o OTRO.";
-            }
-
-            if (raw.includes("Unique constraint") || raw.includes("unique")) {
-                userMessage =
-                    "El RUT ya existe. No se pueden duplicar entidades.";
-            }
-
-            if (raw.includes("not-null")) {
-                userMessage =
-                    "Falta un campo obligatorio. Por favor complete todos los datos.";
-            }
-
-            if (raw.includes("Internal Server Error")) {
-                userMessage =
-                    "Ocurrió un error interno. Por favor inténtelo de nuevo.";
-            }
+        // 🔥 Traducciones comunes del backend
+        if (message.includes("Unique constraint")) {
+            message = "Ya existe un registro con esos datos.";
         }
 
-        setToast({ type: "error", message: userMessage });
+        if (message.includes("not-null")) {
+            message = "Falta un campo obligatorio.";
+        }
+
+        if (message.includes("ECONNET") && message.includes("enum")) {
+            message = "El origen seleccionado no es válido.";
+        }
+
+        setToast({
+            type: "error",
+            message
+        });
 
         setTimeout(() => setToast(null), 5000);
+
     }, []);
+
+    const showError = (msg: string) => {
+        setToast({ type: "error", message: msg });
+    };
 
     const fetchTecnicos = async () => {
         try {
@@ -712,7 +705,6 @@ const Cotizaciones: React.FC = () => {
     };
 
     // DUPLICAR COTIZACIÓN
-    // DUPLICAR COTIZACIÓN
     const duplicarCotizacion = async (cot: CotizacionGestioo) => {
         try {
 
@@ -747,66 +739,55 @@ const Cotizaciones: React.FC = () => {
                 : `${comentarioOriginal} ${etiquetaCopia}`.trim();
 
             // ================================
-            // 3️⃣ ARMAR PAYLOAD
+            // 3️⃣ NORMALIZAR ITEMS
             // ================================
 
-            const payload = {
+            const moneda = cotCompleta.moneda || "CLP";
+            const tasa = moneda === "USD" ? cotCompleta.tasaCambio ?? 1 : 1;
 
-                tipo: cotCompleta.tipo,
-                estado: EstadoCotizacionGestioo.BORRADOR,
-                entidadId: cotCompleta.entidadId,
-                moneda: cotCompleta.moneda,
-                tasaCambio: cotCompleta.tasaCambio ?? 1,
-                personaResponsable: cotCompleta.personaResponsable ?? null,
+            const itemsNormalizados = cotCompleta.items.map((item: any) => {
+                const normalizado = normalizarItemCotizacion(item, moneda, tasa);
 
-                comentariosCotizacion: comentarioCopia,
-
-                secciones: cotCompleta.secciones?.map((s: any) => ({
-                    nombre: s.nombre,
-                    descripcion: s.descripcion ?? "",
-                    orden: s.orden ?? 0
-                })) ?? [],
-
-                items: cotCompleta.items.map((item: any) =>
-                    normalizarItemCotizacion(
-                        item,
-                        cotCompleta.moneda,
-                        cotCompleta.tasaCambio ?? 1
-                    )
-                )
-
-            };
-
-            // ================================
-            // 4️⃣ CREAR COTIZACIÓN
-            // ================================
-
-            const nueva = await apiFetch("/cotizaciones", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                return {
+                    ...normalizado,
+                    seccionId: item.seccionId || 1
+                };
             });
 
-            const clon = nueva.data;
+            setItems(itemsNormalizados);
 
             // ================================
-            // 5️⃣ NORMALIZAR
+            // 4️⃣ CARGAR FORMULARIO
             // ================================
 
-            const moneda = clon.moneda || "CLP";
-            const tasa = moneda === "USD" ? clon.tasaCambio ?? 1 : 1;
+            setFormData({
+                tipoEntidad: "EMPRESA",
+                origenEntidad: cotCompleta.entidad?.origen || "",
+                entidadId: cotCompleta.entidadId?.toString() || "",
+                moneda,
+                tasaCambio: tasa,
+                estadoCotizacion: EstadoCotizacionGestioo.BORRADOR,
+                comentariosCotizacion: comentarioCopia,
+                secciones: cotCompleta.secciones ?? [{
+                    id: 1,
+                    nombre: "Sección Principal",
+                    descripcion: "",
+                    items: [],
+                    orden: 0
+                }],
+                seccionActiva: 1,
+                personaResponsable: cotCompleta.personaResponsable || "",
+                imagenFile: undefined,
+                imagen: cotCompleta.imagen || ""
+            });
 
-            const clonNormalizado = {
-                ...clon,
-                items: clon.items?.map((item: any) =>
-                    normalizarItemCotizacion(item, moneda, tasa)
-                ) ?? []
-            };
+            // ================================
+            // 5️⃣ ABRIR MODAL CREAR
+            // ================================
 
-            setSelectedCotizacion(clonNormalizado);
-            setShowEditModal(true);
+            setShowCreateModal(true);
 
-            showSuccess(`Cotización duplicada correctamente (#${clon.id})`);
+            showSuccess("Cotización cargada para duplicar");
 
         } catch (error) {
 
@@ -1172,7 +1153,6 @@ const Cotizaciones: React.FC = () => {
 
             return actualizado;
         });
-
 
         // 3️⃣ Si estás creando una cotización
         if (showCreateModal) {

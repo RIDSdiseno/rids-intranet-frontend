@@ -432,7 +432,7 @@ const Home: FC = () => {
   );
 
   return (
-    <>
+    <div className="px-6 lg:px-8 xl:px-10 py-6">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
         <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
@@ -536,7 +536,7 @@ const Home: FC = () => {
           Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
         </div>
       </motion.div>
-    </>
+    </div>
   );
 };
 

@@ -1890,20 +1890,21 @@ const EquiposPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   {[
-                    { key: "macWifi", label: "MAC WiFi" },
-                    { key: "redEthernet", label: "MAC Ethernet" },
-                    { key: "so", label: "Sistema Operativo" },
-                    { key: "tipoDd", label: "Tipo Disco" },
-                    { key: "estadoAlm", label: "Estado Almacenamiento" },
-                    { key: "office", label: "Office" },
-                    { key: "teamViewer", label: "TeamViewer" },
-                    { key: "claveTv", label: "Clave TV" },
-                    { key: "revisado", label: "Revisado" },
+                    { key: "macWifi", label: "MAC WiFi", placeholder: "00:1A:2B:3C:4D:5E" },
+                    { key: "redEthernet", label: "MAC Ethernet", placeholder: "00:1A:2B:3C:4D:5F" },
+                    { key: "so", label: "Sistema Operativo", placeholder: "Ej: Windows 11 Pro" },
+                    { key: "tipoDd", label: "Tipo Disco", placeholder: "Ej: 256 GB SSD / HDD / NVMe" },
+                    { key: "estadoAlm", label: "Estado Almacenamiento", placeholder: "Nuevo / Usado" },
+                    { key: "office", label: "Office", placeholder: "Ej: Office 365 / 2019" },
+                    { key: "teamViewer", label: "TeamViewer", placeholder: "ID TeamViewer" },
+                    { key: "claveTv", label: "Clave TV", placeholder: "Contraseña TeamViewer" },
+                    { key: "revisado", label: "Revisado", placeholder: "Última vez que se revisó" },
                   ].map((f) => (
                     <label key={f.key} className="text-sm">
                       <span className="block text-slate-600 mb-1">{f.label}</span>
                       <input
                         value={(editForm as any)[f.key]}
+                        placeholder={f.placeholder}
                         onChange={(e) =>
                           setEditForm((prev) => ({
                             ...prev,

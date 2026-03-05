@@ -59,14 +59,25 @@ function useDebouncedValue<T>(value: T, delay = 400): T {
   }, [value, delay]);
   return debounced;
 }
+
 function formatDateTime(d: string | Date | null | undefined) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleString("es-CL", { timeZone: "America/Santiago" });
+    return new Date(d).toLocaleString("es-CL", {
+      timeZone: "America/Santiago",
+      hour12: false,              // ✅ 24h
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   } catch {
     return String(d);
   }
 }
+
 function StatusBadge({ status }: { status: string }) {
   const norm = (status || "").toUpperCase();
   const styles: Record<string, string> = {
@@ -82,6 +93,7 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
+
 const toSiNo = (v?: boolean) => (v ? "Sí" : "No");
 
 /* ====== agregación para “Resumen” ====== */
@@ -268,7 +280,7 @@ function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
     const endRow = Math.max(startRow, r - 1);
     excelColWidthSetup(ws);
     if (rows.length > 0) {
-      ws.range(startRow, 5, endRow, 5).style({ numberFormat: "dd-mm-yyyy hh:mm" });
+      ws.range(startRow, 5, endRow, 5).style({ numberFormat: "dd-mm-yyyy HH:mm" });
       setAllBorders(ws, 3, 1, endRow, endCol);
       ws.range(1, 1, 1, endCol).style({ border: true, borderColor: COLOR_BORDER });
     }

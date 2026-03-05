@@ -55,7 +55,6 @@ const ReportesPage: React.FC = () => {
 
   // ── Filtros ──
   const [empresaFiltro, setEmpresaFiltro] = useState("");
-  const [empresaId, setEmpresaId] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -103,41 +102,86 @@ const ReportesPage: React.FC = () => {
     onDataLoaded: setDataPrev,
   });
 
-  // ── IA ──
-  const generarRecomendacionesIA = async () => {
-    if (!empresaId) { message.warning("Selecciona una empresa primero"); return; }
-    setLoadingIA(true);
+  const generarRecomendacionesOperativasIA = async () => {
     try {
-      const res = await fetch(`${API_URL}/ia-inventario/analisis-inventario/${empresaId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const analisis = data?.analisis;
-      if (!analisis?.recomendaciones) throw new Error("Respuesta IA inválida");
-      setRecomendaciones(analisis.recomendaciones.map((r: string) => `• ${r}`).join("\n"));
-    } catch { message.error("Error generando recomendaciones"); }
-    finally { setLoadingIA(false); }
-  };
 
-  const generarInformeIA = async () => {
-    if (!empresaId || !selectedYear || !selectedMonth) { message.warning("Selecciona empresa, año y mes"); return; }
-    setLoadingIA(true);
-    try {
-      const res = await fetch(`${API_URL}/ia-reportes/informe-mensual/${empresaId}/${selectedYear}/${selectedMonth}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-      });
+      if (!empresaFiltro || !selectedYear || !selectedMonth) {
+        message.warning("Selecciona empresa, año y mes");
+        return;
+      }
+
+      setLoadingIA(true);
+
+      const res = await fetch(
+        `${API_URL}/ia-recomendaciones/recomendaciones-operativas/${empresaFiltro}/${selectedYear}/${selectedMonth}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+          }
+        }
+      );
+
       const data = await res.json();
+
       if (!res.ok) throw new Error(data.error);
-      setRecomendaciones(data.informe);
-    } catch { message.error("Error generando informe IA"); }
-    finally { setLoadingIA(false); }
+
+      const ia = data.data;
+
+      // Convertir JSON a texto para el informe
+      const texto = [
+        "RESUMEN EJECUTIVO",
+        ia.resumen_ejecutivo,
+        "",
+        "HALLAZGOS",
+        ...ia.hallazgos.map((x: string) => `• ${x}`),
+        "",
+        "RIESGOS DETECTADOS",
+        ...ia.riesgos.map((x: string) => `• ${x}`),
+        "",
+        "RECOMENDACIONES",
+        ...ia.recomendaciones.map(
+          (r: any) => `• [${r.prioridad}] ${r.texto}`
+        ),
+        "",
+        "PLAN DE ACCIÓN 30-60-90 DÍAS",
+        "",
+        "30 días:",
+        ...ia.plan_30_60_90.d30.map((x: string) => `• ${x}`),
+        "",
+        "60 días:",
+        ...ia.plan_30_60_90.d60.map((x: string) => `• ${x}`),
+        "",
+        "90 días:",
+        ...ia.plan_30_60_90.d90.map((x: string) => `• ${x}`),
+        "",
+        "KPIs SUGERIDOS",
+        ...ia.kpis.map((x: any) => {
+          if (typeof x === "string") return `• ${x}`;
+          if (typeof x === "object") {
+            const nombre = x.nombre ?? x.kpi ?? x.titulo ?? "Indicador";
+            const valor = x.valor ?? x.value ?? "";
+            return `• ${nombre}: ${valor}`;
+          }
+          return `• ${x}`;
+        })
+      ].join("\n");
+
+      setRecomendaciones(texto);
+
+      message.success("Recomendaciones generadas con IA");
+
+    } catch (error) {
+      console.error(error);
+      message.error("Error generando recomendaciones IA");
+    } finally {
+      setLoadingIA(false);
+    }
   };
 
   // ── Handlers ──
   const handleEmpresaChange = (id: string) => {
     setEmpresaFiltro(id);
-    setEmpresaId(Number(id));
     setSelectedYear("");
     setSelectedMonth("");
   };
@@ -467,7 +511,7 @@ const ReportesPage: React.FC = () => {
             <Input.TextArea rows={5} value={recomendaciones} onChange={(e) => setRecomendaciones(e.target.value)} placeholder="Agrega recomendaciones del periodo..." />
             <div className="flex gap-3 mt-3 flex-wrap">
               <button
-                onClick={generarRecomendacionesIA}
+                onClick={generarRecomendacionesOperativasIA}
                 disabled={loadingIA || !empresaFiltro}
                 className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 disabled:opacity-50"
               >
@@ -498,4 +542,3 @@ const ReportesPage: React.FC = () => {
 };
 
 export default ReportesPage;
-

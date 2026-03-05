@@ -61,20 +61,27 @@ const LoginRids: React.FC = () => {
     }
 
     setLoading(true);
+
     try {
-      // LOGIN (POST)
       const { data } = await api.post<LoginResponse>("/auth/login", {
         email: form.usuario.trim(),
         password: form.password,
       });
 
-      // Guardar accessToken (el refresh queda en cookie httpOnly)
       setAccessToken(data.accessToken);
 
       localStorage.setItem("user", JSON.stringify(data.tecnico));
 
-      // Redirigir al Home
       navigate("/home", { replace: true });
+
+    } catch (err: any) {
+
+      const apiError =
+        err?.response?.data?.error ||
+        "Usuario o contraseña incorrectos";
+
+      setError(apiError);
+
     } finally {
       setLoading(false);
     }
