@@ -76,6 +76,7 @@ type Ticket = {
     assignee?: { id_tecnico: number; nombre: string; email?: string };
     createdAt?: string;
     updatedAt?: string;
+    rolAsignado?: string | null;
     requester?: { nombre: string; email?: string };
     fromEmail?: string;
     lastActivityAt?: string;
@@ -1446,13 +1447,13 @@ export default function TicketeraRids() {
                                             <div className="flex items-center gap-4">
                                                 <div className="text-right min-w-[120px]">
                                                     <div className="text-sm font-medium">
-                                                        {ticket.assignee ? (
-                                                            <div className="flex items-center gap-2">
-                                                                {ticket.assignee.nombre}
-                                                            </div>
-                                                        ) : (
-                                                            <Tag color="default">Sin asignar</Tag>
-                                                        )}
+                                                        {ticket.rolAsignado ? (
+                                                            <Tag color="cyan">{ticket.rolAsignado}</Tag>
+                                                        ) : ticket.assignee ? (
+                                                        <div className="flex items-center gap-2">{ticket.assignee.nombre}</div>
+                                                    ) : (
+                                                    <Tag color="default">Sin asignar</Tag>
+                                                    )}
                                                     </div>
                                                 </div>
                                                 <Button type="text" icon={<MoreOutlined />} onClick={(e) => {

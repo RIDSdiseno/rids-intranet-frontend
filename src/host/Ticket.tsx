@@ -17,6 +17,7 @@ type ApiRow = {
   solicitante_email: string | null;
   empresa: string | null;
   subject: string;
+  rolAsignado: string;
   type: string | null;
   fecha: string; // ISO
 };
@@ -261,7 +262,7 @@ const TicketsPage: React.FC = () => {
           _ts: String(Date.now()),
         };
         if (q.trim().length > 0) params.search = q.trim();
-        if (onlyClosed) params.status = "5";
+        if (onlyClosed) params.status = "CLOSED";
 
         const res = await api.get<ApiResp>("/tickets", { params });
         if (seq !== reqRef.current) return;
@@ -551,7 +552,12 @@ const TicketsPage: React.FC = () => {
           {fmtDT(t.fecha)}
         </div>
       </div>
+      <div className="text-sm text-neutral-700">
+        <span className="font-medium">Rol: </span>
+        {t.rolAsignado ?? "—"}
+        </div>
     </div>
+    
   );
 
   /* ===================== Render ===================== */
@@ -751,17 +757,20 @@ const TicketsPage: React.FC = () => {
                   <th className="text-left px-4 py-3 min-w-[160px] font-semibold">
                     Tipo
                   </th>
+                  <th className="text-left px-4 py-3 min-w-[140px] font-semibold">Rol
+                  </th>
                   <th className="text-left px-4 py-3 min-w-[180px] font-semibold">
                     Fecha
                   </th>
                   <th className="px-4 py-3 w-[70px]" />
                 </tr>
+                
               </thead>
               <tbody>
                 {loading &&
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={`sk-${i}`} className="border-t border-neutral-100">
-                      {Array.from({ length: 7 }).map((__, j) => (
+                      {Array.from({ length: 8 }).map((__, j) => (
                         <td key={`sk-${i}-${j}`} className="px-4 py-3">
                           <div className="h-4 w-full max-w-[260px] animate-pulse rounded bg-neutral-200/70" />
                         </td>
@@ -772,7 +781,7 @@ const TicketsPage: React.FC = () => {
                 {!loading && error && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-red-600"
                     >
                       {error}
@@ -783,7 +792,7 @@ const TicketsPage: React.FC = () => {
                 {!loading && !error && (data?.rows?.length ?? 0) === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-4 py-10 text-center text-neutral-500"
                     >
                       Sin resultados.
@@ -817,6 +826,7 @@ const TicketsPage: React.FC = () => {
                         {t.solicitante_email ?? "—"}
                       </td>
                       <td className="px-4 py-3">{t.type ?? "—"}</td>
+                      <td className="px-4 py-3">{t.rolAsignado ?? "—"}</td>
                       <td className="px-4 py-3">{fmtDT(t.fecha)}</td>
                       <td className="px-4 py-3 text-right" />
                     </tr>
