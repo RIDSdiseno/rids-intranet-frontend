@@ -530,7 +530,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     {/* Tipo de Entidad */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Tipo de Entidad
+                                            Tipo de Entidad <span className="text-rose-500">*</span>
                                         </label>
                                         <select
                                             value={formData.tipoEntidad}
@@ -619,7 +619,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     {/* Selector de Entidad */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Entidad
+                                            Entidad <span className="text-rose-500">*</span>
                                         </label>
 
                                         <Select
@@ -733,7 +733,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 <div className="space-y-4">
                                     {/* Tipo */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Tipo <span className="text-rose-500">*</span></label>
                                         <select
                                             className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                             defaultValue={TipoCotizacionGestioo.CLIENTE}
@@ -785,9 +785,9 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                         </div>
 
                                         {/* Moneda */}
-                                        <div className="border-t border-slate-200 pt-3">
+                                        <div className="pt-3">
                                             <label className="block text-xs font-medium text-slate-600 mb-2">
-                                                Moneda de Cotización
+                                                Moneda de Cotización <span className="text-rose-500">*</span>
                                             </label>
                                             <select
                                                 value={formData.moneda}

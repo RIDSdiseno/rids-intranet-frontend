@@ -13,8 +13,9 @@ import {
   LoadingOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
-import Header from "../components/Header";
 import CrearEquipoModal from "../components/CrearEquipo";
+
+import { http } from "../service/http";
 
 import {
   BuildingOfficeIcon,
@@ -23,6 +24,10 @@ import {
   ExclamationCircleIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+
+import { DatePicker, AutoComplete } from "antd";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
 
 import { useAuth } from "../components/hooks/useAuth";
 
@@ -147,7 +152,7 @@ const fieldLabels: Record<string, string> = {
   office: "Office",
   teamViewer: "TeamViewer",
   redEthernet: "Red Ethernet (MAC)",
-  claveTv: "Clave TV",
+  claveTv: "Clave TeamViewer",
   revisado: "Revisado",
 };
 
@@ -362,26 +367,6 @@ function companyRowTheme(empresa?: string | null): { bg: string; borderLeft: str
   return palette[idx];
 }
 
-/* =================== Solicitanes =================== */
-async function fetchSolicitantes(search: string, page = 1, pageSize = 20, empresaId?: number | null): Promise<ListSolicitantesResponse> {
-  const params = new URLSearchParams();
-  params.set("page", String(page));
-  params.set("pageSize", String(pageSize));
-  if (search.trim()) params.set("search", search.trim());
-  if (empresaId != null) params.set("empresaId", String(empresaId));
-  const token = localStorage.getItem("accessToken");
-  const res = await fetch(`${API_URL}/solicitantes?${params.toString()}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) throw new Error("No se pudo listar solicitantes");
-  return res.json();
-}
-
 /* =================== Page =================== */
 const EquiposPage: React.FC = () => {
   // Búsqueda
@@ -481,50 +466,22 @@ const EquiposPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const url = buildUrl(page, pageSize);
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
+      const res = await http.get("/equipos", {
         signal,
+        params: {
+          page,
+          pageSize,
+          search: qDebounced || undefined,
+          empresaId: empresaFilterId || undefined,
+          marca: marcaFilter || undefined,
+          _ts: Date.now()
+        }
       });
 
-      if (seq !== reqSeqRef.current) return;
-
-      if (!res.ok && res.status !== 204) {
-        let apiErr = `HTTP ${res.status}`;
-        try {
-          const payload = await res.json();
-          apiErr = (payload as { error?: string })?.error || apiErr;
-        } catch {
-          const text = await res.text();
-          if (text) apiErr = text.slice(0, 200);
-        }
-        throw new Error(apiErr);
-      }
-
-      if (res.status === 204) {
-        setData({ page, pageSize, total: 0, totalPages: 1, items: [] });
-        return;
-      }
-
-      const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) {
-        const text = await res.text();
-        throw new Error(
-          `La API devolvió contenido no-JSON (content-type: ${ct}). Resumen: ${text.slice(0, 200)}`
-        );
-      }
-
-      const json = (await res.json()) as ApiList<EquipoRow>;
-      setData(json);
+      setData(res.data);
     } catch (err) {
-      if ((err as Error).name === "AbortError") return;
+      const code = (err as { code?: string }).code;
+      if (code === "ERR_CANCELED" || (err as Error).name === "AbortError") return;
       setError((err as Error)?.message || "Error al cargar equipos");
     } finally {
       if (seq === reqSeqRef.current) setLoading(false);
@@ -536,23 +493,9 @@ const EquiposPage: React.FC = () => {
     setHistError(null);
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${API_URL}/equipos/${id_equipo}/historial`, {
-        credentials: "include",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        signal,
-      });
+      const res = await http.get(`/equipos/${id_equipo}/historial`, { signal });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const json = (await res.json()) as ApiHistorial;
-      setHistorial(json.items ?? []);
+      setHistorial(res.data.items ?? []);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setHistError((err as Error).message || "Error al cargar historial");
@@ -580,26 +523,15 @@ const EquiposPage: React.FC = () => {
         params.append("empresaId", String(empresaFilterId));
       }
 
+      const res = await http.get("/inventario/export", {
+        params: {
+          mes: mesExport,
+          empresaId: empresaFilterId || undefined
+        },
+        responseType: "blob"
+      });
 
-      const token = localStorage.getItem("accessToken");
-
-      const res = await fetch(
-        `${API_URL}/inventario/export?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          credentials: "include",
-        }
-      );
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "No se pudo exportar inventario");
-      }
-
-      const blob = await res.blob();
+      const blob = res.data;
       const url = window.URL.createObjectURL(blob);
 
       const fileName = empresaFilterName
@@ -628,67 +560,20 @@ const EquiposPage: React.FC = () => {
       setEmpLoading(true);
       setEmpError(null);
 
-      const base = new URL(`${API_URL}/equipos`);
-      base.searchParams.set("page", "1");
-      base.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-      base.searchParams.set("_ts", String(Date.now()));
+      const res = await http.get("/empresas", { signal });
 
-      const token = localStorage.getItem("accessToken");
-      const r1 = await fetch(base.toString(), {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
       if (seq !== empSeqRef.current) return;
-      if (!r1.ok) throw new Error(`HTTP ${r1.status}`);
 
-      const first = (await r1.json()) as ApiList<EquipoRow>;
-      const totalPagesLocal = first.totalPages || 1;
+      const json = res.data as { data: Array<{ id_empresa: number; nombre: string }> };
 
-      const empresas = new Map<number, string>();
-      const consumePage = (pl: ApiList<EquipoRow>) => {
-        for (const it of pl.items) {
-          if (it.empresaId != null && it.empresa) {
-            empresas.set(it.empresaId, it.empresa);
-          }
-        }
-      };
-
-      consumePage(first);
-      for (let p = 2; p <= totalPagesLocal; p++) {
-        if (signal?.aborted) return;
-        const u = new URL(`${API_URL}/equipos`);
-        u.searchParams.set("page", String(p));
-        u.searchParams.set("pageSize", String(MAX_PAGE_SIZE));
-        u.searchParams.set("_ts", String(Date.now()));
-        const rx = await fetch(u.toString(), {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          credentials: "include",
-          cache: "no-store",
-          signal,
-        });
-        if (seq !== empSeqRef.current) return;
-        if (!rx.ok) throw new Error(`HTTP ${rx.status}`);
-        const pj = (await rx.json()) as ApiList<EquipoRow>;
-        consumePage(pj);
-      }
-
-      const opts: EmpresaOpt[] = Array.from(empresas.entries())
-        .map(([id, nombre]) => ({ id, nombre }))
+      const opts: EmpresaOpt[] = (json.data ?? [])
+        .map((e) => ({ id: e.id_empresa, nombre: e.nombre }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
       setEmpresaOptions(opts);
     } catch (err) {
-      if ((err as Error).name === "AbortError") return;
+      const code = (err as { code?: string }).code;
+      if (code === "ERR_CANCELED" || (err as Error).name === "AbortError") return;
       setEmpError((err as Error)?.message || "Error al cargar empresas");
       setEmpresaOptions([]);
     } finally {
@@ -860,22 +745,15 @@ const EquiposPage: React.FC = () => {
     empresaId: number,
     search?: string
   ): Promise<SolicitanteLite[]> {
-    const params = new URLSearchParams();
-    params.set("empresaId", String(empresaId));
-    if (search?.trim()) params.set("q", search.trim());
 
-    const token = localStorage.getItem("accessToken");
-    const res = await fetch(`${API_URL}/solicitantes/by-empresa?${params.toString()}`, {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+    const res = await http.get("/solicitantes/by-empresa", {
+      params: {
+        empresaId,
+        q: search || undefined
+      }
     });
 
-    if (!res.ok) throw new Error("No se pudieron cargar solicitantes");
-    const data = await res.json();
+    const data = res.data;
 
     return data.items.map((it: { id: number; nombre: string }) => ({
       id_solicitante: it.id,
@@ -883,7 +761,6 @@ const EquiposPage: React.FC = () => {
       empresa: { id_empresa: empresaId, nombre: "" },
     }));
   }
-
   // Carga solicitantes desde API, filtrando por empresa
   // Reemplaza loadSolicitantesEdit por esta versión:
   const loadSolicitantesEdit = async (empresaId: number | null, term: string) => {
@@ -983,32 +860,11 @@ const EquiposPage: React.FC = () => {
 
     try {
       setEditSaving(true);
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${API_URL}/equipos/${editRow.id_equipo}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          ...editForm,
-          idSolicitante: editSolicitanteId,
-          empresaId: editEmpresaId,
-        }),
+      await http.patch(`/equipos/${editRow.id_equipo}`, {
+        ...editForm,
+        idSolicitante: editSolicitanteId,
+        empresaId: editEmpresaId,
       });
-
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const j: unknown = await res.json();
-          if (isApiErrorPayload(j)) msg = j.error ?? j.message ?? msg;
-        } catch {
-          // si el body no es JSON, mantenemos msg
-        }
-        throw new Error(msg);
-      }
 
       await reload();
       setEditOpen(false);
@@ -1026,25 +882,7 @@ const EquiposPage: React.FC = () => {
 
     const token = localStorage.getItem("accessToken");
     try {
-      const res = await fetch(`${API_URL}/equipos/${row.id_equipo}`, {
-        method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-      });
-
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const j: unknown = await res.json();
-          if (isApiErrorPayload(j)) msg = j.error ?? j.message ?? msg;
-        } catch {
-          // body no-JSON; conservamos msg
-        }
-        throw new Error(msg);
-      }
+      await http.delete(`/equipos/${row.id_equipo}`);
 
       reload();
     } catch (err: unknown) {
@@ -1888,33 +1726,64 @@ const EquiposPage: React.FC = () => {
                   Detalles Técnicos
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  {[
-                    { key: "macWifi", label: "MAC WiFi", placeholder: "00:1A:2B:3C:4D:5E" },
-                    { key: "redEthernet", label: "MAC Ethernet", placeholder: "00:1A:2B:3C:4D:5F" },
-                    { key: "so", label: "Sistema Operativo", placeholder: "Ej: Windows 11 Pro" },
-                    { key: "tipoDd", label: "Tipo Disco", placeholder: "Ej: 256 GB SSD / HDD / NVMe" },
-                    { key: "estadoAlm", label: "Estado Almacenamiento", placeholder: "Nuevo / Usado" },
-                    { key: "office", label: "Office", placeholder: "Ej: Office 365 / 2019" },
-                    { key: "teamViewer", label: "TeamViewer", placeholder: "ID TeamViewer" },
-                    { key: "claveTv", label: "Clave TV", placeholder: "Contraseña TeamViewer" },
-                    { key: "revisado", label: "Revisado", placeholder: "Última vez que se revisó" },
-                  ].map((f) => (
-                    <label key={f.key} className="text-sm">
-                      <span className="block text-slate-600 mb-1">{f.label}</span>
-                      <input
-                        value={(editForm as any)[f.key]}
-                        placeholder={f.placeholder}
-                        onChange={(e) =>
+                {/* ===== FICHA TÉCNICA (editable) ===== */}
+                <div className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                    Detalles Técnicos
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+
+                    {[
+                      { key: "macWifi", label: "MAC WiFi", placeholder: "00:1A:2B:3C:4D:5E" },
+                      { key: "redEthernet", label: "MAC Ethernet", placeholder: "00:1A:2B:3C:4D:5F" },
+                      { key: "so", label: "Sistema Operativo", placeholder: "Ej: Windows 11 Pro" },
+                      { key: "tipoDd", label: "Tipo Disco", placeholder: "Ej: SSD / HDD / NVMe" },
+                      { key: "estadoAlm", label: "Estado Almacenamiento", placeholder: "Ej: 97% BUENO" },
+                      { key: "office", label: "Office", placeholder: "Ej: Office 365 / 2019" },
+                      { key: "teamViewer", label: "TeamViewer", placeholder: "ID TeamViewer" },
+                      { key: "claveTv", label: "Clave TeamViewer", placeholder: "Contraseña TeamViewer" },
+                    ].map((f) => (
+                      <label key={f.key} className="text-sm">
+                        <span className="block text-slate-600 mb-1">{f.label}</span>
+
+                        <input
+                          value={(editForm as any)[f.key]}
+                          placeholder={f.placeholder}
+                          onChange={(e) =>
+                            setEditForm((prev) => ({
+                              ...prev,
+                              [f.key]: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                        />
+                      </label>
+                    ))}
+
+                    {/* Campo fecha revisado */}
+                    <label className="text-sm">
+                      <span className="block text-slate-600 mb-1">Revisado</span>
+
+                      <DatePicker
+                        allowClear
+                        value={
+                          editForm.revisado && dayjs(editForm.revisado).isValid()
+                            ? dayjs(editForm.revisado)
+                            : null
+                        }
+                        onChange={(date) =>
                           setEditForm((prev) => ({
                             ...prev,
-                            [f.key]: e.target.value,
+                            revisado: date ? date.format("YYYY-MM-DD") : "",
                           }))
                         }
-                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                        format="DD/MM/YYYY"
+                        className="w-full"
                       />
                     </label>
-                  ))}
+
+                  </div>
                 </div>
               </div>
               {/* ===== ACCESOS ===== */}
@@ -2123,8 +1992,13 @@ const EquiposPage: React.FC = () => {
                   <div><strong>Estado Almacenamiento:</strong> {viewRow.estadoAlm || "—"}</div>
                   <div><strong>Office:</strong> {viewRow.office || "—"}</div>
                   <div><strong>TeamViewer:</strong> {viewRow.teamViewer || "—"}</div>
-                  <div><strong>Clave TV:</strong> {viewRow.claveTv || "—"}</div>
-                  <div><strong>Revisado:</strong> {viewRow.revisado || "—"}</div>
+                  <div><strong>Clave TeamViewer:</strong> {viewRow.claveTv || "—"}</div>
+                  <div>
+                    <strong>Revisado:</strong>{" "}
+                    {viewRow.revisado
+                      ? dayjs(viewRow.revisado).format("DD-MM-YYYY")
+                      : "—"}
+                  </div>
                 </div>
               </div>
 
@@ -2218,7 +2092,15 @@ const EquiposPage: React.FC = () => {
                               </span>
 
                               <span className="text-xs text-slate-500">
-                                {new Date(h.createdAt).toLocaleString("es-CL")}
+                                {new Date(h.createdAt).toLocaleString("es-CL", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  second: "2-digit",
+                                  hour12: false,
+                                })}
                               </span>
                             </div>
 
@@ -2256,10 +2138,6 @@ const EquiposPage: React.FC = () => {
                               >
                                 {actionLabels[h.action ?? ""] ?? h.action}
                               </span>
-
-                              <span className="text-xs font-medium text-slate-800">
-                                {actorName(h.actor)}
-                              </span>
                             </div>
 
                             <div className="text-xs text-slate-500">
@@ -2273,6 +2151,11 @@ const EquiposPage: React.FC = () => {
                                 hour12: false,
                               })}
                             </div>
+                          </div>
+
+                          <div className="mt-1 text-xs">
+                            <b>Actualizado por:</b>{" "}
+                            {actorName(h.actor)}
                           </div>
 
                           <div className="mt-3 space-y-2 text-xs">

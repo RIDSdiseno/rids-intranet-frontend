@@ -23,7 +23,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import UsuariosServidorTable from "./UsuariosServidorTab";
-import { api } from "../../../api/api"; // 🔥 ajusta la ruta según tu estructura
+import { http } from "../../../service/http";  // 🔥 ajusta la ruta según tu estructura
 
 interface Servidor {
   id: number;
@@ -48,7 +48,7 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   const fetchServidores = async () => {
     try {
       setLoading(true);
-      const { data } = await api.get(`/ficha-empresa/${empresaId}/servidores`);
+      const { data } = await http.get(`/ficha-empresa/${empresaId}/servidores`);
       if (data.success) setServidores(data.data);
     } catch {
       message.error("Error cargando servidores");
@@ -66,10 +66,10 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
       const values = await form.validateFields();
 
       if (editing) {
-        await api.put(`/ficha-empresa/servidores/${editing.id}`, values);
+        await http.put(`/ficha-empresa/servidores/${editing.id}`, values);
         message.success("Servidor actualizado");
       } else {
-        await api.post(`/ficha-empresa/servidores`, { ...values, empresaId });
+        await http.post(`/ficha-empresa/servidores`, { ...values, empresaId });
         message.success("Servidor creado");
       }
 
@@ -84,7 +84,7 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
 
   const handleDelete = async (id: number) => {
     try {
-      await api.delete(`/ficha-empresa/servidores/${id}`);
+      await http.delete(`/ficha-empresa/servidores/${id}`);
       message.success("Servidor eliminado");
       fetchServidores();
     } catch {
@@ -94,7 +94,7 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
 
   const toggleProbado = async (id: number) => {
     try {
-      await api.patch(`/ficha-empresa/servidores/${id}/probado`);
+      await http.patch(`/ficha-empresa/servidores/${id}/probado`);
       fetchServidores();
     } catch {
       message.error("Error actualizando estado");

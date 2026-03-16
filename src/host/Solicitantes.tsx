@@ -1,6 +1,6 @@
 // src/host/Solicitantes.tsx
 import React, { useCallback, useEffect, useMemo, useState, Suspense, useRef } from "react";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import Header from "../components/Header";
 import {
   PlusOutlined,
@@ -20,28 +20,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import SyncGoogleModal from "../components/SyncGoogleModal";
 
 import { useAuth } from "../components/hooks/useAuth";
-
-// ========= Config API =========
-const API_URL: string =
-  ((import.meta as unknown as ImportMeta).env?.VITE_API_URL as string) ||
-  "http://localhost:4000/api";
-
-const api = axios.create({
-  baseURL: API_URL,
-  withCredentials: true,
-});
-
-// 🔐 Interceptor para agregar token automáticamente
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
-
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
+import { http as api } from "../service/http";
 
 // ========= Tipos locales =========
 export type Empresa = { id_empresa: number; nombre: string, dominios?: string[]; };
@@ -477,14 +456,22 @@ export default function SolicitantesPage() {
     (async () => {
       try {
         const resp = await api.get<EmpresasListResponse>("/empresas");
+
         const empresasData = Array.isArray(resp.data?.data) ? resp.data.data : [];
+
         const items: Empresa[] = empresasData.map((e) => ({
           id_empresa: e.id_empresa,
           nombre: e.nombre,
           dominios: Array.isArray(e.dominios) ? e.dominios : [],
         }));
+
         setEmpresas(items);
-      } catch (e) {
+
+      } catch (e: any) {
+
+        // 👇 ignorar error cuando el token expira
+        if (e?.response?.data?.error === "TOKEN_EXPIRED") return;
+
         push({
           kind: "error",
           message: "No se pudieron cargar las empresas",
@@ -492,9 +479,7 @@ export default function SolicitantesPage() {
         });
       }
     })();
-    // `push` viene del hook de toasts; lo incluimos para evitar warning del linter.
   }, [push]);
-
 
   // Lista (con cancelación) + métricas
   const fetchList = useCallback(async () => {
@@ -506,11 +491,10 @@ export default function SolicitantesPage() {
         controller.signal
       );
       setList(data);
-    } catch (e: unknown) {
-      // manejo de cancelación con axios
-      if (!axios.isCancel(e)) {
-        push({ kind: "error", message: "No se pudo cargar la lista", detail: prettyError(e) });
-      }
+    } catch (e: any) {
+
+      if (e?.response?.data?.error === "TOKEN_EXPIRED") return;
+
     } finally {
       setLoading(false);
     }
@@ -520,8 +504,15 @@ export default function SolicitantesPage() {
     try {
       const m = await apiMetrics({ q: debouncedQ || undefined, empresaId });
       setMetrics(m);
-    } catch (e) {
-      push({ kind: "error", message: "No se pudieron cargar las métricas", detail: prettyError(e) });
+    } catch (e: any) {
+
+      if (e?.response?.data?.error === "TOKEN_EXPIRED") return;
+
+      push({
+        kind: "error",
+        message: "No se pudieron cargar las métricas",
+        detail: prettyError(e),
+      });
     }
   }, [debouncedQ, empresaId, push]);
 

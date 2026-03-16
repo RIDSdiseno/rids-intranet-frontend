@@ -5,13 +5,14 @@ import { motion } from "framer-motion";
 // TYPES
 import type { OrigenGestioo } from "./types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export interface ModalNuevaEntidadProps {
     tipoEntidad: "EMPRESA" | "PERSONA";
     onClose: () => void;
     onSaved: (nuevoId: number) => void;
 }
+
+import { http } from "../../service/http";
 
 export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
     tipoEntidad,
@@ -34,36 +35,6 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
         setErrorMsg(null);
     }, []);
 
-    const parseApiError = async (res: Response): Promise<string> => {
-        try {
-            const data = await res.json();
-
-            if (res.status === 400) {
-                return data.error || "Datos inválidos. Revisa los campos.";
-            }
-
-            if (res.status === 409) {
-                return "Ya existe una entidad registrada con este RUT.";
-            }
-
-            if (res.status === 401) {
-                return "Tu sesión expiró. Vuelve a iniciar sesión.";
-            }
-
-            if (res.status === 403) {
-                return "No tienes permisos para crear entidades.";
-            }
-
-            if (res.status >= 500) {
-                return "Error interno del sistema. Intenta más tarde.";
-            }
-
-            return data.error || "No se pudo crear la entidad.";
-        } catch {
-            return "Error inesperado al comunicarse con el servidor.";
-        }
-    };
-
     const handleSave = async () => {
         if (!nombre.trim()) {
             setErrorMsg("El nombre de la entidad es obligatorio.");
@@ -83,34 +54,27 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
         // Guardar nueva entidad
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/entidades`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    nombre,
-                    rut: rut || null,
-                    correo: correo || null,
-                    telefono: telefono || null,
-                    direccion: direccion || null,
-                    tipo: tipoEntidad,
-                    origen: tipoEntidad === "EMPRESA" ? origen : undefined,
-                }),
+            const { data } = await http.post("/entidades", {
+                nombre,
+                rut: rut || null,
+                correo: correo || null,
+                telefono: telefono || null,
+                direccion: direccion || null,
+                tipo: tipoEntidad,
+                origen: tipoEntidad === "EMPRESA" ? origen : undefined,
             });
 
-            // Manejo de errores
-            if (!res.ok) {
-                const msg = await parseApiError(res);
-                setErrorMsg(msg);
-                return;
-            }
-
-            const data = await res.json();
             onSaved(data.id ?? data.id_entidad);
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setErrorMsg("No se pudo crear la entidad. Intenta nuevamente.");
+
+            const msg =
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "No se pudo crear la entidad.";
+
+            setErrorMsg(msg);
         }
         finally {
             setLoading(false);

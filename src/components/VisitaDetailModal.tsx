@@ -11,12 +11,17 @@ import {
 
 export type VisitaEmpresa = { id_empresa: number; nombre: string };
 export type VisitaTecnico = { id_tecnico: number; nombre: string };
+export type VisitaSucursal = { id_sucursal: number; nombre: string };
 
 export type VisitaDetail = {
   id_visita: number;
   empresaId: number;
   tecnicoId: number;
   solicitante: string;
+
+  direccion_visita?: string | null;
+  sucursal?: VisitaSucursal | null;
+
   // realizado: string;     // ❌ eliminado del tipo
   otrosDetalle: string | null; // ✅ reemplazo
   inicio: string; // ISO
@@ -86,6 +91,36 @@ function fmtDateTime(iso?: string | null) {
   }
 }
 
+function calcularDuracion(inicio?: string | null, fin?: string | null) {
+  if (!inicio || !fin) return "En progreso";
+
+  const start = new Date(inicio);
+  const end = new Date(fin);
+
+  const diff = Math.floor((end.getTime() - start.getTime()) / 60000);
+
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+
+  return `${h}h ${m}m`;
+}
+
+async function reverseGeocode(coords: string) {
+  try {
+    const [lat, lon] = coords.split(",");
+
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
+    );
+
+    const data = await res.json();
+
+    return data.display_name;
+  } catch {
+    return coords;
+  }
+}
+
 function statusStyles(statusRaw?: string) {
   const s = (statusRaw ?? "").toUpperCase();
   if (s.includes("COMPLE")) return "bg-emerald-50 text-emerald-800 border border-emerald-200";
@@ -107,6 +142,7 @@ const Chip: React.FC<{
   const bg = `bg-${tone}-50`;
   const text = `text-${tone}-800`;
   const safe = "ring-1 bg-opacity-70 text-opacity-100"; // fallback seguro
+
   return (
     <span
       className={[
@@ -149,6 +185,30 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
     },
     [open, onClose]
   );
+
+  const [direccionHumana, setDireccionHumana] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visita?.direccion_visita) {
+      setDireccionHumana(null);
+      return;
+    }
+
+    const coords = visita.direccion_visita;
+
+    let activo = true;
+
+    reverseGeocode(coords).then((dir) => {
+      if (activo) {
+        setDireccionHumana(dir);
+      }
+    });
+
+    return () => {
+      activo = false;
+    };
+
+  }, [visita?.direccion_visita]);
 
   useEffect(() => {
     document.addEventListener("keydown", escHandler);
@@ -205,7 +265,7 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
                   Detalle de visita <span className="opacity-90">#{visita.id_visita}</span>
                 </h2>
                 <div className="text-[11px] sm:text-xs opacity-80 truncate">
-                  {fmtDateTime(visita.inicio)} {visita.fin ? "•" : ""} {visita.fin ? fmtDateTime(visita.fin) : ""}
+                  {fmtDateTime(visita.inicio)} • {fmtDateTime(visita.fin)} • {calcularDuracion(visita.inicio, visita.fin)}
                 </div>
               </div>
             </div>
@@ -261,6 +321,19 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
                   <span className="truncate">{visita.solicitante || "—"}</span>
                 </span>
               </Row>
+
+              <Row label="Dirección visita">
+                {direccionHumana ?? visita.direccion_visita ?? "—"}
+              </Row>
+
+              <Row label="Sucursal">
+                {visita.sucursal?.nombre ?? "—"}
+              </Row>
+
+              <Row label="Duración">
+                {calcularDuracion(visita.inicio, visita.fin)}
+              </Row>
+
               <Row label="Detalle">
                 <div className="whitespace-pre-wrap leading-relaxed break-words">
                   {visita.otrosDetalle || "—"}

@@ -33,12 +33,14 @@ import {
   generarFolio,
   contarMantenimientos,
   contarExtras,
+  obtenerTopUsuariosGeneral,
+  calcularDistribucionServicios,
+  calcularTendenciasMensuales
 } from "../components/modals-reportes/UtilsReportes";
 
-// ─── Config ───────────────────────────────────────────────────────────────
+import { http } from "../service/http";
 
-const API_URL =
-  (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";
+// ─── Config ───────────────────────────────────────────────────────────────
 
 const MONTHS_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -102,36 +104,29 @@ const ReportesPage: React.FC = () => {
     onDataLoaded: setDataPrev,
   });
 
-  const generarRecomendacionesOperativasIA = async () => {
-    try {
+  const generarInformeIA = async () => {
 
-      if (!empresaFiltro || !selectedYear || !selectedMonth) {
-        message.warning("Selecciona empresa, año y mes");
-        return;
-      }
+    if (!canGenerate) {
+      message.warning("Selecciona empresa, año y mes");
+      return;
+    }
+
+    try {
 
       setLoadingIA(true);
 
-      const res = await fetch(
-        `${API_URL}/ia-recomendaciones/recomendaciones-operativas/${empresaFiltro}/${selectedYear}/${selectedMonth}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
-          }
-        }
+      const { data } = await http.get(
+        `/ia-reportes/informe-operativo/${empresaFiltro}/${selectedYear}/${selectedMonth}`
       );
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error);
 
       const ia = data.data;
 
-      // Convertir JSON a texto para el informe
       const texto = [
         "RESUMEN EJECUTIVO",
         ia.resumen_ejecutivo,
+        "",
+        "ANÁLISIS OPERATIVO",
+        ia.analisis_operativo,
         "",
         "HALLAZGOS",
         ...ia.hallazgos.map((x: string) => `• ${x}`),
@@ -156,11 +151,11 @@ const ReportesPage: React.FC = () => {
         ...ia.plan_30_60_90.d90.map((x: string) => `• ${x}`),
         "",
         "KPIs SUGERIDOS",
-        ...ia.kpis.map((x: any) => {
+        ...ia.kpis_sugeridos.map((x: any) => {
           if (typeof x === "string") return `• ${x}`;
           if (typeof x === "object") {
-            const nombre = x.nombre ?? x.kpi ?? x.titulo ?? "Indicador";
-            const valor = x.valor ?? x.value ?? "";
+            const nombre = x.nombre ?? x.kpi ?? "Indicador";
+            const valor = x.valor ?? "";
             return `• ${nombre}: ${valor}`;
           }
           return `• ${x}`;
@@ -169,14 +164,23 @@ const ReportesPage: React.FC = () => {
 
       setRecomendaciones(texto);
 
-      message.success("Recomendaciones generadas con IA");
+      if (data.cached) {
+        message.success("Informe IA obtenido desde cache");
+      } else {
+        message.success("Informe IA generado");
+      }
 
     } catch (error) {
+
       console.error(error);
-      message.error("Error generando recomendaciones IA");
+      message.error("Error generando informe IA");
+
     } finally {
+
       setLoadingIA(false);
+
     }
+
   };
 
   // ── Handlers ──
@@ -509,15 +513,16 @@ const ReportesPage: React.FC = () => {
           <div className="mt-4">
             <label className="block text-sm text-slate-600 mb-2">Recomendaciones</label>
             <Input.TextArea rows={5} value={recomendaciones} onChange={(e) => setRecomendaciones(e.target.value)} placeholder="Agrega recomendaciones del periodo..." />
-            <div className="flex gap-3 mt-3 flex-wrap">
-              <button
-                onClick={generarRecomendacionesOperativasIA}
-                disabled={loadingIA || !empresaFiltro}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 disabled:opacity-50"
-              >
-                {loadingIA ? <><LoadingOutlined className="animate-spin" />Analizando…</> : <><RobotOutlined />Recomendaciones con IA</>}
-              </button>
-            </div>
+            <br /><br />
+            <button
+              onClick={generarInformeIA}
+              disabled={loadingIA || !canGenerate}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 disabled:opacity-50"
+            >
+              {loadingIA
+                ? <><LoadingOutlined className="animate-spin" />Generando informe…</>
+                : <><RobotOutlined /> Generar recomendaciones con IA</>}
+            </button>
           </div>
         </motion.div>
 

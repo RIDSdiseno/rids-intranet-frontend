@@ -730,13 +730,10 @@ const Cotizaciones: React.FC = () => {
             // ================================
 
             const fecha = new Date().toLocaleDateString("es-CL");
-            const etiquetaCopia = `(Copia ${fecha})`;
 
-            const comentarioOriginal = cotCompleta.comentariosCotizacion || "";
-
-            const comentarioCopia = comentarioOriginal.includes("(Copia")
-                ? comentarioOriginal
-                : `${comentarioOriginal} ${etiquetaCopia}`.trim();
+            const comentarioCopia =
+                `(Copia de cotización #${cotCompleta.id} - ${fecha}) ` +
+                (cotCompleta.comentariosCotizacion || "");
 
             // ================================
             // 3️⃣ NORMALIZAR ITEMS
@@ -795,7 +792,7 @@ const Cotizaciones: React.FC = () => {
 
         }
     };
-
+    
     const handleUpdateCotizacion = async () => {
         if (!selectedCotizacion) {
             handleApiError(null, "No hay cotización seleccionada");

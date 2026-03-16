@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import Header from "../components/Header";
 import {
     Building2,
     Pencil,
@@ -22,12 +21,8 @@ import {
     Download,
     Shield,
 } from "lucide-react";
-import axios from "axios";
 
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
-    withCredentials: true,
-});
+import { http } from "../service/http";
 
 /* =====================================================================
    TIPOS
@@ -265,7 +260,6 @@ const Modal: React.FC<ModalProps> = React.memo(
                                             <span className="flex items-center gap-1">
                                                 <Mail size={14} />
                                                 Correo electrónico
-                                                <span className="text-red-500 ml-0.5">*</span>
                                             </span>
                                         </label>
                                         <input
@@ -297,7 +291,6 @@ const Modal: React.FC<ModalProps> = React.memo(
                                             <span className="flex items-left gap-1">
                                                 <Phone size={14} />
                                                 Teléfono
-                                                <span className="text-red-500 ml-0.5">*</span>
                                             </span>
                                         </label>
 
@@ -331,7 +324,6 @@ const Modal: React.FC<ModalProps> = React.memo(
                                             <span className="flex items-center gap-1">
                                                 <MapPin size={14} />
                                                 Dirección
-                                                <span className="text-red-500 ml-0.5">*</span>
                                             </span>
                                         </label>
                                         <input
@@ -490,7 +482,7 @@ const ClientesPage: React.FC = () => {
     const loadClientes = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await api.get("/entidades");
+            const res = await http.get("/entidades");
             const lista = Array.isArray(res.data)
                 ? res.data
                 : Array.isArray(res.data?.data)
@@ -549,19 +541,30 @@ const ClientesPage: React.FC = () => {
        VALIDACIÓN
     =============================== */
     const validarCampo = useCallback((campo: CamposValidables, valor: string) => {
+        const v = valor?.trim() ?? "";
+
         switch (campo) {
             case "nombre":
-                return valor.trim() ? "" : "El nombre es obligatorio.";
+                return v ? "" : "El nombre es obligatorio.";
+
             case "rut":
-                return validarRUT(valor) ? "" : "RUT inválido (ej: 12.345.678-9).";
+                if (!v) return "El RUT es obligatorio.";
+                return validarRUT(v) ? "" : "RUT inválido (ej: 12.345.678-9).";
+
             case "correo":
-                return validarEmail(valor) ? "" : "Correo inválido.";
+                if (!v) return ""; // opcional
+                return validarEmail(v) ? "" : "Correo inválido.";
+
             case "telefono":
-                return validarTelefono(valor)
+                if (!v) return ""; // opcional
+                return validarTelefono(v)
                     ? ""
                     : "Teléfono inválido (9 dígitos y comienza con 9).";
+
             case "direccion":
-                return valor.trim() ? "" : "La dirección es obligatoria.";
+                if (!v) return ""; // opcional
+                return "";
+
             default:
                 return "";
         }
@@ -636,7 +639,7 @@ const ClientesPage: React.FC = () => {
 
         setIsSaving(true);
         try {
-            await api.post("/entidades", form);
+            await http.post("/entidades", form);
             setShowCreate(false);
             resetForm();
             showNotification("success", "Cliente creado exitosamente");
@@ -690,7 +693,7 @@ const ClientesPage: React.FC = () => {
 
         setIsSaving(true);
         try {
-            await api.put(`/entidades/${form.id}`, form);
+            await http.put(`/entidades/${form.id}`, form);
             setShowEdit(false);
             resetForm();
             showNotification("success", "Cliente actualizado exitosamente");
@@ -712,7 +715,7 @@ const ClientesPage: React.FC = () => {
 
             setIsSaving(true);
             try {
-                await api.delete(`/entidades/${id}`);
+                await http.delete(`/entidades/${id}`);
                 showNotification("success", "Cliente eliminado exitosamente");
                 loadClientes();
             } catch (err) {

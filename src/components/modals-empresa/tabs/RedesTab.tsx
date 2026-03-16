@@ -19,7 +19,7 @@ import {
     EditOutlined,
     StarFilled,
 } from "@ant-design/icons";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // 🔥 ajusta ruta
 
 interface Props {
     empresaId: number;
@@ -37,8 +37,8 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
         setLoading(true);
         try {
             const [ispRes, sucRes] = await Promise.all([
-                api.get(`/ficha-empresa/${empresaId}/isp`),
-                api.get(`/ficha-empresa/${empresaId}/sucursales`),
+                http.get(`/ficha-empresa/${empresaId}/isp`),
+                http.get(`/ficha-empresa/${empresaId}/sucursales`),
             ]);
             setIsps(ispRes.data);
             setSucursales(sucRes.data);
@@ -66,9 +66,9 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
         const values = await form.validateFields();
         try {
             if (editing) {
-                await api.put(`/ficha-empresa/isp/${editing.id}`, values);
+                await http.put(`/ficha-empresa/isp/${editing.id}`, values);
             } else {
-                await api.post(`/ficha-empresa/${empresaId}/isp`, values);
+                await http.post(`/ficha-empresa/${empresaId}/isp`, values);
             }
             message.success("Red guardada");
             setModalOpen(false);
@@ -80,7 +80,7 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
 
     const remove = async (id: number) => {
         try {
-            await api.delete(`/ficha-empresa/isp/${id}`);
+            await http.delete(`/ficha-empresa/isp/${id}`);
             message.success("Red eliminada");
             load();
         } catch {
@@ -90,7 +90,7 @@ const IspTab: React.FC<Props> = ({ empresaId }) => {
 
     const setPrincipal = async (isp: any) => {
         try {
-            await api.put(`/ficha-empresa/isp/${isp.id}`, { ...isp, esPrincipal: true });
+            await http.put(`/ficha-empresa/isp/${isp.id}`, { ...isp, esPrincipal: true });
             load();
         } catch {
             message.error("Error actualizando red principal");

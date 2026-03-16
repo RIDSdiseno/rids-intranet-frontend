@@ -41,6 +41,16 @@ function formatDateTime(iso?: string | null) {
   }
 }
 
+function toDatetimeLocal(iso?: string | null) {
+  if (!iso) return "";
+  
+  const d = new Date(iso);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function StatusBadge({ status }: { status: MantencionStatus | string }) {
   const norm = (status || "").toUpperCase();
   const styles: Record<string, string> = {
@@ -496,7 +506,7 @@ export default function MantencionesRemotasPage() {
       empresaId: row.empresaId,
       tecnicoId: row.tecnicoId,
 
-      fin: row.fin ? new Date(row.fin).toISOString().slice(0, 16) : "",
+      fin: toDatetimeLocal(row.fin),
       status: row.status,
 
       solicitanteId: row.solicitanteId ?? "",
@@ -1269,16 +1279,37 @@ function MantencionUpsertModal(props: {
             {/* Técnico automático */}
             <div className={clsx("md:col-span-6", isCliente && "md:col-span-12")}>
               <label className="text-xs text-slate-600">Técnico</label>
-              <input
-                value={
-                  filters?.tecnicos?.find((t) => t.id === Number(form.tecnicoId))?.nombre ||
-                  user.nombre ||
-                  user.email ||
-                  (form.tecnicoId ? `#${form.tecnicoId}` : "No detectado")
-                }
-                readOnly
-                className="mt-1 w-full rounded-2xl border border-cyan-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"
-              />
+
+              {isCliente ? (
+                <input
+                  value={
+                    filters?.tecnicos?.find((t) => t.id === Number(form.tecnicoId))?.nombre ||
+                    user.nombre ||
+                    user.email ||
+                    (form.tecnicoId ? `#${form.tecnicoId}` : "No detectado")
+                  }
+                  readOnly
+                  className="mt-1 w-full rounded-2xl border border-cyan-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700"
+                />
+              ) : (
+                <select
+                  value={form.tecnicoId === "" ? "" : String(form.tecnicoId)}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      tecnicoId: parseNumberOrEmpty(e.target.value),
+                    }))
+                  }
+                  className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                >
+                  <option value="">Selecciona técnico</option>
+                  {filters?.tecnicos?.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Fin */}

@@ -95,6 +95,12 @@ export interface EntidadGestioo {
     tipo?: "EMPRESA" | "PERSONA";
 }
 
+export interface Solicitante {
+    id_solicitante: number;
+    nombre: string;
+    email?: string | null;
+}
+
 export interface EquipoGestioo {
     id_equipo: number;
     marca: string;
@@ -112,6 +118,12 @@ export interface EquipoGestioo {
     // 🔹 Gestión / propiedad
     propiedad?: string | null;
     empresaId?: number | null;
+
+    solicitante?: {
+        id_solicitante: number
+        nombre: string
+        email?: string | null
+    } | null
 }
 
 export interface DetalleTrabajoGestioo {
@@ -302,7 +314,7 @@ export const DISCOS = [
     "1 TB HDD",
 ] as const;
 
-export type DiscoEquipo = typeof DISCOS[number]; 
+export type DiscoEquipo = typeof DISCOS[number];
 
 // ===============================
 // Helpers UI

@@ -767,7 +767,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                                         return (
                                                             <tr
-                                                                key={`${item.id}-${index}`}
+                                                                key={item.id}
                                                                 className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo ===
                                                                     ItemTipoGestioo.ADICIONAL
                                                                     ? "bg-rose-50/30 hover:bg-rose-50/50"

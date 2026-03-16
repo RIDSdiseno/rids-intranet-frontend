@@ -4,8 +4,6 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import Header from "../components/Header";
-import axios from "axios";
 import {
     Plus,
     Pencil,
@@ -24,10 +22,7 @@ import {
     Eye,
 } from "lucide-react";
 
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
-    withCredentials: true,
-});
+import { http } from "../service/http";
 
 interface Producto {
     id: number;
@@ -561,7 +556,7 @@ const ProductosPage: React.FC = () => {
     const loadProductos = async () => {
         setIsLoading(true);
         try {
-            const res = await api.get("/productos-gestioo");
+            const res = await http.get("/productos-gestioo");
             const productosData = Array.isArray(res.data)
                 ? res.data
                 : Array.isArray(res.data?.data)
@@ -721,7 +716,7 @@ const ProductosPage: React.FC = () => {
             const { serie, imagenFile, ...resto } = form;
 
             // 1️⃣ Crear producto primero
-            const res = await api.post("/productos-gestioo", {
+            const res = await http.post("/productos-gestioo", {
                 ...resto,
                 precio: Number(form.precio) || 0,
                 precioTotal: Number(form.precioTotal || form.precio) || 0,
@@ -737,7 +732,7 @@ const ProductosPage: React.FC = () => {
                 formData.append("productoId", String(nuevoProducto.id));
                 formData.append("imagen", imagenFile);
 
-                await api.post("/upload-imagenes/upload", formData);
+                await http.post("/upload-imagenes/upload", formData);
             }
 
             showNotification("success", "Producto creado exitosamente");
@@ -761,14 +756,14 @@ const ProductosPage: React.FC = () => {
         try {
             const { imagenFile, ...resto } = form;
 
-            await api.put(`/productos-gestioo/${form.id}`, resto);
+            await http.put(`/productos-gestioo/${form.id}`, resto);
 
             if (imagenFile) {
                 const formData = new FormData();
                 formData.append("productoId", String(form.id));
                 formData.append("imagen", imagenFile);
 
-                await api.post("/upload-imagenes/upload", formData);
+                await http.post("/upload-imagenes/upload", formData);
             }
 
             showNotification("success", "Producto actualizado exitosamente");
@@ -789,7 +784,7 @@ const ProductosPage: React.FC = () => {
 
         setIsSaving(true);
         try {
-            await api.delete(`/productos-gestioo/${id}`);
+            await http.delete(`/productos-gestioo/${id}`);
             showNotification("success", "Producto eliminado exitosamente");
             loadProductos();
         } catch (err) {

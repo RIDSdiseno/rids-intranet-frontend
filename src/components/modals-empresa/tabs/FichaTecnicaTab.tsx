@@ -28,7 +28,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // 🔥 ajusta ruta
 
 dayjs.extend(utc);
 
@@ -58,7 +58,7 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId }) => {
     const loadFicha = async () => {
         try {
             setLoading(true);
-            const { data: json } = await api.get(`/ficha-empresa/${empresaId}/ficha-tecnica`);
+            const { data: json } = await http.get(`/ficha-empresa/${empresaId}/ficha-tecnica`);
             setData(json);
             form.setFieldsValue({
                 ...json,
@@ -84,7 +84,7 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId }) => {
         try {
             const values = await form.validateFields();
             setSaving(true);
-            await api.put(`/ficha-empresa/${empresaId}/ficha-tecnica`, values);
+            await http.put(`/ficha-empresa/${empresaId}/ficha-tecnica`, values);
             message.success("Ficha técnica guardada exitosamente");
             setActiveView('view');
             loadFicha();

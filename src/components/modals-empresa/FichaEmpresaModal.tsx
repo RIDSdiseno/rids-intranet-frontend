@@ -15,7 +15,7 @@ import type {
 } from "./types";
 import RedesTab from "./tabs/RedesTab";
 
-import { api } from "../../api/api"; // ajusta la ruta según tu proyecto
+import { http } from "../../service/http"; // ajusta la ruta según tu proyecto
 
 const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   open,
@@ -40,7 +40,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
 
     const loadFichaCompleta = async () => {
 
-      const { data } = await api.get(
+      const { data } = await http.get(
         `/ficha-empresa/${empresa.id_empresa}/completa`
       );
       setLocalData(data);
@@ -54,7 +54,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   const refetchFicha = async () => {
     if (!localData?.empresa) return;
 
-    const { data } = await api.get(
+    const { data } = await http.get(
       `/ficha-empresa/${localData.empresa.id_empresa}/completa`
     );
 

@@ -13,7 +13,7 @@ import {
     Button,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { api } from "../../../api/api";
+import { http } from "../../../service/http"; 
 import dayjs from "dayjs";
 
 const { RangePicker } = DatePicker;
@@ -178,7 +178,7 @@ export default function EntityAuditTab({ endpoint }: Props) {
                 search: filters.search?.trim() || undefined,
             };
 
-            const res = await api.get(endpoint, {
+            const res = await http.get(endpoint, {
                 params,
                 headers: { "Cache-Control": "no-cache" },
             });

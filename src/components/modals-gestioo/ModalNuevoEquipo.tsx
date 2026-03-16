@@ -41,7 +41,7 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
-import { api } from "../../api/api";
+import { http } from "../../service/http";
 
 const { Option } = Select;
 
@@ -89,10 +89,11 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
     useEffect(() => {
         const loadEmpresas = async () => {
             try {
-                const res = await api.get("/empresas");
-                const list = Array.isArray(res.data.data)
-                    ? res.data.data
-                    : res.data;
+                const { data } = await http.get("/empresas");
+
+                const list = Array.isArray(data.data)
+                    ? data.data
+                    : data;
                 setEmpresas(list);
             } catch {
                 setEmpresas([]);
@@ -111,10 +112,12 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
 
         const loadSolicitantes = async () => {
             try {
-                const res = await api.get(
-                    `/solicitantes/by-empresa?empresaId=${empresaId}`
+                const { data } = await http.get(
+                    `/solicitantes/by-empresa`,
+                    { params: { empresaId } }
                 );
-                setSolicitantes(res.data.items ?? []);
+
+                setSolicitantes(data.items ?? []);
             } catch {
                 setSolicitantes([]);
             }
@@ -172,7 +175,7 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                 idSolicitante: idSolicitante ? Number(idSolicitante) : null,
             };
 
-            const res = await api.post("/equipos", payload);
+            const res = await http.post("/equipos", payload);
             const data = res.data;
 
             onSaved(data.id ?? data.id_equipo);

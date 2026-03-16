@@ -48,7 +48,7 @@ import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { api } from "../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../service/http"; // 🔥 ajusta ruta
 
 import InventarioIA from "./InventarioIA";
 
@@ -346,7 +346,7 @@ const EmpresaInfoGeneral: React.FC<{
       setSaving(true);
 
       // 🔥 usa api en lugar de fetch nativo
-      await api.put(`/detalle-empresa/${empresa.detalleEmpresa?.id}`, values);
+      await http.put(`/detalle-empresa/${empresa.detalleEmpresa?.id}`, values);
 
       message.success("Datos actualizados");
       setEditing(false);

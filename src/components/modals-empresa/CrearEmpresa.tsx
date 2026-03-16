@@ -9,7 +9,7 @@ interface Props {
   onCreated: () => void;
 }
 
-import { api } from "../../api/api";
+import { http } from "../../service/http";
 
 const CrearEmpresaModal: React.FC<Props> = ({
   open,
@@ -47,7 +47,7 @@ const CrearEmpresaModal: React.FC<Props> = ({
         body.email = email;
       }
 
-      await api.post("/empresas", body);
+      await http.post("/empresas", body);
 
       onCreated();
       resetForm();

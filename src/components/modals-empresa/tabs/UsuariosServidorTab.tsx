@@ -10,7 +10,7 @@ import {
     DeleteOutlined,
     PlusOutlined,
 } from "@ant-design/icons";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // 🔥 ajusta ruta
 
 interface Props {
     servidorId: number;
@@ -35,7 +35,7 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
 
     const fetchUsuarios = async () => {
         try {
-            const { data } = await api.get(`/ficha-empresa/servidores/${servidorId}/usuarios`);
+            const { data } = await http.get(`/ficha-empresa/servidores/${servidorId}/usuarios`);
             if (data.success) setUsuarios(data.data);
         } catch {
             message.error("Error cargando usuarios");
@@ -48,9 +48,9 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
         try {
             const values = await form.validateFields();
             if (editing) {
-                await api.put(`/ficha-empresa/servidor-usuarios/${editing.id}`, values);
+                await http.put(`/ficha-empresa/servidor-usuarios/${editing.id}`, values);
             } else {
-                await api.post(`/ficha-empresa/servidores/${servidorId}/usuarios`, values);
+                await http.post(`/ficha-empresa/servidores/${servidorId}/usuarios`, values);
             }
             setOpen(false);
             setEditing(null);
@@ -63,7 +63,7 @@ const UsuariosServidorTable: React.FC<Props> = ({ servidorId }) => {
 
     const handleDelete = async (id: number) => {
         try {
-            await api.delete(`/ficha-empresa/servidor-usuarios/${id}`);
+            await http.delete(`/ficha-empresa/servidor-usuarios/${id}`);
             fetchUsuarios();
         } catch {
             message.error("Error eliminando usuario");

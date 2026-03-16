@@ -41,12 +41,14 @@ const NewEntidadModal: React.FC<NewEntidadModalProps> = ({
     // VALIDACIONES
     // ==========================
     const nombreInvalido = !formData.nombre.trim();
-    const rutInvalido = formData.rut !== "" && !validarRut(formData.rut);
+    const rutVacio = !formData.rut.trim();
+    const rutInvalido = !rutVacio && !validarRut(formData.rut);
 
-    const formInvalido = nombreInvalido || rutInvalido;
+    const formInvalido = nombreInvalido || rutVacio || rutInvalido;
 
     const motivoDeshabilitado = () => {
         if (nombreInvalido) return "El nombre es obligatorio.";
+        if (rutVacio) return "El RUT es obligatorio.";
         if (rutInvalido) return "El RUT ingresado no es válido.";
         if (apiLoading) return "Creando persona, por favor espere.";
         return "";
@@ -154,10 +156,10 @@ const NewEntidadModal: React.FC<NewEntidadModalProps> = ({
                             }
                         />
 
-                        {rutInvalido && (
+                        {(rutVacio || rutInvalido) && (
                             <p className="text-rose-600 text-xs flex items-center gap-1">
                                 <CloseCircleOutlined />
-                                RUT no válido
+                                {rutVacio ? "El RUT es obligatorio" : "RUT no válido"}
                             </p>
                         )}
                     </div>
