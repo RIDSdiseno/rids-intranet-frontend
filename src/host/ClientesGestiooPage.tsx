@@ -442,6 +442,8 @@ const ClientesPage: React.FC = () => {
     const [showCreate, setShowCreate] = useState(false);
     const [showEdit, setShowEdit] = useState(false);
 
+    const [inputValue, setInputValue] = useState("");
+
     const [form, setForm] = useState<Cliente>({
         id: 0,
         nombre: "",
@@ -808,15 +810,16 @@ const ClientesPage: React.FC = () => {
                             <input
                                 type="text"
                                 placeholder="Buscar clientes por nombre, RUT o correo electrónico..."
-                                className="w-full pl-12 pr-4 py-3.5 bg-white/90 border border-gray-300/80 rounded-2xl focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 outline-none transition-all duration-200 shadow-sm hover:shadow backdrop-blur-sm placeholder-gray-500"
-                                value={query}
+                                className="w-full pl-12 pr-4 py-3.5 ..."
+                                value={inputValue}                        // ← inmediato
                                 onChange={(e) => {
-                                    debouncedSearch(e.target.value);
+                                    setInputValue(e.target.value);          // ← actualiza visual sin delay
+                                    debouncedSearch(e.target.value);        // ← filtra con debounce
                                     setPagina(1);
                                 }}
                             />
                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                                {query ? `${filtrados.length} resultados` : "Escribe para buscar"}
+                                {inputValue ? `${filtrados.length} resultados` : "Escribe para buscar"}
                             </div>
                         </div>
                     </div>
@@ -976,7 +979,9 @@ const ClientesPage: React.FC = () => {
                                 <span className="font-medium">{clientes.length}</span> clientes mostrados
                                 {query && (
                                     <span className="text-cyan-600 font-medium">
-                                        {" "}• Filtrados por: "{query}"
+                                        {inputValue && (
+                                            <span>• Filtrados por: "{inputValue}"</span>
+                                        )}
                                     </span>
                                 )}
                             </div>

@@ -128,9 +128,29 @@ type CrearEquipoModalProps = {
   open: boolean;
   onClose: () => void;
   defaultSolicitanteId?: number;
-  onCreated?: (nuevoEquipo: EquipoDTO) => void; // 👈 sin any
+  onCreated?: (nuevoEquipo: EquipoDTO) => void;
   brand?: "rids" | "econnet";
   logoUrl?: string;
+  // 🔥 NUEVO
+  defaultValues?: {
+    serial?: string;
+    marca?: string;
+    modelo?: string;
+    precioVenta?: number;
+    empresaId?: number;
+  };
+};
+
+type CreateEquipoResponse = {
+  ok: boolean;
+  totalReceived: number;
+  totalCreated: number;
+  totalErrors: number;
+  created: EquipoDTO[];
+  errors: Array<{
+    serial?: string;
+    error: string;
+  }>;
 };
 
 /* =================== Branding =================== */
@@ -223,7 +243,7 @@ async function fetchEmpresas(): Promise<EmpresaOpt[]> {
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-async function postEquipo(payload: CreateEquipoPayload) {
+async function postEquipo(payload: CreateEquipoPayload): Promise<CreateEquipoResponse> {
   const res = await http.post("/equipos", payload);
   return res.data;
 }
@@ -241,6 +261,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   onCreated,
   brand = "rids",
   logoUrl,
+  defaultValues,
 }) => {
   const T = THEMES[brand];
   const [form] = Form.useForm();
@@ -393,9 +414,21 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         passwordPersonal: values.passwordPersonal,
       };
 
-      const nuevo = await postEquipo(payload);
+      const resp = await postEquipo(payload);
+
+      if (resp.totalErrors > 0 || resp.errors?.length > 0) {
+        const primerError = resp.errors[0];
+        throw new Error(primerError?.error || "No se pudo crear el equipo");
+      }
+
+      const equipoCreado = resp.created?.[0];
+
+      if (!equipoCreado) {
+        throw new Error("No se recibió el equipo creado desde el servidor");
+      }
+
       message.success("Equipo creado correctamente");
-      onCreated?.(nuevo);
+      onCreated?.(equipoCreado);
       form.resetFields();
       onClose();
     } catch (err: unknown) {
@@ -573,7 +606,15 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           form={form}
           layout="vertical"
 
-          initialValues={{ propiedad: "Empresa", idSolicitante: null }}
+          initialValues={{
+            propiedad: "Empresa",
+            idSolicitante: undefined,
+            // 🔥 Pre-poblar desde cotización si vienen valores
+            serial: defaultValues?.serial,
+            marca: defaultValues?.marca,
+            modelo: defaultValues?.modelo,
+            empresaId: defaultValues?.empresaId,
+          }}
           onKeyDown={(e) => {
             if (
               e.key === "Enter" &&

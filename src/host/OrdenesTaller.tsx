@@ -763,7 +763,10 @@ const OrdenesTaller: React.FC = () => {
                                     {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
-                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
+                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" :
+                                                h === "Tipo Trabajo" ? "w-48" :  // 🔥 NUEVO
+                                                    h === "ID" ? "w-12" :
+                                                        h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
                                                 }`}
                                         >
                                             {h}
@@ -812,11 +815,15 @@ const OrdenesTaller: React.FC = () => {
                                                 </td>
 
                                                 {/* Tipo trabajo */}
-                                                <td
-                                                    className="px-4 py-3 max-w-xs align-middle"
-                                                    title={o.tipoTrabajo}
-                                                >
-                                                    {o.tipoTrabajo}
+                                                <td className="px-4 py-3 w-48 max-w-[12rem] align-middle" title={o.tipoTrabajo}>
+                                                    <p className="line-clamp-3 text-sm text-slate-700">
+                                                        {o.tipoTrabajo}
+                                                    </p>
+                                                    {o.descripcion && (
+                                                        <p className="line-clamp-2 text-xs text-slate-400 mt-0.5">
+                                                            {o.descripcion}
+                                                        </p>
+                                                    )}
                                                 </td>
 
                                                 {/* Estado */}
