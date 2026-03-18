@@ -43,18 +43,19 @@ function formatDateTime(iso?: string | null) {
 
 function toDatetimeLocal(iso?: string | null) {
   if (!iso) return "";
-  
+
   const d = new Date(iso);
 
   const pad = (n: number) => String(n).padStart(2, "0");
 
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function StatusBadge({ status }: { status: MantencionStatus | string }) {
   const norm = (status || "").toUpperCase();
   const styles: Record<string, string> = {
     COMPLETADA: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    EN_CURSO: "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200",
   };
   const klass = styles[norm] || "bg-slate-50 text-slate-700 ring-1 ring-slate-200";
   return (
@@ -65,7 +66,7 @@ function StatusBadge({ status }: { status: MantencionStatus | string }) {
 }
 
 /** ✅ Estados disponibles en UI */
-const STATUS: MantencionStatus[] = ["COMPLETADA"];
+const STATUS: MantencionStatus[] = ["EN_CURSO", "COMPLETADA"];
 
 /** ✅ Keys checklist tipadas (sin any) */
 type ChecklistKey = keyof Pick<
@@ -934,7 +935,13 @@ export default function MantencionesRemotasPage() {
                     </button>
                     <button
                       onClick={() => openEdit(r)}
-                      className="rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                      disabled={r.status === "EN_CURSO"}
+                      className={clsx(
+                        "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
+                        r.status === "EN_CURSO"
+                          ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                          : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      )}
                     >
                       Editar
                     </button>
@@ -1030,7 +1037,13 @@ export default function MantencionesRemotasPage() {
                             </button>
                             <button
                               onClick={() => openEdit(r)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                              disabled={r.status === "EN_CURSO"}
+                              className={clsx(
+                                "rounded-xl border px-2 py-2 text-sm transition",
+                                r.status === "EN_CURSO"
+                                  ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                  : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                              )}
                             >
                               Editar
                             </button>
@@ -1207,6 +1220,8 @@ function MantencionUpsertModal(props: {
 
   if (!open) return null;
 
+  const isBlocked = editing?.status === "EN_CURSO";
+
   const canClose = !saving;
 
   return (
@@ -1242,11 +1257,17 @@ function MantencionUpsertModal(props: {
           </button>
         </div>
 
-        <div className={clsx("p-5", saving && "pointer-events-none select-none")}>
+        <div className={clsx("p-5", (saving || isBlocked) && "pointer-events-none select-none")}>
           {/* ✅ Bloqueo real de inputs mientras guarda */}
           {err && (
             <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-sm">
               {err}
+            </div>
+          )}
+
+          {isBlocked && (
+            <div className="mb-3 rounded-2xl border border-yellow-200 bg-yellow-50 text-yellow-700 px-3 py-2 text-sm">
+              ⚠️ Esta mantención está en curso y no puede ser editada hasta que se complete.
             </div>
           )}
 
@@ -1442,10 +1463,10 @@ function MantencionUpsertModal(props: {
 
             <button
               onClick={onSubmit}
-              disabled={saving}
+              disabled={saving || isBlocked}
               className={clsx(
                 "rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-cyan-600 to-indigo-600 hover:brightness-110",
-                saving && "opacity-90 cursor-wait"
+                (saving || isBlocked) && "opacity-50 cursor-not-allowed"
               )}
             >
               <span className="inline-flex items-center gap-2">

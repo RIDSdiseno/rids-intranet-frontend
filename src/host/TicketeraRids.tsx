@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
     Card,
     List,
@@ -187,9 +187,27 @@ export default function TicketeraRids() {
     const [selectedTechnicianId, setSelectedTechnicianId] = useState<number | null>(null);
     const [selectedMainTicketId, setSelectedMainTicketId] = useState<number | null>(null);
 
+    const [toEmails, setToEmails] = useState<string[]>([]);
+    const [ccEmails, setCcEmails] = useState<string[]>([]);
+    const [showCc, setShowCc] = useState(false);
+
+    const [contactos, setContactos] = useState<any[]>([]);
+    const [loadingContactos, setLoadingContactos] = useState(false);
+
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [ticketToDelete, setTicketToDelete] = useState<number | null>(null);
+
     const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
     const replyFileInputRef = useRef<HTMLInputElement>(null);
+
+    const debounce = (fn: any, delay: number) => {
+        let timer: any;
+        return (...args: any[]) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), delay);
+        };
+    };
 
     // Referencia para scroll automático
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -613,16 +631,16 @@ export default function TicketeraRids() {
         const now = new Date();
 
         const from = new Date();
-     from.setDate(now.getDate() - days);
+        from.setDate(now.getDate() - days);
         from.setHours(0, 0, 0, 0);
 
-     setDateRange([
-        from.toISOString(),
-        now.toISOString(),
+        setDateRange([
+            from.toISOString(),
+            now.toISOString(),
         ]);
 
         setActiveRange(`last-${days}`);
-     setPage(1);
+        setPage(1);
     };
 
     const setToday = () => {
@@ -651,6 +669,32 @@ export default function TicketeraRids() {
         ]);
     };
 
+    const handleSearchContactos = async (value: string) => {
+        if (!value) {
+            setContactos([]);
+            return;
+        }
+
+        try {
+            setLoadingContactos(true);
+
+            const resp = await api.get(`/helpdesk/tickets/contactos?search=${value}`);
+
+            if (resp.data?.ok) {
+                setContactos(resp.data.contactos);
+            }
+        } catch (error) {
+            console.error("Error buscando contactos", error);
+        } finally {
+            setLoadingContactos(false);
+        }
+    };
+
+    const debouncedSearchContactos = useMemo(
+        () => debounce(handleSearchContactos, 400),
+        []
+    );
+
     // Función para responder a un ticket (respuesta al cliente o nota interna)
     const responderTicket = async (isInternal: boolean) => {
         const text = isInternal ? internalNoteText : replyText;
@@ -666,6 +710,9 @@ export default function TicketeraRids() {
             const formData = new FormData();
             formData.append("message", text);
             formData.append("isInternal", String(isInternal));
+
+            formData.append("to", JSON.stringify(toEmails));
+            formData.append("cc", JSON.stringify(ccEmails));
 
             replyFiles.forEach(file => {
                 formData.append("attachments", file);
@@ -743,6 +790,32 @@ export default function TicketeraRids() {
                     cc: m.cc ? m.cc.split(",") : [],
                 })),
             });
+
+            const t = data.ticket;
+
+            const defaultTo = [
+                t.requester?.email,
+                t.fromEmail
+            ].filter(Boolean);
+
+            setToEmails(defaultTo);
+
+            // 👉 precargar CC desde el último mensaje si existe
+            const lastMessage = data.ticket.messages?.[0];
+
+            setCcEmails(
+                lastMessage?.cc ? lastMessage.cc.split(",") : []
+            );
+
+            // 👉 template automático
+            setReplyText(`Estimado(a) ${ticket.requester?.nombre ?? ""},
+
+Gracias por contactarnos.
+
+Quedamos atentos a su respuesta.
+
+Saludos cordiales,
+Soporte Técnico`);
         } catch {
             message.error("Error al cargar detalle");
         } finally {
@@ -765,30 +838,31 @@ export default function TicketeraRids() {
             await loadTickets();
             message.success("Ticket actualizado");
 
-        } catch {
-            message.error("No se pudo actualizar el ticket");
+        } catch (error: any) {
+            const msg =
+                error?.response?.data?.message ||
+                "No se pudo actualizar el ticket";
 
+            message.error(msg);
         }
     };
 
-    const handleDelete = async (ticketId: number) => {
-        console.log("🗑 Intentando eliminar ticket:", ticketId);
-        Modal.confirm({
-            title: "¿Eliminar ticket?",
-            content: "Esta acción no se puede deshacer",
-            okText: "Eliminar",
-            okType: "danger",
-            cancelText: "Cancelar",
-            onOk: async () => {
-                try {
-                    await api.delete(`/helpdesk/tickets/${ticketId}`);
-                    message.success("Ticket eliminado correctamente");
-                    loadTickets();
-                } catch {
-                    message.error("No se pudo eliminar el ticket");
-                }
-            },
-        });
+    const handleDelete = (ticketId: number) => {
+        setTicketToDelete(ticketId);
+        setDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!ticketToDelete) return;
+        try {
+            await api.delete(`/helpdesk/tickets/${ticketToDelete}`);
+            message.success("Ticket eliminado correctamente");
+            setDeleteModalOpen(false);
+            setTicketToDelete(null);
+            loadTickets();
+        } catch {
+            message.error("No se pudo eliminar el ticket");
+        }
     };
 
     /* ===================== UI HELPERS ===================== */
@@ -1016,6 +1090,17 @@ export default function TicketeraRids() {
         }
     };
 
+    const puedeCerrarTicket = () => {
+        if (!ticketDetalle?.messages) return false;
+
+        return ticketDetalle.messages.some((m: any) => {
+            return (
+                (m.direction === "OUTBOUND" && !m.isInternal) ||
+                m.isInternal
+            );
+        });
+    };
+
     /* ===================== RENDER ===================== */
     return (
         <div className="min-h-screen bg-gray-50">
@@ -1122,8 +1207,11 @@ export default function TicketeraRids() {
                                         { value: "NEW", label: "Nuevo" },
                                         { value: "OPEN", label: "Abierto" },
                                         { value: "PENDING", label: "Pendiente" },
-                                        { value: "RESOLVED", label: "Resuelto" },
-                                        { value: "CLOSED", label: "Cerrado" },
+                                        {
+                                            value: "CLOSED",
+                                            label: "Cerrado",
+                                            disabled: !puedeCerrarTicket()
+                                        },
                                     ]}
                                 />
 
@@ -1232,14 +1320,6 @@ export default function TicketeraRids() {
                             label: (
                                 <span>
                                     Pendientes <Badge count={getTicketCount("PENDING")} offset={[10, -2]} />
-                                </span>
-                            ),
-                        },
-                        {
-                            key: "RESOLVED",
-                            label: (
-                                <span>
-                                    Resueltos <Badge count={getTicketCount("RESOLVED")} offset={[10, -2]} />
                                 </span>
                             ),
                         },
@@ -1579,6 +1659,21 @@ export default function TicketeraRids() {
                 </div>
             </Modal>
 
+            <Modal
+                title="¿Eliminar ticket?"
+                open={deleteModalOpen}
+                onOk={confirmDelete}
+                onCancel={() => {
+                    setDeleteModalOpen(false);
+                    setTicketToDelete(null);
+                }}
+                okText="Eliminar"
+                okButtonProps={{ danger: true }}
+                cancelText="Cancelar"
+            >
+                <p>Esta acción no se puede deshacer. ¿Estás seguro?</p>
+            </Modal>
+
             {/* ===================== DRAWER CREAR ===================== */}
             <Drawer
                 title="Crear Nuevo Ticket"
@@ -1749,7 +1844,15 @@ export default function TicketeraRids() {
                                 <Descriptions.Item label="Estado">
                                     <Select
                                         value={ticketDetalle.status}
-                                        onChange={(v) => updateTicket({ status: v })}
+                                        onChange={(v) => {
+
+                                            if (v === "CLOSED" && !puedeCerrarTicket()) {
+                                                message.warning("Debes responder o agregar una nota antes de cerrar");
+                                                return;
+                                            }
+
+                                            updateTicket({ status: v });
+                                        }}
                                         options={[
                                             { value: "NEW", label: "Nuevo" },
                                             { value: "OPEN", label: "Abierto" },
@@ -1874,34 +1977,98 @@ export default function TicketeraRids() {
                                             {/* Tarjeta de mensaje */}
                                             <div className={`rounded-lg p-4 shadow-sm border ${bgColor} ${borderColor} border-l-4 hover:shadow-md transition-shadow`}>
                                                 {/* Encabezado del mensaje */}
-                                                <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-sm">
-                                                            {author.name}
-                                                        </span>
-                                                        <span className="text-xs text-gray-500 ml-2">
-                                                            ({author.role})
-                                                        </span>
-                                                        <Tag
-                                                            color={isInternal ? "gold" : isOutbound ? "blue" : "default"}
-                                                            className="text-xs"
-                                                        >
-                                                            {isInternal ? "Interno" : isOutbound ? "Enviado" : "Recibido"}
-                                                        </Tag>
-                                                        {isOutbound && m.author?.nombre && (
-                                                            <span className="text-xs text-gray-500">
-                                                                por {m.author.nombre}
+                                                <div className="mb-3 pb-2 border-b border-gray-200">
+
+                                                    {/* 🔝 Línea principal */}
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium text-sm">
+                                                                {author.name}
                                                             </span>
-                                                        )}
+
+                                                            <span className="text-xs text-gray-500">
+                                                                ({author.role})
+                                                            </span>
+
+                                                            <Tag
+                                                                color={isInternal ? "gold" : isOutbound ? "blue" : "default"}
+                                                                className="text-xs"
+                                                            >
+                                                                {isInternal ? "Interno" : isOutbound ? "Enviado" : "Recibido"}
+                                                            </Tag>
+
+                                                            {isOutbound && m.author?.nombre && (
+                                                                <span className="text-xs text-gray-500">
+                                                                    por {m.author.nombre}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-xs text-gray-500">
+                                                                {formatDateTime(m.createdAt)}
+                                                            </span>
+                                                            <span className="text-xs text-gray-400">
+                                                                {formatMessageTime(m.createdAt)}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="text-xs text-gray-500">
-                                                            {formatDateTime(m.createdAt)}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400">
-                                                            {formatMessageTime(m.createdAt)}
-                                                        </span>
-                                                    </div>
+
+                                                    {/* 🔽 Metadata email (AQUÍ VA LO IMPORTANTE) */}
+                                                    {!m.isInternal && (
+                                                        <div className="mt-2 text-xs text-gray-500 space-y-1">
+
+                                                            {m.fromEmail && (
+                                                                <div>
+                                                                    <span className="font-medium">De:</span> {m.fromEmail}
+                                                                </div>
+                                                            )}
+
+                                                            {(() => {
+                                                                const toRaw = m.toEmail as string | string[] | null | undefined;
+
+                                                                const toList: string[] = Array.isArray(toRaw)
+                                                                    ? toRaw
+                                                                    : typeof toRaw === "string"
+                                                                        ? toRaw.split(",")
+                                                                        : [];
+
+                                                                if (toList.length === 0) return null;
+
+                                                                return (
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        <span className="font-medium">Para:</span>
+                                                                        {toList.map((email: string, i: number) => (
+                                                                            <Tag key={i}>{email}</Tag>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            })()}
+
+                                                            {(() => {
+                                                                const ccRaw = m.cc as string | string[] | null | undefined;
+
+                                                                const ccList: string[] = Array.isArray(ccRaw)
+                                                                    ? ccRaw
+                                                                    : typeof ccRaw === "string"
+                                                                        ? ccRaw.split(",")
+                                                                        : [];
+
+                                                                if (ccList.length === 0) return null;
+
+                                                                return (
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        <span className="font-medium">CC:</span>
+                                                                        {ccList.map((email: string, i: number) => (
+                                                                            <Tag key={i}>{email}</Tag>
+                                                                        ))}
+                                                                    </div>
+                                                                );
+                                                            })()}
+
+                                                        </div>
+                                                    )}
+
                                                 </div>
 
                                                 {/* Aviso si hay imágenes CID no renderizables */}
@@ -1995,6 +2162,62 @@ export default function TicketeraRids() {
                                         ),
                                         children: (
                                             <div className="space-y-4">
+
+                                                {/* TO */}
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-xs text-gray-500">Para:</span>
+
+                                                        {!showCc && (
+                                                            <Button
+                                                                size="small"
+                                                                type="link"
+                                                                onClick={() => setShowCc(true)}
+                                                            >
+                                                                CC
+                                                            </Button>
+                                                        )}
+                                                    </div>
+
+                                                    <Select
+                                                        mode="tags"
+                                                        showSearch
+                                                        placeholder="Agregar destinatarios"
+                                                        value={toEmails}
+                                                        onChange={setToEmails}
+                                                        onSearch={debouncedSearchContactos}
+                                                        loading={loadingContactos}
+                                                        options={contactos.map((c) => ({
+                                                            label: `${c.nombre} (${c.email})`,
+                                                            value: c.email,
+                                                        }))}
+                                                        style={{ width: "100%" }}
+                                                    />
+                                                </div>
+
+                                                {/* CC */}
+                                                {showCc && (
+                                                    <div>
+                                                        <span className="text-xs text-gray-500">CC:</span>
+
+                                                        <Select
+                                                            mode="tags"
+                                                            showSearch
+                                                            placeholder="Agregar CC"
+                                                            value={ccEmails}
+                                                            onChange={setCcEmails}
+                                                            onSearch={debouncedSearchContactos}
+                                                            loading={loadingContactos}
+                                                            options={contactos.map((c) => ({
+                                                                label: `${c.nombre} (${c.email})`,
+                                                                value: c.email,
+                                                            }))}
+                                                            style={{ width: "100%" }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* TEXTO */}
                                                 <Input.TextArea
                                                     rows={4}
                                                     value={replyText}
@@ -2004,11 +2227,6 @@ export default function TicketeraRids() {
                                                     autoSize={{ minRows: 3, maxRows: 6 }}
                                                 />
                                                 <div className="flex justify-between items-center">
-                                                    <Space>
-                                                        <Button icon={<PhoneOutlined />} size="small">
-                                                            Registrar llamada
-                                                        </Button>
-                                                    </Space>
                                                     <Space>
                                                         {/* INPUT OCULTO */}
                                                         <input
