@@ -29,7 +29,7 @@ import {
     StarFilled
 } from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http"; // 🔥 ajusta ruta
 
 const { Text } = Typography;
 
@@ -66,7 +66,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
             const values = await form.validateFields();
             setSaving(true);
 
-            await api.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
+            await http.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
                 razonSocial: values.razonSocial,
                 rut: values.rut,
                 direccion: values.direccion,

@@ -103,6 +103,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
     <!-- EQUIPO -->
     <div style="flex: 1; border: 1px solid #d1d5db; padding: 15px; border-radius: 10px; background: #eef6ff;" class="pdf-section">
         <h3 style="margin: 0 0 10px; font-size: 30px;">Datos del Equipo</h3>
+        <p><b>Solicitante:</b> ${orden.equipo?.solicitante?.nombre ?? "—"}</p>
         <p><b>Marca:</b> ${orden.equipo?.marca ?? "—"}</p>
 <p><b>Modelo:</b> ${orden.equipo?.modelo ?? "—"}</p>
         <p><b>Tipo:</b> ${tipoEquipoLabel}</p>

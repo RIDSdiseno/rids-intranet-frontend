@@ -57,6 +57,13 @@ import {
     calcularLineaItem
 } from "../components/modals-cotizaciones/utils";
 
+import CrearEquipoModal from "../components/CrearEquipo";
+import type { EquipoDTO } from "../components/CrearEquipo";
+
+import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquipo"
+
+import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
+
 type EstadoDTE =
     | "EMITIDO"
     | "RECIBIDO"
@@ -145,6 +152,10 @@ const Cotizaciones: React.FC = () => {
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
 
     const [filtroMes, setFiltroMes] = useState<string>("");
+
+    const [showSelectEquipo, setShowSelectEquipo] = useState(false);
+    const [equiposDisponibles, setEquiposDisponibles] = useState<EquipoOption[]>([]);
+    const [itemEquipoActual, setItemEquipoActual] = useState<CotizacionItemGestioo | null>(null);
 
     const [tecnicos, setTecnicos] = useState<
         { id_tecnico: number; nombre: string }[]
@@ -245,6 +256,10 @@ const Cotizaciones: React.FC = () => {
     const [origenEditProducto, setOrigenEditProducto] =
         useState<"catalogo" | "cotizacion" | null>(null);
 
+    const [showCrearEquipoDesdeItem, setShowCrearEquipoDesdeItem] = useState(false);
+    const [itemParaEquipo, setItemParaEquipo] = useState<CotizacionItemGestioo | null>(null);
+    const [modoEquipoEdit, setModoEquipoEdit] = useState(false);
+    const [loadingEquipos, setLoadingEquipos] = useState(false);
 
     // === MANEJO DE ERRORES Y ÉXITOS ===
     const handleApiError = useCallback((error: any, defaultMessage: string) => {
@@ -302,6 +317,165 @@ const Cotizaciones: React.FC = () => {
         setToast({ type: "success", message });
         setTimeout(() => setToast(null), 3000);
     }, []);
+
+    const handleAbrirCrearEquipoDesdeItem = (item: CotizacionItemGestioo, esEdicion = false) => {
+        setItemParaEquipo(item);
+        setModoEquipoEdit(esEdicion);
+        setShowCrearEquipoDesdeItem(true);
+    };
+
+    const handleAbrirSeleccionEquipo = async (
+        item: CotizacionItemGestioo,
+        esEdicion = false
+    ) => {
+        setItemEquipoActual(item);
+        setModoEquipoEdit(esEdicion);
+        setShowSelectEquipo(true);
+        await fetchEquiposDisponibles();
+    };
+
+    const handleSeleccionarEquipoExistente = async (equipo: EquipoOption) => {
+        if (!itemEquipoActual) return;
+
+        const equipoResumen = {
+            id_equipo: equipo.id_equipo,
+            serial: equipo.serial,
+            marca: equipo.marca,
+            modelo: equipo.modelo,
+        };
+
+        try {
+            // 1) Actualizar visualmente en edición
+            if (modoEquipoEdit && selectedCotizacion) {
+                setSelectedCotizacion(prev => ({
+                    ...prev!,
+                    items: prev!.items.map(i =>
+                        i.id === itemEquipoActual.id
+                            ? {
+                                ...i,
+                                equipoId: equipo.id_equipo,
+                                equipo: equipoResumen,
+                            }
+                            : i
+                    ),
+                }));
+            } else {
+                // 2) Actualizar visualmente en creación
+                setItems(prev =>
+                    prev.map(i =>
+                        i.id === itemEquipoActual.id
+                            ? {
+                                ...i,
+                                equipoId: equipo.id_equipo,
+                                equipo: equipoResumen,
+                            }
+                            : i
+                    )
+                );
+            }
+
+            // 3) Persistir en backend si el item ya existe
+            if (typeof itemEquipoActual.id === "number" && itemEquipoActual.id > 0) {
+                await handleVincularEquipoAItem(itemEquipoActual.id, equipo.id_equipo);
+            }
+
+            // 4) Cerrar selector
+            setShowSelectEquipo(false);
+            setItemEquipoActual(null);
+
+            showSuccess("Equipo vinculado correctamente");
+        } catch (error) {
+            handleApiError(error, "Error al seleccionar equipo");
+        }
+    };
+
+    const handleVincularEquipoAItem = async (
+        itemId: number,
+        equipoId: number | null
+    ) => {
+        try {
+            let itemActualizado: any = null;
+
+            // 🔥 IDs temporales son muy grandes (Date.now() ~ 13 dígitos)
+            // IDs reales de BD son pequeños (1, 2, 3...)
+            const esItemReal = typeof itemId === "number" && itemId > 0 && itemId < 1_000_000_000;
+
+            if (esItemReal) {
+                const resp = await apiFetch(`/cotizaciones/items/${itemId}/equipo`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ equipoId }),
+                });
+
+                itemActualizado = resp.item || resp.data?.item || resp.data || null;
+            }
+
+            if (modoEquipoEdit && selectedCotizacion) {
+                setSelectedCotizacion(prev => ({
+                    ...prev!,
+                    items: prev!.items.map(i =>
+                        i.id === itemId
+                            ? {
+                                ...i,
+                                equipoId: itemActualizado?.equipoId ?? equipoId,
+                                equipo: itemActualizado?.equipo ?? (equipoId ? i.equipo : null),
+                            }
+                            : i
+                    ),
+                }));
+            } else {
+                setItems(prev =>
+                    prev.map(i =>
+                        i.id === itemId
+                            ? {
+                                ...i,
+                                equipoId: itemActualizado?.equipoId ?? equipoId,
+                                equipo: itemActualizado?.equipo ?? (equipoId ? i.equipo : null),
+                            }
+                            : i
+                    )
+                );
+            }
+        } catch (error) {
+            handleApiError(error, "Error al vincular/desvincular equipo");
+        }
+    };
+
+    const handleEquipoCreado = (nuevoEquipo: EquipoDTO) => {
+        console.log("🔥 equipo creado:", nuevoEquipo);
+
+        if (!itemParaEquipo) return;
+
+        const equipoResumen = {
+            id_equipo: nuevoEquipo.id_equipo,
+            serial: nuevoEquipo.serial,
+            marca: nuevoEquipo.marca,
+            modelo: nuevoEquipo.modelo,
+        };
+
+        if (modoEquipoEdit && selectedCotizacion) {
+            setSelectedCotizacion(prev => ({
+                ...prev!,
+                items: prev!.items.map(i =>
+                    i.id === itemParaEquipo.id
+                        ? { ...i, equipoId: nuevoEquipo.id_equipo, equipo: equipoResumen }
+                        : i
+                ),
+            }));
+        } else {
+            setItems(prev =>
+                prev.map(i =>
+                    i.id === itemParaEquipo.id
+                        ? { ...i, equipoId: nuevoEquipo.id_equipo, equipo: equipoResumen }
+                        : i
+                )
+            );
+        }
+
+        setShowCrearEquipoDesdeItem(false);
+        setItemParaEquipo(null);
+        showSuccess("Equipo creado y vinculado al item");
+    };
 
     // === EFECTOS ===
     useEffect(() => {
@@ -374,6 +548,27 @@ const Cotizaciones: React.FC = () => {
 
         } catch (err) {
             handleApiError(err, "Error al cargar cotizaciones");
+        }
+    };
+
+    const fetchEquiposDisponibles = async () => {
+        try {
+            setLoadingEquipos(true);
+
+            const params = new URLSearchParams({
+                page: "1",
+                pageSize: "1000",
+            });
+
+            const resp = await apiFetch(`/equipos?${params.toString()}`);
+            const data = resp?.data ?? resp;
+
+            setEquiposDisponibles(data?.items ?? []);
+        } catch (error) {
+            handleApiError(error, "Error al cargar equipos");
+            setEquiposDisponibles([]);
+        } finally {
+            setLoadingEquipos(false);
         }
     };
 
@@ -611,22 +806,22 @@ const Cotizaciones: React.FC = () => {
                     nombre: item.nombre,
                     descripcion: item.descripcion,
                     cantidad: item.cantidad,
-
-                    // 🔥 CLP REAL
                     precio: precioCLP,
                     precioOriginalCLP: precioCLP,
-
                     precioCosto: precioCostoCLP,
                     porcentaje: item.porcentaje || null,
                     tieneIVA: item.tieneIVA || false,
                     tieneDescuento: item.tieneDescuento || false,
-
                     sku: item.sku || null,
                     porcGanancia: item.porcGanancia || null,
                     seccionId: item.seccionId,
                     imagen: item.imagen || null,
+                    equipoId: item.equipoId ?? null,
                 };
             });
+
+            console.log("🔥 itemsParaEnviar:", itemsParaEnviar);
+            console.log("🔥 equipoId primer item:", itemsParaEnviar[0]?.equipoId);
 
             // === 3️⃣ CALCULAR TOTALES REALES EN CLP ===
             const totales = calcularTotales(itemsParaEnviar);
@@ -730,13 +925,10 @@ const Cotizaciones: React.FC = () => {
             // ================================
 
             const fecha = new Date().toLocaleDateString("es-CL");
-            const etiquetaCopia = `(Copia ${fecha})`;
 
-            const comentarioOriginal = cotCompleta.comentariosCotizacion || "";
-
-            const comentarioCopia = comentarioOriginal.includes("(Copia")
-                ? comentarioOriginal
-                : `${comentarioOriginal} ${etiquetaCopia}`.trim();
+            const comentarioCopia =
+                `(Copia de cotización #${cotCompleta.id} - ${fecha}) ` +
+                (cotCompleta.comentariosCotizacion || "");
 
             // ================================
             // 3️⃣ NORMALIZAR ITEMS
@@ -803,9 +995,6 @@ const Cotizaciones: React.FC = () => {
         }
 
         try {
-            // ================================
-            // 1️⃣ VALIDACIONES
-            // ================================
             const errores = validarCotizacion(selectedCotizacion);
             if (errores.length > 0) {
                 handleApiError(
@@ -815,36 +1004,33 @@ const Cotizaciones: React.FC = () => {
                 return;
             }
 
-            // ================================
-            // 2️⃣ MONEDA Y TASA
-            // ================================
             const moneda = selectedCotizacion.moneda || "CLP";
             const tasaCambio =
                 moneda === "USD"
                     ? Number(selectedCotizacion.tasaCambio) || 1
                     : 1;
 
-            // ================================
-            // 3️⃣ NORMALIZAR ITEMS (ÚNICA VEZ)
-            // ================================
-            const itemsNormalizados = selectedCotizacion.items.map(item =>
-                normalizarItemCotizacion(item, moneda, tasaCambio)
-            );
+            const itemsNormalizados = selectedCotizacion.items.map(item => {
+                const normalizado = normalizarItemCotizacion(item, moneda, tasaCambio);
 
-            // ================================
-            // 4️⃣ CALCULAR TOTALES (CLP REAL)
-            // ================================
+                return {
+                    ...normalizado,
+                    equipoId: item.equipoId ?? null,
+                    equipo: item.equipo ?? null,
+                };
+            });
+
+            console.log("🧪 selectedCotizacion.items:", selectedCotizacion.items);
+            console.log("🧪 itemsNormalizados:", itemsNormalizados);
+
             const { total } = calcularTotales(itemsNormalizados as any);
 
-            // ================================
-            // 5️⃣ ARMAR PAYLOAD FINAL
-            // ================================
             const cotizacionData = {
                 tipo: selectedCotizacion.tipo,
                 estado: selectedCotizacion.estado,
-                entidadId: selectedCotizacion.entidadId,
+                entidadId: selectedCotizacion.entidadId ?? selectedCotizacion.entidad?.id,
                 fecha: selectedCotizacion.fecha,
-                total,                       // 👈 CLP REAL
+                total,
                 moneda,
                 tasaCambio,
                 comentariosCotizacion:
@@ -856,7 +1042,6 @@ const Cotizaciones: React.FC = () => {
                 imagen: selectedCotizacion.imagen || null,
             };
 
-            // Actualizar entidad si fue modificada
             const entidadId = selectedCotizacion.entidad?.id;
 
             if (entidadId) {
@@ -874,9 +1059,6 @@ const Cotizaciones: React.FC = () => {
                 });
             }
 
-            // ================================
-            // 6️⃣ ENVIAR AL BACKEND
-            // ================================
             const updated = await apiFetch(
                 `/cotizaciones/${selectedCotizacion.id}`,
                 {
@@ -886,9 +1068,6 @@ const Cotizaciones: React.FC = () => {
                 }
             );
 
-            // ================================
-            // 7️⃣ ACTUALIZAR UI
-            // ================================
             setCotizaciones(prev =>
                 prev.map(c =>
                     c.id === selectedCotizacion.id
@@ -1444,57 +1623,47 @@ const Cotizaciones: React.FC = () => {
         try {
             console.log("🔥 Cotización recibida:", cotizacion);
 
-            // ================================
-            // 1️⃣ ASEGURAR CATÁLOGO
-            // ================================
+            // 1) Traer cotización completa y fresca desde backend
+            const resp = await apiFetch(`/cotizaciones/${cotizacion.id}`);
+            const cotCompleta = resp.data || resp;
+
+            // 2) Asegurar catálogo
             await fetchCatalogo();
 
-            // ================================
-            // 2️⃣ OBTENER ITEMS (fallback seguro)
-            // ================================
-            let items: any[] = [];
-
-            if (!cotizacion.items || !Array.isArray(cotizacion.items) || cotizacion.items.length === 0) {
-                items = await recargarItemsCotizacion(cotizacion.id);
-            } else {
-                items = cotizacion.items;
-            }
-
-            // ================================
-            // 3️⃣ MONEDA Y TASA
-            // ================================
-            const moneda = cotizacion.moneda || "CLP";
+            // 3) Moneda y tasa
+            const moneda = cotCompleta.moneda || "CLP";
             const tasaCambio =
                 moneda === "USD"
-                    ? Number(cotizacion.tasaCambio) || 1
+                    ? Number(cotCompleta.tasaCambio) || 1
                     : 1;
 
-            // ================================
-            // 4️⃣ NORMALIZAR ITEMS (ÚNICA VEZ)
-            // ================================
-            const itemsNormalizados = items.map(item =>
+            // 4) Items reales desde backend
+            const items = Array.isArray(cotCompleta.items) ? cotCompleta.items : [];
+
+            // 5) Normalizar una sola vez
+            const itemsNormalizados = items.map((item: any) =>
                 normalizarItemCotizacion(item, moneda, tasaCambio)
             );
 
-            // ================================
-            // 5️⃣ ARMAR COTIZACIÓN PARA EDICIÓN
-            // ================================
+            // Logs de validación
+            console.log("🧩 items editables:", itemsNormalizados);
+            console.log("🧩 primer item editable:", itemsNormalizados[0]);
+            console.log("🧩 equipoId:", itemsNormalizados[0]?.equipoId);
+            console.log("🧩 equipo:", itemsNormalizados[0]?.equipo);
+
+            // 6) Armar cotización editable usando cotCompleta, no cotizacion
             const cotizacionEditable: CotizacionGestioo = {
-                ...cotizacion,
+                ...cotCompleta,
                 moneda,
                 tasaCambio,
-                comentariosCotizacion:
-                    cotizacion.comentariosCotizacion ?? "",
-                imagen: cotizacion.imagen ?? null,
+                comentariosCotizacion: cotCompleta.comentariosCotizacion ?? "",
+                imagen: cotCompleta.imagen ?? null,
                 items: itemsNormalizados,
             };
 
-            // ================================
-            // 6️⃣ ABRIR MODAL
-            // ================================
+            // 7) Abrir modal
             setSelectedCotizacion(cotizacionEditable);
             setShowEditModal(true);
-
         } catch (error) {
             handleApiError(error, "Error al cargar cotización para editar");
         }
@@ -2309,6 +2478,10 @@ const Cotizaciones: React.FC = () => {
 
                 totales={totales}
                 apiLoading={apiLoading}
+
+                onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, false)}
+                onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, false)}
+                onVincularEquipo={handleVincularEquipoAItem}
             />
 
             <EditCotizacionModal
@@ -2327,6 +2500,10 @@ const Cotizaciones: React.FC = () => {
                 }}
                 onEditarProducto={abrirEditarItem}
                 onItemChange={handleItemChange}
+
+                onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
+                onVincularEquipo={handleVincularEquipoAItem}
+                onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
             />
             <SelectProductoModal
                 show={showSelectorProducto}
@@ -2518,6 +2695,30 @@ const Cotizaciones: React.FC = () => {
                     }
                 }}
                 apiLoading={apiLoading}
+            />
+
+            <CrearEquipoModal
+                open={showCrearEquipoDesdeItem}
+                onClose={() => {
+                    setShowCrearEquipoDesdeItem(false);
+                    setItemParaEquipo(null);
+                }}
+                defaultValues={{
+                    serial: itemParaEquipo?.sku ?? undefined,
+                    precioVenta: itemParaEquipo?.precio,
+                }}
+                onCreated={handleEquipoCreado}
+            />
+
+            <SelectEquipoModal
+                show={showSelectEquipo}
+                equipos={equiposDisponibles}
+                loading={loadingEquipos}
+                onClose={() => {
+                    setShowSelectEquipo(false);
+                    setItemEquipoActual(null);
+                }}
+                onSelect={handleSeleccionarEquipoExistente}
             />
 
             {/* Toast */}

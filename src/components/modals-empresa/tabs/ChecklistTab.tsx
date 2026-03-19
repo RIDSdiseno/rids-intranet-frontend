@@ -21,7 +21,7 @@ import {
 } from "@ant-design/icons";
 import type { ChecklistKey, ChecklistState } from "../../../config/checklistTypes";
 import type { ChecklistTabProps } from "../types";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http"; // 🔥 ajusta ruta
 
 const DEFAULT_CHECKLIST: ChecklistState = {
     levantamientoEquipos: false,
@@ -107,7 +107,7 @@ const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpd
     const onSave = async () => {
         try {
             setSaving(true);
-            await api.put(`/ficha-empresa/${empresaId}/checklist`, state);
+            await http.put(`/ficha-empresa/${empresaId}/checklist`, state);
             message.success("Checklist guardado correctamente");
             setHasChanges(false);
             onUpdated?.();

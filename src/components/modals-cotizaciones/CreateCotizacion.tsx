@@ -8,6 +8,7 @@ import {
     FileTextOutlined,
     DeleteOutlined,
     EditOutlined,
+    SearchOutlined
 } from "@ant-design/icons";
 import type {
     FormData,
@@ -51,6 +52,9 @@ interface CreateCotizacionModalProps {
     onCrearServicio: () => void;
     totales: any;
     apiLoading: boolean;
+    onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;
+    onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
+    onVincularEquipo?: (itemId: number, equipoId: number | null) => void;
 }
 
 const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
@@ -76,6 +80,9 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     onCrearServicio,
     totales,
     apiLoading,
+    onAbrirCrearEquipo,
+    onAbrirSeleccionEquipo,
+    onVincularEquipo,
 }) => {
 
     // Estados para modales de edición
@@ -496,6 +503,42 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                         <DeleteOutlined className="text-lg" />
                     </button>
                 </td>
+
+                {/* EQUIPO - Solo para productos */}
+                <td className="px-3 py-2 text-center">
+                    {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
+                        item.equipoId ? (
+                            <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium max-w-[120px] truncate">
+                                    {item.equipo?.serial ?? `#${item.equipoId}`}
+                                </span>
+                                <button
+                                    onClick={() => onVincularEquipo?.(item.id, null)}
+                                    className="text-red-400 hover:text-red-600 text-xs underline"
+                                >
+                                    Desvincular
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center gap-1">
+                                <button
+                                    onClick={() => onAbrirCrearEquipo?.(item)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-cyan-300 text-cyan-600 rounded-lg text-xs hover:bg-cyan-50 transition whitespace-nowrap"
+                                >
+                                    <PlusOutlined /> Crear
+                                </button>
+                                <button
+                                    onClick={() => onAbrirSeleccionEquipo?.(item)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-emerald-300 text-emerald-600 rounded-lg text-xs hover:bg-emerald-50 transition whitespace-nowrap"
+                                >
+                                    <SearchOutlined /> Existente
+                                </button>
+                            </div>
+                        )
+                    ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                    )}
+                </td>
             </tr>
         );
     };
@@ -530,7 +573,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     {/* Tipo de Entidad */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Tipo de Entidad
+                                            Tipo de Entidad <span className="text-rose-500">*</span>
                                         </label>
                                         <select
                                             value={formData.tipoEntidad}
@@ -619,7 +662,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     {/* Selector de Entidad */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-600 mb-1">
-                                            Entidad
+                                            Entidad <span className="text-rose-500">*</span>
                                         </label>
 
                                         <Select
@@ -733,7 +776,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 <div className="space-y-4">
                                     {/* Tipo */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Tipo <span className="text-rose-500">*</span></label>
                                         <select
                                             className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                             defaultValue={TipoCotizacionGestioo.CLIENTE}
@@ -785,9 +828,9 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                         </div>
 
                                         {/* Moneda */}
-                                        <div className="border-t border-slate-200 pt-3">
+                                        <div className="pt-3">
                                             <label className="block text-xs font-medium text-slate-600 mb-2">
-                                                Moneda de Cotización
+                                                Moneda de Cotización <span className="text-rose-500">*</span>
                                             </label>
                                             <select
                                                 value={formData.moneda}
@@ -938,7 +981,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                             {/* BOTONES DE PRODUCTOS / SERVICIOS - Solo si hay sección activa */}
                             {seccionActiva && (
-                                <div className="border border-cyan-200 rounded-2xl p-4 bg-white md:col-span-2">
+                                <div className="border border-cyan-200 rounded-2xl p-4 bg-white md:col-span-2 flex flex-wrap gap-3">
                                     <button
                                         type="button"
                                         onClick={() => onCargarProductos(true)}
@@ -1016,6 +1059,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                 <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Neto sin IVA</th>
                                                 <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Total con IVA</th>
                                                 <th className="px-3 py-2 text-right w-16"></th>
+                                                <th className="px-3 py-2 text-center border-l border-cyan-200 w-32">Equipo</th>
                                             </tr>
                                         </thead>
                                         <tbody>

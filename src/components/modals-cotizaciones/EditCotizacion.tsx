@@ -12,6 +12,7 @@ import {
     TagOutlined,
     InfoCircleOutlined,
     EditOutlined,
+    SearchOutlined
 } from "@ant-design/icons";
 import {
     type CotizacionGestioo,
@@ -41,6 +42,9 @@ interface EditCotizacionModalProps {
     onUpdateRealTime?: (itemActualizado: any) => void;
     onEditarProducto: (item: CotizacionItemGestioo) => void; // 👈 ESTA
     onItemChange: (index: number, field: string, value: any) => void;
+    onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;  // 🔥 NUEVO
+    onVincularEquipo?: (itemId: number, equipoId: number | null) => void;  // 🔥 NUEVO
+    onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
 }
 
 const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
@@ -55,7 +59,10 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     apiLoading,
     onCrearProducto,
     onUpdateRealTime,
-    onEditarProducto
+    onEditarProducto,
+    onAbrirCrearEquipo,
+    onVincularEquipo,
+    onAbrirSeleccionEquipo,
 }) => {
 
     // ==========================
@@ -721,6 +728,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-20">
                                                         Acción
                                                     </th>
+                                                    <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700 w-40">
+                                                        Equipo
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -767,7 +777,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                                         return (
                                                             <tr
-                                                                key={`${item.id}-${index}`}
+                                                                key={item.id}
                                                                 className={`border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors ${item.tipo ===
                                                                     ItemTipoGestioo.ADICIONAL
                                                                     ? "bg-rose-50/30 hover:bg-rose-50/50"
@@ -1030,6 +1040,49 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             <DeleteOutlined className="text-lg" />
                                                                         </button>
                                                                     </div>
+                                                                </td>
+                                                                {/* EQUIPO */}
+                                                                <td className="px-4 py-4 text-center">
+                                                                    {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
+                                                                        item.equipoId ? (
+                                                                            <div className="flex flex-col items-center gap-1">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium max-w-[120px] truncate">
+                                                                                    {item.equipo?.serial ?? `#${item.equipoId}`}
+                                                                                </span>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        const updated = itemsLocal.map(i =>
+                                                                                            i.id === item.id ? { ...i, equipoId: null, equipo: null } : i
+                                                                                        );
+                                                                                        syncItems(updated);
+                                                                                        if (typeof item.id === "number" && item.id > 0) {
+                                                                                            onVincularEquipo?.(item.id, null);
+                                                                                        }
+                                                                                    }}
+                                                                                    className="text-red-400 hover:text-red-600 text-xs underline"
+                                                                                >
+                                                                                    Desvincular
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex flex-col items-center gap-1">
+                                                                                <button
+                                                                                    onClick={() => onAbrirCrearEquipo?.(item)}
+                                                                                    className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-cyan-300 text-cyan-600 rounded-lg text-xs hover:bg-cyan-50 transition whitespace-nowrap"
+                                                                                >
+                                                                                    <PlusOutlined /> Crear
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => onAbrirSeleccionEquipo?.(item)}
+                                                                                    className="inline-flex items-center gap-1 px-2 py-1 border border-dashed border-emerald-300 text-emerald-600 rounded-lg text-xs hover:bg-emerald-50 transition whitespace-nowrap"
+                                                                                >
+                                                                                    <SearchOutlined /> Existente
+                                                                                </button>
+                                                                            </div>
+                                                                        )
+                                                                    ) : (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    )}
                                                                 </td>
                                                             </tr>
                                                         );

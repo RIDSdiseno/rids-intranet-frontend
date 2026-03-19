@@ -20,6 +20,8 @@ import CreateVisitaModal, {
 
 import { useAuth } from "../components/hooks/useAuth";
 
+import { http } from "../service/http";
+
 /* ========= Tipado mínimo para xlsx-populate (sin any) ========= */
 type ValueT = string | number | boolean | Date | null | undefined;
 interface Styled { style(s: Record<string, ValueT>): this; }
@@ -41,6 +43,8 @@ type VisitaRow = VisitaDetail & {
   empresa?: { id_empresa: number; nombre: string } | null;
   tecnico?: { id_tecnico: number; nombre: string } | null;
   solicitanteRef?: { id_solicitante: number; nombre: string } | null;
+  direccion_visita?: string | null
+  sucursal?: { id_sucursal: number; nombre: string } | null
 };
 
 /* ========= Config ========= */
@@ -394,7 +398,6 @@ async function fetchAllVisitasForExport(
   monthFilter: string,
   yearFilter: string
 ): Promise<VisitaRow[]> {
-  const token = localStorage.getItem("accessToken");
   const all: VisitaRow[] = [];
   let page = 1;
   const pageSize = 100; // coincide con el límite del backend
@@ -412,22 +415,8 @@ async function fetchAllVisitasForExport(
 
     url.searchParams.set("_ts", String(Date.now()));
 
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: "include",
-      cache: "no-store",
-    });
-
-    if (!res.ok && res.status !== 204) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    if (res.status === 204) break;
-
-    const json = (await res.json()) as ApiList<VisitaRow>;
+    const res = await http.get(url.toString());
+    const json = res.data as ApiList<VisitaRow>;
     const items = json.items ?? [];
     all.push(...items);
 
@@ -487,80 +476,48 @@ const VisitasPage: React.FC = () => {
   /* === useCallback para cumplir exhaustive-deps === */
   const fetchFilters = useCallback(async (signal?: AbortSignal) => {
     try {
-      const url = new URL(`${API_URL}/visitas/filters`);
-      const token = localStorage.getItem("accessToken");
-      const r = await fetch(url.toString(), {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const json = await r.json() as { tecnicos: TecnicoMini[]; empresas: EmpresaMini[] };
+      const r = await http.get("/visitas/filters");
+      const json = r.data as { tecnicos: TecnicoMini[]; empresas: EmpresaMini[] };
+
       setTecnicos(json.tecnicos || []);
       setEmpresas(json.empresas || []);
-    } catch {
-      /* noop */
+    } catch (err) {
+      console.error("Error cargando filtros:", err);
     }
   }, []);
 
   const fetchList = useCallback(async (signal?: AbortSignal) => {
     const seq = ++reqSeqRef.current;
+
     try {
       setLoading(true);
       setError(null);
-      const url = new URL(`${API_URL}/visitas`);
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
-      if (qDebounced.trim()) url.searchParams.set("q", qDebounced.trim());
-      if (tecnicoId) url.searchParams.set("tecnicoId", String(tecnicoId));
-      if (empresaId) url.searchParams.set("empresaId", String(empresaId));
-      if (monthFilter) url.searchParams.set("month", monthFilter);
-      if (yearFilter) url.searchParams.set("year", yearFilter);
-      url.searchParams.set("_ts", String(Date.now()));
-      const token = localStorage.getItem("accessToken");
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        cache: "no-store",
-        credentials: "include",
+
+      const res = await http.get("/visitas", {
         signal,
-      });
-      if (seq !== reqSeqRef.current) return;
-      if (!res.ok && res.status !== 204) {
-        let apiErr = `HTTP ${res.status}`;
-        try {
-          const payload = await res.json() as { error?: string };
-          apiErr = payload?.error || apiErr;
-        } catch {
-          //
+        params: {
+          page,
+          pageSize: PAGE_SIZE,
+          q: qDebounced.trim() || undefined,
+          tecnicoId: tecnicoId || undefined,
+          empresaId: empresaId || undefined,
+          month: monthFilter || undefined,
+          year: yearFilter || undefined,
+          _ts: Date.now()
         }
-        throw new Error(apiErr);
-      }
-      if (res.status === 204) {
-        setData({ page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
-        return;
-      }
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("application/json")) {
-        setData(await res.json() as ApiList<VisitaRow>);
-      } else {
-        const text = await res.text();
-        const json = text ? (JSON.parse(text) as ApiList<VisitaRow>) : null;
-        setData(json ?? { page, pageSize: PAGE_SIZE, total: 0, totalPages: 1, items: [] });
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setError((err as Error)?.message || "Error al cargar visitas");
-      }
+      });
+
+      if (seq !== reqSeqRef.current) return;
+
+      const json = res.data as ApiList<VisitaRow>;
+      setData(json);
+
+    } catch (err: any) {
+      if (err?.code === "ERR_CANCELED") return;
+
+      console.error("Error visitas:", err);
+
+      setError(err?.message || "Error al cargar visitas");
     } finally {
       if (seq === reqSeqRef.current) setLoading(false);
     }
@@ -606,6 +563,8 @@ const VisitasPage: React.FC = () => {
       empresaId: row.empresaId,
       tecnicoId: row.tecnicoId,
       solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? "",
+      direccion_visita: row.direccion_visita ?? null,
+      sucursal: row.sucursal ?? null,
       inicio: row.inicio,
       fin: row.fin ?? null,
       confImpresoras: row.confImpresoras,
@@ -630,23 +589,7 @@ const VisitasPage: React.FC = () => {
   };
 
   async function apiDeleteVisita(id: number) {
-    const token = localStorage.getItem("accessToken");
-    const r = await fetch(`${API_URL}/visitas/${id}`, {
-      method: "DELETE",
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!(r.ok || r.status === 204)) {
-      let msg = `HTTP ${r.status}`;
-      try {
-        const j = await r.json() as { error?: string };
-        msg = j?.error || msg;
-      } catch {
-        /* noop */
-      }
-      throw new Error(msg);
-    }
+    await http.delete(`/visitas/${id}`);
   }
 
   const onClickEdit = (row: VisitaRow) => {

@@ -51,8 +51,7 @@ import { ModalOrden } from "../components/modals-gestioo/ModalOrden";
 import { ModalEditarEntidad } from "../components/modals-gestioo/ModalEditarEntidad";
 import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrden";
 
-// API URL
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+import { http } from "../service/http";
 
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
@@ -130,17 +129,7 @@ const OrdenesTaller: React.FC = () => {
                 incluyeCargador: orden.incluyeCargador ?? false,
             };
 
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(payload),
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Error al crear orden de salida");
-            }
+            await http.post("/detalle-trabajo-gestioo", payload);
 
             setToast({
                 type: "success",
@@ -194,16 +183,14 @@ const OrdenesTaller: React.FC = () => {
     const [areaFiltro, setAreaFiltro] = useState<"todas" | Area>("todas");
     const [origenFiltro, setOrigenFiltro] = useState<"todas" | OrigenGestioo>("todas");
     const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
+    const [tecnicoFiltro, setTecnicoFiltro] = useState<number | "todos">("todos");
 
     /* ======= Fetch ======= */
     const fetchOrdenes = async () => {
         try {
             setLoading(true);
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, { credentials: "include" });
+            const { data } = await http.get("/detalle-trabajo-gestioo");
 
-            if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
-
-            const data = await res.json();
             const lista = Array.isArray(data) ? data : data.data ?? data.items ?? [];
             lista.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
             setOrdenes(lista);
@@ -217,10 +204,8 @@ const OrdenesTaller: React.FC = () => {
 
     const fetchSelectData = async () => {
         try {
-            const eRes = await fetch(`${API_URL}/entidades`, { credentials: "include" });
-            if (!eRes.ok) throw new Error("Error al cargar entidades");
-            const e = await eRes.json();
-            setEntidades(e.data ?? e.items ?? e ?? []);
+            const { data } = await http.get("/entidades");
+            setEntidades(data.data ?? data.items ?? data ?? []);
         } catch (err) {
             console.error("Error cargando entidades:", err);
             setEntidades([]);
@@ -236,11 +221,10 @@ const OrdenesTaller: React.FC = () => {
     useEffect(() => {
         const cargarEquipos = async () => {
             try {
-                const res = await fetch(`${API_URL}/equipos?pageSize=700`, {
-                    credentials: "include",
+                const { data } = await http.get("/equipos", {
+                    params: { pageSize: 700 }
                 });
 
-                const data = await res.json();
                 const list = Array.isArray(data) ? data : data.items ?? [];
 
                 const normalized = list.map((e: any) => ({
@@ -264,13 +248,18 @@ const OrdenesTaller: React.FC = () => {
     }, [toast]);
 
     useEffect(() => {
-        fetch(`${API_URL}/tecnicos`, { credentials: "include" })
-            .then(res => res.json())
-            .then(data => {
+        const cargarTecnicos = async () => {
+            try {
+                const { data } = await http.get("/tecnicos");
+
                 const list = Array.isArray(data) ? data : data.items ?? [];
                 setTecnicos(list.filter((t: Tecnico) => t.status));
-            })
-            .catch(err => console.error("Error cargando técnicos", err));
+            } catch (err) {
+                console.error("Error cargando técnicos", err);
+            }
+        };
+
+        cargarTecnicos();
     }, []);
 
     /* ======= Crear ======= */
@@ -306,20 +295,8 @@ const OrdenesTaller: React.FC = () => {
 
             console.log("📤 Enviando payload de creación:", payload);
 
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(payload),
-            });
+            await http.post("/detalle-trabajo-gestioo", payload);
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                console.error("❌ Error del servidor:", errorData);
-                throw new Error(errorData.error || errorData.details || "Error al crear el detalle de trabajo");
-            }
-
-            await res.json();
             setToast({ type: "success", message: "Trabajo creado exitosamente" });
 
             setFormData({
@@ -413,17 +390,7 @@ const OrdenesTaller: React.FC = () => {
 
             // 🔁 DUPLICAR (ENTRADA → SALIDA)
             if (debeDuplicar) {
-                const res = await fetch(`${API_URL}/detalle-trabajo-gestioo`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify(payload),
-                });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || "Error al crear orden de salida");
-                }
+                await http.post("/detalle-trabajo-gestioo", payload);
 
                 setToast({
                     type: "success",
@@ -431,20 +398,7 @@ const OrdenesTaller: React.FC = () => {
                 });
             } else {
                 // ✏️ EDICIÓN NORMAL
-                const res = await fetch(
-                    `${API_URL}/detalle-trabajo-gestioo/${selectedOrden.id}`,
-                    {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify(payload),
-                    }
-                );
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || "Error al actualizar la orden");
-                }
+                await http.put(`/detalle-trabajo-gestioo/${selectedOrden.id}`, payload);
 
                 setToast({
                     type: "success",
@@ -469,12 +423,7 @@ const OrdenesTaller: React.FC = () => {
     const handleDelete = async (id: number) => {
         if (!confirm("¿Eliminar este trabajo?")) return;
         try {
-            const res = await fetch(`${API_URL}/detalle-trabajo-gestioo/${id}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
-
-            if (!res.ok) throw new Error("Error al eliminar el trabajo");
+            await http.delete(`/detalle-trabajo-gestioo/${id}`);
 
             setOrdenes((prev) => prev.filter((o) => o.id !== id));
             setToast({ type: "success", message: "Trabajo eliminado correctamente" });
@@ -496,6 +445,10 @@ const OrdenesTaller: React.FC = () => {
 
             const matchesEmpresa = empresaFiltro === "todas" || o.entidad?.nombre === empresaFiltro;
 
+            const matchesTecnico =
+                tecnicoFiltro === "todos" ||
+                o.tecnico?.id_tecnico === tecnicoFiltro;
+
             const tipoLabel = o.equipo?.tipo ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue]) : "";
             const matchesEquipo =
                 !q ||
@@ -509,9 +462,24 @@ const OrdenesTaller: React.FC = () => {
                 !isNaN(qNumber) &&
                 (o.ordenGrupoId === qNumber || o.id === qNumber);
 
-            return matchesEstado && matchesArea && matchesOrigen && matchesEmpresa && (matchesEquipo || matchesOrdenId);
+            return (
+                matchesEstado &&
+                matchesArea &&
+                matchesOrigen &&
+                matchesEmpresa &&
+                matchesTecnico &&
+                (matchesEquipo || matchesOrdenId)
+            );
         });
-    }, [ordenes, estadoFiltro, areaFiltro, origenFiltro, empresaFiltro, busquedaEquipo]);
+    }, [
+        ordenes,
+        estadoFiltro,
+        areaFiltro,
+        origenFiltro,
+        empresaFiltro,
+        tecnicoFiltro,
+        busquedaEquipo
+    ]);
 
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
     const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
@@ -557,7 +525,7 @@ const OrdenesTaller: React.FC = () => {
 
         return base;
     }, [ordenes]);
-    
+
     {/*
     const generarCotizacionDesdeOrden = async (orden: DetalleTrabajoGestioo) => {
         const numeroOrden = orden.numeroOrden;
@@ -766,6 +734,22 @@ const OrdenesTaller: React.FC = () => {
                                 ]}
                             />
                         </div>
+                        {/* Técnicos */}
+                        <div className="min-w-[220px]">
+                            <Select
+                                placeholder="Todos los técnicos"
+                                value={tecnicoFiltro}
+                                onChange={(value) => setTecnicoFiltro(value)}
+                                style={{ width: 220 }}
+                                options={[
+                                    { value: "todos", label: "Todos los técnicos" },
+                                    ...tecnicos.map((t) => ({
+                                        value: t.id_tecnico,
+                                        label: t.nombre,
+                                    })),
+                                ]}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -779,7 +763,10 @@ const OrdenesTaller: React.FC = () => {
                                     {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
-                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" : h === "ID" ? "w-12" : h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
+                                            className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" :
+                                                h === "Tipo Trabajo" ? "w-48" :  // 🔥 NUEVO
+                                                    h === "ID" ? "w-12" :
+                                                        h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
                                                 }`}
                                         >
                                             {h}
@@ -828,11 +815,15 @@ const OrdenesTaller: React.FC = () => {
                                                 </td>
 
                                                 {/* Tipo trabajo */}
-                                                <td
-                                                    className="px-4 py-3 max-w-xs align-middle"
-                                                    title={o.tipoTrabajo}
-                                                >
-                                                    {o.tipoTrabajo}
+                                                <td className="px-4 py-3 w-48 max-w-[12rem] align-middle" title={o.tipoTrabajo}>
+                                                    <p className="line-clamp-3 text-sm text-slate-700">
+                                                        {o.tipoTrabajo}
+                                                    </p>
+                                                    {o.descripcion && (
+                                                        <p className="line-clamp-2 text-xs text-slate-400 mt-0.5">
+                                                            {o.descripcion}
+                                                        </p>
+                                                    )}
                                                 </td>
 
                                                 {/* Estado */}
@@ -1108,11 +1099,9 @@ const OrdenesTaller: React.FC = () => {
                     onClose={() => setShowNuevoEquipoModal(false)}
                     onSaved={async (nuevoId) => {
                         try {
-                            const res = await fetch(`${API_URL}/equipos?pageSize=700`, {
-                                credentials: "include",
+                            const { data } = await http.get("/equipos", {
+                                params: { pageSize: 700 }
                             });
-
-                            const data = await res.json();
                             const list = Array.isArray(data) ? data : data.items ?? [];
 
                             const normalized = list.map((e: any) => ({
@@ -1148,8 +1137,9 @@ const OrdenesTaller: React.FC = () => {
                         setEquipoEditando(null);
 
                         const cargarEquipos = async () => {
-                            const res = await fetch(`${API_URL}/equipos?pageSize=700`, { credentials: "include" });
-                            const data = await res.json();
+                            const { data } = await http.get("/equipos", {
+                                params: { pageSize: 700 }
+                            });
                             const list = Array.isArray(data) ? data : data.items ?? [];
                             const normalized = (list as any[]).map((e) => ({
                                 ...e,

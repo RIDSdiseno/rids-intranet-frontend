@@ -1,34 +1,41 @@
 import { useState } from "react";
-import { api } from "../../api/api";
+import { http } from "../../service/http";
+
+interface ApiOptions {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  body?: any;
+  headers?: Record<string, string>;
+}
 
 export const useApi = () => {
+
   const [loading, setLoading] = useState(false);
 
-  const fetchApi = async (endpoint: string, options: any = {}) => {
+  const fetchApi = async (endpoint: string, options: ApiOptions = {}) => {
+
     setLoading(true);
 
     try {
+
       const isFormData = options.body instanceof FormData;
 
-      const response = await api({
+      const response = await http({
         url: endpoint,
         method: options.method || "GET",
-        data: isFormData
-          ? options.body
-          : options.body
-            ? JSON.parse(options.body)
-            : undefined,
+        data: options.body, // axios maneja objetos automáticamente
         headers: options.headers || {},
       });
 
       return response.data;
+
     } catch (error: any) {
+
       const status = error.response?.status;
 
       if (status === 400) {
         return Promise.reject({
           type: "validation",
-          message: error.response?.data?.error,
+          message: error.response?.data?.error
         });
       }
 
@@ -37,10 +44,12 @@ export const useApi = () => {
         error.message ||
         "Error en la API"
       );
+
     } finally {
       setLoading(false);
     }
   };
 
   return { fetchApi, loading };
+
 };

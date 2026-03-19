@@ -11,6 +11,7 @@ import {
   Tag,
   Alert,
   InputNumber,
+  AutoComplete
 } from "antd";
 import {
   LoadingOutlined,
@@ -24,12 +25,17 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import type { TargetAndTransition, Transition } from "framer-motion";
 
+import { http } from "../service/http";
 
-
-/* =================== API =================== */
-const API_URL =
-  (import.meta as ImportMeta).env?.VITE_API_URL || "http://localhost:4000/api";
-const MAX_PAGE_SIZE = 200;
+import {
+  MARCAS_EQUIPO,
+  MODELOS_POR_MARCA,
+  PROCESADORES,
+  RAMS,
+  DISCOS,
+  TipoEquipo,
+  TipoEquipoLabel,
+} from "../components/modals-gestioo/types";
 
 /* =================== Tipos =================== */
 type EmpresaOpt = { id: number; nombre: string };
@@ -122,11 +128,30 @@ type CrearEquipoModalProps = {
   open: boolean;
   onClose: () => void;
   defaultSolicitanteId?: number;
-  onCreated?: (nuevoEquipo: EquipoDTO) => void; // 👈 sin any
+  onCreated?: (nuevoEquipo: EquipoDTO) => void;
   brand?: "rids" | "econnet";
   logoUrl?: string;
+  // 🔥 NUEVO
+  defaultValues?: {
+    serial?: string;
+    marca?: string;
+    modelo?: string;
+    precioVenta?: number;
+    empresaId?: number;
+  };
 };
 
+type CreateEquipoResponse = {
+  ok: boolean;
+  totalReceived: number;
+  totalCreated: number;
+  totalErrors: number;
+  created: EquipoDTO[];
+  errors: Array<{
+    serial?: string;
+    error: string;
+  }>;
+};
 
 /* =================== Branding =================== */
 const THEMES = {
@@ -175,11 +200,6 @@ function isAntdValidateError(x: unknown): x is AntdValidateError {
     Array.isArray((x as { errorFields?: unknown }).errorFields);
 }
 
-const authHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
 async function fetchSolicitantesByEmpresa(
   empresaId: number,
   search?: string
@@ -188,22 +208,11 @@ async function fetchSolicitantesByEmpresa(
   params.set("empresaId", String(empresaId));
   if (search?.trim()) params.set("q", search.trim());
 
-  const res = await fetch(`${API_URL}/solicitantes/by-empresa?${params.toString()}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...authHeaders(),
-    },
-  });
-
-  if (!res.ok) throw new Error("No se pudieron cargar solicitantes");
-  const data = await res.json();
-
-  return data.items.map((it: { id: number; nombre: string }) => ({
+  const res = await http.get(`/solicitantes/by-empresa?${params.toString()}`);
+  return res.data.items.map((it: { id: number; nombre: string }) => ({
     id_solicitante: it.id,
     nombre: it.nombre,
-    empresa: null, // Ya sabemos la empresa
+    empresa: null,
   }));
 }
 
@@ -212,21 +221,10 @@ async function fetchSolicitantes(
   page = 1,
   pageSize = 120
 ): Promise<ListSolicitantesResponse> {
-  const params = new URLSearchParams();
-  params.set("page", String(page));
-  params.set("pageSize", String(pageSize));
-  if (search.trim()) params.set("search", search.trim());
-
-  const res = await fetch(`${API_URL}/solicitantes?${params.toString()}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...authHeaders(),
-    },
+  const res = await http.get("/solicitantes", {
+    params: { page, pageSize, ...(search.trim() ? { search: search.trim() } : {}) },
   });
-  if (!res.ok) throw new Error("No se pudo listar solicitantes");
-  return res.json();
+  return res.data;
 }
 
 type EmpresasResponse = {
@@ -236,41 +234,23 @@ type EmpresasResponse = {
 };
 
 async function fetchEmpresas(): Promise<EmpresaOpt[]> {
-  const res = await fetch(`${API_URL}/empresas`, {
-    credentials: "include",
-    headers: { Accept: "application/json", ...authHeaders() },
-  });
-
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-  const json = (await res.json()) as EmpresasResponse;
-
-  const arr = (json.data ?? []).map((e) => ({ id: e.id_empresa, nombre: e.nombre }));
-  arr.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  return arr;
+  const res = await http.get("/empresas");
+  const raw = res.data;
+  const list: Array<{ id_empresa: number; nombre: string }> =
+    Array.isArray(raw) ? raw : (raw?.data ?? []);
+  return list
+    .map((e) => ({ id: e.id_empresa, nombre: e.nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-async function postEquipo(payload: CreateEquipoPayload) {
+async function postEquipo(payload: CreateEquipoPayload): Promise<CreateEquipoResponse> {
+  const res = await http.post("/equipos", payload);
+  return res.data;
+}
 
-  const res = await fetch(`${API_URL}/equipos`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...authHeaders(),
-    },
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    const msg =
-      data?.error ||
-      data?.message ||
-      `Error HTTP ${res.status} al crear el equipo`;
-    throw new Error(msg);
-  }
-  return res.json();
+function getModelosPorMarca(marca: string): readonly string[] {
+  const key = marca.toUpperCase() as keyof typeof MODELOS_POR_MARCA;
+  return MODELOS_POR_MARCA[key] ?? [];
 }
 
 /* =================== Componente =================== */
@@ -281,6 +261,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   onCreated,
   brand = "rids",
   logoUrl,
+  defaultValues,
 }) => {
   const T = THEMES[brand];
   const [form] = Form.useForm();
@@ -304,6 +285,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const [empError, setEmpError] = useState<string | null>(null);
 
   const empresaId = Form.useWatch("empresaId", form);
+  const marcaValue = Form.useWatch("marca", form);
 
   // --- solicitantes ---
   const [solSearch, setSolSearch] = useState("");
@@ -432,9 +414,21 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         passwordPersonal: values.passwordPersonal,
       };
 
-      const nuevo = await postEquipo(payload);
+      const resp = await postEquipo(payload);
+
+      if (resp.totalErrors > 0 || resp.errors?.length > 0) {
+        const primerError = resp.errors[0];
+        throw new Error(primerError?.error || "No se pudo crear el equipo");
+      }
+
+      const equipoCreado = resp.created?.[0];
+
+      if (!equipoCreado) {
+        throw new Error("No se recibió el equipo creado desde el servidor");
+      }
+
       message.success("Equipo creado correctamente");
-      onCreated?.(nuevo);
+      onCreated?.(equipoCreado);
       form.resetFields();
       onClose();
     } catch (err: unknown) {
@@ -460,11 +454,13 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     onClose();
   };
 
-
-
-
   // helpers visuales de error
-  const hasError = (name: string) => form.getFieldError(name).length > 0;
+  const hasError = (name: string) => {
+    if (!open) return false;
+
+    const errors = form.getFieldError(name);
+    return errors && errors.length > 0;
+  };
 
   /* =================== Animations =================== */
   // usa curva bézier en lugar de string para que pase TS
@@ -479,7 +475,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   } as const;
 
   const stepEmpresaDone = !!empresaId;
-  const stepSolicDone = stepEmpresaDone && form.getFieldValue("idSolicitante") !== undefined;
+  const stepSolicDone =
+    stepEmpresaDone && open && form.getFieldValue("idSolicitante") !== undefined;
 
   return (
     <Modal
@@ -609,7 +606,15 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           form={form}
           layout="vertical"
 
-          initialValues={{ propiedad: "Empresa", idSolicitante: null }}
+          initialValues={{
+            propiedad: "Empresa",
+            idSolicitante: undefined,
+            // 🔥 Pre-poblar desde cotización si vienen valores
+            serial: defaultValues?.serial,
+            marca: defaultValues?.marca,
+            modelo: defaultValues?.modelo,
+            empresaId: defaultValues?.empresaId,
+          }}
           onKeyDown={(e) => {
             if (
               e.key === "Enter" &&
@@ -651,7 +656,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     showSearch
                     optionFilterProp="label"
                     allowClear={false}
-                    dropdownStyle={{ maxHeight: 360, overflow: "auto" }}
+                    styles={{ popup: { root: { maxHeight: 360, overflow: "auto" } } }}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
                   />
                 </Form.Item>
@@ -690,7 +695,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                           label: s.empresa?.nombre ? `${s.nombre} — ${s.empresa.nombre}` : s.nombre,
                           value: s.id_solicitante,
                         }));
-                        return [{ label: "— Sin solicitante —", value: null } as const, ...opts];
+                        return [{ label: "— Sin solicitante —", value: undefined }, ...opts];
                       }, [solOpts, empresaId]) as { label: string; value: number | null }[]
                     }
                     loading={loadingSolicitantes}
@@ -699,7 +704,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     }
                     allowClear={false}
                     notFoundContent={loadingSolicitantes ? <LoadingOutlined /> : "Sin resultados"}
-                    dropdownStyle={{ maxHeight: 360, overflow: "auto" }}
+                    styles={{ popup: { root: { maxHeight: 360, overflow: "auto" } } }}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
                   />
                 </Form.Item>
@@ -759,7 +764,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     name={f.name}
                     label={f.label}
                     rules={[
-                      { required: true, message: `Ingresa ${f.label.toLowerCase()}` },
                       {
                         validator: (_, v) =>
                           v && v.trim()
@@ -770,19 +774,73 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                       },
                     ]}
                   >
-                    <Input
-                      allowClear
-                      placeholder={f.placeholder}
-                      maxLength={f.max}
-                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                      onBlur={(e) => {
-                        if (f.name === "serial") {
-                          form.setFieldsValue({
-                            serial: (e.target.value || "").toUpperCase(),
-                          });
+                    {f.name === "marca" ? (
+
+                      <AutoComplete
+                        options={MARCAS_EQUIPO.map((m) => ({ value: m }))}
+                        filterOption={(input, option) =>
+                          (option?.value ?? "")
+                            .toUpperCase()
+                            .includes(input.toUpperCase())
                         }
-                      }}
-                    />
+                      >
+                        <Input
+                          allowClear
+                          placeholder={f.placeholder}
+                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                        />
+                      </AutoComplete>
+
+                    ) : f.name === "modelo" ? (
+
+                      <AutoComplete
+                        options={getModelosPorMarca(marcaValue || "").map((m: string) => ({ value: m }))}
+                        filterOption={(input, option) =>
+                          (option?.value ?? "")
+                            .toLowerCase()
+                            .includes(input.toLowerCase())
+                        }
+                      >
+                        <Input
+                          allowClear
+                          placeholder={f.placeholder}
+                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                        />
+                      </AutoComplete>
+
+                    ) : f.name === "procesador" ? (
+
+                      <AutoComplete
+                        options={PROCESADORES.map((p) => ({ value: p }))}
+                        filterOption={(input, option) =>
+                          (option?.value ?? "")
+                            .toLowerCase()
+                            .includes(input.toLowerCase())
+                        }
+                      >
+                        <Input
+                          allowClear
+                          placeholder={f.placeholder}
+                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                        />
+                      </AutoComplete>
+
+                    ) : (
+
+                      <Input
+                        allowClear
+                        placeholder={f.placeholder}
+                        className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                        onBlur={(e) => {
+                          if (f.name === "serial") {
+                            form.setFieldsValue({
+                              serial: (e.target.value || "").toUpperCase(),
+                            });
+                          }
+                        }}
+                      />
+
+                    )}
                   </Form.Item>
                 </motion.div>
               ))}
@@ -797,7 +855,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   label="RAM"
                   tooltip="Solo el número; se agregará 'GB' automáticamente"
                   rules={[
-                    { required: true, message: "Ingresa la RAM" },
                     {
                       validator: (_, v) =>
                         typeof v === "number" && v > 0
@@ -827,7 +884,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   name="disco"
                   label="Disco"
                   rules={[
-                    { required: true, message: "Ingresa el almacenamiento" },
                     {
                       validator: (_, v) =>
                         v && v.trim()
@@ -912,7 +968,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   {
                     name: "estadoAlm",
                     label: "Estado Almacenamiento",
-                    placeholder: "Ej: 320GB libres de 512GB",
+                    placeholder: "Ej: 98% BUENO",
                   },
                   {
                     name: "office",

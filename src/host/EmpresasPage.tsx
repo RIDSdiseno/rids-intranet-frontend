@@ -38,7 +38,7 @@ import FichaEmpresaModal from "../components/modals-empresa/FichaEmpresaModal";
 import CrearEmpresaModal from "../components/modals-empresa/CrearEmpresa";
 
 import { useAuth } from "../components/hooks/useAuth";
-import { api } from "../api/api"; // 🔥 ajusta ruta
+import { http } from "../service/http";
 
 /* ====================== Tipos de página ====================== */
 interface Empresa extends EmpresaLite {
@@ -187,7 +187,7 @@ const EmpresasPage: React.FC = () => {
       setError(null);
 
       // 🔥 api ya maneja el token automáticamente
-      const { data: raw } = await api.get("/empresas", { params: { withStats: 1 } });
+      const { data: raw } = await http.get("/empresas", { params: { withStats: 1 } });
 
       let items: unknown = [];
       if (isRecord(raw)) {
@@ -214,7 +214,7 @@ const EmpresasPage: React.FC = () => {
     let totalPages = 1;
 
     do {
-      const { data: json } = await api.get("/solicitantes", {
+      const { data: json } = await http.get("/solicitantes", {
         params: { empresaId, page, pageSize }
       });
 
@@ -234,7 +234,7 @@ const EmpresasPage: React.FC = () => {
     let all: Visita[] = [];
 
     do {
-      const { data: json } = await api.get("/visitas", {
+      const { data: json } = await http.get("/visitas", {
         params: { empresaId, page, pageSize }
       });
 
@@ -265,7 +265,7 @@ const EmpresasPage: React.FC = () => {
       const solicitantes = await fetchAllSolicitantesByEmpresa(empresa.id_empresa);
       setSolicitantesSel(solicitantes);
 
-      const { data: eqJson } = await api.get(`/empresas/${empresa.id_empresa}/equipos`);
+      const { data: eqJson } = await http.get(`/empresas/${empresa.id_empresa}/equipos`);
       if (Array.isArray(eqJson?.items)) setEquiposSel(eqJson.items);
 
       const visitas = await fetchAllVisitasByEmpresa(empresa.id_empresa);
@@ -280,7 +280,7 @@ const EmpresasPage: React.FC = () => {
   /* ===================== REFRESH FICHA ===================== */
   const refreshEmpresaCompleta = async (empresaId: number) => {
     try {
-      const { data } = await api.get(`/ficha-empresa/${empresaId}/completa`);
+      const { data } = await http.get(`/ficha-empresa/${empresaId}/completa`);
 
       setFichaData({ ...data });
       setEmpresaSel(() => ({
@@ -307,7 +307,7 @@ const EmpresasPage: React.FC = () => {
       setFichaLoading(true);
       setFichaError(null);
 
-      const { data } = await api.get(`/ficha-empresa/${empresa.id_empresa}/completa`);
+      const { data } = await http.get(`/ficha-empresa/${empresa.id_empresa}/completa`);
       setFichaData(data);
     } catch {
       setFichaError("No se pudo cargar la ficha");
@@ -573,10 +573,10 @@ const EmpresasPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 mt-6">
                 {filteredEmpresas.length === 0 ? (
                   <div className="h-32 flex flex-col items-center justify-center text-neutral-400">
-                    <div className="text-2xl mb-2">🏢</div>
+                    <BuildOutlined className="text-3xl mb-2 text-slate-400" />
                     <div>No se encontraron empresas que coincidan con la búsqueda</div>
                   </div>
                 ) : (
@@ -596,11 +596,11 @@ const EmpresasPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-4">
+                        <button onClick={() => openFichaEmpresa(empresa)} className="text-emerald-700 hover:text-emerald-900 font-medium group-hover:translate-x-1 transition-transform duration-300">
+                          Ver ficha →
+                        </button>
                         <button onClick={() => openDetails(empresa)} className="text-blue-700 hover:text-blue-900 font-medium group-hover:translate-x-1 transition-transform duration-300">
                           Ver detalles →
-                        </button>
-                        <button onClick={() => openFichaEmpresa(empresa)} className="text-emerald-700 hover:text-emerald-900 text-sm">
-                          Ver ficha →
                         </button>
                       </div>
                     </motion.div>

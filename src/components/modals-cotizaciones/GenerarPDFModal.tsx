@@ -182,8 +182,12 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false) => {
     }
 
     const fechaActual = new Date().toLocaleString("es-CL", {
-        dateStyle: "short",
-        timeStyle: "short",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
     });
 
     const codigo = `COT-${String(cot.id).padStart(6, "0")}`;

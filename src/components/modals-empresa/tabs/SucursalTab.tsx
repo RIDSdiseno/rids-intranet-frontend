@@ -26,7 +26,7 @@ import {
     HomeOutlined,
     DeleteOutlined
 } from "@ant-design/icons";
-import { api } from "../../../api/api"; // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // 🔥 ajusta ruta
 
 interface Props {
     empresaId: number;
@@ -45,7 +45,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
     const load = async () => {
         try {
             setLoading(true);
-            const { data: json } = await api.get(`/ficha-empresa/${empresaId}/sucursales`);
+            const { data: json } = await http.get(`/ficha-empresa/${empresaId}/sucursales`);
             setData(Array.isArray(json) ? json : []);
         } catch {
             setData([]);
@@ -68,7 +68,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
         if (!modalOpen) return;
 
         if (editingSucursalId) {
-            api.get(`/ficha-empresa/sucursales/${editingSucursalId}`)
+            http.get(`/ficha-empresa/sucursales/${editingSucursalId}`)
                 .then(({ data }) => {
                     form.setFieldsValue({
                         nombre: data.nombre ?? "",
@@ -78,7 +78,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                     });
                 });
 
-            api.get(`/ficha-empresa/sucursales/${editingSucursalId}/red`)
+            http.get(`/ficha-empresa/sucursales/${editingSucursalId}/red`)
                 .then(({ data: red }) => {
                     if (red) form.setFieldsValue({ redSucursal: red });
                 })
@@ -99,10 +99,10 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
             let sucursalId: number;
 
             if (editingSucursalId) {
-                await api.put(`/ficha-empresa/sucursales/${editingSucursalId}`, sucursalData);
+                await http.put(`/ficha-empresa/sucursales/${editingSucursalId}`, sucursalData);
                 sucursalId = editingSucursalId;
             } else {
-                const { data: saved } = await api.post(`/ficha-empresa/${empresaId}/sucursales`, sucursalData);
+                const { data: saved } = await http.post(`/ficha-empresa/${empresaId}/sucursales`, sucursalData);
                 sucursalId = saved.id_sucursal;
             }
 
@@ -111,7 +111,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
                 Object.values(redSucursal).some(v => v && String(v).trim() !== "");
 
             if (hasWifiData) {
-                await api.put(`/ficha-empresa/sucursales/${sucursalId}/red`, redSucursal);
+                await http.put(`/ficha-empresa/sucursales/${sucursalId}/red`, redSucursal);
             }
 
             message.success(editingSucursalId ? "Sucursal actualizada correctamente" : "Sucursal creada correctamente");
@@ -129,7 +129,7 @@ const SucursalesTab: React.FC<Props> = ({ empresaId }) => {
         if (!deleteSucursalId) return;
         try {
             setDeleting(true);
-            await api.delete(`/ficha-empresa/sucursales/${deleteSucursalId}`);
+            await http.delete(`/ficha-empresa/sucursales/${deleteSucursalId}`);
             message.success("Sucursal eliminada correctamente");
             setDeleteSucursalId(null);
             load();

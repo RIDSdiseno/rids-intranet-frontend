@@ -83,7 +83,7 @@ interface ModalEditarEquipoProps {
     onSaved: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+import { http } from "../../service/http";
 
 /* =========================
    Componente
@@ -129,37 +129,6 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
         setIncluyeCargador(equipo.incluyeCargador ?? false);
     }, [equipo]);
 
-    const parseApiError = async (res: Response): Promise<string> => {
-        try {
-            const data = await res.json();
-
-            // Casos típicos de backend
-            if (res.status === 409) {
-                return "Ya existe un equipo con ese número de serie.";
-            }
-
-            if (res.status === 400) {
-                return data.error || "Datos inválidos. Revisa los campos ingresados.";
-            }
-
-            if (res.status === 401) {
-                return "Tu sesión expiró. Vuelve a iniciar sesión.";
-            }
-
-            if (res.status === 403) {
-                return "No tienes permisos para editar este equipo.";
-            }
-
-            if (res.status >= 500) {
-                return "Error interno del sistema. Intenta más tarde.";
-            }
-
-            return data.error || "No se pudo guardar el equipo.";
-        } catch {
-            return "Error inesperado al comunicarse con el servidor.";
-        }
-    };
-
     const handleSave = async () => {
         if (!marca.trim() || !modelo.trim()) {
             alert("La marca y el modelo son obligatorios");
@@ -168,32 +137,27 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/equipos/${equipo.id_equipo}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    marca: marca.trim(),
-                    modelo: modelo.trim(),
-                    serial: serial.trim() || null,
-                    procesador: procesador.trim() || null,
-                    ram: ram.trim() || null,
-                    disco: disco.trim() || null,
-                    tipo, // ✅ string enum-like validado por union type
-                }),
+            await http.patch(`/equipos/${equipo.id_equipo}`, {
+                marca: marca.trim(),
+                modelo: modelo.trim(),
+                serial: serial.trim() || null,
+                procesador: procesador.trim() || null,
+                ram: ram.trim() || null,
+                disco: disco.trim() || null,
+                tipo,
             });
-
-            if (!res.ok) {
-                const msg = await parseApiError(res);
-                setErrorMsg(msg);
-                return;
-            }
 
             onSaved();
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert((err as Error).message);
+
+            const msg =
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "No se pudo guardar el equipo";
+
+            setErrorMsg(msg);
         } finally {
             setLoading(false);
         }
@@ -310,7 +274,7 @@ export const ModalEditarEquipo: React.FC<ModalEditarEquipoProps> = ({
                             </select>
                         </div>
                     </div>
-                    
+
                     {/* MSJ de Error */}
                     {errorMsg && (
                         <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">

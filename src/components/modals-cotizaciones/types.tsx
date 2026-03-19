@@ -68,6 +68,14 @@ export interface CotizacionItemGestioo {
   productoId?: number | null;
 
   servicioId?: number;
+
+  equipoId?: number | null;
+  equipo?: {
+    id_equipo: number;
+    serial: string | null;
+    marca: string;
+    modelo: string;
+  } | null;
 }
 
 export interface CotizacionGestioo {

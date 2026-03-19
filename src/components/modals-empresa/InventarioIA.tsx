@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, Button, Spin, Alert } from "antd";
 import { RobotOutlined } from "@ant-design/icons";
-import { api } from "../../api/api";
+import { http } from "../../service/http";
 
 export default function InventarioIA({ empresaId }: { empresaId: number }) {
     const [loading, setLoading] = useState(false);
@@ -11,7 +11,7 @@ export default function InventarioIA({ empresaId }: { empresaId: number }) {
         setLoading(true);
 
         try {
-            const res = await api.get(`/ia-inventario/${empresaId}`);
+            const res = await http.get(`/ia-inventario/${empresaId}`);
             setData(res.data.analisis);
         } catch {
             alert("Error analizando inventario");

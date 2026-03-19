@@ -24,8 +24,7 @@ import {
   dataUrlToUint8Array, generarFolio,
 } from "./UtilsReportes";
 
-const API_URL =
-  (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";
+import { http } from "../../service/http";
 
 // ─── XLSX helpers ─────────────────────────────────────────────────────────
 
@@ -185,6 +184,48 @@ const buildHeader = (empresa: string) =>
 const buildFooter = () =>
   new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Página " }), new TextRun({ children: [PageNumber.CURRENT] }), new TextRun({ text: " de " }), new TextRun({ children: [PageNumber.TOTAL_PAGES] }), new TextRun({ text: "  ·  soporte@rids.cl" })] })] });
 
+// ─── IA REPORT PARSER ─────────────────────────────────────────────
+
+function parseInformeIA(text: string) {
+  const sections: { title: string; lines: string[] }[] = [];
+  let current: { title: string; lines: string[] } | null = null;
+
+  text.split("\n").forEach((line) => {
+    const clean = line.trim();
+    if (!clean) return;
+
+    const upper = clean.toUpperCase();
+
+    // ✅ Detecta títulos numerados ("1. Resumen Ejecutivo") Y palabras clave
+    const isNumberedTitle = /^\d+\.\s+\S/.test(clean);
+    const isKeywordTitle =
+      upper.includes("RESUMEN EJECUTIVO") ||
+      upper.includes("ANÁLISIS") ||
+      upper.includes("ANÁLISIS OPERATIVO") ||
+      upper.includes("HALLAZGOS") ||
+      upper.includes("RIESGOS") ||
+      upper.includes("RECOMENDACIONES") ||
+      upper.includes("PLAN DE ACCIÓN") ||
+      upper.includes("KPIS") ||
+      upper.includes("ESTADO DEL SERVICIO") ||
+      upper.includes("SOPORTE TÉCNICO");
+
+    if (isNumberedTitle || isKeywordTitle) {
+      // ✅ Limpia el número si viene numerado ("1. Resumen" → "Resumen")
+      const cleanTitle = clean.replace(/^\d+\.\s+/, "");
+      current = { title: cleanTitle, lines: [] };
+      sections.push(current);
+      return;
+    }
+
+    if (current) {
+      current.lines.push(clean);
+    }
+  });
+
+  return sections;
+}
+
 // ─── Main hook ────────────────────────────────────────────────────────────
 
 interface UseExportProps {
@@ -274,6 +315,7 @@ export const useExportReportes = ({
       }));
 
       const extras = contarExtras(data.visitas);
+      const informeIASections = parseInformeIA(recomendaciones || "");
       const logoBytes = await fetchLogoBytes();
 
       const kpis = [
@@ -367,8 +409,33 @@ export const useExportReportes = ({
         H2("Detalle de \"Otros\""), ...tablePro("Detalles 'Otros'.", ["Detalle otros", "Cantidad"], (extras.detalles.length ? extras.detalles : [{ Detalle: "—", Cantidad: 0 }]).map(d => ({ "Detalle otros": d.Detalle, Cantidad: String(d.Cantidad) }))),
         H2("Usuarios y Correos activos"), ...tablePro("Listado de correos.", ["#", "Nombre", "Correo"], correosRows),
         H2("Inventario de Equipamiento"), ...tablePro("Inventario.", ["Serial", "Marca", "Modelo", "RAM", "Disco", "Propiedad", "Solicitante"], inventarioRows),
-        H1("Recomendaciones del periodo"),
-        Body(recomendaciones?.trim() || "Sin recomendaciones adicionales para el periodo."),
+        H1("Análisis y Recomendaciones del periodo"),
+
+        ...informeIASections.flatMap(section => [
+          new Paragraph({
+            spacing: { before: 200, after: 100 },
+            children: [new TextRun({
+              text: section.title.replace(/^\d+\.\s+/, ""),
+              bold: true,
+              color: THEME.text,  // oscuro, no azul
+              size: 24,
+              font: "Calibri"
+            })]
+          }),
+          ...section.lines.map(line =>
+            new Paragraph({
+              spacing: { after: 140, line: 320 },
+              children: [new TextRun({
+                text: line,
+                bold: false,        // ← fuerza no bold
+                color: THEME.text,
+                size: 22,
+                font: "Calibri"
+              })]
+            })
+          )
+        ]),
+
         Divider(),
       ];
 
@@ -395,10 +462,11 @@ export const useExportReportes = ({
           r.readAsDataURL(b);
         });
       const base64Docx = await blobToBase64(blob);
-      await fetch(`${API_URL}/reportes-upload/upload-docx`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName, empresa: empresaNombre, periodo: periodoTexto || "Periodo", fileBase64: base64Docx }),
+      await http.post("/reportes-upload/upload-docx", {
+        fileName,
+        empresa: empresaNombre,
+        periodo: periodoTexto || "Periodo",
+        fileBase64: base64Docx
       });
 
       setExportStatus({ exporting: false, error: null });

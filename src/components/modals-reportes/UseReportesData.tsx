@@ -13,15 +13,8 @@ import type {
   ReporteGeneralData,
 } from "./typesReportes";
 
-const API_URL =
-  (import.meta as ImportMeta).env.VITE_API_URL || "http://localhost:4000/api";
+import { http } from "../../service/http"
 
-export const tokenHeader = (): HeadersInit => {
-  const token = localStorage.getItem("accessToken");
-  const h: Record<string, string> = {};
-  if (token) h.Authorization = `Bearer ${token}`;
-  return h;
-};
 
 export const getCreatedAt = (t: TicketLike): string | null =>
   t.created_at ?? t.createdAt ?? t.fecha ?? null;
@@ -42,63 +35,74 @@ const isSameYearMonth = (
 const fetchSolicitantes = async (
   empresaId: string
 ): Promise<SolicitanteRow[]> => {
+
   const all: SolicitanteRow[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const u = new URL(`${API_URL}/solicitantes`);
-    u.searchParams.set("page", String(page));
-    u.searchParams.set("pageSize", "100");
-    u.searchParams.set("empresaId", empresaId);
-    const r = await fetch(u, { headers: tokenHeader() });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = (await r.json()) as ApiList<SolicitanteRow>;
-    totalPages = j.totalPages ?? 1;
-    all.push(...(j.items ?? j.data ?? []));
+    const { data } = await http.get("/solicitantes", {
+      params: {
+        page,
+        pageSize: 100,
+        empresaId
+      }
+    });
+
+    totalPages = data.totalPages ?? 1;
+    all.push(...(data.items ?? data.data ?? []));
     page++;
+
   } while (page <= totalPages);
 
   return all;
 };
 
 const fetchEquipos = async (empresaId: string): Promise<EquipoRow[]> => {
+
   const all: EquipoRow[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const u = new URL(`${API_URL}/equipos`);
-    u.searchParams.set("page", String(page));
-    u.searchParams.set("pageSize", "200");
-    u.searchParams.set("empresaId", empresaId);
-    const r = await fetch(u, { headers: tokenHeader() });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = (await r.json()) as ApiList<EquipoRow>;
-    totalPages = j.totalPages ?? 1;
-    all.push(...(j.items ?? j.data ?? []));
+
+    const { data } = await http.get("/equipos", {
+      params: {
+        page,
+        pageSize: 200,
+        empresaId
+      }
+    });
+
+    totalPages = data.totalPages ?? 1;
+    all.push(...(data.items ?? data.data ?? []));
     page++;
+
   } while (page <= totalPages);
 
   return all;
 };
 
 const fetchVisitas = async (empresaId: string): Promise<VisitaRow[]> => {
+
   const all: VisitaRow[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const u = new URL(`${API_URL}/visitas`);
-    u.searchParams.set("page", String(page));
-    u.searchParams.set("pageSize", "100");
-    u.searchParams.set("empresaId", empresaId);
-    const r = await fetch(u, { headers: tokenHeader() });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = (await r.json()) as ApiList<VisitaRow>;
-    totalPages = j.totalPages ?? 1;
-    all.push(...(j.items ?? j.data ?? []));
+
+    const { data } = await http.get("/visitas", {
+      params: {
+        page,
+        pageSize: 100,
+        empresaId
+      }
+    });
+
+    totalPages = data.totalPages ?? 1;
+    all.push(...(data.items ?? data.data ?? []));
     page++;
+
   } while (page <= totalPages);
 
   return all;
@@ -108,22 +112,29 @@ const fetchTickets = async (
   empresaId: string,
   empresas: Empresa[]
 ): Promise<TicketRow[]> => {
+
   const all: TicketRow[] = [];
   let page = 1;
   let totalPages = 1;
-  const emp = empresas.find((e) => e.id_empresa === Number(empresaId));
+
+  const emp = empresas.find(e => e.id_empresa === Number(empresaId));
 
   do {
-    const u = new URL(`${API_URL}/tickets`);
-    u.searchParams.set("page", String(page));
-    u.searchParams.set("pageSize", "200");
-    if (emp) u.searchParams.set("empresa", emp.nombre);
-    const r = await fetch(u, { headers: tokenHeader() });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = (await r.json()) as TicketsResp;
-    totalPages = j.totalPages ?? Math.max(1, Math.ceil(j.total / j.pageSize));
-    all.push(...(j.rows ?? []));
+
+    const { data } = await http.get("/tickets", {
+      params: {
+        page,
+        pageSize: 200,
+        empresa: emp?.nombre
+      }
+    });
+
+    totalPages =
+      data.totalPages ?? Math.max(1, Math.ceil(data.total / data.pageSize));
+
+    all.push(...(data.rows ?? []));
     page++;
+
   } while (page <= totalPages);
 
   return all;
@@ -132,21 +143,25 @@ const fetchTickets = async (
 const fetchMantencionesRemotas = async (
   empresaId: string
 ): Promise<MantencionRemotaRow[]> => {
+
   const all: MantencionRemotaRow[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const u = new URL(`${API_URL}/mantenciones-remotas`);
-    u.searchParams.set("page", String(page));
-    u.searchParams.set("pageSize", "500");
-    u.searchParams.set("empresaId", empresaId);
-    const r = await fetch(u, { headers: tokenHeader() });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
-    totalPages = j.totalPages ?? 1;
-    all.push(...(j.items ?? j.data ?? []));
+
+    const { data } = await http.get("/mantenciones-remotas", {
+      params: {
+        page,
+        pageSize: 500,
+        empresaId
+      }
+    });
+
+    totalPages = data.totalPages ?? 1;
+    all.push(...(data.items ?? data.data ?? []));
     page++;
+
   } while (page <= totalPages);
 
   return all;
@@ -159,20 +174,28 @@ export const useReportesData = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   useEffect(() => {
+
     const cargarEmpresas = async () => {
+
       try {
-        const url = new URL(`${API_URL}/empresas`);
-        url.searchParams.set("pageSize", "1000");
-        const r = await fetch(url.toString(), { headers: tokenHeader() });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const j = (await r.json()) as { items?: Empresa[]; data?: Empresa[] };
-        setEmpresas(j.items ?? j.data ?? []);
+
+        const { data } = await http.get("/empresas", {
+          params: { pageSize: 1000 }
+        });
+
+        setEmpresas(data.items ?? data.data ?? []);
+
       } catch (e) {
+
         console.error("Empresas error:", e);
         setGlobalError("No se pudieron cargar las empresas");
+
       }
+
     };
+
     void cargarEmpresas();
+
   }, []);
 
   const obtenerDatosReporteGeneral = async (

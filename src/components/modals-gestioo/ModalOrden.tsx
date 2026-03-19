@@ -7,7 +7,7 @@ import {
 } from "@ant-design/icons";
 import { Select } from "antd";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+import { http } from "../../service/http";
 
 // TYPES
 import type {
@@ -282,7 +282,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 value={formData.area}
                                                 onChange={(e) => {
                                                     const nuevaArea = e.target.value as Area;
-    
+
                                                     setFormData((prev) => ({
                                                         ...prev,
                                                         area: nuevaArea,
@@ -375,13 +375,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                     });
 
                                                     if (tipo === "PERSONA") {
-                                                        fetch(`${API_URL}/entidades?tipo=PERSONA`, { credentials: "include" })
-                                                            .then((res) => res.json())
-                                                            .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
-                                                            .catch(() => {
-                                                                setEntidades([]);
-                                                                setErrorMsg("No se pudieron cargar las entidades. Intenta nuevamente.");
-                                                            });
+                                                        http.get("/entidades", { params: { tipo: "PERSONA" } })
+                                                            .then(({ data }) => {
+                                                                setEntidades(Array.isArray(data) ? data : data.data);
+                                                            })
                                                     } else {
                                                         setEntidades([]);
                                                     }
@@ -410,13 +407,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                             entidadId: "",
                                                         });
 
-                                                        fetch(`${API_URL}/entidades?tipo=EMPRESA&origen=${origen}`, { credentials: "include" })
-                                                            .then((res) => res.json())
-                                                            .then((data) => setEntidades(Array.isArray(data) ? data : data.data))
-                                                            .catch(() => {
-                                                                setEntidades([]);
-                                                                setErrorMsg("No se pudieron cargar las entidades. Intenta nuevamente.");
-                                                            });
+                                                        http.get("/entidades", {
+                                                            params: { tipo: "EMPRESA", origen }
+                                                        })
+                                                            .then(({ data }) => {
+                                                                setEntidades(Array.isArray(data) ? data : data.data);
+                                                            })
                                                     }}
                                                     className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                                 >

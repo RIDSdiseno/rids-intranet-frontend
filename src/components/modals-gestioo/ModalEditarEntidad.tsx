@@ -5,13 +5,13 @@ import { motion } from "framer-motion";
 // TYPES
 import type { OrigenGestioo } from "./types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
-
 interface ModalEditarEntidadProps {
     entidadId: string;
     onClose: () => void;
     onSaved: () => void;
 }
+
+import { http } from "../../service/http";
 
 export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
     entidadId,
@@ -42,13 +42,8 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
 
             setCargandoDatos(true);
             try {
-                const res = await fetch(`${API_URL}/entidades/${entidadId}`, {
-                    credentials: "include",
-                });
+                const { data } = await http.get(`/entidades/${entidadId}`);
 
-                if (!res.ok) throw new Error("Error al cargar entidad");
-
-                const data = await res.json();
                 const entidad = data.data ?? data;
 
                 setNombre(entidad.nombre ?? "");
@@ -86,31 +81,26 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/entidades/${entidadId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    nombre,
-                    rut: rut || null,
-                    correo: correo || null,
-                    telefono: telefono || null,
-                    direccion: direccion || null,
-                    origen,
-                }),
+            await http.put(`/entidades/${entidadId}`, {
+                nombre,
+                rut: rut || null,
+                correo: correo || null,
+                telefono: telefono || null,
+                direccion: direccion || null,
+                origen,
             });
-
-            if (!res.ok) {
-                const msg = await parseApiError(res);
-                setErrorMsg(msg);
-                return;
-            }
 
             onSaved();
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            setErrorMsg("No se pudo actualizar la entidad. Intenta nuevamente.");
+
+            const msg =
+                err.response?.data?.error ||
+                err.response?.data?.message ||
+                "No se pudo actualizar la entidad.";
+
+            setErrorMsg(msg);
         }
         finally {
             setLoading(false);
@@ -205,15 +195,15 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
                             </select>
                         </div>
                     </div>
-                    
+
                     {/* MSJ de Error */}
                     {errorMsg && (
                         <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
                             {errorMsg}
                         </div>
                     )}
-                    
-                    {/* Footer */} 
+
+                    {/* Footer */}
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                         <button
                             onClick={onClose}
