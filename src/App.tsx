@@ -21,6 +21,7 @@ const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
+const AgendaPage = lazy(() => import("./host/AgendaPage"));
 
 const LoginPage = lazy(() => import("./host/login"));
 
@@ -49,7 +50,7 @@ function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 bg-white overflow-y-auto">
+      <main className="flex-1 min-w-0 bg-white overflow-y-auto">
         <Suspense fallback={<div className="p-6">Cargando...</div>}>
           <Outlet />
         </Suspense>
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
             <Route path="/helpdesk" element={<TicketeraRids />} />
+            <Route path="/agenda" element={<AgendaPage />} />
 
           </Route>
         </Route>

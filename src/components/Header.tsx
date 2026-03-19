@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   LogOut,
   Home,
+  Calendar,
   CalendarDays,
   Ticket,
   Users,
@@ -72,6 +73,7 @@ type StoredUser = {
 
 const NAV: NavEntry[] = [
   { type: "link", label: "Inicio", to: HOME_PATH, icon: <Home size={20} />, match: [HOME_PATH] },
+  { type: "link", label: "Calendario visitas", to: "/agenda", icon: <Calendar size={20} />, match: ["/agenda"] },
   {
     type: "group",
     label: "Operación",
