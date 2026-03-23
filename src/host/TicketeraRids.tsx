@@ -795,10 +795,16 @@ export default function TicketeraRids() {
 
             const t = data.ticket;
 
-            const defaultTo = [
+            const normalizeEmail = (email?: string | null) =>
+                email?.trim().toLowerCase() || null;
+
+            const uniqueEmails = (emails: Array<string | null | undefined>) =>
+                [...new Set(emails.map(normalizeEmail).filter(Boolean) as string[])];
+
+            const defaultTo = uniqueEmails([
                 t.requester?.email,
-                t.fromEmail
-            ].filter(Boolean);
+                t.fromEmail,
+            ]);
 
             setToEmails(defaultTo);
 
@@ -806,7 +812,9 @@ export default function TicketeraRids() {
             const lastMessage = data.ticket.messages?.[0];
 
             setCcEmails(
-                lastMessage?.cc ? lastMessage.cc.split(",") : []
+                uniqueEmails(
+                    lastMessage?.cc ? lastMessage.cc.split(",") : []
+                )
             );
 
             // 👉 template automático
