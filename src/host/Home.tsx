@@ -432,7 +432,7 @@ const Home: FC = () => {
   );
 
   return (
-    <div className="py-2">
+    <div className="py-2 px-4 sm:px-6 lg:px-8">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
         <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
         <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>

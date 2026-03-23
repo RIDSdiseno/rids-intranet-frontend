@@ -199,6 +199,8 @@ export default function TicketeraRids() {
 
     const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
+    const [deletingTicket, setDeletingTicket] = useState(false);
+
     const replyFileInputRef = useRef<HTMLInputElement>(null);
 
     const debounce = (fn: any, delay: number) => {
@@ -793,10 +795,16 @@ export default function TicketeraRids() {
 
             const t = data.ticket;
 
-            const defaultTo = [
+            const normalizeEmail = (email?: string | null) =>
+                email?.trim().toLowerCase() || null;
+
+            const uniqueEmails = (emails: Array<string | null | undefined>) =>
+                [...new Set(emails.map(normalizeEmail).filter(Boolean) as string[])];
+
+            const defaultTo = uniqueEmails([
                 t.requester?.email,
-                t.fromEmail
-            ].filter(Boolean);
+                t.fromEmail,
+            ]);
 
             setToEmails(defaultTo);
 
@@ -804,7 +812,9 @@ export default function TicketeraRids() {
             const lastMessage = data.ticket.messages?.[0];
 
             setCcEmails(
-                lastMessage?.cc ? lastMessage.cc.split(",") : []
+                uniqueEmails(
+                    lastMessage?.cc ? lastMessage.cc.split(",") : []
+                )
             );
 
             // 👉 template automático
@@ -855,6 +865,7 @@ Soporte Técnico`);
     const confirmDelete = async () => {
         if (!ticketToDelete) return;
         try {
+            setDeletingTicket(true);
             await api.delete(`/helpdesk/tickets/${ticketToDelete}`);
             message.success("Ticket eliminado correctamente");
             setDeleteModalOpen(false);
@@ -862,6 +873,8 @@ Soporte Técnico`);
             loadTickets();
         } catch {
             message.error("No se pudo eliminar el ticket");
+        } finally {
+            setDeletingTicket(false);
         }
     };
 
@@ -1122,7 +1135,6 @@ Soporte Técnico`);
                                 Nuevo Ticket
                             </Button>
                             <Button icon={<ReloadOutlined />} onClick={loadTickets} />
-                            <Button icon={<SettingOutlined />} />
                         </Space>
                     </div>
 
@@ -1187,7 +1199,7 @@ Soporte Técnico`);
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1">
                                 <Input
-                                    placeholder="Buscar tickets por asunto, empresa o ID..."
+                                    placeholder="Buscar por asunto, empresa, solicitante, email o ID..."
                                     prefix={<SearchOutlined />}
                                     value={searchText}
                                     onChange={(e) => setSearchText(e.target.value)}
@@ -1664,12 +1676,20 @@ Soporte Técnico`);
                 open={deleteModalOpen}
                 onOk={confirmDelete}
                 onCancel={() => {
+                    if (deletingTicket) return; // 👈 no cerrar mientras elimina
                     setDeleteModalOpen(false);
                     setTicketToDelete(null);
                 }}
                 okText="Eliminar"
-                okButtonProps={{ danger: true }}
-                cancelText="Cancelar"
+                okButtonProps={{
+                    danger: true,
+                    loading: deletingTicket,  // 👈 spinner en el botón
+                    disabled: deletingTicket, // 👈 deshabilitado mientras elimina
+                }}
+                cancelButtonProps={{
+                    disabled: deletingTicket, // 👈 también bloquear cancelar
+                }}
+                closable={!deletingTicket}    // 👈 bloquear la X
             >
                 <p>Esta acción no se puede deshacer. ¿Estás seguro?</p>
             </Modal>
