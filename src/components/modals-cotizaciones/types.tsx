@@ -85,6 +85,9 @@ export interface CotizacionGestioo {
   tipo: TipoCotizacionGestioo;
   entidadId: number | null;
   entidad: EntidadGestioo | null;
+  subtotal?: number;      // ✅ agrega esto
+  descuentos?: number;    // ✅ agrega esto
+  iva?: number;           // ✅ agrega esto
   total: number;
   secciones?: SeccionCotizacion[];
   moneda: MonedaCotizacion;
@@ -92,12 +95,9 @@ export interface CotizacionGestioo {
   items: CotizacionItemGestioo[];
   createdAt: string;
   updatedAt: string;
-
   comentariosCotizacion?: string | null;
-
   personaResponsable?: string | null;
   imagen?: string | null;
-
   ordenGenerada?: boolean;
 }
 

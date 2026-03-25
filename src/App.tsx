@@ -20,6 +20,7 @@ const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
+const TicketeraDetalle = lazy(() => import("../src/components/modals-ticketera/TicketDetalle"));
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
 const AgendaPage = lazy(() => import("./host/AgendaPage"));
 
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
             <Route path="/helpdesk" element={<TicketeraRids />} />
+            <Route path="/helpdesk/tickets/:id" element={<TicketeraDetalle />} />
             <Route path="/agenda" element={<AgendaPage />} />
 
           </Route>

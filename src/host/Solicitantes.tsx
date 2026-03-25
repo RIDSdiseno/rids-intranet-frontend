@@ -279,7 +279,6 @@ const TWModal: React.FC<TWModalProps> = ({
       >
         <motion.div
           className="absolute inset-0 bg-black/30"
-          onClick={onClose}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

@@ -297,6 +297,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const [shakeField, setShakeField] = useState<string | null>(null);
   const [tick, setTick] = useState(0); // fuerza re-render para clases de error
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   // Y modifica loadSolicitantes para que cuando hay empresa, NO use el search:
   const loadSolicitantes = async () => {
     setLoadingSolicitantes(true);
@@ -376,6 +378,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   }, [empresaId, open, form]);
 
   const handleOk = async () => {
+    setSubmitError(null);
     try {
       const values = await form.validateFields();
       setLoading(true);
@@ -418,7 +421,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
       if (resp.totalErrors > 0 || resp.errors?.length > 0) {
         const primerError = resp.errors[0];
-        throw new Error(primerError?.error || "No se pudo crear el equipo");
+        const msg = primerError?.error || "No se pudo crear el equipo";
+
+        // Detectar serial duplicado específicamente
+        if (msg.toLowerCase().includes("serial") || msg.toLowerCase().includes("ya existe")) {
+          setSubmitError(`Serial duplicado: ${primerError?.serial} ya está registrado en el sistema`);
+          return;
+        } else {
+          message.error(msg);
+        }
+        return;
       }
 
       const equipoCreado = resp.created?.[0];
@@ -441,7 +453,17 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           setTimeout(() => setShakeField(null), 500);
         }
       } else {
-        const msg = err instanceof Error ? err.message : "Error al crear el equipo";
+        // ✅ Captura el error de serial duplicado desde la respuesta del backend
+        const axiosData = (err as any)?.response?.data;
+
+        if (axiosData?.errors?.length > 0) {
+          const primerError = axiosData.errors[0];
+          message.error(primerError.error || "Error al crear el equipo");
+          return;
+        }
+
+        const msg = (err as any)?.response?.data?.error
+          || (err instanceof Error ? err.message : "Error al crear el equipo");
         message.error(msg);
       }
     } finally {
@@ -451,6 +473,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
   const handleCancel = () => {
     form.resetFields();
+    setSubmitError(null);
     onClose();
   };
 
@@ -482,6 +505,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     <Modal
       open={open}
       onCancel={handleCancel}
+      maskClosable={false}
       onOk={handleOk}
       confirmLoading={loading}
       width={860}
@@ -567,7 +591,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         </div>
       }
       destroyOnClose
-      maskClosable={!loading}
     >
       {/* fondo innovador con blobs */}
       <div className="relative">
@@ -1038,6 +1061,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                 showIcon
                 message="No se pudieron cargar empresas"
                 description={empError}
+              />
+            </motion.div>
+          )}
+          {submitError && (
+            <motion.div className="mt-3" {...fadeUp}>
+              <Alert
+                type="error"
+                showIcon
+                message="Error al crear equipo"
+                description={submitError}
+                closable
+                onClose={() => setSubmitError(null)}
               />
             </motion.div>
           )}

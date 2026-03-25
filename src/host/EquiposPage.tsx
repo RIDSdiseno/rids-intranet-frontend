@@ -1588,7 +1588,7 @@ const EquiposPage: React.FC = () => {
       {/* ===== Modal de edición (inline) ===== */}
       {editOpen && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={cancelEdit} />
+          <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
             <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-900">Editar equipo #{editRow?.id_equipo}</h3>

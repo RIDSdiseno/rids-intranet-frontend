@@ -1682,6 +1682,7 @@ const Cotizaciones: React.FC = () => {
 
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
+    const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
 
     // Nueva función simplificada para vista previa
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
@@ -1699,9 +1700,8 @@ const Cotizaciones: React.FC = () => {
     // Función para manejar el resultado del modal
     const handlePDFPreview = (url: string) => {
         setPdfURL(url);
-        setShowViewModal(true);
+        setShowPdfViewerModal(true); // ✅ modal separado para el PDF
     };
-
 
     // === FILTROS ===
     const q = query.toLowerCase();
@@ -2108,33 +2108,6 @@ const Cotizaciones: React.FC = () => {
                                                             )}
                                                         </div>
 
-                                                        {/* Consultar SII 
-                                                        {factura.trackId ? (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    try {
-                                                                        await apiFetch(
-                                                                            `/cotizaciones/facturas/${factura.id_factura}/consultar-sii`,
-                                                                            { method: "POST" }
-                                                                        );
-
-                                                                        await fetchCotizaciones(page);
-                                                                        showSuccess("Estado actualizado desde SII");
-
-                                                                    } catch (error) {
-                                                                        handleApiError(error, "Error al consultar SII");
-                                                                    }
-                                                                }}
-                                                                className="text-indigo-600 hover:text-indigo-800 text-xs"
-                                                            >
-                                                                Consultar SII
-                                                            </button>
-                                                        ) : (
-                                                            <span className="text-xs text-gray-400">
-                                                                Sin seguimiento SII
-                                                            </span>
-                                                        )} */}
-
                                                     </div>
                                                 ) : (
                                                     <button
@@ -2181,15 +2154,20 @@ const Cotizaciones: React.FC = () => {
                                             {/* Acciones */}
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex justify-center gap-2">
-                                                    {/* Ver - ahora abre el modal de generar PDF */}
+                                                    {/* Ver — abre dashboard de vista previa */}
                                                     <button
-                                                        onClick={() => handlePreviewRealPDF(c)}
+                                                        onClick={async () => {
+                                                            const data = await apiFetch(`/cotizaciones/${c.id}`);
+                                                            setSelectedCotizacion(data.data);
+                                                            setShowViewModal(true);
+                                                        }}
                                                         className="text-blue-600 hover:text-blue-800 text-sm"
+                                                        title="Ver cotización"
                                                     >
                                                         <EyeOutlined />
                                                     </button>
 
-                                                    {/* Imprimir - ahora abre el modal de generar PDF */}
+                                                    {/* Imprimir — abre modal de generar PDF */}
                                                     <button
                                                         onClick={() => handlePreviewRealPDF(c)}
                                                         className="text-indigo-600 hover:text-indigo-800 text-sm"
@@ -2217,48 +2195,6 @@ const Cotizaciones: React.FC = () => {
                                                     >
                                                         <CopyOutlined />
                                                     </button>
-                                                    {/*
-                                                    {factura && (
-                                                        <button
-                                                            onClick={async () => {
-                                                                try {
-                                                                    await apiFetch(`/cotizaciones/facturas/${factura.id_factura}/consultar-sii`, {
-                                                                        method: "POST",
-                                                                    });
-
-                                                                    await fetchCotizaciones(page);
-                                                                    showSuccess("Estado actualizado desde SII");
-
-                                                                } catch (error) {
-                                                                    handleApiError(error, "Error al consultar SII");
-                                                                }
-                                                            }}
-                                                            className="text-indigo-600 hover:text-indigo-800 text-xs"
-                                                        >
-                                                            Consultar SII
-                                                        </button>
-                                                    )} */}
-                                                    {/*
-                                                    {factura && factura.estado === "PENDIENTE" && (
-                                                        <button
-                                                            onClick={async () => {
-                                                                try {
-                                                                    await apiFetch(`/cotizaciones/facturas/${factura.id_factura}/pagar`, {
-                                                                        method: "POST",
-                                                                    });
-
-                                                                    await fetchCotizaciones(page);
-                                                                    showSuccess("Factura marcada como pagada");
-                                                                } catch (error) {
-                                                                    handleApiError(error, "Error al marcar como pagada");
-                                                                }
-                                                            }}
-                                                            className="text-emerald-600 hover:text-emerald-800 text-sm"
-                                                            title="Marcar como pagada"
-                                                        >
-                                                            <CheckCircleOutlined />
-                                                        </button>
-                                                    )} */}
 
                                                     {/* Emitir factura - SOLO SI ESTÁ APROBADA Y NO TIENE FACTURA VINCULADA */}
                                                     {c.estado === EstadoCotizacionGestioo.APROBADA &&
@@ -2286,31 +2222,6 @@ const Cotizaciones: React.FC = () => {
                                                                 <FileTextOutlined />
                                                             </button>
                                                         )}
-                                                    {/*
-                                                    {factura && factura.estado !== "ANULADA" && (
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (!window.confirm("¿Seguro que deseas anular esta factura?"))
-                                                                    return;
-
-                                                                try {
-                                                                    await apiFetch(`/cotizaciones/${factura.id_factura}/anular`, {
-                                                                        method: "POST",
-                                                                    });
-
-                                                                    await fetchCotizaciones(page);
-                                                                    showSuccess("Factura anulada correctamente");
-
-                                                                } catch (error) {
-                                                                    handleApiError(error, "Error al anular factura");
-                                                                }
-                                                            }}
-                                                            className="text-red-600 hover:text-red-800 text-sm"
-                                                            title="Anular factura"
-                                                        >
-                                                            Anular
-                                                        </button>
-                                                    )} */}
 
                                                     {/* Eliminar */}
                                                     <button
@@ -2426,12 +2337,23 @@ const Cotizaciones: React.FC = () => {
             />
 
             {/* MODALES */}
+            {/* Modal dashboard — vista previa manual */}
             <ViewCotizacionModal
                 show={showViewModal}
                 cotizacion={selectedCotizacion}
                 onClose={() => {
                     setShowViewModal(false);
-                    setPdfURL(null); // 👈 limpiar PDF al cerrar
+                }}
+                pdfURL={null}
+            />
+
+            {/* Modal visor PDF — solo cuando se genera desde GenerarPDFModal */}
+            <ViewCotizacionModal
+                show={showPdfViewerModal}
+                cotizacion={selectedCotizacion}
+                onClose={() => {
+                    setShowPdfViewerModal(false);
+                    setPdfURL(null);
                 }}
                 pdfURL={pdfURL}
             />
