@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
     BarcodeOutlined,
@@ -31,9 +31,11 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     categoriasDisponibles,
     apiLoading,
 }) => {
-    if (!show) return null;
-
     const { fetchApi } = useApi();
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [conIVA, setConIVA] = useState(false);
+
+    if (!show) return null;
 
     // ==========================
     // VALIDACIONES
@@ -54,8 +56,6 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
         if (apiLoading) return "Creando producto, por favor espere.";
         return "";
     };
-
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const handleRemoveImage = () => {
         onFormChange("imagenFile", null);
@@ -88,12 +88,13 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                     precioTotal:
                         formData.precioTotal ||
                         calcularPrecioTotal(
-                            formData.precio,
+                            conIVA ? formData.precio / 1.19 : formData.precio,
                             formData.porcGanancia
                         ),
                     categoria: formData.categoria,
                     stock: formData.stock,
                     serie: formData.serie,
+                    conIVA: conIVA,
                 }),
                 headers: { "Content-Type": "application/json" },
             });
@@ -138,25 +139,37 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     // ==========================
     const handlePrecioChange = (precio: number) => {
         onFormChange("precio", precio);
+        const costoBase = conIVA ? precio / 1.19 : precio;
         onFormChange(
             "precioTotal",
-            calcularPrecioTotal(precio, formData.porcGanancia)
+            calcularPrecioTotal(costoBase, formData.porcGanancia)
         );
     };
 
     const handlePorcGananciaChange = (porcGanancia: number) => {
         onFormChange("porcGanancia", porcGanancia);
+        const costoBase = conIVA ? formData.precio / 1.19 : formData.precio;
         onFormChange(
             "precioTotal",
-            calcularPrecioTotal(formData.precio, porcGanancia)
+            calcularPrecioTotal(costoBase, porcGanancia)
         );
     };
 
     const handlePrecioTotalChange = (precioTotal: number) => {
         onFormChange("precioTotal", precioTotal);
+        const costoBase = conIVA ? formData.precio / 1.19 : formData.precio;
         onFormChange(
             "porcGanancia",
-            calcularPorcGanancia(formData.precio, precioTotal)
+            calcularPorcGanancia(costoBase, precioTotal)
+        );
+    };
+
+    const handleConIVAChange = (checked: boolean) => {
+        setConIVA(checked);
+        const costoBase = checked ? formData.precio / 1.19 : formData.precio;
+        onFormChange(
+            "precioTotal",
+            calcularPrecioTotal(costoBase, formData.porcGanancia)
         );
     };
 
@@ -261,18 +274,30 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input
-                                type="number"
-                                min={0}
-                                value={formData.precio || ""}
-                                onChange={(e) =>
-                                    handlePrecioChange(
-                                        Number(e.target.value) || 0
-                                    )
-                                }
-                                placeholder="Costo"
-                                className="border rounded-xl px-3 py-2"
-                            />
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={formData.precio || ""}
+                                    onChange={(e) =>
+                                        handlePrecioChange(
+                                            Number(e.target.value) || 0
+                                        )
+                                    }
+                                    placeholder="Costo"
+                                    className={`border rounded-xl px-3 py-2 ${conIVA ? "opacity-50 bg-gray-100 text-gray-400" : ""}`}
+                                />
+                                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={conIVA}
+                                        onChange={(e) =>
+                                            handleConIVAChange(e.target.checked)
+                                        }
+                                    />
+                                    Precio sin IVA
+                                </label>
+                            </div>
 
                             <input
                                 type="number"
@@ -299,6 +324,13 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                                 placeholder="Precio venta"
                                 className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
                             />
+                        </div>
+
+                        <div className="mt-3 text-sm font-semibold text-slate-700">
+                            {conIVA
+                                ? `Costo sin IVA: $${Math.round(formData.precio / 1.19).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
+                                : `Costo neto: $${(formData.precio || 0).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
+                            }
                         </div>
 
                         {(precioInvalido || precioVentaInvalido) && (
