@@ -21,6 +21,10 @@ const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
+const TecnicosPage = lazy(() => import("./host/TecnicosPage"));
+const ForgotPasswordPage = lazy(() => import("./host/ForgotPassword"));
+const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
+
 
 const LoginPage = lazy(() => import("./host/login"));
 
@@ -76,6 +80,22 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route
+        path="/forgot-password"
+        element={
+          <Suspense fallback={<div>Cargando...</div>}>
+            <ForgotPasswordPage />
+          </Suspense>
+        }
+        />
+        <Route
+        path="/reset-password"
+        element={
+          <Suspense fallback={<div>Cargando...</div>}>
+            <ResetPasswordPage />
+          </Suspense>
+        }
+        />
 
         {/* PROTEGIDO */}
         <Route element={<ProtectedRoute />}>
@@ -97,6 +117,7 @@ export default function App() {
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
             <Route path="/helpdesk" element={<TicketeraRids />} />
+            <Route path="/tecnicos" element={<TecnicosPage />} />
 
           </Route>
         </Route>

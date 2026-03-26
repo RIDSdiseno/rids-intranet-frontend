@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { msalInstance } from "../auth/microsoftConfig";
 import {
   LogOut,
   Home,
@@ -92,8 +93,9 @@ const NAV: NavEntry[] = [
       { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
+      { label: "Técnicos", to: "/tecnicos", icon: <Wrench size={20} /> }, 
     ],
-    match: [ORDENESTALLER, COTIZACIONES, "/clientes", "/productos"],
+    match: [ORDENESTALLER, COTIZACIONES, "/clientes", "/productos", "/tecnicos"],
   },
   {
     type: "group",
@@ -194,6 +196,7 @@ const Header: React.FC = () => {
     } finally {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("user");
+      await msalInstance.logoutPopup().catch(() => {});
       navigate("/login", { replace: true });
     }
   };
