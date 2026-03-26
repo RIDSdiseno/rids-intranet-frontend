@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
     BarcodeOutlined,
@@ -31,9 +31,13 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     categoriasDisponibles,
     apiLoading,
 }) => {
-    if (!show) return null;
-
     const { fetchApi } = useApi();
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [conIVA, setConIVA] = useState(false);
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    if (!show) return null;
 
     // ==========================
     // VALIDACIONES
@@ -55,8 +59,6 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
         return "";
     };
 
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
-
     const handleRemoveImage = () => {
         onFormChange("imagenFile", null);
 
@@ -71,12 +73,15 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (isSubmitting) return;
+
         if (formInvalido) {
             alert("Hay campos inválidos. Revisa la información ingresada.");
             return;
         }
 
         try {
+            setIsSubmitting(true);
             // 1️⃣ Crear producto (sin imagen)
             const nuevoProductoResp = await fetchApi("/productos-gestioo", {
                 method: "POST",
@@ -88,12 +93,13 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                     precioTotal:
                         formData.precioTotal ||
                         calcularPrecioTotal(
-                            formData.precio,
+                            conIVA ? formData.precio / 1.19 : formData.precio,
                             formData.porcGanancia
                         ),
                     categoria: formData.categoria,
                     stock: formData.stock,
                     serie: formData.serie,
+                    conIVA: conIVA,
                 }),
                 headers: { "Content-Type": "application/json" },
             });
@@ -138,25 +144,37 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     // ==========================
     const handlePrecioChange = (precio: number) => {
         onFormChange("precio", precio);
+        const costoBase = conIVA ? precio / 1.19 : precio;
         onFormChange(
             "precioTotal",
-            calcularPrecioTotal(precio, formData.porcGanancia)
+            calcularPrecioTotal(costoBase, formData.porcGanancia)
         );
     };
 
     const handlePorcGananciaChange = (porcGanancia: number) => {
         onFormChange("porcGanancia", porcGanancia);
+        const costoBase = conIVA ? formData.precio / 1.19 : formData.precio;
         onFormChange(
             "precioTotal",
-            calcularPrecioTotal(formData.precio, porcGanancia)
+            calcularPrecioTotal(costoBase, porcGanancia)
         );
     };
 
     const handlePrecioTotalChange = (precioTotal: number) => {
         onFormChange("precioTotal", precioTotal);
+        const costoBase = conIVA ? formData.precio / 1.19 : formData.precio;
         onFormChange(
             "porcGanancia",
-            calcularPorcGanancia(formData.precio, precioTotal)
+            calcularPorcGanancia(costoBase, precioTotal)
+        );
+    };
+
+    const handleConIVAChange = (checked: boolean) => {
+        setConIVA(checked);
+        const costoBase = checked ? formData.precio / 1.19 : formData.precio;
+        onFormChange(
+            "precioTotal",
+            calcularPrecioTotal(costoBase, formData.porcGanancia)
         );
     };
 
@@ -261,18 +279,30 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input
-                                type="number"
-                                min={0}
-                                value={formData.precio || ""}
-                                onChange={(e) =>
-                                    handlePrecioChange(
-                                        Number(e.target.value) || 0
-                                    )
-                                }
-                                placeholder="Costo"
-                                className="border rounded-xl px-3 py-2"
-                            />
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    value={formData.precio || ""}
+                                    onChange={(e) =>
+                                        handlePrecioChange(
+                                            Number(e.target.value) || 0
+                                        )
+                                    }
+                                    placeholder="Costo"
+                                    className={`border rounded-xl px-3 py-2 ${conIVA ? "opacity-50 bg-gray-100 text-gray-400" : ""}`}
+                                />
+                                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={conIVA}
+                                        onChange={(e) =>
+                                            handleConIVAChange(e.target.checked)
+                                        }
+                                    />
+                                    Precio sin IVA
+                                </label>
+                            </div>
 
                             <input
                                 type="number"
@@ -299,6 +329,13 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                                 placeholder="Precio venta"
                                 className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
                             />
+                        </div>
+
+                        <div className="mt-3 text-sm font-semibold text-slate-700">
+                            {conIVA
+                                ? `Costo sin IVA: $${Math.round(formData.precio / 1.19).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
+                                : `Costo neto: $${(formData.precio || 0).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
+                            }
                         </div>
 
                         {(precioInvalido || precioVentaInvalido) && (
@@ -367,12 +404,39 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 
                         <button
                             type="submit"
-                            disabled={apiLoading || formInvalido}
+                            disabled={apiLoading || isSubmitting || formInvalido}
                             title={motivoDeshabilitado()}
                             className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                            <CheckCircleOutlined />
-                            {apiLoading ? "Creando..." : "Crear Producto"}
+                            {apiLoading || isSubmitting ? (
+                                <>
+                                    {/* Spinner SVG */}
+                                    <svg
+                                        className="animate-spin h-4 w-4 text-white"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12" cy="12" r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        />
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8v8z"
+                                        />
+                                    </svg>
+                                    Creando...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircleOutlined />
+                                    Crear Producto
+                                </>
+                            )}
                         </button>
                     </div>
 

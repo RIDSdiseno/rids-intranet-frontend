@@ -357,9 +357,9 @@ const ModalProducto: React.FC<ModalProductoProps> = ({
 
                         <button
                             type="submit"
+                            disabled={isSaving}
                             className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 
                             font-medium flex items-center gap-2 disabled:opacity-60"
-                            disabled={isSaving}
                         >
                             {isSaving ? (
                                 <>
@@ -705,8 +705,23 @@ const ProductosPage: React.FC = () => {
     };
 
     const handleCreate = async () => {
+
+        if (isSaving) return;
+
         if (!form.nombre.trim() || form.precio <= 0) {
             showNotification("error", "Nombre y precio son obligatorios");
+            return;
+        }
+
+        // 🔥 VALIDAR DUPLICADOS (NOMBRE)
+        const yaExiste = productos.some(
+            (p) =>
+                p.nombre?.toLowerCase().trim() ===
+                form.nombre?.toLowerCase().trim()
+        );
+
+        if (yaExiste) {
+            showNotification("error", "Ya existe un producto con ese nombre");
             return;
         }
 
@@ -740,9 +755,11 @@ const ProductosPage: React.FC = () => {
             resetForm();
             loadProductos();
 
-        } catch (err) {
-            console.error(err);
-            showNotification("error", "Error al crear el producto");
+        } catch (err: any) {
+            const msg =
+                err?.response?.data?.error ||
+                "Error al crear el producto";
+            showNotification("error", msg);
         } finally {
             setIsSaving(false);
         }

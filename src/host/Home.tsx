@@ -432,18 +432,18 @@ const Home: FC = () => {
   );
 
   return (
-    <div className="px-6 lg:px-8 xl:px-10 py-6">
+    <div className="py-2 px-4 sm:px-6 lg:px-8">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
+        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
         <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
       </motion.div>
 
       {/* Cards */}
-      <div className="mt-6 grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         {computedStats.map((stat, idx) => (
           <motion.div
             key={stat.name}
-            className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-slate-100 relative overflow-hidden"
+            className="bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100 relative overflow-hidden"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: idx * 0.1 }}
@@ -468,7 +468,7 @@ const Home: FC = () => {
                 )}
               </div>
             </div>
-            <div className="mt-3 text-2xl sm:text-3xl font-bold text-slate-800">{stat.value}</div>
+            <div className="mt-2 text-xl sm:text-2xl font-bold text-slate-800">{stat.value}</div>
             <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
           </motion.div>
         ))}
@@ -476,7 +476,7 @@ const Home: FC = () => {
 
       {/* Gráfico */}
       <motion.div
-        className="mt-8 sm:mt-10 bg-white rounded-xl shadow-md p-4 sm:p-6 border border-slate-100"
+        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.5 }}

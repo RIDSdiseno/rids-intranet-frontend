@@ -2,7 +2,7 @@
 import axios from "axios";
 import { http } from "../service/http"; // <-- AJUSTA si tu carpeta es /services o la ruta difiere
 
-export type MantencionStatus = "PENDIENTE" | "COMPLETADA" | "CANCELADA";
+export type MantencionStatus = "EN_CURSO" | "COMPLETADA" | "CANCELADA";
 
 export type MantencionRemota = {
   id_mantencion: number;
