@@ -3,7 +3,7 @@ import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken } from "../api/api";
-import { msalInstance, loginRequest } from "../auth/microsoftConfig";
+import {  loginRequest } from "../auth/microsoftConfig";
 
 /* =========== Tipos de API =========== */
 type LoginResponse = {
