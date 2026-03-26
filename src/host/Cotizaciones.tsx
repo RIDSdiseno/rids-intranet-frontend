@@ -261,6 +261,8 @@ const Cotizaciones: React.FC = () => {
     const [modoEquipoEdit, setModoEquipoEdit] = useState(false);
     const [loadingEquipos, setLoadingEquipos] = useState(false);
 
+    const [loadingCrearProducto, setLoadingCrearProducto] = useState(false);
+
     // === MANEJO DE ERRORES Y ÉXITOS ===
     const handleApiError = useCallback((error: any, defaultMessage: string) => {
 
@@ -1246,12 +1248,37 @@ const Cotizaciones: React.FC = () => {
         // 3️⃣ Validación final
         // =====================================================
         if (!producto) {
+            console.warn("Producto no encontrado en catálogo, usando datos del item");
+
+            // 🔥 fallback: usar datos del item directamente
+            if (item) {
+                setProductoAEditar({
+                    id: item.productoId ?? null,
+
+                    nombre: item.nombre,
+                    descripcion: item.descripcion ?? "",
+
+                    precioCosto: item.precioCosto ?? item.precio ?? 0,
+                    precio: item.precio ?? 0,
+                    precioTotal: item.precio ?? 0,
+                    porcGanancia: item.porcGanancia ?? 0,
+
+                    categoria: "",
+                    stock: 0,
+                    codigo: item.sku ?? "",
+                    imagen: item.imagen ?? null,
+                });
+
+                setShowSelectorProducto(false);
+                setShowEditProductoModal(true);
+                return;
+            }
+
+            // fallback final
             setToast({
                 type: "error",
-                message:
-                    "Este ítem no tiene un producto asociado. Debe volver a agregarlo desde el catálogo."
+                message: "No se pudo editar el producto"
             });
-            setTimeout(() => setToast(null), 4000);
             return;
         }
 
@@ -1550,7 +1577,23 @@ const Cotizaciones: React.FC = () => {
     };
 
     const handleCrearProducto = async (productoFinal: any) => {
+
+        if (loadingCrearProducto) return; // 🔥 anti doble click
+
+        const yaExiste = productosCatalogo.some(
+            (p) =>
+                p.nombre?.toLowerCase().trim() ===
+                productoFinal.nombre?.toLowerCase().trim()
+        );
+
+        if (yaExiste) {
+            showError("Ya existe un producto con ese nombre");
+            return;
+        }
+
         try {
+            setLoadingCrearProducto(true);
+
             // 1️⃣ Agregar al catálogo local
             setProductosCatalogo(prev => [...prev, {
                 id: productoFinal.id,
@@ -1565,38 +1608,33 @@ const Cotizaciones: React.FC = () => {
                 imagen: productoFinal.imagen || null
             }]);
 
-            // 2️⃣ Si estamos editando una cotización → agregar el item automáticamente
+            // 2️⃣ lógica que ya tienes...
             if (showEditModal && selectedCotizacion) {
-
                 const nuevoItem: any = {
-                    id: Date.now(),                       // temporal
+                    id: Date.now(),
                     tipo: "PRODUCTO",
                     descripcion: productoFinal.nombre,
                     cantidad: 1,
-                    precio: productoFinal.precioTotal,    // precio mostrado
-                    precioCosto: productoFinal.precio,    // costo real CLP
+                    precio: productoFinal.precioTotal,
+                    precioCosto: productoFinal.precio,
                     porcGanancia: productoFinal.porcGanancia,
                     porcentaje: 0,
                     tieneIVA: true,
                     tieneDescuento: false,
                     sku: productoFinal.serie,
-                    seccionId: 1,                         // 🔥 sección fija
+                    seccionId: 1,
                     imagen: productoFinal.imagen || null,
-
-                    // Campos usados por tus cálculos
                     precioOriginalCLP: productoFinal.precioTotal,
                 };
 
                 setSelectedCotizacion(prev => ({
                     ...prev!,
-                    items: [...prev!.items, nuevoItem]    // TS ya no reclama
+                    items: [...prev!.items, nuevoItem]
                 }));
             }
 
-            // 3️⃣ Cerrar modal
             setShowNewProductoModal(false);
 
-            // 4️⃣ Reset formulario
             setProductoForm({
                 nombre: "",
                 descripcion: "",
@@ -1610,11 +1648,12 @@ const Cotizaciones: React.FC = () => {
                 imagenFile: null,
             });
 
-            // 5️⃣ Mostrar éxito
             showSuccess("Producto creado correctamente");
 
         } catch (error) {
             handleApiError(error, "Error al procesar el nuevo producto");
+        } finally {
+            setLoadingCrearProducto(false); // 🔥 SIEMPRE liberar
         }
     };
 
@@ -2587,7 +2626,7 @@ const Cotizaciones: React.FC = () => {
                     setProductoForm(prev => ({ ...prev, [field]: value }))
                 }
                 categoriasDisponibles={categoriasDisponibles}
-                apiLoading={apiLoading}
+                apiLoading={loadingCrearProducto}
             />
 
             <NewServicioModal

@@ -35,6 +35,8 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [conIVA, setConIVA] = useState(false);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     if (!show) return null;
 
     // ==========================
@@ -71,12 +73,15 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (isSubmitting) return;
+
         if (formInvalido) {
             alert("Hay campos inválidos. Revisa la información ingresada.");
             return;
         }
 
         try {
+            setIsSubmitting(true);
             // 1️⃣ Crear producto (sin imagen)
             const nuevoProductoResp = await fetchApi("/productos-gestioo", {
                 method: "POST",
@@ -399,11 +404,11 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 
                         <button
                             type="submit"
-                            disabled={apiLoading || formInvalido}
+                            disabled={apiLoading || isSubmitting || formInvalido}
                             title={motivoDeshabilitado()}
                             className="flex-1 px-4 py-3 rounded-xl text-white bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                            {apiLoading ? (
+                            {apiLoading || isSubmitting ? (
                                 <>
                                     {/* Spinner SVG */}
                                     <svg

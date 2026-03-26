@@ -8,6 +8,7 @@ import {
     Select,
     Space,
     message,
+    notification,
     Badge,
     Row,
     Col,
@@ -29,6 +30,7 @@ import {
     MoreOutlined,
     ArrowUpOutlined,
     ArrowDownOutlined,
+    BellOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
@@ -252,6 +254,13 @@ export default function TicketeraRids() {
         return new Date(date).toLocaleDateString("es-CL");
     }
 
+    const STATUS_LABELS: Record<string, string> = {
+        NEW: "Nuevo",
+        OPEN: "Abierto",
+        PENDING: "Pendiente",
+        CLOSED: "Cerrado",
+    };
+
     const slaColor = (status?: string) => {
         switch (status) {
             case "OK":
@@ -435,7 +444,7 @@ export default function TicketeraRids() {
     useEffect(() => {
         loadTickets();
         loadSla();
-    }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
+    }, []);
 
     useEffect(() => {
         if (activeTab === "CLOSED") setStatusFilter("CLOSED");
@@ -459,10 +468,61 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        const onTicketCreated = () => setNewTicketsCount((prev) => prev + 1);
+        const onTicketCreated = (payload: any) => {
+            setNewTicketsCount((prev) => prev + 1);
+
+            notification.info({
+                message: "Nuevo ticket recibido",
+                description: payload?.subject
+                    ? `#${payload.id ?? ""} - ${payload.subject}`
+                    : "Ha llegado un nuevo ticket",
+                placement: "topRight",
+                duration: 4,
+            });
+
+            loadTickets();
+            loadSla();
+        };
+
+        const onCustomerReplied = (payload: any) => {
+            notification.warning({
+                message: "Nueva respuesta del solicitante",
+                description: payload?.subject
+                    ? `#${payload.ticketId ?? payload.id ?? ""} - ${payload.subject}`
+                    : `El ticket #${payload?.ticketId ?? payload?.id ?? ""} recibió una respuesta`,
+                placement: "topRight",
+                duration: 4,
+            });
+
+            loadTickets();
+            loadSla();
+        };
+
+        const onStatusChanged = (payload: any) => {
+            const newStatusLabel =
+                STATUS_LABELS[payload?.newStatus] || payload?.newStatus || "Actualizado";
+
+            notification.success({
+                message: "Estado actualizado",
+                description: payload?.subject
+                    ? `#${payload.ticketId ?? payload.id ?? ""} - ${payload.subject} → ${newStatusLabel}`
+                    : `El ticket #${payload?.ticketId ?? payload?.id ?? ""} cambió a ${newStatusLabel}`,
+                placement: "topRight",
+                duration: 4,
+            });
+
+            loadTickets();
+            loadSla();
+        };
+
         socket.on("ticket.created", onTicketCreated);
+        socket.on("ticket.customer_replied", onCustomerReplied);
+        socket.on("ticket.status_changed", onStatusChanged);
+
         return () => {
             socket.off("ticket.created", onTicketCreated);
+            socket.off("ticket.customer_replied", onCustomerReplied);
+            socket.off("ticket.status_changed", onStatusChanged);
         };
     }, []);
 
@@ -474,14 +534,10 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        const onTicketUpdated = () => {
-            loadTickets();
-        };
-        socket.on("ticket.updated", onTicketUpdated);
-        return () => {
-            socket.off("ticket.updated", onTicketUpdated);
-        };
-    }, []);
+        setPage(1);
+        loadTickets();
+        loadSla();
+    }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
 
     const setLastDays = (days: number) => {
         const now = new Date();
@@ -880,12 +936,6 @@ export default function TicketeraRids() {
                         </Button>
                     </Badge>
 
-                    <Badge count={getTicketCount("PENDING")}>
-                        <Button type={activeTab === "PENDING" ? "primary" : "default"} onClick={() => setActiveTab("PENDING")}>
-                            Pendientes
-                        </Button>
-                    </Badge>
-
                     <Badge count={getTicketCount("CLOSED")}>
                         <Button type={activeTab === "CLOSED" ? "primary" : "default"} onClick={() => setActiveTab("CLOSED")}>
                             Cerrados
@@ -893,7 +943,18 @@ export default function TicketeraRids() {
                     </Badge>
 
                     {newTicketsCount > 0 && (
-                        <Tag color="red">{newTicketsCount} nuevo(s)</Tag>
+                        <Button
+                            type="primary"
+                            shape="round"
+                            icon={<BellOutlined />}
+                            onClick={() => {
+                                setNewTicketsCount(0);
+                                loadTickets();
+                                loadSla();
+                            }}
+                        >
+                            {newTicketsCount} nuevo{newTicketsCount > 1 ? "s" : ""} ticket{newTicketsCount > 1 ? "s" : ""}
+                        </Button>
                     )}
                 </div>
 
