@@ -3,7 +3,7 @@ import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken } from "../api/api";
-import {  loginRequest } from "../auth/microsoftConfig";
+import {  loginRequest, pca } from "../auth/microsoftConfig";
 
 /* =========== Tipos de API =========== */
 type LoginResponse = {
@@ -52,7 +52,7 @@ const loginMicrosoft = async () => {
   setError(null);
     try {
       
-      const loginResponse = await msalInstance.loginPopup(loginRequest);
+      const loginResponse = await pca.loginPopup(loginRequest);
 
       const idToken = loginResponse.idToken;
 

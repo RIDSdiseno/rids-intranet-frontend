@@ -9,7 +9,7 @@ import {
   FileExcelOutlined,
 } from "@ant-design/icons";
 import axios, { AxiosError } from "axios";
-import Header from "../components/Header";
+
 
 /* ===================== Tipos de la API ===================== */
 type ApiRow = {
