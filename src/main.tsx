@@ -1,4 +1,3 @@
-// src/main.tsx  (o src/index.tsx si así se llama en tu proyecto)
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
@@ -15,12 +14,19 @@ import "dayjs/locale/es";
 
 dayjs.locale("es");
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <MsalProvider instance={pca}>
-      <ConfigProvider locale={esES}>
-        <App />
-      </ConfigProvider>
-    </MsalProvider>
-  </React.StrictMode>
-);
+// 🔥 Inicializar MSAL antes de renderizar
+async function startApp() {
+  await pca.initialize();
+
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <MsalProvider instance={pca}>
+        <ConfigProvider locale={esES}>
+          <App />
+        </ConfigProvider>
+      </MsalProvider>
+    </React.StrictMode>
+  );
+}
+
+startApp();
