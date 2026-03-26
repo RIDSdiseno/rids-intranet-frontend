@@ -16,7 +16,18 @@ dayjs.locale("es");
 
 // 🔥 Inicializar MSAL antes de renderizar
 async function startApp() {
-  await pca.initialize();
+  try {
+    await pca.initialize();
+
+    // ✅ bandera global segura
+    (window as any).msalReady = true;
+
+  } catch (error) {
+    console.error("❌ Error inicializando MSAL:", error);
+
+    // ⚠️ evita que la app quede bloqueada
+    (window as any).msalReady = false;
+  }
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
