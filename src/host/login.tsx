@@ -3,6 +3,7 @@ import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken } from "../api/api";
+import {  loginRequest, pca } from "../auth/microsoftConfig";
 
 /* =========== Tipos de API =========== */
 type LoginResponse = {
@@ -17,12 +18,12 @@ type LoginResponse = {
   };
 };
 
-type ErrorResponse = { error?: string };
-type RefreshResponse = { accessToken: string };
+// type ErrorResponse = { error?: string };
+// type RefreshResponse = { accessToken: string };
 
 // Refresh automático una sola vez por request
-let isRefreshing = false;
-let queue: Array<() => void> = [];
+//let isRefreshing = false;
+//let queue: Array<() => void> = [];
 
 /* =========== Utils de validación =========== */
 const isValidEmail = (email: string) =>
@@ -44,10 +45,40 @@ const LoginRids: React.FC = () => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
   };
+const loginMicrosoft = async () => {
+  if (loading) return;
+
+  setLoading(true);
+  setError(null);
+    try {
+      
+      const loginResponse = await pca.loginPopup(loginRequest);
+
+      const idToken = loginResponse.idToken;
+
+      const { data } = await api.post("/auth/microsoft", {
+      idToken
+    });
+      setAccessToken(data.accessToken);
+
+      localStorage.setItem("user", JSON.stringify(data.tecnico));
+
+      navigate("/home", {replace: true });
+    } catch (error){
+
+      console.error("Microsoft login error", error);
+
+      setError("No se pudo iniciar sesion con microsoft");
+      setLoading(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    
 
     // Validaciones front
     if (!form.usuario || !form.password) {
@@ -238,7 +269,7 @@ const LoginRids: React.FC = () => {
                 "
               >
                 <a
-                  href="#/forgot"
+                  href="/forgot-password"
                   className="
                     inline-flex justify-center items-center gap-2
                     text-xs sm:text-sm text-cyan-700 hover:text-cyan-900
@@ -272,6 +303,23 @@ const LoginRids: React.FC = () => {
                 </button>
               </div>
             </form>
+            <div className="mt-4">
+  <button
+    type="button"
+    onClick={loginMicrosoft}
+    className="
+      w-full
+      flex items-center justify-center gap-2
+      rounded-xl
+      border border-slate-300
+      px-4 py-3
+      text-sm font-medium
+      hover:bg-slate-100
+    "
+  >
+    Iniciar sesión con Microsoft
+  </button>
+</div>
 
             <div className="mt-8 sm:mt-10 h-0.5 w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
             <div className="mt-4 sm:mt-6 text-center text-[10px] sm:text-xs text-slate-500">

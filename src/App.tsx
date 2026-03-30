@@ -23,8 +23,11 @@ const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
 const TicketeraDetalle = lazy(() => import("../src/components/modals-ticketera/TicketDetalle"));
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
 const AgendaPage = lazy(() => import("./host/AgendaPage"));
+const TecnicosPage = lazy(() => import("./host/TecnicosPage"));
 
 const LoginPage = lazy(() => import("./host/login"));
+const ForgotPasswordPage = lazy(() => import("./host/ForgotPassword"));
+const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 
 /* =========================
    Auth
@@ -79,6 +82,24 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/forgot-password"
+          element={
+            <Suspense fallback={<div>Cargando...</div>}>
+              <ForgotPasswordPage />
+            </Suspense>
+          }
+        />
+
+        <Route
+          path="/reset-password"
+          element={
+            <Suspense fallback={<div>Cargando...</div>}>
+              <ResetPasswordPage />
+            </Suspense>
+          }
+        />
+
         {/* PROTEGIDO */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
@@ -101,12 +122,16 @@ export default function App() {
             <Route path="/helpdesk" element={<TicketeraRids />} />
             <Route path="/helpdesk/tickets/:id" element={<TicketeraDetalle />} />
             <Route path="/agenda" element={<AgendaPage />} />
+            <Route path="/tecnicos" element={<TecnicosPage />} />
 
           </Route>
         </Route>
 
         {/* fallback */}
-        <Route path="*" element={<Navigate to={isAuthed() ? "/home" : "/login"} replace />} />
+        <Route
+          path="*"
+          element={<Navigate to={isAuthed() ? "/home" : "/login"} replace />}
+        />
 
       </Routes>
     </BrowserRouter>

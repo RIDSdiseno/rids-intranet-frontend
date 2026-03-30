@@ -4,10 +4,12 @@ export const useAuth = () => {
 
   const isCliente = user?.rol === "CLIENTE";
   const isTecnico = user?.rol === "TECNICO";
+  const isAdmin = user?.rol === "ADMIN";
 
   return {
     user,
     isCliente,
     isTecnico,
+    isAdmin,
   };
 };
