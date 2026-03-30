@@ -6,6 +6,10 @@ import {
   LoadingOutlined,
   ReloadOutlined,
   CalendarOutlined,
+  TrophyOutlined,
+  TeamOutlined,
+  RiseOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import {
@@ -17,6 +21,9 @@ import {
   Tooltip,
   Bar,
   Cell,
+  PieChart,
+  Pie,
+  Legend,
 } from "recharts";
 import axios, { AxiosError } from "axios";
 
@@ -122,7 +129,7 @@ function colorForTech(id: number, name: string) {
   return PALETTE[hashToIndex(`${id}-${name}`)];
 }
 
-/* ===== Tooltip personalizado ===== */
+/* ===== Tooltip personalizado barras ===== */
 type TooltipProps = {
   active?: boolean;
   label?: string | number;
@@ -163,6 +170,23 @@ const CustomTooltip: FC<TooltipProps> = ({ active, label, payload }) => {
   );
 };
 
+/* ===== Tooltip personalizado pie ===== */
+type PieTooltipProps = {
+  active?: boolean;
+  payload?: Array<{ payload: VisitaMetricRow; value: number; name: string }>;
+};
+const CustomPieTooltip: FC<PieTooltipProps> = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  const total = item.payload.cantidad;
+  return (
+    <div className="rounded-xl border border-cyan-100 bg-white/95 shadow-md p-3">
+      <div className="text-sm font-semibold text-cyan-900">{item.name}</div>
+      <div className="text-sm text-neutral-700">Visitas: <b>{total}</b></div>
+    </div>
+  );
+};
+
 /* ===== Hooks para breakpoint y truncado ===== */
 type LegacyMQL = MediaQueryList & {
   addListener?: (listener: (e: MediaQueryListEvent) => void) => void;
@@ -181,17 +205,14 @@ function useMediaQuery(query: string) {
     const mql: MediaQueryList = window.matchMedia(query);
     const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
 
-    // Suscribir (API moderna con fallback)
     if ("addEventListener" in mql) {
       mql.addEventListener("change", onChange);
     } else if ("addListener" in mql) {
       (mql as LegacyMQL).addListener?.(onChange);
     }
 
-    // Estado inicial
     setMatches(mql.matches);
 
-    // Cleanup
     return () => {
       if ("removeEventListener" in mql) {
         mql.removeEventListener("change", onChange);
@@ -343,6 +364,35 @@ const Home: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ===== NUEVAS MÉTRICAS SOLO CON VISITAS ===== */
+  const avgVisitasPorTecnico = useMemo(() => {
+    if (!visitasByTech.length) return 0;
+    const total = visitasByTech.reduce((acc, row) => acc + row.cantidad, 0);
+    return Math.round(total / visitasByTech.length);
+  }, [visitasByTech]);
+
+  const topTecnico = useMemo(() => {
+    if (!visitasByTech.length) return null;
+    return [...visitasByTech].sort((a, b) => b.cantidad - a.cantidad)[0];
+  }, [visitasByTech]);
+
+  const tecnicosActivos = useMemo(() => {
+    return visitasByTech.filter((t) => t.cantidad > 0).length;
+  }, [visitasByTech]);
+
+  const tecnicosSobrePromedio = useMemo(() => {
+    return visitasByTech.filter((t) => t.cantidad > avgVisitasPorTecnico);
+  }, [visitasByTech, avgVisitasPorTecnico]);
+
+  const tecnicosBajaActividad = useMemo(() => {
+    if (!avgVisitasPorTecnico) return [];
+    return visitasByTech.filter((t) => t.cantidad < avgVisitasPorTecnico * 0.5);
+  }, [visitasByTech, avgVisitasPorTecnico]);
+
+  const rankingTecnicos = useMemo(() => {
+    return [...visitasByTech].sort((a, b) => b.cantidad - a.cantidad);
+  }, [visitasByTech]);
+
   /* ===== estadísticas ===== */
   const computedStats: Stat[] = useMemo(
     () => [
@@ -411,6 +461,66 @@ const Home: FC = () => {
         onRefresh: () => fetchTotalTickets(),
         isLoading: loadingTic,
       },
+
+      /* ===== NUEVAS CARDS ===== */
+      {
+        name: "Promedio por técnico",
+        value: loadingVis ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(avgVisitasPorTecnico)
+        ),
+        icon: <RiseOutlined className="text-emerald-600 text-xl" />,
+        change: errorVis ? <span className="text-red-600">Error: {errorVis}</span> : "Visitas promedio del mes",
+        onRefresh: () => fetchVisitasMetrics(),
+        isLoading: loadingVis,
+      },
+      {
+        name: "Técnico top del mes",
+        value: loadingVis ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : topTecnico ? (
+          topTecnico.tecnico
+        ) : (
+          "—"
+        ),
+        icon: <TrophyOutlined className="text-amber-500 text-xl" />,
+        change: topTecnico ? `${formatNumber(topTecnico.cantidad)} visitas` : "Sin datos",
+        onRefresh: () => fetchVisitasMetrics(),
+        isLoading: loadingVis,
+      },
+      {
+        name: "Técnicos activos",
+        value: loadingVis ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(tecnicosActivos)
+        ),
+        icon: <TeamOutlined className="text-indigo-600 text-xl" />,
+        change: "Con al menos 1 visita en el mes",
+        onRefresh: () => fetchVisitasMetrics(),
+        isLoading: loadingVis,
+      },
+      {
+        name: "Sobre promedio",
+        value: loadingVis ? (
+          <span className="inline-flex items-center gap-2">
+            <LoadingOutlined /> Cargando…
+          </span>
+        ) : (
+          formatNumber(tecnicosSobrePromedio.length)
+        ),
+        icon: <WarningOutlined className="text-orange-500 text-xl" />,
+        change: "Técnicos con carga superior al promedio",
+        onRefresh: () => fetchVisitasMetrics(),
+        isLoading: loadingVis,
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -428,6 +538,10 @@ const Home: FC = () => {
       loadingTic,
       totalTickets,
       errorTic,
+      avgVisitasPorTecnico,
+      topTecnico,
+      tecnicosActivos,
+      tecnicosSobrePromedio.length,
     ]
   );
 
@@ -446,7 +560,7 @@ const Home: FC = () => {
             className="bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100 relative overflow-hidden"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: idx * 0.1 }}
+            transition={{ duration: 0.6, delay: idx * 0.08 }}
             whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
           >
             <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-cyan-100/40 blur-2xl" />
@@ -474,7 +588,54 @@ const Home: FC = () => {
         ))}
       </div>
 
-      {/* Gráfico */}
+      {/* Alertas rápidas */}
+      <motion.div
+        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
+        initial={{ opacity: 0, y: 26 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, delay: 0.35 }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800">Alertas de actividad</h2>
+          <span className="text-xs text-slate-500">Basado solo en visitas del mes</span>
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+            <div className="text-sm font-semibold text-amber-800">Técnicos sobre promedio</div>
+            {tecnicosSobrePromedio.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                {tecnicosSobrePromedio.slice(0, 5).map((t) => (
+                  <li key={t.tecnico} className="flex items-center justify-between gap-3">
+                    <span className="truncate">{t.tecnico}</span>
+                    <span className="font-semibold">{formatNumber(t.cantidad)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-2 text-sm text-amber-700">Sin técnicos sobre promedio.</div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3">
+            <div className="text-sm font-semibold text-rose-800">Baja actividad</div>
+            {tecnicosBajaActividad.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm text-rose-900">
+                {tecnicosBajaActividad.slice(0, 5).map((t) => (
+                  <li key={t.tecnico} className="flex items-center justify-between gap-3">
+                    <span className="truncate">{t.tecnico}</span>
+                    <span className="font-semibold">{formatNumber(t.cantidad)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-2 text-sm text-rose-700">No se detecta baja actividad.</div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Gráfico principal */}
       <motion.div
         className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
         initial={{ opacity: 0, y: 30 }}

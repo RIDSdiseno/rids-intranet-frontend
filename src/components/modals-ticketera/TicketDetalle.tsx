@@ -414,9 +414,14 @@ Soporte Técnico`);
             if (isInternal) {
                 setInternalNoteText("");
                 message.success("Nota interna guardada");
+                setReplyFiles([]);
+                await loadTicket();
             } else {
                 setReplyText("");
+                setReplyFiles([]);
                 message.success("Respuesta enviada");
+                navigate("/helpdesk/", { replace: true });
+                return;
             }
 
             setReplyFiles([]);
