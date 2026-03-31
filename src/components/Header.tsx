@@ -3,21 +3,22 @@ import { pca } from "../auth/microsoftConfig";
 import {
   LogOut,
   Home,
-  Calendar,
   CalendarDays,
   Ticket,
   Users,
   Building2,
   Laptop,
   BarChart3,
-  Factory,
-  FileText,
-  Briefcase,
   Package,
   User,
   ChevronLeft,
   ChevronRight,
-  Wrench,
+  CalendarRange,
+  UserCog,
+  MonitorCog,
+  ClipboardList,
+  ReceiptText,
+  Headset,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -30,6 +31,8 @@ const api = axios.create({
 });
 
 const HOME_PATH = "/home";
+const CALENDARIO_PATH = "/agenda";
+const TECNICOS_PATH = "/tecnicos";
 const VISITAS_PATH = "/visitas";
 const MANTENCIONES_REMOTAS_PATH = "/mantenciones-remotas";
 const SOLICITANTES_PATH = "/solicitantes";
@@ -81,33 +84,35 @@ const NAV: NavEntry[] = [
     match: [HOME_PATH],
   },
   {
-    type: "link",
-    label: "Calendario visitas",
-    to: "/agenda",
-    icon: <Calendar size={20} />,
-    match: ["/agenda"],
+    type: "group",
+    label: "Técnicos y Visitas",
+    items: [
+      { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
+      { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
+      { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> }
+    ],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH],
   },
   {
     type: "group",
-    label: "Operación",
+    label: "RIDS",
     items: [
       { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
-      { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
       { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
-      { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <Wrench size={20} /> },
+      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
+      { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
+      { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
-    label: "Gestión",
+    label: "ECONNET",
     items: [
-      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <Factory size={20} /> },
-      { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
+      { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
-      { label: "Técnicos", to: "/tecnicos", icon: <Wrench size={20} /> },
     ],
     match: [ORDENESTALLER, COTIZACIONES, "/clientes", "/productos", "/tecnicos"],
   },
@@ -119,12 +124,11 @@ const NAV: NavEntry[] = [
   },
   {
     type: "group",
-    label: "Ticketera",
+    label: "Freshdesk",
     items: [
-      { label: "Tickets", to: TICKETS_PATH, icon: <Ticket size={18} /> },
-      { label: "Helpdesk", to: HELPDESK_PATH, icon: <FileText size={18} /> },
+      { label: "Tickets (Histórico)", to: TICKETS_PATH, icon: <Ticket size={20} /> },
     ],
-    match: [TICKETS_PATH, HELPDESK_PATH],
+    match: [TICKETS_PATH],
   },
 ];
 
@@ -245,10 +249,9 @@ const Header = () => {
               className={`
                 relative flex items-center gap-4 px-3 py-2.5 rounded-xl
                 transition-all duration-200 group
-                ${
-                  isActivePath(pathname, entry.to)
-                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                    : "text-slate-700 hover:bg-slate-100"
+                ${isActivePath(pathname, entry.to)
+                  ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                  : "text-slate-700 hover:bg-slate-100"
                 }
                 ${collapsed ? "justify-center" : ""}
               `}
@@ -278,10 +281,9 @@ const Header = () => {
                   className={`
                     relative flex items-center gap-4 px-3 py-2.5 rounded-lg
                     transition-all duration-200 group
-                    ${
-                      isActivePath(pathname, it.to)
-                        ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                        : "text-slate-600 hover:bg-slate-100"
+                    ${isActivePath(pathname, it.to)
+                      ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                      : "text-slate-600 hover:bg-slate-100"
                     }
                     ${collapsed ? "justify-center" : "pl-6"}
                   `}

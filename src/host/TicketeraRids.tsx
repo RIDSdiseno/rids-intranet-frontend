@@ -12,7 +12,6 @@ import {
     Badge,
     Row,
     Col,
-    Tooltip,
     Dropdown,
     Pagination,
 } from "antd";
@@ -31,30 +30,10 @@ import {
     ArrowUpOutlined,
     ArrowDownOutlined,
     BellOutlined,
+    SettingOutlined,
+
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-
-import type {
-    TicketDetail,
-    TicketFormState,
-    StatusCounts,
-    ActiveTab,
-    SlaSummary,
-} from "../components/modals-ticketera/types";
-
-import {
-    STATUS_LABELS,
-    PRIORITY_LABELS,
-    priorityColor,
-    statusColor,
-    slaColor,
-    slaLabel,
-    formatDateTime,
-    formatRelativeTime,
-    formatEmailBody,
-    getTicketActivityMeta,
-    getTicketActivityText,
-} from "../components/modals-ticketera/utils";
 
 import { socket } from "../lib/socket";
 import { api } from "../api/api";
@@ -343,6 +322,19 @@ export default function TicketeraRids() {
         }
     };
 
+    const configMenuItems: MenuProps["items"] = [
+        {
+            key: "dashboard",
+            label: "Dashboard",
+            onClick: () => navigate("/helpdesk/dashboard"),
+        },
+        {
+            key: "email-templates",
+            label: "Plantillas de correo",
+            onClick: () => navigate("/helpdesk/email-templates"),
+        },
+    ];
+
     function getTicketActivityMeta(ticket: Ticket) {
         if (ticket.status === "CLOSED") {
             return {
@@ -471,8 +463,13 @@ export default function TicketeraRids() {
     };
 
     const loadTecnicos = async () => {
-        const { data } = await api.get("/tecnicos");
-        setTecnicos(Array.isArray(data) ? data : []);
+        try {
+            const { data } = await api.get("/tecnicos");
+            setTecnicos(Array.isArray(data) ? data : data?.data ?? []);
+        } catch {
+            message.error("No se pudieron cargar los técnicos");
+            setTecnicos([]);
+        }
     };
 
     const loadSla = async () => {
@@ -796,13 +793,9 @@ export default function TicketeraRids() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 py-6">
-                <div className="mb-6">
+            <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
+                <div className="mb-5 space-y-2">
                     <div className="flex justify-between items-center mb-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-800">Centro de Soporte</h1>
-                            <p className="text-gray-500">Gestión de tickets de ayuda y soporte</p>
-                        </div>
 
                         <Button onClick={() => setShowResumen(v => !v)}>
                             {showResumen ? "Ocultar resumen" : "Mostrar resumen"}
@@ -829,7 +822,15 @@ export default function TicketeraRids() {
                             >
                                 Nuevo Ticket
                             </Button>
+
                             <Button icon={<ReloadOutlined />} onClick={() => { loadTickets(); loadSla(); }} />
+
+                            <Dropdown menu={{ items: configMenuItems }} trigger={["click"]}>
+                                <Button
+                                    icon={<SettingOutlined />}
+                                    title="Configuración"
+                                />
+                            </Dropdown>
                         </Space>
                     </div>
 
@@ -933,7 +934,7 @@ export default function TicketeraRids() {
                     )}
                 </div>
 
-                <Card className="mb-4">
+                <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1">
@@ -944,6 +945,7 @@ export default function TicketeraRids() {
                                     onChange={(e) => setSearchText(e.target.value)}
                                     onPressEnter={loadTickets}
                                     size="large"
+                                    className="rounded-xl"
                                 />
                             </div>
 
@@ -1060,7 +1062,7 @@ export default function TicketeraRids() {
                 </div>
 
                 {selectedTickets.length > 0 && (
-                    <Card className="mb-4">
+                    <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                         <div className="flex justify-between items-center gap-4 flex-wrap">
                             <div className="font-medium">
                                 {selectedTickets.length} ticket(s) seleccionados
@@ -1140,7 +1142,7 @@ export default function TicketeraRids() {
                                                                     {TICKET_STATUS_LABEL[ticket.status] ?? ticket.status}
                                                                 </Tag>
 
-                                                                <span className="font-semibold text-gray-900 truncate">
+                                                                <span className="text-[15px] font-semibold text-slate-900 leading-snug">
                                                                     {PRIORITY_ICONS[
                                                                         ticket.priority as keyof typeof PRIORITY_ICONS
                                                                     ]}{" "}
@@ -1152,7 +1154,7 @@ export default function TicketeraRids() {
                                                                 </span>
                                                             </div>
 
-                                                            <div className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
+                                                            <div className="text-sm text-slate-500 flex items-center gap-2 flex-wrap mt-1">
                                                                 <span>{ticket.empresa?.nombre ?? "SIN CLASIFICAR"}</span>
                                                                 <span>·</span>
                                                                 <span>{ticket.requester?.nombre ?? ticket.fromEmail ?? "Sin solicitante"}</span>
@@ -1185,7 +1187,10 @@ export default function TicketeraRids() {
                                                         </div>
 
                                                         <div className="flex items-center gap-2 shrink-0">
-                                                            <Tag className="m-0">
+                                                            <Tag
+                                                                className="m-0 rounded-full px-3"
+                                                                color={ticket.assignee?.nombre ? "blue" : "default"}
+                                                            >
                                                                 {ticket.assignee?.nombre ?? "Sin asignar"}
                                                             </Tag>
 

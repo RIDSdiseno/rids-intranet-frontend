@@ -19,8 +19,13 @@ const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
+
+const HelpdeskLayout = lazy(() => import("../src/components/modals-ticketera/HelpdeskLayout"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
+const DashboardTecnicosdPage = lazy(() => import("../src/components/modals-ticketera/DashboardTecnicos"));
+const TicketEmailTemplatesPage = lazy(() => import("../src/components/modals-ticketera/reply-templates/TicketEmailTemplate"));
 const TicketeraDetalle = lazy(() => import("../src/components/modals-ticketera/TicketDetalle"));
+
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
 const AgendaPage = lazy(() => import("./host/AgendaPage"));
 const TecnicosPage = lazy(() => import("./host/TecnicosPage"));
@@ -71,7 +76,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* LOGIN */}
         <Route
           path="/login"
@@ -103,7 +107,6 @@ export default function App() {
         {/* PROTEGIDO */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-
             <Route path="/" element={<Navigate to="/home" replace />} />
 
             <Route path="/home" element={<HomePage />} />
@@ -119,11 +122,17 @@ export default function App() {
             <Route path="/Cotizaciones" element={<CotizacionesPage />} />
             <Route path="/clientes" element={<ClientesPage />} />
             <Route path="/productos" element={<ProductosPage />} />
-            <Route path="/helpdesk" element={<TicketeraRids />} />
-            <Route path="/helpdesk/tickets/:id" element={<TicketeraDetalle />} />
+
+            {/* HELPDESK */}
+            <Route path="/helpdesk" element={<HelpdeskLayout />}>
+              <Route index element={<TicketeraRids />} />
+              <Route path="dashboard" element={<DashboardTecnicosdPage />} />
+              <Route path="email-templates" element={<TicketEmailTemplatesPage />} />
+              <Route path="tickets/:id" element={<TicketeraDetalle />} />
+            </Route>
+
             <Route path="/agenda" element={<AgendaPage />} />
             <Route path="/tecnicos" element={<TecnicosPage />} />
-
           </Route>
         </Route>
 
@@ -132,7 +141,6 @@ export default function App() {
           path="*"
           element={<Navigate to={isAuthed() ? "/home" : "/login"} replace />}
         />
-
       </Routes>
     </BrowserRouter>
   );

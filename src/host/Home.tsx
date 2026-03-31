@@ -21,9 +21,6 @@ import {
   Tooltip,
   Bar,
   Cell,
-  PieChart,
-  Pie,
-  Legend,
 } from "recharts";
 import axios, { AxiosError } from "axios";
 

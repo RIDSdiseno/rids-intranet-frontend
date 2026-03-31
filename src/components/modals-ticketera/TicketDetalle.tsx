@@ -283,6 +283,8 @@ export default function TicketDetailPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const replyFileInputRef = useRef<HTMLInputElement>(null);
 
+    const [showReplyPanel, setShowReplyPanel] = useState(false);
+
     const debounce = (fn: any, delay: number) => {
         let timer: any;
         return (...args: any[]) => {
@@ -475,8 +477,8 @@ Soporte Técnico`);
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-[1600px] mx-auto px-4 py-4 h-[calc(100vh-24px)] flex flex-col">
-                <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-6 py-5">
+            <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
+                <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-7 py-4">
                     <div className="flex items-center justify-between gap-4 mb-3">
                         <div className="flex items-center gap-3">
                             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
@@ -497,12 +499,12 @@ Soporte Técnico`);
                         </div>
                     </div>
 
-                    <h1 className="text-xl font-semibold text-gray-900">
+                    <h1 className="text-lg xl:text-[20px] font-semibold text-gray-900 leading-tight">
                         {ticketDetalle.subject}
                     </h1>
                 </div>
 
-                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] bg-white rounded-b-2xl overflow-hidden border border-gray-200 border-t-0 shadow-sm">
+                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] bg-white rounded-b-2xl overflow-hidden border border-gray-200 border-t-0 shadow-sm">
                     <div className="min-h-0 flex flex-col border-r border-gray-200">
                         {lastActivityBy && (
                             <div className="shrink-0 px-6 pt-3 pb-1">
@@ -524,8 +526,8 @@ Soporte Técnico`);
                             </div>
                         )}
 
-                        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-                            <div className="relative pl-10">
+                        <div className="flex-1 min-h-0 overflow-y-auto px-7 py-5">
+                            <div className="relative pl-9">
                                 <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-200 z-0" />
 
                                 {ticketDetalle.messages.map((m) => {
@@ -561,9 +563,9 @@ Soporte Técnico`);
                                             </div>
 
                                             <div
-                                                className={`rounded-xl shadow-sm border ${bgColor} ${borderColor} border-l-4`}
+                                                className={`rounded-xl border ${bgColor} ${borderColor} border-l-4`}
                                             >
-                                                <div className="px-5 py-4 border-b border-gray-100">
+                                                <div className="px-4 py-3 border-b border-gray-100">
                                                     <div className="flex justify-between items-center gap-4">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-semibold text-sm text-gray-800">
@@ -643,7 +645,7 @@ Soporte Técnico`);
                                                     )}
                                                 </div>
 
-                                                <div className="px-5 py-4">
+                                                <div className="px-4 py-3">
                                                     {hasUnresolvedCidImages(m.bodyHtml, m.attachments) && (
                                                         <div className="mb-3 px-3 py-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
                                                             ⚠️ Algunas imágenes de la firma no pudieron mostrarse.
@@ -659,7 +661,7 @@ Soporte Técnico`);
                                                                     ADD_TAGS: ["img", "table", "tbody", "tr", "td"],
                                                                 }
                                                             )}
-                                                            sandbox="allow-same-origin allow-popups"
+                                                            sandbox="allow-same-origin allow-popups allow-scripts"
                                                             className="w-full border-0 rounded"
                                                             style={{ minHeight: "80px" }}
                                                             onLoad={(e) => {
@@ -673,7 +675,7 @@ Soporte Técnico`);
                                                         />
                                                     ) : (
                                                         <div
-                                                            className="prose prose-sm max-w-none text-gray-700"
+                                                            className="prose prose-sm max-w-none text-[13px] leading-6 text-gray-700"
                                                             dangerouslySetInnerHTML={{
                                                                 __html: DOMPurify.sanitize(formatEmailBody(m.bodyText)),
                                                             }}
@@ -716,164 +718,181 @@ Soporte Técnico`);
                             </div>
                         </div>
 
-                        <div className="shrink-0 bg-gray-50 border-t border-gray-200 px-6 py-4">
-                            <Tabs
-                                items={[
-                                    {
-                                        key: "reply",
-                                        label: (
-                                            <span className="flex items-center gap-1">
-                                                <SendOutlined /> Responder al cliente
-                                            </span>
-                                        ),
-                                        children: (
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs text-gray-500">Para:</span>
-                                                        {!showCc && (
-                                                            <Button size="small" type="link" onClick={() => setShowCc(true)}>
-                                                                + CC
-                                                            </Button>
-                                                        )}
-                                                    </div>
+                        <div className="shrink-0 bg-gray-50 border-t border-gray-200">
+                            <div className="flex items-center justify-between px-6 py-3">
+                                <div className="text-sm font-medium text-gray-700">
+                                    Acciones del ticket
+                                </div>
 
-                                                    <Select
-                                                        mode="tags"
-                                                        showSearch
-                                                        placeholder="Agregar destinatarios"
-                                                        value={toEmails}
-                                                        onChange={setToEmails}
-                                                        onSearch={debouncedSearchContactos}
-                                                        loading={loadingContactos}
-                                                        options={contactos.map((c) => ({
-                                                            label: `${c.nombre} (${c.email})`,
-                                                            value: c.email,
-                                                        }))}
-                                                        style={{ width: "100%" }}
-                                                    />
-                                                </div>
+                                <Button
+                                    size="small"
+                                    onClick={() => setShowReplyPanel((prev) => !prev)}
+                                >
+                                    {showReplyPanel ? "Ocultar" : "Mostrar"}
+                                </Button>
+                            </div>
 
-                                                {showCc && (
-                                                    <div>
-                                                        <span className="text-xs text-gray-500">CC:</span>
-                                                        <Select
-                                                            mode="tags"
-                                                            showSearch
-                                                            placeholder="Agregar CC"
-                                                            value={ccEmails}
-                                                            onChange={setCcEmails}
-                                                            onSearch={debouncedSearchContactos}
-                                                            loading={loadingContactos}
-                                                            options={contactos.map((c) => ({
-                                                                label: `${c.nombre} (${c.email})`,
-                                                                value: c.email,
-                                                            }))}
-                                                            style={{ width: "100%" }}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                <Input.TextArea
-                                                    value={replyText}
-                                                    onChange={(e) => setReplyText(e.target.value)}
-                                                    placeholder="Escribe tu respuesta al cliente..."
-                                                    className="resize-none"
-                                                    autoSize={{ minRows: 3, maxRows: 6 }}
-                                                />
-
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <input
-                                                        ref={replyFileInputRef}
-                                                        type="file"
-                                                        multiple
-                                                        hidden
-                                                        onChange={(e) => {
-                                                            const files = e.target.files;
-                                                            if (!files?.length) return;
-                                                            setReplyFiles([...replyFiles, ...Array.from(files)]);
-                                                            e.target.value = "";
-                                                        }}
-                                                    />
-
-                                                    <Button
-                                                        icon={<PaperClipOutlined />}
-                                                        size="small"
-                                                        onClick={() => replyFileInputRef.current?.click()}
-                                                    >
-                                                        Adjuntar
-                                                    </Button>
-
-                                                    {replyFiles.map((file, i) => (
-                                                        <Tag
-                                                            key={i}
-                                                            closable
-                                                            onClose={() =>
-                                                                setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
-                                                            }
-                                                        >
-                                                            {file.name}
-                                                        </Tag>
-                                                    ))}
-
-                                                    {puedeCerrarTicket() && (
-                                                        <Button onClick={() => updateTicket({ status: "CLOSED" })}>
-                                                            Cerrar ticket
-                                                        </Button>
-                                                    )}
-
-                                                    <Button
-                                                        type="primary"
-                                                        loading={sendingReply}
-                                                        onClick={() => responderTicket(false)}
-                                                        icon={<SendOutlined />}
-                                                        className="ml-auto"
-                                                    >
-                                                        Enviar respuesta
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ),
-                                    },
-                                    {
-                                        key: "internal",
-                                        label: (
-                                            <span className="flex items-center gap-1">
-                                                <EditOutlined /> Nota interna
-                                            </span>
-                                        ),
-                                        children: (
-                                            <div className="space-y-3">
-                                                <Input.TextArea
-                                                    value={internalNoteText}
-                                                    onChange={(e) => setInternalNoteText(e.target.value)}
-                                                    placeholder="Nota interna visible solo para agentes..."
-                                                    className="resize-none bg-amber-50 border-amber-200"
-                                                    autoSize={{ minRows: 3, maxRows: 5 }}
-                                                />
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                        <EyeInvisibleOutlined /> Solo visible para agentes
+                            {showReplyPanel && (
+                                <div className="px-6 pb-4">
+                                    <Tabs
+                                        items={[
+                                            {
+                                                key: "reply",
+                                                label: (
+                                                    <span className="flex items-center gap-1">
+                                                        <SendOutlined /> Responder al cliente
                                                     </span>
-                                                    <Button
-                                                        loading={sendingReply}
-                                                        onClick={() => responderTicket(true)}
-                                                        icon={<EditOutlined />}
-                                                    >
-                                                        Guardar nota
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ),
-                                    },
-                                ]}
-                            />
+                                                ),
+                                                children: (
+                                                    <div className="space-y-3">
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="text-xs text-gray-500">Para:</span>
+                                                                {!showCc && (
+                                                                    <Button size="small" type="link" onClick={() => setShowCc(true)}>
+                                                                        + CC
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+
+                                                            <Select
+                                                                mode="tags"
+                                                                showSearch
+                                                                placeholder="Agregar destinatarios"
+                                                                value={toEmails}
+                                                                onChange={setToEmails}
+                                                                onSearch={debouncedSearchContactos}
+                                                                loading={loadingContactos}
+                                                                options={contactos.map((c) => ({
+                                                                    label: `${c.nombre} (${c.email})`,
+                                                                    value: c.email,
+                                                                }))}
+                                                                style={{ width: "100%" }}
+                                                            />
+                                                        </div>
+
+                                                        {showCc && (
+                                                            <div>
+                                                                <span className="text-xs text-gray-500">CC:</span>
+                                                                <Select
+                                                                    mode="tags"
+                                                                    showSearch
+                                                                    placeholder="Agregar CC"
+                                                                    value={ccEmails}
+                                                                    onChange={setCcEmails}
+                                                                    onSearch={debouncedSearchContactos}
+                                                                    loading={loadingContactos}
+                                                                    options={contactos.map((c) => ({
+                                                                        label: `${c.nombre} (${c.email})`,
+                                                                        value: c.email,
+                                                                    }))}
+                                                                    style={{ width: "100%" }}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <Input.TextArea
+                                                            value={replyText}
+                                                            onChange={(e) => setReplyText(e.target.value)}
+                                                            placeholder="Escribe tu respuesta al cliente..."
+                                                            className="resize-none"
+                                                            autoSize={{ minRows: 3, maxRows: 6 }}
+                                                        />
+
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <input
+                                                                ref={replyFileInputRef}
+                                                                type="file"
+                                                                multiple
+                                                                hidden
+                                                                onChange={(e) => {
+                                                                    const files = e.target.files;
+                                                                    if (!files?.length) return;
+                                                                    setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                    e.target.value = "";
+                                                                }}
+                                                            />
+
+                                                            <Button
+                                                                icon={<PaperClipOutlined />}
+                                                                size="small"
+                                                                onClick={() => replyFileInputRef.current?.click()}
+                                                            >
+                                                                Adjuntar
+                                                            </Button>
+
+                                                            {replyFiles.map((file, i) => (
+                                                                <Tag
+                                                                    key={i}
+                                                                    closable
+                                                                    onClose={() =>
+                                                                        setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
+                                                                    }
+                                                                >
+                                                                    {file.name}
+                                                                </Tag>
+                                                            ))}
+
+                                                            {puedeCerrarTicket() && (
+                                                                <Button onClick={() => updateTicket({ status: "CLOSED" })}>
+                                                                    Cerrar ticket
+                                                                </Button>
+                                                            )}
+
+                                                            <Button
+                                                                type="primary"
+                                                                loading={sendingReply}
+                                                                onClick={() => responderTicket(false)}
+                                                                icon={<SendOutlined />}
+                                                                className="ml-auto"
+                                                            >
+                                                                Enviar respuesta
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ),
+                                            },
+                                            {
+                                                key: "internal",
+                                                label: (
+                                                    <span className="flex items-center gap-1">
+                                                        <EditOutlined /> Nota interna
+                                                    </span>
+                                                ),
+                                                children: (
+                                                    <div className="space-y-3">
+                                                        <Input.TextArea
+                                                            value={internalNoteText}
+                                                            onChange={(e) => setInternalNoteText(e.target.value)}
+                                                            placeholder="Nota interna visible solo para agentes..."
+                                                            className="resize-none bg-amber-50 border-amber-200"
+                                                            autoSize={{ minRows: 3, maxRows: 5 }}
+                                                        />
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-xs text-gray-400 flex items-center gap-1">
+                                                                <EyeInvisibleOutlined /> Solo visible para agentes
+                                                            </span>
+                                                            <Button
+                                                                loading={sendingReply}
+                                                                onClick={() => responderTicket(true)}
+                                                                icon={<EditOutlined />}
+                                                            >
+                                                                Guardar nota
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ),
+                                            },
+                                        ]}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     <aside className="min-h-0 overflow-y-auto bg-gray-50/80">
-                        <div className="p-6 space-y-6">
-                            <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
+                        <div className="p-5 space-y-5">
+                            <div className="rounded-2xl bg-white border border-gray-200 p-4">
                                 <div className="grid grid-cols-1 gap-y-4 text-sm">
                                     <div>
                                         <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">

@@ -383,6 +383,12 @@ const EquiposPage: React.FC = () => {
     }
     return null;
   });
+
+  const [createdFrom, setCreatedFrom] = useState<string>("");
+  const [createdTo, setCreatedTo] = useState<string>("");
+  const [updatedFrom, setUpdatedFrom] = useState<string>("");
+  const [updatedTo, setUpdatedTo] = useState<string>("");
+
   const [empLoading, setEmpLoading] = useState(false);
   const [empError, setEmpError] = useState<string | null>(null);
 
@@ -460,6 +466,8 @@ const EquiposPage: React.FC = () => {
     return u.toString();
   };
 
+  const { RangePicker } = DatePicker;
+
   /* ======== Fetch lista ======== */
   async function fetchList(signal?: AbortSignal) {
     const seq = ++reqSeqRef.current;
@@ -474,6 +482,12 @@ const EquiposPage: React.FC = () => {
           search: qDebounced || undefined,
           empresaId: empresaFilterId || undefined,
           marca: marcaFilter || undefined,
+
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
+          updatedFrom: updatedFrom || undefined,
+          updatedTo: updatedTo || undefined,
+
           _ts: Date.now()
         }
       });
@@ -587,7 +601,7 @@ const EquiposPage: React.FC = () => {
     fetchList(c.signal);
     return () => c.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, qDebounced, empresaFilterId, marcaFilter]);
+  }, [page, pageSize, qDebounced, empresaFilterId, marcaFilter, createdFrom, createdTo, updatedFrom, updatedTo]);
 
   useEffect(() => {
     const c = new AbortController();
@@ -603,6 +617,11 @@ const EquiposPage: React.FC = () => {
     if (!isCliente) {
       setEmpresaFilterId(null);
     }
+
+    setCreatedFrom("");
+    setCreatedTo("");
+    setUpdatedFrom("");
+    setUpdatedTo("");
 
     setPage(1);
   };
@@ -1089,6 +1108,53 @@ const EquiposPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-cyan-600" />
+                  <label className="block text-sm font-medium text-slate-700">
+                    Fecha de ingreso
+                  </label>
+                </div>
+
+                <RangePicker
+                  value={[
+                    createdFrom ? dayjs(createdFrom) : null,
+                    createdTo ? dayjs(createdTo) : null,
+                  ]}
+                  onChange={(dates) => {
+                    setCreatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                    setCreatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                    setPage(1);
+                  }}
+                  format="DD/MM/YYYY"
+                  className="w-full"
+                  allowClear
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-cyan-600" />
+                  <label className="block text-sm font-medium text-slate-700">
+                    Fecha de edición
+                  </label>
+                </div>
+
+                <RangePicker
+                  value={[
+                    updatedFrom ? dayjs(updatedFrom) : null,
+                    updatedTo ? dayjs(updatedTo) : null,
+                  ]}
+                  onChange={(dates) => {
+                    setUpdatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                    setUpdatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                    setPage(1);
+                  }}
+                  format="DD/MM/YYYY"
+                  className="w-full"
+                  allowClear
+                />
               </div>
             </div>
 
