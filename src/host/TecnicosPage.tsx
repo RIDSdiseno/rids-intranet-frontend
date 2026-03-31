@@ -12,7 +12,7 @@ type Tecnico = {
 };
 
 const TecnicosPage: React.FC = () => {
-  console.log("Renderizando");
+  //console.log("Renderizando");
   const { isAdmin } = useAuth();
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,7 +82,7 @@ const TecnicosPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [http]);
 
   useEffect(() => {
     fetchTecnicos();
@@ -442,10 +442,29 @@ const TecnicosPage: React.FC = () => {
                   <option value="CLIENTE">CLIENTE</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="status" checked={formStatus} onChange={(e) => setFormStatus(e.target.checked)} className="rounded" />
-                <label htmlFor="status" className="text-sm text-slate-700">Activo</label>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                  type="radio"
+                  name="status"
+                  checked={formStatus === true}
+                  onChange={() => setFormStatus(true)}
+                  />
+                  Activo
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                  type="radio"
+                  name="status"
+                  checked={formStatus === false}
+                  onChange={() => setFormStatus(false)}
+                  />
+                  Inactivo
+                </label>
               </div>
+
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setEditando(null)}

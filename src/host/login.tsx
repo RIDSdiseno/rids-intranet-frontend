@@ -3,7 +3,7 @@ import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken } from "../api/api";
-import {  loginRequest } from "../auth/microsoftConfig";
+import { msalInstance, loginRequest } from "../auth/microsoftConfig";
 
 /* =========== Tipos de API =========== */
 type LoginResponse = {
@@ -49,8 +49,8 @@ const loginMicrosoft = async () => {
   if (loading) return;
 
   setLoading(true);
-  setError(null);
     try {
+      await msalInstance.initialize();
       
       const loginResponse = await msalInstance.loginPopup(loginRequest);
 

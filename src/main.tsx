@@ -14,7 +14,7 @@ import "dayjs/locale/es";
 
 dayjs.locale("es");
 
-// 🔥 Inicializar MSAL antes de renderizar
+// Inicializar MSAL antes de renderizar
 async function startApp() {
   try {
     await pca.initialize();
@@ -25,7 +25,7 @@ async function startApp() {
   } catch (error) {
     console.error("❌ Error inicializando MSAL:", error);
 
-    // ⚠️ evita que la app quede bloqueada
+    // evita que la app quede bloqueada
     (window as any).msalReady = false;
   }
 
