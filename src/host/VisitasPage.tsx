@@ -476,7 +476,7 @@ const VisitasPage: React.FC = () => {
   /* === useCallback para cumplir exhaustive-deps === */
   const fetchFilters = useCallback(async (signal?: AbortSignal) => {
     try {
-      const r = await http.get("/visitas/filters");
+      const r = await http.get("/visitas/filters", { signal });
       const json = r.data as { tecnicos: TecnicoMini[]; empresas: EmpresaMini[] };
 
       setTecnicos(json.tecnicos || []);
@@ -549,7 +549,8 @@ const VisitasPage: React.FC = () => {
     setPage(1);
   };
 
-  const { user, isCliente, isTecnico } = useAuth();
+  const { user, isCliente, isAdmin } = useAuth();
+  
 
   useEffect(() => {
     if (isCliente && user?.empresaId) {
@@ -760,7 +761,7 @@ const VisitasPage: React.FC = () => {
               </div>
 
               {/* Filtro empresa */}
-              {!isCliente && (
+              {isAdmin && (
                 <div className="md:col-span-3">
                   <select
                     value={empresaId}
@@ -937,7 +938,7 @@ const VisitasPage: React.FC = () => {
                   >
                     Detalle
                   </button>
-                  {!isCliente && (
+                  {isAdmin && (
                     <button
                       onClick={() => onClickEdit(v)}
                       className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
@@ -945,18 +946,20 @@ const VisitasPage: React.FC = () => {
                       <EditOutlined />Editar
                     </button>
                   )}
-                  <button
-                    onClick={() => onClickDelete(v)}
-                    disabled={isDeleting}
-                    className={clsx(
-                      "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
-                      isDeleting
+                  {isAdmin && (
+                    <button
+                      onClick={() => onClickDelete(v)}
+                      disabled={isDeleting}
+                      className={clsx(
+                        "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                        isDeleting
                         ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
                         : "border-rose-200 text-rose-700 hover:bg-rose-50"
-                    )}
-                  >
-                    <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
-                  </button>
+                      )}
+                      >
+                        <DeleteOutlined /> {isDeleting ? "..." : "Eliminar"}
+                      </button>
+                  )}
                 </div>
               </article>
             );
@@ -1010,7 +1013,7 @@ const VisitasPage: React.FC = () => {
                           >
                             Detalle
                           </button>
-                          {!isCliente && (
+                          {isAdmin && (
                             <button
                               onClick={() => onClickEdit(v)}
                               className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
@@ -1018,7 +1021,7 @@ const VisitasPage: React.FC = () => {
                               <EditOutlined /> Editar
                             </button>
                           )}
-                          {!isCliente && (
+                          {isAdmin && (
                             <button
                               onClick={() => onClickDelete(v)}
                               disabled={isDeleting}

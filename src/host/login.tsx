@@ -49,8 +49,8 @@ const loginMicrosoft = async () => {
   if (loading) return;
 
   setLoading(true);
-  setError(null);
     try {
+      //await msalInstance.initialize();
       
       const loginResponse = await pca.loginPopup(loginRequest);
 
