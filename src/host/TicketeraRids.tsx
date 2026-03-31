@@ -34,6 +34,28 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
+import type {
+    TicketDetail,
+    TicketFormState,
+    StatusCounts,
+    ActiveTab,
+    SlaSummary,
+} from "../components/modals-ticketera/types";
+
+import {
+    STATUS_LABELS,
+    PRIORITY_LABELS,
+    priorityColor,
+    statusColor,
+    slaColor,
+    slaLabel,
+    formatDateTime,
+    formatRelativeTime,
+    formatEmailBody,
+    getTicketActivityMeta,
+    getTicketActivityText,
+} from "../components/modals-ticketera/utils";
+
 import { socket } from "../lib/socket";
 import { api } from "../api/api";
 
@@ -85,6 +107,32 @@ type Tecnico = {
     avatar?: string;
     online?: boolean;
 };
+
+const buildMensajeInicial = (tecnico?: {
+    nombre?: string;
+    cargo?: string;
+    email?: string;
+    telefono?: string;
+}) => {
+    const firma = [
+        tecnico?.nombre,
+        tecnico?.cargo,
+        tecnico?.email,
+        tecnico?.telefono,
+    ]
+        .filter(Boolean)
+        .join("\n");
+
+    return `Estimado(a),
+
+Gracias por contactarnos.
+
+Quedamos atentos a su respuesta,
+Saludos cordiales.
+
+${firma}`.trim();
+};
+
 type AreaFilter = "TODAS" | "SOPORTE" | "INFORMATICA" | "VENTAS";
 
 const TICKET_STATUS_LABEL: Record<string, string> = {
@@ -226,6 +274,13 @@ export default function TicketeraRids() {
         null
     );
 
+    const [creatingTicket, setCreatingTicket] = useState(false);
+
+    const [showResumen, setShowResumen] = useState(() => {
+        const saved = localStorage.getItem("helpdesk_show_resumen");
+        return saved !== null ? saved === "true" : true;
+    });
+
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [ticketToDelete, setTicketToDelete] = useState<number | null>(null);
     const [deletingTicket, setDeletingTicket] = useState(false);
@@ -237,7 +292,8 @@ export default function TicketeraRids() {
         empresaId: undefined as number | undefined,
         requesterId: undefined as number | undefined,
         subject: "",
-        message: "",
+        message: buildMensajeInicial(),
+        fromEmail: "",
         priority: "NORMAL",
         assigneeId: undefined as number | undefined,
     });
@@ -437,6 +493,10 @@ export default function TicketeraRids() {
     };
 
     useEffect(() => {
+        localStorage.setItem("helpdesk_show_resumen", String(showResumen));
+    }, [showResumen]);
+
+    useEffect(() => {
         loadEmpresas();
         loadTecnicos();
     }, []);
@@ -575,26 +635,34 @@ export default function TicketeraRids() {
     };
 
     const crearTicket = async () => {
-        if (!form.empresaId || !form.requesterId || !form.subject) {
-            message.warning("Empresa, contacto y asunto son obligatorios");
+        if (!form.subject?.trim()) {
+            message.warning("El asunto es obligatorio");
             return;
         }
 
         try {
+            setCreatingTicket(true);
+
             await api.post("/helpdesk/tickets", form);
+
             message.success("Ticket creado correctamente");
             setDrawerCrear(false);
             setForm({
                 empresaId: undefined,
                 requesterId: undefined,
+                fromEmail: "",
                 subject: "",
-                message: "",
+                message: buildMensajeInicial(),
                 priority: "NORMAL",
                 assigneeId: undefined,
             });
-            loadTickets();
-        } catch {
-            message.error("Error al crear ticket");
+
+            await loadTickets();
+            await loadSla();
+        } catch (error: any) {
+            message.error(error?.response?.data?.message || "Error al crear ticket");
+        } finally {
+            setCreatingTicket(false);
         }
     };
 
@@ -736,11 +804,27 @@ export default function TicketeraRids() {
                             <p className="text-gray-500">Gestión de tickets de ayuda y soporte</p>
                         </div>
 
+                        <Button onClick={() => setShowResumen(v => !v)}>
+                            {showResumen ? "Ocultar resumen" : "Mostrar resumen"}
+                        </Button>
+
                         <Space>
                             <Button
                                 type="primary"
                                 icon={<PlusOutlined />}
-                                onClick={() => setDrawerCrear(true)}
+                                disabled={creatingTicket}
+                                onClick={() => {
+                                    setForm({
+                                        empresaId: undefined,
+                                        requesterId: undefined,
+                                        subject: "",
+                                        message: buildMensajeInicial(),
+                                        fromEmail: "",
+                                        priority: "NORMAL",
+                                        assigneeId: undefined,
+                                    });
+                                    setDrawerCrear(true);
+                                }}
                                 size="large"
                             >
                                 Nuevo Ticket
@@ -749,87 +833,104 @@ export default function TicketeraRids() {
                         </Space>
                     </div>
 
-                    <Row gutter={[16, 16]} className="mb-6">
-                        <Col span={6}>
-                            <Card size="small" className="border-l-4 border-l-blue-500">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="text-gray-500">Total</div>
-                                        <div className="text-2xl font-bold">
-                                            {Object.values(statusCounts).reduce((a, b) => a + b, 0)}
+                    {showResumen ? (
+                        <Row gutter={[16, 16]} className="mb-6">
+                            <Col span={6}>
+                                <Card size="small" className="border-l-4 border-l-blue-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-gray-500">Total</div>
+                                            <div className="text-2xl font-bold">
+                                                {Object.values(statusCounts).reduce((a, b) => a + b, 0)}
+                                            </div>
                                         </div>
+                                        <MessageOutlined className="text-blue-500 text-xl" />
                                     </div>
-                                    <MessageOutlined className="text-blue-500 text-xl" />
-                                </div>
-                            </Card>
-                        </Col>
+                                </Card>
+                            </Col>
 
-                        <Col span={6}>
-                            <Card size="small" className="border-l-4 border-l-orange-500">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="text-gray-500">Abiertos</div>
-                                        <div className="text-2xl font-bold">{getTicketCount("OPEN")}</div>
-                                    </div>
-                                    <ClockCircleOutlined className="text-orange-500 text-xl" />
-                                </div>
-                            </Card>
-                        </Col>
-
-                        <Col span={6}>
-                            <Card size="small" className="border-l-4 border-l-green-500">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="text-gray-500">Cerrados</div>
-                                        <div className="text-2xl font-bold">{getTicketCount("CLOSED")}</div>
-                                    </div>
-                                    <CheckCircleOutlined className="text-green-500 text-xl" />
-                                </div>
-                            </Card>
-                        </Col>
-
-                        <Col span={6}>
-                            <Card size="small" className="border-l-4 border-l-red-500">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <div className="text-gray-500">Urgentes</div>
-                                        <div className="text-2xl font-bold">
-                                            {tickets.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}
+                            <Col span={6}>
+                                <Card size="small" className="border-l-4 border-l-orange-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-gray-500">Abiertos</div>
+                                            <div className="text-2xl font-bold">{getTicketCount("OPEN")}</div>
                                         </div>
+                                        <ClockCircleOutlined className="text-orange-500 text-xl" />
                                     </div>
-                                    <ExclamationCircleOutlined className="text-red-500 text-xl" />
-                                </div>
-                            </Card>
-                        </Col>
+                                </Card>
+                            </Col>
 
-                        <Col span={6}>
-                            <SlaCard
-                                title="SLA 1ra respuesta"
-                                icon={<ClockCircleOutlined className="text-xl" />}
-                                compliance={slaSummary?.firstResponse?.compliance ?? 0}
-                                breached={slaSummary?.firstResponse?.breached ?? 0}
-                                pending={slaSummary?.firstResponse?.pending ?? 0}
-                                total={slaSummary?.firstResponse?.total ?? 0}
-                                avgMinutes={slaSummary?.firstResponse?.avgMinutes}
-                                color="#06b6d4"
-                                loading={loadingSla}
-                            />
-                        </Col>
+                            <Col span={6}>
+                                <Card size="small" className="border-l-4 border-l-green-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-gray-500">Cerrados</div>
+                                            <div className="text-2xl font-bold">{getTicketCount("CLOSED")}</div>
+                                        </div>
+                                        <CheckCircleOutlined className="text-green-500 text-xl" />
+                                    </div>
+                                </Card>
+                            </Col>
 
-                        <Col span={6}>
-                            <SlaCard
-                                title="SLA cierre"
-                                icon={<CheckCircleOutlined className="text-xl" />}
-                                compliance={slaSummary?.resolution?.compliance ?? 0}
-                                breached={slaSummary?.resolution?.breached ?? 0}
-                                pending={slaSummary?.resolution?.pending ?? 0}
-                                total={slaSummary?.resolution?.total ?? 0}
-                                avgMinutes={slaSummary?.resolution?.avgMinutes}
-                                color="#10b981"
-                                loading={loadingSla}
-                            />
-                        </Col>
-                    </Row>
+                            <Col span={6}>
+                                <Card size="small" className="border-l-4 border-l-red-500">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="text-gray-500">Urgentes</div>
+                                            <div className="text-2xl font-bold">
+                                                {tickets.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}
+                                            </div>
+                                        </div>
+                                        <ExclamationCircleOutlined className="text-red-500 text-xl" />
+                                    </div>
+                                </Card>
+                            </Col>
+
+                            <Col span={6}>
+                                <SlaCard
+                                    title="SLA 1ra respuesta"
+                                    icon={<ClockCircleOutlined className="text-xl" />}
+                                    compliance={slaSummary?.firstResponse?.compliance ?? 0}
+                                    breached={slaSummary?.firstResponse?.breached ?? 0}
+                                    pending={slaSummary?.firstResponse?.pending ?? 0}
+                                    total={slaSummary?.firstResponse?.total ?? 0}
+                                    avgMinutes={slaSummary?.firstResponse?.avgMinutes}
+                                    color="#06b6d4"
+                                    loading={loadingSla}
+                                />
+                            </Col>
+
+                            <Col span={6}>
+                                <SlaCard
+                                    title="SLA cierre"
+                                    icon={<CheckCircleOutlined className="text-xl" />}
+                                    compliance={slaSummary?.resolution?.compliance ?? 0}
+                                    breached={slaSummary?.resolution?.breached ?? 0}
+                                    pending={slaSummary?.resolution?.pending ?? 0}
+                                    total={slaSummary?.resolution?.total ?? 0}
+                                    avgMinutes={slaSummary?.resolution?.avgMinutes}
+                                    color="#10b981"
+                                    loading={loadingSla}
+                                />
+                            </Col>
+                        </Row>
+                    ) : (
+                        <div className="mb-4 flex flex-wrap gap-2">
+                            <Tag color="blue">Total: {Object.values(statusCounts).reduce((a, b) => a + b, 0)}</Tag>
+                            <Tag color="orange">Abiertos: {getTicketCount("OPEN")}</Tag>
+                            <Tag color="green">Cerrados: {getTicketCount("CLOSED")}</Tag>
+                            <Tag color="red">
+                                Urgentes: {tickets.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}
+                            </Tag>
+                            <Tag color={getSlaStatus(slaSummary?.firstResponse?.compliance ?? 0).color}>
+                                SLA 1ra resp: {slaSummary?.firstResponse?.compliance ?? 0}%
+                            </Tag>
+                            <Tag color={getSlaStatus(slaSummary?.resolution?.compliance ?? 0).color}>
+                                SLA cierre: {slaSummary?.resolution?.compliance ?? 0}%
+                            </Tag>
+                        </div>
+                    )}
                 </div>
 
                 <Card className="mb-4">
@@ -1155,7 +1256,11 @@ export default function TicketeraRids() {
                     empresas={empresas}
                     solicitantes={solicitantes}
                     tecnicos={tecnicos}
-                    onClose={() => setDrawerCrear(false)}
+                    creating={creatingTicket}
+                    onClose={() => {
+                        if (creatingTicket) return;
+                        setDrawerCrear(false);
+                    }}
                     onSubmit={crearTicket}
                     onFormChange={setForm}
                     onEmpresaChange={loadSolicitantes}

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { msalInstance } from "../auth/microsoftConfig";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { pca } from "../auth/microsoftConfig";
 import {
   LogOut,
   Home,
@@ -17,9 +17,9 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  Wrench // 👈 ESTE
+  Wrench,
 } from "lucide-react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
 
 /* ================== CONFIGURACIÓN DE RUTAS Y API ================== */
@@ -47,7 +47,7 @@ const HELPDESK_PATH = "/helpdesk";
 type NavItem = {
   label: string;
   to: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
 type NavLink = NavItem & {
@@ -73,8 +73,20 @@ type StoredUser = {
 /* ================== DATA NAVEGACIÓN ================== */
 
 const NAV: NavEntry[] = [
-  { type: "link", label: "Inicio", to: HOME_PATH, icon: <Home size={20} />, match: [HOME_PATH] },
-  { type: "link", label: "Calendario visitas", to: "/agenda", icon: <Calendar size={20} />, match: ["/agenda"] },
+  {
+    type: "link",
+    label: "Inicio",
+    to: HOME_PATH,
+    icon: <Home size={20} />,
+    match: [HOME_PATH],
+  },
+  {
+    type: "link",
+    label: "Calendario visitas",
+    to: "/agenda",
+    icon: <Calendar size={20} />,
+    match: ["/agenda"],
+  },
   {
     type: "group",
     label: "Operación",
@@ -85,7 +97,7 @@ const NAV: NavEntry[] = [
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <Wrench size={20} /> },
       { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH],
   },
   {
     type: "group",
@@ -95,41 +107,31 @@ const NAV: NavEntry[] = [
       { label: "Cotizaciones", to: COTIZACIONES, icon: <Briefcase size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
-      { label: "Técnicos", to: "/tecnicos", icon: <Wrench size={20} /> }, 
+      { label: "Técnicos", to: "/tecnicos", icon: <Wrench size={20} /> },
     ],
     match: [ORDENESTALLER, COTIZACIONES, "/clientes", "/productos", "/tecnicos"],
   },
   {
     type: "group",
     label: "Informes",
-    items: [
-      { label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
-    ],
-    match: [EMPRESAS_PATH, REPORTES_PATH],
+    items: [{ label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> }],
+    match: [REPORTES_PATH],
   },
   {
     type: "group",
     label: "Ticketera",
     items: [
-      {
-        label: "Tickets",
-        to: TICKETS_PATH,
-        icon: <Ticket size={18} />,
-      },
-      {
-        label: "Helpdesk",
-        to: HELPDESK_PATH,
-        icon: <FileText size={18} />,
-      },
+      { label: "Tickets", to: TICKETS_PATH, icon: <Ticket size={18} /> },
+      { label: "Helpdesk", to: HELPDESK_PATH, icon: <FileText size={18} /> },
     ],
-    match: [TICKETS_PATH, HELPDESK_PATH]
-  }
+    match: [TICKETS_PATH, HELPDESK_PATH],
+  },
 ];
 
 /* ================== HELPERS ================== */
 
 function isActivePath(pathname: string, to: string) {
-  return pathname === to || pathname.startsWith(`${to}/`) || pathname.startsWith(to);
+  return pathname === to || pathname.startsWith(`${to}/`);
 }
 
 function safeParseUser(): StoredUser | null {
@@ -148,12 +150,11 @@ function nonNull<T>(v: T | null): v is T {
 
 /* ================== COMPONENTE ================== */
 
-const Header: React.FC = () => {
-  const navigate = useNavigate();
+const Header = () => {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     return () => document.body.classList.remove("sidebar-collapsed");
   }, [collapsed]);
@@ -162,32 +163,31 @@ const Header: React.FC = () => {
   const isCliente = user?.rol === "CLIENTE";
 
   const filteredNav: NavEntry[] = useMemo(() => {
-    const next = NAV.map((entry): NavEntry | null => {
-      if (!isCliente) return entry; // ADMIN ve todo
+    return NAV.map((entry): NavEntry | null => {
+      if (!isCliente) return entry;
 
-      // CLIENTE
       if (entry.type === "link") {
-        // Solo Inicio + links sueltos (si quieres permitir otros, agrégalos aquí)
         if (entry.to === HOME_PATH) return entry;
         return null;
       }
 
-      // Groups
       if (entry.label === "Operación") {
-        return entry; // completo
+        return entry;
       }
 
       if (entry.label === "Informes") {
         const onlyEmpresas = entry.items.filter((it) => it.to === EMPRESAS_PATH);
         if (onlyEmpresas.length === 0) return null;
-        return { ...entry, items: onlyEmpresas, match: [EMPRESAS_PATH] };
+
+        return {
+          ...entry,
+          items: onlyEmpresas,
+          match: [EMPRESAS_PATH],
+        };
       }
 
-      // Oculta Gestión
       return null;
     }).filter(nonNull);
-
-    return next;
   }, [isCliente]);
 
   const handleLogout = async () => {
@@ -195,12 +195,16 @@ const Header: React.FC = () => {
       await api.post("/auth/logout");
     } catch {
       // ignore
-    } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user");
-      await msalInstance.logoutPopup().catch(() => {});
-      navigate("/login", { replace: true });
     }
+
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("user");
+    sessionStorage.clear();
+
+    await pca.logoutRedirect({
+      account: pca.getActiveAccount() ?? undefined,
+      postLogoutRedirectUri: `${window.location.origin}/login`,
+    });
   };
 
   return (
@@ -212,7 +216,6 @@ const Header: React.FC = () => {
         ${collapsed ? "w-20" : "w-64"}
       `}
     >
-      {/* LOGO + TOGGLE */}
       <div className="h-20 flex items-center justify-between px-4 border-b border-slate-200">
         <Link to={HOME_PATH} className={collapsed ? "mx-auto" : ""}>
           <img
@@ -227,12 +230,12 @@ const Header: React.FC = () => {
           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600"
           aria-label={collapsed ? "Expandir sidebar" : "Colapsar sidebar"}
           title={collapsed ? "Expandir" : "Colapsar"}
+          type="button"
         >
           {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
       </div>
 
-      {/* NAVEGACIÓN */}
       <nav className="flex-1 overflow-y-auto px-2 py-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
         {filteredNav.map((entry) =>
           entry.type === "link" ? (
@@ -242,9 +245,10 @@ const Header: React.FC = () => {
               className={`
                 relative flex items-center gap-4 px-3 py-2.5 rounded-xl
                 transition-all duration-200 group
-                ${isActivePath(pathname, entry.to)
-                  ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                  : "text-slate-700 hover:bg-slate-100"
+                ${
+                  isActivePath(pathname, entry.to)
+                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                    : "text-slate-700 hover:bg-slate-100"
                 }
                 ${collapsed ? "justify-center" : ""}
               `}
@@ -253,7 +257,6 @@ const Header: React.FC = () => {
               <span className="shrink-0">{entry.icon}</span>
               {!collapsed && <span>{entry.label}</span>}
 
-              {/* tooltip colapsado */}
               {collapsed && (
                 <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
                   {entry.label}
@@ -275,9 +278,10 @@ const Header: React.FC = () => {
                   className={`
                     relative flex items-center gap-4 px-3 py-2.5 rounded-lg
                     transition-all duration-200 group
-                    ${isActivePath(pathname, it.to)
-                      ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                      : "text-slate-600 hover:bg-slate-100"
+                    ${
+                      isActivePath(pathname, it.to)
+                        ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                        : "text-slate-600 hover:bg-slate-100"
                     }
                     ${collapsed ? "justify-center" : "pl-6"}
                   `}
@@ -298,7 +302,6 @@ const Header: React.FC = () => {
         )}
       </nav>
 
-      {/* FOOTER: PERFIL + LOGOUT */}
       <div className="border-t p-4 space-y-3">
         {!collapsed ? (
           <>
@@ -317,6 +320,7 @@ const Header: React.FC = () => {
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition text-sm font-medium"
+              type="button"
             >
               <LogOut size={18} />
               <span>Salir</span>
@@ -332,6 +336,7 @@ const Header: React.FC = () => {
               className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
               title="Cerrar sesión"
               aria-label="Cerrar sesión"
+              type="button"
             >
               <LogOut size={20} />
             </button>
