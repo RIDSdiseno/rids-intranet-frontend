@@ -56,15 +56,24 @@ type MsSyncPayload = {
   email?: string;
 };
 
-type MsSyncResponse = {
+type DeactivatedUser = {
+  id_solicitante: number;
+  nombre: string;
+  email: string | null;
+  empresaId: number;
+  googleUserId?: string | null;
+  microsoftUserId?: string | null;
+};
+
+type SyncResponse = {
   total?: number;
   created?: number;
   updated?: number;
   skipped?: number;
-  // Por si el backend agrega campos extra
+  deactivated?: number;
+  deactivatedUsers?: DeactivatedUser[];
   [key: string]: unknown;
 };
-
 
 type ListParams = {
   page?: number;
@@ -398,6 +407,8 @@ export default function SolicitantesPage() {
   const [msDomain, setMsDomain] = useState<string>("");
   const [msEmail, setMsEmail] = useState<string>("");
 
+  const [lastSyncDeactivated, setLastSyncDeactivated] = useState<DeactivatedUser[]>([]);
+
   const openSyncMicrosoft = () => {
     setSyncMsOpen(true);
     setMsEmpresaId(empresaId ?? null);
@@ -423,15 +434,39 @@ export default function SolicitantesPage() {
       };
 
       const resp = msEmail.trim()
-        ? await api.put<MsSyncResponse>("/sync/microsoft/users", payload)
-        : await api.post<MsSyncResponse>("/sync/microsoft/users", payload);
+        ? await api.put<SyncResponse>("/sync/microsoft/users", payload)
+        : await api.post<SyncResponse>("/sync/microsoft/users", payload);
 
       const r = resp.data ?? {};
+
+      setLastSyncDeactivated(Array.isArray(r.deactivatedUsers) ? r.deactivatedUsers : []);
+
       push({
         kind: "success",
         message: "Sincronización Microsoft lista",
-        detail: `Empresa: ${msEmpresaId} • Dominio: ${msDomain || "—"} • Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}`,
+        detail:
+          `Empresa: ${msEmpresaId} • Dominio: ${msDomain || "—"} • ` +
+          `Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, ` +
+          `Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}` +
+          `${msEmail.trim() ? "" : `, Inactivos: ${r.deactivated ?? 0}`}`,
       });
+
+      if (!msEmail.trim() && Array.isArray(r.deactivatedUsers) && r.deactivatedUsers.length > 0) {
+        const preview = r.deactivatedUsers
+          .slice(0, 3)
+          .map((u) => u.nombre)
+          .join(", ");
+
+        push({
+          kind: "info",
+          message: `${r.deactivatedUsers.length} usuario(s) quedaron inactivos`,
+          detail:
+            r.deactivatedUsers.length > 3
+              ? `${preview} y ${r.deactivatedUsers.length - 3} más`
+              : preview,
+        });
+      }
+
       setSyncMsOpen(false);
       void reloadAll();
     } catch (e) {
@@ -626,15 +661,41 @@ export default function SolicitantesPage() {
     try {
       setSyncing(true);
       const payload = { domain, empresaId, ...(email ? { email } : {}) };
+
       const resp = email
-        ? await api.put("/sync/google/users", payload)
-        : await api.post("/sync/google/users", payload);
+        ? await api.put<SyncResponse>("/sync/google/users", payload)
+        : await api.post<SyncResponse>("/sync/google/users", payload);
+
       const r = resp?.data || {};
+
+      setLastSyncDeactivated(Array.isArray(r.deactivatedUsers) ? r.deactivatedUsers : []);
+
       push({
         kind: "success",
         message: "Sincronización completada",
-        detail: `Dominio: ${domain} • Empresa: ${empresaId} • Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}`,
+        detail:
+          `Dominio: ${domain} • Empresa: ${empresaId} • ` +
+          `Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, ` +
+          `Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}` +
+          `${email ? "" : `, Inactivos: ${r.deactivated ?? 0}`}`,
       });
+
+      if (!email && Array.isArray(r.deactivatedUsers) && r.deactivatedUsers.length > 0) {
+        const preview = r.deactivatedUsers
+          .slice(0, 3)
+          .map((u) => u.nombre)
+          .join(", ");
+
+        push({
+          kind: "info",
+          message: `${r.deactivatedUsers.length} usuario(s) quedaron inactivos`,
+          detail:
+            r.deactivatedUsers.length > 3
+              ? `${preview} y ${r.deactivatedUsers.length - 3} más`
+              : preview,
+        });
+      }
+
       setSyncGoogleOpen(false);
       void reloadAll();
     } catch (e) {

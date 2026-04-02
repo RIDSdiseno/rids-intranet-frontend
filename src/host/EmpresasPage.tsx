@@ -173,6 +173,8 @@ const EmpresasPage: React.FC = () => {
   const [equiposSel, setEquiposSel] = useState<EquipoLite[]>([]);
   const [visitasSel, setVisitasSel] = useState<Visita[]>([]);
 
+  const [contactosSel, setContactosSel] = useState<any[]>([]);
+
   const [fichaOpen, setFichaOpen] = useState(false);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaError, setFichaError] = useState<string | null>(null);
@@ -257,6 +259,7 @@ const EmpresasPage: React.FC = () => {
     setSolicitantesSel([]);
     setEquiposSel([]);
     setVisitasSel([]);
+    setContactosSel([]);
     setDetailsError(null);
     setDetailsLoading(true);
     setDetailsOpen(true);
@@ -264,6 +267,12 @@ const EmpresasPage: React.FC = () => {
     try {
       const solicitantes = await fetchAllSolicitantesByEmpresa(empresa.id_empresa);
       setSolicitantesSel(solicitantes);
+
+      const { data: fichaCompleta } = await http.get(
+        `/ficha-empresa/${empresa.id_empresa}/completa`
+      );
+
+      setContactosSel(Array.isArray(fichaCompleta?.contactos) ? fichaCompleta.contactos : []);
 
       const { data: eqJson } = await http.get(`/empresas/${empresa.id_empresa}/equipos`);
       if (Array.isArray(eqJson?.items)) setEquiposSel(eqJson.items);
@@ -621,6 +630,7 @@ const EmpresasPage: React.FC = () => {
         solicitantes={solicitantesSel}
         equipos={equiposSel}
         visitas={visitasSel}
+        contactos={contactosSel}
         onUpdated={() => { if (empresaSel?.id_empresa) refreshEmpresaCompleta(empresaSel.id_empresa); }}
       />
 

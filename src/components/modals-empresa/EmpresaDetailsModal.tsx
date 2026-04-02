@@ -54,6 +54,15 @@ import InventarioIA from "./InventarioIA";
 
 dayjs.extend(utc);
 
+type ContactoPrincipalLite = {
+  id?: number;
+  nombre?: string | null;
+  cargo?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+  principal?: boolean;
+};
+
 const formatDateTime24 = (date?: string | Date | null) => {
   if (!date) return "—";
   return dayjs.utc(date).format("DD-MM-YYYY, HH:mm");
@@ -322,8 +331,14 @@ const useVisitasColumns = (): TableColumnsType<Visita> => [
 /* ===================== EmpresaInfoGeneral ===================== */
 const EmpresaInfoGeneral: React.FC<{
   empresa: EmpresaLite | null;
+  contactoPrincipal?: {
+    nombre?: string | null;
+    cargo?: string | null;
+    email?: string | null;
+    telefono?: string | null;
+  } | null;
   onUpdated?: () => void;
-}> = ({ empresa, onUpdated }) => {
+}> = ({ empresa, contactoPrincipal, onUpdated }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
@@ -339,6 +354,16 @@ const EmpresaInfoGeneral: React.FC<{
   }, [empresa]);
 
   if (!empresa) return null;
+
+  const emailMostrado =
+    contactoPrincipal?.email?.trim() ||
+    empresa.detalleEmpresa?.email ||
+    null;
+
+  const telefonoMostrado =
+    contactoPrincipal?.telefono?.trim() ||
+    empresa.detalleEmpresa?.telefono ||
+    null;
 
   const handleSave = async () => {
     try {
@@ -375,9 +400,23 @@ const EmpresaInfoGeneral: React.FC<{
       {!editing ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><b>RUT:</b> {empresa.detalleEmpresa?.rut ?? "No especificado"}</div>
-          <div><b>Email:</b> {empresa.detalleEmpresa?.email ?? "No especificado"}</div>
-          <div><b>Teléfono:</b> {empresa.detalleEmpresa?.telefono ?? "No especificado"}</div>
+
+          <div>
+            <b>Email de contacto:</b> {emailMostrado ?? "No especificado"}
+          </div>
+
+          <div>
+            <b>Teléfono de contacto:</b> {telefonoMostrado ?? "No especificado"}
+          </div>
+
           <div><b>Dirección:</b> {empresa.detalleEmpresa?.direccion ?? "No especificado"}</div>
+
+          {contactoPrincipal?.nombre && (
+            <div>
+              <b>Encargado principal:</b> {contactoPrincipal.nombre}
+              {contactoPrincipal.cargo ? ` · ${contactoPrincipal.cargo}` : ""}
+            </div>
+          )}
         </div>
       ) : (
         <Form form={form} layout="vertical">
@@ -465,7 +504,9 @@ const StatsOverview: React.FC<{
 };
 
 /* ===================== Componente principal ===================== */
-const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
+const EmpresaDetailsModal: React.FC<
+  EmpresaDetailsModalProps & { contactos?: ContactoPrincipalLite[] }
+> = ({
   open,
   onClose,
   loading,
@@ -474,217 +515,236 @@ const EmpresaDetailsModal: React.FC<EmpresaDetailsModalProps> = ({
   solicitantes,
   equipos,
   visitas,
+  contactos = [],
   onUpdated,
 }) => {
-  const [tab, setTab] = useState<TabKey>("resumen");
-  const [density, setDensity] = useState<"Cómodo" | "Compacto">("Cómodo");
+    const [tab, setTab] = useState<TabKey>("resumen");
+    const [density, setDensity] = useState<"Cómodo" | "Compacto">("Cómodo");
 
-  useEffect(() => {
-    if (open) setTab("resumen");
-  }, [open]);
+    useEffect(() => {
+      if (open) setTab("resumen");
+    }, [open]);
 
-  const compact = density === "Compacto";
-  const solicitantesColumns = useSolicitantesColumns(compact);
-  const equiposColumns = useEquiposColumns();
-  const visitasColumns = useVisitasColumns();
+    const compact = density === "Compacto";
+    const solicitantesColumns = useSolicitantesColumns(compact);
+    const equiposColumns = useEquiposColumns();
+    const visitasColumns = useVisitasColumns();
 
-  const tableCommon: Pick<
-    TableProps<unknown>,
-    "size" | "bordered" | "sticky" | "className" | "scroll" | "pagination" | "rowClassName"
-  > = {
-    size: compact ? "small" : "middle",
-    bordered: false,
-    sticky: { offsetHeader: 0 },
-    className: "rounded-lg shadow-sm",
-    scroll: { y: 400 },
-    pagination: {
-      pageSize: compact ? 10 : 8,
-      showSizeChanger: false,
-      showTotal: (total, range) => `${range[0]}-${range[1]} de ${total}`
-    },
-    rowClassName: (_record: unknown, index: number) =>
-      (index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-slate-50/60 hover:bg-blue-50"),
-  };
+    const tableCommon: Pick<
+      TableProps<unknown>,
+      "size" | "bordered" | "sticky" | "className" | "scroll" | "pagination" | "rowClassName"
+    > = {
+      size: compact ? "small" : "middle",
+      bordered: false,
+      sticky: { offsetHeader: 0 },
+      className: "rounded-lg shadow-sm",
+      scroll: { y: 400 },
+      pagination: {
+        pageSize: compact ? 10 : 8,
+        showSizeChanger: false,
+        showTotal: (total, range) => `${range[0]}-${range[1]} de ${total}`
+      },
+      rowClassName: (_record: unknown, index: number) =>
+        (index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-slate-50/60 hover:bg-blue-50"),
+    };
 
-  const tabItems: TabsProps["items"] = useMemo(() => [
-    {
-      key: "resumen",
-      label: <Space size={6}><span className="font-medium">Resumen</span></Space>,
-      children: (
-        <div className="space-y-6">
-          <StatsOverview solicitantes={solicitantes} equipos={equipos} visitas={visitas} />
-        </div>
-      ),
-    },
-    {
-      key: "solicitantes",
-      label: (
-        <Space size={6}>
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-purple-400 flex items-center justify-center text-white">
-            <TeamOutlined className="text-xs" />
+    const tabItems: TabsProps["items"] = useMemo(() => [
+      {
+        key: "resumen",
+        label: <Space size={6}><span className="font-medium">Resumen</span></Space>,
+        children: (
+          <div className="space-y-6">
+            <StatsOverview solicitantes={solicitantes} equipos={equipos} visitas={visitas} />
           </div>
-          <span className="font-medium">Solicitantes</span>
-          <Badge count={solicitantes.length} style={{ backgroundColor: '#6366f1' }} showZero />
-        </Space>
-      ),
-      children: solicitantes.length === 0 ? (
-        <div className="py-16 text-center">
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin solicitantes</div><div className="text-slate-500">Esta empresa no tiene solicitantes registrados</div></div>} />
-        </div>
-      ) : (
-        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-          <Table<SolicitanteLite> rowKey="id_solicitante" columns={solicitantesColumns} dataSource={solicitantes} {...tableCommon} />
-        </Card>
-      ),
-    },
-    {
-      key: "equipos",
-      label: (
-        <Space size={6}>
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-green-400 flex items-center justify-center text-white">
-            <LaptopOutlined className="text-xs" />
-          </div>
-          <span className="font-medium">Equipos</span>
-          <Badge count={equipos.length} style={{ backgroundColor: '#10b981' }} showZero />
-        </Space>
-      ),
-      children: equipos.length === 0 ? (
-        <div className="py-16 text-center">
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin equipos</div><div className="text-slate-500">No hay equipos registrados para esta empresa</div></div>} />
-        </div>
-      ) : (
-        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-          <Table<EquipoLite> rowKey="id_equipo" columns={equiposColumns} dataSource={equipos} {...tableCommon} />
-        </Card>
-      ),
-    },
-    {
-      key: "visitas",
-      label: (
-        <Space size={6}>
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center text-white">
-            <CalendarOutlined className="text-xs" />
-          </div>
-          <span className="font-medium">Visitas</span>
-          <Badge count={visitas.length} style={{ backgroundColor: '#f59e0b' }} showZero />
-        </Space>
-      ),
-      children: visitas.length === 0 ? (
-        <div className="py-16 text-center">
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin visitas</div><div className="text-slate-500">No hay visitas registradas para esta empresa</div></div>} />
-        </div>
-      ) : (
-        <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
-          <Table<Visita> rowKey="id_visita" columns={visitasColumns} dataSource={visitas} {...tableCommon} />
-        </Card>
-      ),
-    },
-    {
-      key: "ia",
-      label: (
-        <Space size={6}>
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white">
-            <RobotOutlined className="text-xs" />
-          </div>
-          <span className="font-medium">Análisis IA</span>
-        </Space>
-      ),
-      children: empresa ? (
-        <InventarioIA empresaId={empresa.id_empresa} />
-      ) : null,
-    }
-
-  ], [solicitantes, equipos, visitas, density]);
-
-  const onChangeDensity = (v: string | number) => {
-    if (v === "Cómodo" || v === "Compacto") setDensity(v);
-  };
-
-  return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      width={1000}
-      destroyOnClose={false}
-      styles={{
-        header: { padding: 0 },
-        body: { padding: 0 },
-        footer: { padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
-      }}
-      closeIcon={
-        <div className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-          <CloseOutlined className="text-slate-600" />
-        </div>
-      }
-      title={null}
-      footer={
-        <div className="w-full flex justify-between items-center">
-          <div className="text-sm text-slate-500">
-            {empresa && (
-              <>
-                <span className="font-medium text-slate-700">{empresa.nombre}</span>
-                <span className="mx-2">•</span>
-                <span>ID: {empresa.id_empresa}</span>
-              </>
-            )}
-          </div>
-          <Space>
-            <Segmented
-              size="small"
-              options={[{ label: 'Cómodo', value: 'Cómodo' }, { label: 'Compacto', value: 'Compacto' }]}
-              value={density}
-              onChange={onChangeDensity}
-            />
-            <Button onClick={onClose}>Cerrar</Button>
+        ),
+      },
+      {
+        key: "solicitantes",
+        label: (
+          <Space size={6}>
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-purple-400 flex items-center justify-center text-white">
+              <TeamOutlined className="text-xs" />
+            </div>
+            <span className="font-medium">Solicitantes</span>
+            <Badge count={solicitantes.length} style={{ backgroundColor: '#6366f1' }} showZero />
           </Space>
-        </div>
+        ),
+        children: solicitantes.length === 0 ? (
+          <div className="py-16 text-center">
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin solicitantes</div><div className="text-slate-500">Esta empresa no tiene solicitantes registrados</div></div>} />
+          </div>
+        ) : (
+          <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+            <Table<SolicitanteLite> rowKey="id_solicitante" columns={solicitantesColumns} dataSource={solicitantes} {...tableCommon} />
+          </Card>
+        ),
+      },
+      {
+        key: "equipos",
+        label: (
+          <Space size={6}>
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-green-400 flex items-center justify-center text-white">
+              <LaptopOutlined className="text-xs" />
+            </div>
+            <span className="font-medium">Equipos</span>
+            <Badge count={equipos.length} style={{ backgroundColor: '#10b981' }} showZero />
+          </Space>
+        ),
+        children: equipos.length === 0 ? (
+          <div className="py-16 text-center">
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin equipos</div><div className="text-slate-500">No hay equipos registrados para esta empresa</div></div>} />
+          </div>
+        ) : (
+          <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+            <Table<EquipoLite> rowKey="id_equipo" columns={equiposColumns} dataSource={equipos} {...tableCommon} />
+          </Card>
+        ),
+      },
+      {
+        key: "visitas",
+        label: (
+          <Space size={6}>
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-400 flex items-center justify-center text-white">
+              <CalendarOutlined className="text-xs" />
+            </div>
+            <span className="font-medium">Visitas</span>
+            <Badge count={visitas.length} style={{ backgroundColor: '#f59e0b' }} showZero />
+          </Space>
+        ),
+        children: visitas.length === 0 ? (
+          <div className="py-16 text-center">
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<div><div className="text-lg font-medium text-slate-700 mb-2">Sin visitas</div><div className="text-slate-500">No hay visitas registradas para esta empresa</div></div>} />
+          </div>
+        ) : (
+          <Card className="border-0 shadow-sm" bodyStyle={{ padding: 0 }}>
+            <Table<Visita> rowKey="id_visita" columns={visitasColumns} dataSource={visitas} {...tableCommon} />
+          </Card>
+        ),
+      },
+      {
+        key: "ia",
+        label: (
+          <Space size={6}>
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white">
+              <RobotOutlined className="text-xs" />
+            </div>
+            <span className="font-medium">Análisis IA</span>
+          </Space>
+        ),
+        children: empresa ? (
+          <InventarioIA empresaId={empresa.id_empresa} />
+        ) : null,
       }
-    >
-      <div className="px-6 pt-4 pb-6 h-full overflow-y-auto">
-        {loading && (
-          <div className="h-96 flex flex-col items-center justify-center gap-4">
-            <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} size="large" />
-            <div className="text-lg font-medium text-slate-700">Cargando detalles de la empresa...</div>
-            <div className="text-slate-500">Estamos preparando toda la información</div>
-          </div>
-        )}
 
-        {!loading && error && (
-          <div className="mb-6">
-            <Alert type="error" message="Error al cargar datos" description={error} showIcon closable />
-          </div>
-        )}
+    ], [solicitantes, equipos, visitas, density]);
 
-        {!loading && empresa && (
-          <>
-            <div className="mb-8 pb-6 border-b border-slate-100">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-lg font-semibold shadow-sm">
-                  {empresa.nombre?.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{empresa.nombre}</h2>
-                  <p className="text-sm text-slate-500 mt-1">Información y estadísticas generales</p>
+    const onChangeDensity = (v: string | number) => {
+      if (v === "Cómodo" || v === "Compacto") setDensity(v);
+    };
+
+    const contactoPrincipal = React.useMemo(() => {
+      if (!contactos?.length) return null;
+
+      return (
+        contactos.find((c) => c.principal) ??
+        contactos.find((c) =>
+          (c.cargo ?? "").toLowerCase().includes("jefe") ||
+          (c.cargo ?? "").toLowerCase().includes("encargado")
+        ) ??
+        contactos[0] ??
+        null
+      );
+    }, [contactos]);
+
+    return (
+      <Drawer
+        open={open}
+        onClose={onClose}
+        width={1000}
+        destroyOnClose={false}
+        styles={{
+          header: { padding: 0 },
+          body: { padding: 0 },
+          footer: { padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+        }}
+        closeIcon={
+          <div className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+            <CloseOutlined className="text-slate-600" />
+          </div>
+        }
+        title={null}
+        footer={
+          <div className="w-full flex justify-between items-center">
+            <div className="text-sm text-slate-500">
+              {empresa && (
+                <>
+                  <span className="font-medium text-slate-700">{empresa.nombre}</span>
+                  <span className="mx-2">•</span>
+                  <span>ID: {empresa.id_empresa}</span>
+                </>
+              )}
+            </div>
+            <Space>
+              <Segmented
+                size="small"
+                options={[{ label: 'Cómodo', value: 'Cómodo' }, { label: 'Compacto', value: 'Compacto' }]}
+                value={density}
+                onChange={onChangeDensity}
+              />
+              <Button onClick={onClose}>Cerrar</Button>
+            </Space>
+          </div>
+        }
+      >
+        <div className="px-6 pt-4 pb-6 h-full overflow-y-auto">
+          {loading && (
+            <div className="h-96 flex flex-col items-center justify-center gap-4">
+              <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} size="large" />
+              <div className="text-lg font-medium text-slate-700">Cargando detalles de la empresa...</div>
+              <div className="text-slate-500">Estamos preparando toda la información</div>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="mb-6">
+              <Alert type="error" message="Error al cargar datos" description={error} showIcon closable />
+            </div>
+          )}
+
+          {!loading && empresa && (
+            <>
+              <div className="mb-8 pb-6 border-b border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-lg font-semibold shadow-sm">
+                    {empresa.nombre?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">{empresa.nombre}</h2>
+                    <p className="text-sm text-slate-500 mt-1">Información y estadísticas generales</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <EmpresaInfoGeneral empresa={empresa} onUpdated={onUpdated} />
-
-            <div className="mb-6">
-              <Tabs
-                activeKey={tab}
-                onChange={(k) => setTab(k as TabKey)}
-                items={tabItems}
-                className="custom-tabs"
-                tabBarStyle={{ marginBottom: '24px', borderBottom: '1px solid #f1f5f9' }}
+              <EmpresaInfoGeneral
+                empresa={empresa}
+                contactoPrincipal={contactoPrincipal}
+                onUpdated={onUpdated}
               />
-            </div>
-          </>
-        )}
-      </div>
-    </Drawer>
-  );
-};
+
+              <div className="mb-6">
+                <Tabs
+                  activeKey={tab}
+                  onChange={(k) => setTab(k as TabKey)}
+                  items={tabItems}
+                  className="custom-tabs"
+                  tabBarStyle={{ marginBottom: '24px', borderBottom: '1px solid #f1f5f9' }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </Drawer>
+    );
+  };
 
 export default EmpresaDetailsModal;
