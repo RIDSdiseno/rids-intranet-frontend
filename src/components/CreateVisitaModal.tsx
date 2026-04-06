@@ -78,6 +78,7 @@ function isoLocalFromDateTimeLocal(dt: string) {
   return new Date(utcMs).toISOString();
 }
 
+// Funciones para llamadas a API con manejo de token, errores y JSON
 async function apiPost<TResp>(url: string, body: unknown): Promise<TResp> {
   const token = localStorage.getItem("accessToken");
   const res = await fetch(url, {
@@ -138,6 +139,7 @@ async function apiGet<TResp>(url: string, signal?: AbortSignal): Promise<TResp> 
   return (await res.json()) as TResp;
 }
 
+// Componente principal para crear o editar visitas, con modo de selección de solicitantes adaptativo (uno para edición, múltiples para creación), búsqueda de solicitantes por empresa, y manejo completo de estados de formulario y envío a API
 export default function CreateVisitaModal({
   open,
   onClose,
@@ -369,7 +371,8 @@ export default function CreateVisitaModal({
       ||
       (mode === "create" && selectedSolicitantes.length > 0)
     );
-
+  
+  // Función para enviar el formulario, con validación básica y construcción de payload según modo (uno vs lote), y llamadas a API correspondientes
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || submitting) return;
@@ -420,7 +423,8 @@ export default function CreateVisitaModal({
   }
 
   if (!open) return null;
-
+  
+  // Helper para convertir ISO UTC a formato local para inputs datetime-local
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />

@@ -3,8 +3,8 @@ import { getGraph } from "../lib/graph";
 
 /* ========= Env ========= */
 const SITE_HOSTNAME = import.meta.env.VITE_SP_SITE_HOSTNAME as string;
-const SITE_PATH     = import.meta.env.VITE_SP_SITE_PATH as string;
-const FOLDER_PATH   = import.meta.env.VITE_SP_FOLDER_PATH as string;
+const SITE_PATH = import.meta.env.VITE_SP_SITE_PATH as string;
+const FOLDER_PATH = import.meta.env.VITE_SP_FOLDER_PATH as string;
 
 /* ========= Tipos mínimos de Graph ========= */
 type DriveItem = {
@@ -33,14 +33,14 @@ const toLocal = (iso?: string) =>
 /* ========================================================================= */
 
 export default function DocumentosPage() {
-  const [items, setItems]         = useState<DriveItem[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [items, setItems] = useState<DriveItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Breadcrumb desde la carpeta base FOLDER_PATH (resuelta a un id)
-  const [siteId, setSiteId]       = useState<string | null>(null);
+  const [siteId, setSiteId] = useState<string | null>(null);
   const [baseFolder, setBaseFolder] = useState<FolderNode | null>(null);
-  const [trail, setTrail]         = useState<FolderNode[]>([]); // incluye baseFolder como primer elemento
+  const [trail, setTrail] = useState<FolderNode[]>([]); // incluye baseFolder como primer elemento
 
   const currentFolder = useMemo(() => trail[trail.length - 1] ?? null, [trail]);
 
@@ -84,8 +84,8 @@ export default function DocumentosPage() {
       } catch (e: unknown) {
         const message =
           e instanceof Error ? e.message :
-          typeof e === "string" ? e :
-          "Error al listar documentos";
+            typeof e === "string" ? e :
+              "Error al listar documentos";
         if (!cancelled) setError(message);
       } finally {
         if (!cancelled) setLoading(false);
@@ -114,8 +114,8 @@ export default function DocumentosPage() {
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message :
-        typeof e === "string" ? e :
-        "Error al abrir la carpeta";
+          typeof e === "string" ? e :
+            "Error al abrir la carpeta";
       setError(message);
     } finally {
       setLoading(false);
@@ -142,8 +142,8 @@ export default function DocumentosPage() {
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message :
-        typeof e === "string" ? e :
-        "Error al navegar";
+          typeof e === "string" ? e :
+            "Error al navegar";
       setError(message);
     } finally {
       setLoading(false);
@@ -166,8 +166,8 @@ export default function DocumentosPage() {
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message :
-        typeof e === "string" ? e :
-        "Error al recargar";
+          typeof e === "string" ? e :
+            "Error al recargar";
       setError(message);
     } finally {
       setLoading(false);

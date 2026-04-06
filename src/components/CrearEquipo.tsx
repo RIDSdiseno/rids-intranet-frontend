@@ -71,7 +71,6 @@ export type EquipoDTO = {
   solicitante: SolicitanteDTO | null;
 };
 
-
 type SolicitanteLite = {
   id_solicitante: number;
   nombre: string;
@@ -500,7 +499,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const stepEmpresaDone = !!empresaId;
   const stepSolicDone =
     stepEmpresaDone && open && form.getFieldValue("idSolicitante") !== undefined;
-
+  
+  // Determinar si el formulario es válido para enviar, basado en validaciones individuales y globales
   return (
     <Modal
       open={open}
@@ -624,7 +624,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             )}
           </AnimatePresence>
         </div>
-
+        
         <Form
           form={form}
           layout="vertical"

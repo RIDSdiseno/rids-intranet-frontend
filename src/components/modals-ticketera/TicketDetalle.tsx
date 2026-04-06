@@ -1,3 +1,4 @@
+// Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Spin,
@@ -219,7 +220,7 @@ function resolveInlineImages(
             return `<img src="${att.url.startsWith("http")
                 ? att.url
                 : `${API_URL.replace("/api", "")}${att.url}`
-                }" loading="lazy" />`;
+                }" loading="lazy" style="max-width:100%;height:auto;display:block;border-radius:8px;" />`;
         }
     );
 }
@@ -258,6 +259,7 @@ function getMessageAuthor(m: TicketMessage, ticketDetalle: TicketDetail | null) 
     };
 }
 
+// Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 export default function TicketDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -292,7 +294,8 @@ export default function TicketDetailPage() {
             timer = setTimeout(() => fn(...args), delay);
         };
     };
-
+    
+    // Función para buscar contactos por email, con debounce para evitar llamadas excesivas a la API
     const handleSearchContactos = async (value: string) => {
         if (!value) {
             setContactos([]);
@@ -309,7 +312,8 @@ export default function TicketDetailPage() {
             setLoadingContactos(false);
         }
     };
-
+    
+    // Crear función debounce para la búsqueda de contactos, para evitar llamadas excesivas a la API mientras el usuario escribe
     const debouncedSearchContactos = useMemo(
         () => debounce(handleSearchContactos, 400),
         []
@@ -320,12 +324,14 @@ export default function TicketDetailPage() {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }, 100);
     };
-
+    
+    // Determinar si el formulario de respuesta es válido para enviar, basado en que haya texto o archivos adjuntos, y que haya al menos un destinatario
     const loadTecnicos = async () => {
         const { data } = await api.get("/tecnicos");
         setTecnicos(Array.isArray(data) ? data : []);
     };
-
+    
+    // Función para cargar el detalle del ticket, incluyendo su información y mensajes, y preparar el formulario de respuesta con destinatarios y texto predefinido. Maneja estados de carga y errores.
     const loadTicket = async () => {
         if (!id) return;
 
@@ -373,7 +379,8 @@ Soporte Técnico`);
             setLoadingDetalle(false);
         }
     };
-
+    
+    // Función para actualizar campos del ticket, como estado, prioridad o asignado, con llamada a API y recarga del detalle después de la actualización. Maneja errores y muestra mensajes de éxito o error.
     const updateTicket = async (payload: {
         status?: string;
         priority?: string;
@@ -389,7 +396,8 @@ Soporte Técnico`);
             message.error(error?.response?.data?.message || "No se pudo actualizar el ticket");
         }
     };
-
+    
+    // Función para responder al ticket, ya sea con una respuesta al cliente o una nota interna, incluyendo validación de texto, construcción de payload con destinatarios y archivos adjuntos, llamada a API para enviar la respuesta, y recarga del detalle después de enviar. Maneja estados de envío y muestra mensajes de éxito o error.
     const responderTicket = async (isInternal: boolean) => {
         if (!ticketDetalle) return;
 
@@ -475,6 +483,75 @@ Soporte Técnico`);
         );
     }
 
+    // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
+    function buildEmailHtml(html: string) {
+        return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0; padding: 0;
+        background: #fff;
+        font-family: Arial, sans-serif;
+        color: #374151;
+        overflow-x: hidden;
+        overflow-y: visible;
+      }
+      body { padding: 12px; }
+      img { max-width: 100% !important; height: auto !important; display: block; }
+      table { max-width: 100% !important; border-collapse: collapse; }
+      td, th { max-width: 100%; word-break: break-word; }
+      * { box-sizing: border-box; }
+      a { color: #2563eb; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    ${html}
+    <script>
+      function sendHeight() {
+        const h = document.documentElement.scrollHeight;
+        window.parent.postMessage({ type: 'iframe-resize', height: h }, '*');
+      }
+      // Enviar altura inicial y cuando cambien imágenes
+      document.addEventListener('DOMContentLoaded', sendHeight);
+      window.addEventListener('load', sendHeight);
+      const observer = new ResizeObserver(sendHeight);
+      observer.observe(document.body);
+    <\/script>
+  </body>
+</html>`;
+    }
+
+    function AutoResizeIframe({ srcDoc }: { srcDoc: string }) {
+        const iframeRef = useRef<HTMLIFrameElement>(null);
+        const [height, setHeight] = useState(120);
+
+        useEffect(() => {
+            const handler = (event: MessageEvent) => {
+                if (event.data?.type === "iframe-resize" && typeof event.data.height === "number") {
+                    // Verificar que el mensaje viene de este iframe específico
+                    if (iframeRef.current?.contentWindow === event.source) {
+                        setHeight(event.data.height + 8);
+                    }
+                }
+            };
+            window.addEventListener("message", handler);
+            return () => window.removeEventListener("message", handler);
+        }, []);
+
+        return (
+            <iframe
+                ref={iframeRef}
+                srcDoc={srcDoc}
+                sandbox="allow-same-origin allow-popups allow-scripts"
+                className="w-full border-0 rounded"
+                style={{ height: `${height}px`, minHeight: "80px" }}
+            />
+        );
+    }
+    
+    // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
@@ -653,25 +730,17 @@ Soporte Técnico`);
                                                     )}
 
                                                     {m.bodyHtml ? (
-                                                        <iframe
-                                                            srcDoc={DOMPurify.sanitize(
-                                                                resolveInlineImages(m.bodyHtml, m.attachments),
-                                                                {
-                                                                    ADD_ATTR: ["target", "src", "style", "width", "height"],
-                                                                    ADD_TAGS: ["img", "table", "tbody", "tr", "td"],
-                                                                }
+                                                        <AutoResizeIframe
+                                                            srcDoc={buildEmailHtml(
+                                                                DOMPurify.sanitize(
+                                                                    resolveInlineImages(m.bodyHtml, m.attachments),
+                                                                    {
+                                                                        ADD_ATTR: ["target", "src", "style", "width", "height"],
+                                                                        ADD_TAGS: ["img", "table", "tbody", "tr", "td"],
+                                                                        FORCE_BODY: true,
+                                                                    }
+                                                                )
                                                             )}
-                                                            sandbox="allow-same-origin allow-popups allow-scripts"
-                                                            className="w-full border-0 rounded"
-                                                            style={{ minHeight: "80px" }}
-                                                            onLoad={(e) => {
-                                                                const iframe = e.currentTarget;
-                                                                try {
-                                                                    const h =
-                                                                        iframe.contentDocument?.documentElement?.scrollHeight;
-                                                                    if (h) iframe.style.height = `${h}px`;
-                                                                } catch { }
-                                                            }}
                                                         />
                                                     ) : (
                                                         <div

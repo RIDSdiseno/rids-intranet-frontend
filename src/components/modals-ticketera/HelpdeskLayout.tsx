@@ -1,3 +1,4 @@
+// HelpdeskLayout.tsx
 import { Outlet, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { Tabs, Button, Tag } from "antd";
 import {
@@ -7,6 +8,7 @@ import {
     PlusOutlined,
 } from "@ant-design/icons";
 
+// Componente de layout para el centro de soporte, que muestra una barra de navegación con pestañas para acceder a la lista de tickets, el dashboard de métricas, y la configuración de plantillas de correo. Utiliza React Router para renderizar el contenido correspondiente según la ruta, y muestra un diseño limpio y organizado con Ant Design.
 export default function HelpdeskLayout() {
     const navigate = useNavigate();
     const location = useLocation();

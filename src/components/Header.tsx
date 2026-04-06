@@ -210,7 +210,8 @@ const Header = () => {
       postLogoutRedirectUri: `${window.location.origin}/login`,
     });
   };
-
+  
+  // Renderizado del sidebar
   return (
     <aside
       className={`

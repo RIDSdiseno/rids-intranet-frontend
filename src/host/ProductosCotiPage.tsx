@@ -68,6 +68,7 @@ interface ModalProductoProps {
     categorias: string[];
 }
 
+// modal para crear y editar productos
 const ModalProducto: React.FC<ModalProductoProps> = ({
     show,
     title,
@@ -87,7 +88,8 @@ const ModalProducto: React.FC<ModalProductoProps> = ({
     };
 
     const isCreate = title === "Nuevo Producto";
-
+    
+    // formulario de creación
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto transform transition-all">
@@ -389,13 +391,14 @@ interface ModalViewProductoProps {
     form: Producto;
 }
 
+// modal para ver detalle del producto (solo lectura)
 const ModalViewProducto: React.FC<ModalViewProductoProps> = ({
     show,
     onClose,
     form,
 }) => {
     if (!show) return null;
-
+    
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
@@ -552,7 +555,8 @@ const ProductosPage: React.FC = () => {
         },
         []
     );
-
+    
+    // carga productos desde la API
     const loadProductos = async () => {
         setIsLoading(true);
         try {
@@ -703,7 +707,8 @@ const ProductosPage: React.FC = () => {
         setForm(p);
         setShowView(true);
     };
-
+    
+    // función para crear un nuevo producto, con validaciones y manejo de imagen
     const handleCreate = async () => {
 
         if (isSaving) return;
@@ -764,7 +769,8 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
-
+    
+    // función para actualizar un producto existente, con validaciones y manejo de imagen
     const handleUpdate = async () => {
         if (!form.id) return;
 
@@ -795,7 +801,8 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
-
+    
+    // función para eliminar un producto, con confirmación y manejo de errores
     const handleDelete = async (id: number) => {
         if (!window.confirm("¿Seguro deseas eliminar este producto?")) return;
 
@@ -811,7 +818,8 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
-
+    
+    // función para cambiar el estado del producto (disponible/agotado)
     return (
         <>
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-cyan-50/30">
@@ -1340,7 +1348,8 @@ const ProductosPage: React.FC = () => {
                             </>
                         )}
                     </div>
-
+                    
+                    {/* PAGINACIÓN */}
                     {totalPaginas > 1 && (
                         <div className="mt-8 pt-6 border-t border-slate-200/80">
                             <div className="flex flex-col md:flex-row items-center justify-between gap-6">

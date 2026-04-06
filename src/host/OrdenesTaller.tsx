@@ -101,6 +101,7 @@ const toDateTimeLocal = (date: string | Date) => {
     return local.toISOString().slice(0, 16);
 };
 
+// Componente principal
 const OrdenesTaller: React.FC = () => {
 
     // Función para duplicar orden a SALIDA
@@ -217,7 +218,8 @@ const OrdenesTaller: React.FC = () => {
         fetchSelectData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
+    
+    // Cargar equipos con normalización de tipo para evitar problemas en el select
     useEffect(() => {
         const cargarEquipos = async () => {
             try {
@@ -278,6 +280,8 @@ const OrdenesTaller: React.FC = () => {
         }
 
         setCreating(true);
+
+        // Nota: el backend maneja los campos faltantes con valores por defecto o nulos, pero aquí hacemos validaciones básicas para mejorar la experiencia del usuario y evitar errores comunes. El payload se construye con cuidado para asegurar que los datos estén en el formato esperado por la API, especialmente para campos como fecha y selectores. Cualquier error se captura y muestra al usuario mediante el sistema de toast. Después de crear la orden, se resetea el formulario, se cierra el modal y se recargan las órdenes para reflejar el nuevo registro.
         try {
             const payload = {
                 tipoTrabajo: formData.tipoTrabajo.trim() || "General",
@@ -578,7 +582,8 @@ const OrdenesTaller: React.FC = () => {
             });
         }
     }; */}
-
+    
+    // incluye múltiples filtros, acciones y modales. Se han aplicado estilos modernos con Tailwind CSS para lograr una apariencia limpia y profesional, y se han añadido animaciones suaves para mejorar la experiencia del usuario. La tabla de órdenes es completamente responsive y permite un scroll horizontal en pantallas pequeñas sin perder la estructura ni la usabilidad. Además, se han implementado contadores dinámicos en los filtros para mostrar la cantidad de órdenes en cada categoría, lo que facilita la navegación y el análisis rápido de la información.
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
             {/* Fondo decorativo */}
@@ -734,6 +739,7 @@ const OrdenesTaller: React.FC = () => {
                                 ]}
                             />
                         </div>
+                        
                         {/* Técnicos */}
                         <div className="min-w-[220px]">
                             <Select

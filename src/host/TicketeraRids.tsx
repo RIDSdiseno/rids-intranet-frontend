@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+// Este archivo contiene el componente principal de la ticketera, con la lista de tickets, filtros, resumen y acciones masivas.
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Card,
     Tag,
@@ -43,6 +44,7 @@ import { BulkAssignModal } from "../components/modals-ticketera/BulkAssign";
 import { BulkMergeModal } from "../components/modals-ticketera/BulkMerge";
 import { CrearTicketDrawer } from "../components/modals-ticketera/CrearTicket";
 
+// Tipos y utilidades
 type TicketSla = {
     targets?: { firstResponseMinutes: number; resolutionMinutes: number };
     firstResponse?: {
@@ -87,6 +89,7 @@ type Tecnico = {
     online?: boolean;
 };
 
+// Constantes y funciones auxiliares
 const buildMensajeInicial = (tecnico?: {
     nombre?: string;
     cargo?: string;
@@ -153,6 +156,7 @@ function formatMinutes(min: number | null | undefined): string {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+// Componente para mostrar el resumen de SLA con barra de progreso y colores según cumplimiento
 function SlaCard({
     title, icon, compliance, breached, pending, total, avgMinutes, color, loading,
 }: {
@@ -214,9 +218,11 @@ function SlaCard({
     );
 }
 
+// Componente principal de la ticketera
 export default function TicketeraRids() {
     const navigate = useNavigate();
 
+    // Estados principales
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState("");
@@ -277,6 +283,9 @@ export default function TicketeraRids() {
         assigneeId: undefined as number | undefined,
     });
 
+    const ticketsListRef = useRef<HTMLDivElement | null>(null);
+
+    // Funciones auxiliares
     function formatRelativeTime(date: string | Date) {
         const diffMs = Date.now() - new Date(date).getTime();
         const diffMins = Math.floor(diffMs / 60000);
@@ -371,6 +380,7 @@ export default function TicketeraRids() {
         };
     }
 
+    // Esta función devuelve el texto para la última actividad del ticket, como "Cerrado hace 2h" o "Respondido por solicitante hace 30m"
     function getTicketActivityText(ticket: Ticket) {
         const activityDate = ticket.lastActivityAt ?? ticket.updatedAt ?? ticket.createdAt;
         if (!activityDate) return null;
@@ -400,11 +410,13 @@ export default function TicketeraRids() {
     }
 
     const filteredTickets = useMemo(() => {
-        return tickets.filter((ticket) => {
-            if (activeTab === "unassigned") return !ticket.assignee;
-            if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
-            return true;
-        });
+        return [...tickets]
+            .filter((ticket) => {
+                if (activeTab === "unassigned") return !ticket.assignee;
+                if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
+                return true;
+            })
+            .reverse();
     }, [tickets, activeTab]);
 
     const getTicketCount = (status: string) => {
@@ -414,6 +426,7 @@ export default function TicketeraRids() {
         return statusCounts[status] ?? 0;
     };
 
+    // Función para cargar tickets desde la API con los filtros aplicados
     const loadTickets = async () => {
         try {
             setLoading(true);
@@ -445,11 +458,13 @@ export default function TicketeraRids() {
         }
     };
 
+    // Funciones para cargar datos relacionados como empresas, solicitantes y técnicos para los filtros y formularios
     const loadEmpresas = async () => {
         const { data } = await api.get("/empresas");
         setEmpresas(data?.data ?? []);
     };
 
+    // Cuando se selecciona una empresa, cargamos sus solicitantes para el filtro y el formulario de creación de tickets
     const loadSolicitantes = async (empresaId: number) => {
         const { data } = await api.get(
             `/solicitantes/by-empresa?empresaId=${empresaId}`
@@ -462,6 +477,7 @@ export default function TicketeraRids() {
         );
     };
 
+    // Cargamos la lista de técnicos para el filtro de asignados y el formulario de creación/edición de tickets
     const loadTecnicos = async () => {
         try {
             const { data } = await api.get("/tecnicos");
@@ -472,6 +488,7 @@ export default function TicketeraRids() {
         }
     };
 
+    // Función para cargar el resumen de SLA, que muestra el porcentaje de tickets que cumplen con la primera respuesta y resolución dentro del tiempo establecido, además de los vencidos y pendientes
     const loadSla = async () => {
         try {
             setLoadingSla(true);
@@ -489,6 +506,7 @@ export default function TicketeraRids() {
         }
     };
 
+    // Guardamos en localStorage la preferencia de mostrar u ocultar el resumen para mantenerla entre recargas de página
     useEffect(() => {
         localStorage.setItem("helpdesk_show_resumen", String(showResumen));
     }, [showResumen]);
@@ -515,6 +533,7 @@ export default function TicketeraRids() {
         loadTickets();
     }, [page, pageSize]);
 
+    // Configuramos el socket para recibir notificaciones en tiempo real cuando se creen nuevos tickets, se respondan o cambien de estado, y actualizamos la lista de tickets y el resumen de SLA automáticamente. También mostramos una notificación emergente con la información del ticket afectado.
     useEffect(() => {
         socket.connect();
         socket.on("connect", () => console.log("🟢 Socket conectado", socket.id));
@@ -524,6 +543,7 @@ export default function TicketeraRids() {
         };
     }, []);
 
+    // Manejadores para eventos de socket relacionados con tickets: creación, respuesta del solicitante y cambio de estado. Cada uno muestra una notificación y recarga la lista de tickets y el resumen de SLA.
     useEffect(() => {
         const onTicketCreated = (payload: any) => {
             setNewTicketsCount((prev) => prev + 1);
@@ -595,6 +615,20 @@ export default function TicketeraRids() {
         loadTickets();
         loadSla();
     }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
+
+    useEffect(() => {
+        if (loading) return;
+
+        const fullHeight = Math.max(
+            document.body.scrollHeight,
+            document.documentElement.scrollHeight
+        );
+
+        window.scrollTo({
+            top: fullHeight,
+            behavior: "auto",
+        });
+    }, [loading, filteredTickets, page, pageSize]);
 
     const setLastDays = (days: number) => {
         const now = new Date();
@@ -676,7 +710,7 @@ export default function TicketeraRids() {
             await api.delete(`/helpdesk/tickets/${ticketToDelete}`);
             message.success("Ticket eliminado correctamente");
             setDeleteModalOpen(false);
-            // ✅ Eliminar del estado local inmediatamente
+            //  Eliminar del estado local inmediatamente
             setTickets(prev => prev.filter(t => t.id !== ticketToDelete));
             setTicketToDelete(null);
         } catch {
@@ -694,7 +728,7 @@ export default function TicketeraRids() {
                 status: "CLOSED",
             });
             message.success("Tickets cerrados correctamente");
-            // ✅ Remover del estado local inmediatamente
+            //  Remover del estado local inmediatamente
             setTickets(prev => prev.filter(t => !selectedTickets.includes(t.id)));
             setSelectedTickets([]);
         } catch {
@@ -708,6 +742,7 @@ export default function TicketeraRids() {
         setBulkAssignModalOpen(true);
     };
 
+    // Esta función se llama al confirmar la asignación masiva de tickets a un técnico seleccionado. Envía la solicitud a la API para actualizar el campo assigneeId de los tickets seleccionados, luego recarga la lista de tickets y el resumen de SLA para reflejar los cambios.
     const handleBulkAssignConfirm = async () => {
         if (!selectedTechnicianId) {
             message.warning("Selecciona un técnico");
@@ -738,6 +773,7 @@ export default function TicketeraRids() {
         setBulkMergeModalOpen(true);
     };
 
+    // Esta función se llama al confirmar la fusión masiva de tickets. Envía la solicitud a la API para fusionar los tickets seleccionados en un ticket principal, luego recarga la lista de tickets y el resumen de SLA para reflejar los cambios. También muestra mensajes de éxito o error según corresponda.
     const handleBulkMergeConfirm = async () => {
         if (!selectedMainTicketId) {
             message.warning("Debes seleccionar un ticket principal");
@@ -791,6 +827,7 @@ export default function TicketeraRids() {
         return { color: "red" };
     };
 
+    // Renderizamos el componente principal con el resumen de SLA, los filtros, la lista de tickets y las acciones disponibles. Utilizamos componentes de Ant Design para la interfaz y aplicamos estilos personalizados para mejorar la apariencia.
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
@@ -834,6 +871,7 @@ export default function TicketeraRids() {
                         </Space>
                     </div>
 
+                    {/* Resumen de SLA con tarjetas o etiquetas según la preferencia del usuario, mostrando el total de tickets, abiertos, cerrados, urgentes y el cumplimiento de los SLA de primera respuesta y resolución. Se utilizan colores e íconos para facilitar la visualización del estado de los tickets y el rendimiento del equipo. */}
                     {showResumen ? (
                         <Row gutter={[16, 16]} className="mb-6">
                             <Col span={6}>
@@ -934,6 +972,7 @@ export default function TicketeraRids() {
                     )}
                 </div>
 
+                {/* Filtros de búsqueda y segmentación de tickets por estado, prioridad, asignado y área, además de botones para filtrar por rangos de fecha predefinidos como hoy, últimos 7 días y este mes. También se incluye un campo de búsqueda para buscar por texto en el asunto, empresa, solicitante, email o ID del ticket. */}
                 <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                     <div className="flex flex-col gap-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1115,6 +1154,7 @@ export default function TicketeraRids() {
                                     },
                                 ];
 
+                                // Renderizamos cada ticket como una tarjeta con información relevante como el estado, prioridad, asunto, empresa, solicitante, asignado y actividad reciente. También incluimos un menú de acciones para eliminar el ticket y la posibilidad de seleccionar múltiples tickets para acciones masivas. Al hacer clic en la tarjeta, se navega a la vista detallada del ticket.
                                 return (
                                     <div
                                         key={ticket.id}

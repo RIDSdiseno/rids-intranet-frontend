@@ -206,6 +206,7 @@ const COLOR_HEADER_TEXT = "0B4266";
 function setAllBorders(ws: WorksheetLike, r1: number, c1: number, r2: number, c2: number) {
   ws.range(r1, c1, r2, c2).style({ border: true, borderColor: COLOR_BORDER });
 }
+
 function fillBlock(ws: WorksheetLike, startCellA1: string, rows: Array<[string, number]>, maxRows = 2000) {
   const start = ws.cell(startCellA1);
   const n = Math.min(rows.length, maxRows);
@@ -220,14 +221,17 @@ function fillBlock(ws: WorksheetLike, startCellA1: string, rows: Array<[string, 
     start.relativeCell(i, 1).value(rows[i][1]);
   }
 }
+
 function excelColWidthSetup(ws: WorksheetLike) {
   const widths = [8, 22, 26, 30, 22, 14, 12, 12, 14, 10, 36, 14, 12, 10, 14, 14, 14, 14, 14];
   widths.forEach((w, i) => ws.column(i + 1).width(w));
 }
+
 function safeSheetName(raw: string) {
   const base = (raw || "Empresa").replace(/[\\/:*?"[\]]/g, "_").slice(0, 31);
   return base.length ? base : "Empresa";
 }
+
 function ensureUniqueSheetName(wb: WorkbookLike, desired: string) {
   let name = desired, i = 2;
   while (wb.sheet(name)) {
@@ -238,6 +242,7 @@ function ensureUniqueSheetName(wb: WorkbookLike, desired: string) {
   return name;
 }
 
+// agrega una hoja por empresa con el detalle de sus visitas
 function addDetallePorEmpresaSheets(wb: WorkbookLike, items: VisitaRow[]) {
   const byEmpresa = new Map<string, VisitaRow[]>();
   for (const v of items) {
@@ -313,12 +318,14 @@ function setupResumenSheet(ws: WorksheetLike) {
   ws.range(2, 17, 2000, 17).style({ numberFormat: "#,##0" });
   ws.freezePanes?.(2, 1);
 }
+
 function styleResumenBlocks(ws: WorksheetLike, s: { daily: number; checklist: number; pie: number; users: number; }) {
   if (s.daily > 0) setAllBorders(ws, 1, 1, 1 + s.daily, 2);
   if (s.checklist > 0) setAllBorders(ws, 1, 6, 1 + s.checklist, 7);
   if (s.pie > 0) setAllBorders(ws, 1, 11, 1 + s.pie, 12);
   if (s.users > 0) setAllBorders(ws, 1, 16, 1 + s.users, 17);
 }
+
 function mirrorResumenToHoja1(
   wb: WorkbookLike,
   wsResumen: WorksheetLike,
@@ -534,6 +541,7 @@ const VisitasPage: React.FC = () => {
     fetchFilters(c.signal);
     return () => c.abort();
   }, [fetchFilters]);
+
   useEffect(() => {
     const c = new AbortController();
     fetchList(c.signal);
@@ -550,7 +558,6 @@ const VisitasPage: React.FC = () => {
   };
 
   const { user, isCliente, isAdmin } = useAuth();
-  
 
   useEffect(() => {
     if (isCliente && user?.empresaId) {
@@ -558,6 +565,7 @@ const VisitasPage: React.FC = () => {
     }
   }, [isCliente, user]);
 
+  // Al hacer click en una fila, abrir el modal de detalle
   const openRow = (row: VisitaRow) => {
     const visita: VisitaDetail = {
       id_visita: row.id_visita,
@@ -592,7 +600,8 @@ const VisitasPage: React.FC = () => {
   async function apiDeleteVisita(id: number) {
     await http.delete(`/visitas/${id}`);
   }
-
+  
+  // Al hacer click en editar, abrir el modal de edición con los datos cargados
   const onClickEdit = (row: VisitaRow) => {
     const v: VisitaForEdit = {
       id_visita: row.id_visita,
@@ -620,7 +629,8 @@ const VisitasPage: React.FC = () => {
     setEditVisita(v);
     setOpenEdit(true);
   };
-
+  
+  // Al hacer click en eliminar, pedir confirmación y eliminar la visita
   const onClickDelete = async (row: VisitaRow) => {
     if (!window.confirm(`¿Eliminar la visita #${row.id_visita}? Esta acción no se puede deshacer.`)) return;
     try {
@@ -633,7 +643,8 @@ const VisitasPage: React.FC = () => {
       setDeletingId(null);
     }
   };
-
+  
+  // Al hacer click en exportar, traer TODAS las visitas (respetando filtros), generar el Excel y descargarlo
   const onExportEmpresas = async () => {
     try {
       const total = data?.total ?? 0;
@@ -697,7 +708,8 @@ const VisitasPage: React.FC = () => {
       alert("No se pudo exportar el Excel. Revisa consola (plantilla/rutas/permiso).");
     }
   };
-
+ 
+  // Funciones para determinar elegibilidad de visitas para el resumen
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
       {/* Fondo */}

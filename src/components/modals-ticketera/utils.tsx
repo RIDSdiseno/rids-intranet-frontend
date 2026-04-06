@@ -1,3 +1,4 @@
+// utils.tsx
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
@@ -129,6 +130,7 @@ export function formatEmailBody(text: string | null) {
         .replace(/\n/g, "<br/>");
 }
 
+// Función para determinar el estado de actividad de un ticket, basado en su estado y la fecha de su última actividad, para mostrar un indicador visual en la lista de tickets.
 export function getTicketActivityMeta(ticket: Ticket): TicketActivityMeta {
     if (ticket.status === "CLOSED") {
         return {

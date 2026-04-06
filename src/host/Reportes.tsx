@@ -103,7 +103,8 @@ const ReportesPage: React.FC = () => {
     obtenerDatosReporteGeneral,
     onDataLoaded: setDataPrev,
   });
-
+  
+  // ── Generar recomendaciones IA ──
   const generarInformeIA = async () => {
 
     if (!canGenerate) {
@@ -220,18 +221,6 @@ const ReportesPage: React.FC = () => {
   // ── Render ──
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-slate-50 to-white">
-
-      {/* ── Nav ── */}
-      <div className="bg-white/60 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-4">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
-            <HomeOutlined /> Dashboard
-          </button>
-          <button onClick={() => navigate("/empresas")} className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
-            <BarChartOutlined /> Analytics
-          </button>
-        </div>
-      </div>
 
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
 

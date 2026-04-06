@@ -33,7 +33,7 @@ interface EditCotizacionModalProps {
     cotizacion: CotizacionGestioo | null;
     onClose: () => void;
     onUpdate: () => void;
-    onGenerarPDF: () => void;
+    onGenerarPDF: (cotizacionActualizada: CotizacionGestioo) => void;
     onCargarProductos: () => void;
     onCargarServicios: () => void;
     onUpdateCotizacion: (cotizacion: CotizacionGestioo) => void;
@@ -1260,7 +1260,15 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                             <button
                                 type="button"
-                                onClick={onGenerarPDF}
+                                onClick={() => {
+                                    const cotizacionActualizada = {
+                                        ...cotizacion,
+                                        items: itemsLocal,
+                                    };
+
+                                    onUpdateCotizacion(cotizacionActualizada);
+                                    onGenerarPDF(cotizacionActualizada);
+                                }}
                                 className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
                             >
                                 <PrinterOutlined className="text-lg" />

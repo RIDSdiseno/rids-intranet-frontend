@@ -43,6 +43,7 @@ const tokenHeader = (): HeadersInit => {
 function normalize(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 }
+
 function getApiErrorMessage(payload: unknown, status: number): string {
   if (
     payload &&
@@ -61,9 +62,11 @@ function tokenize(s: string) {
     .split(/\s+/)
     .filter(Boolean);
 }
+
 function emailValid(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
+
 function highlight(text: string, tokens: string[]): React.ReactNode {
   if (tokens.length === 0) return text;
   const norm = normalize(text);
@@ -105,6 +108,7 @@ const Spinner: React.FC<{ className?: string }> = ({ className = "w-6 h-6" }) =>
   </svg>
 );
 
+// Props para el componente de creación de solicitante, con callbacks para éxito y cancelación, y opción de empresa por defecto
 const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
   onSuccess,
   onCancel,
@@ -325,8 +329,9 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
   };
 
   const tokens = useMemo(() => tokenize(searchDebounced), [searchDebounced]);
-
-  return (
+  
+  // Determinar si el formulario es válido para enviar, basado en validaciones individuales y global
+  return ( 
     <div
       ref={containerRef}
       className="relative w-full max-w-2xl mx-auto rounded-3xl border border-cyan-200/60 bg-white/80 backdrop-blur-xl shadow-[0_16px_50px_-20px_rgba(14,165,233,0.45)] overflow-hidden"

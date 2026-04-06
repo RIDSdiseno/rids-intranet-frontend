@@ -502,6 +502,7 @@ const EquiposPage: React.FC = () => {
     }
   }
 
+  // Historial de un equipo
   async function fetchHistorialEquipo(id_equipo: number, signal?: AbortSignal) {
     setHistLoading(true);
     setHistError(null);
@@ -780,6 +781,7 @@ const EquiposPage: React.FC = () => {
       empresa: { id_empresa: empresaId, nombre: "" },
     }));
   }
+
   // Carga solicitantes desde API, filtrando por empresa
   // Reemplaza loadSolicitantesEdit por esta versión:
   const loadSolicitantesEdit = async (empresaId: number | null, term: string) => {
@@ -918,7 +920,8 @@ const EquiposPage: React.FC = () => {
     { key: "empresa", label: "Empresa", className: "min-w-[140px]" },
     { key: "createdAt", label: "Fecha ingreso", className: "min-w-[150px]" },
   ] as const;
-
+  
+  // Para formatear fechas en la tabla
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
       {/* Fondo */}

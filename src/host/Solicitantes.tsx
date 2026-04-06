@@ -476,9 +476,6 @@ export default function SolicitantesPage() {
     }
   };
 
-  // ================================================================
-
-  // Empresas para selects (nuevo shape: { success, data, total })
   // Empresas para selects (nuevo shape: { success, data, total })
   type EmpresaApi = {
     id_empresa: number; nombre: string, dominios: string[];
@@ -553,6 +550,7 @@ export default function SolicitantesPage() {
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
   useEffect(() => {
     void fetchMetrics();
   }, [fetchMetrics]);
@@ -600,6 +598,7 @@ export default function SolicitantesPage() {
     }
   };
 
+  // Abrir modal de edición con datos cargados
   const openEdit = (row: SolicitanteRow) => {
     setEditing(row);
     setEditErrors({});
@@ -649,6 +648,7 @@ export default function SolicitantesPage() {
     setSyncGoogleOpen(true);
   };
 
+  // Ejecutar sincronización Google (con o sin email específico)
   const runSyncGoogle = async ({
     empresaId,
     domain,
@@ -1302,6 +1302,7 @@ export default function SolicitantesPage() {
           />
           {editErrors.nombre && <div className="mt-1 text-xs text-rose-600">{editErrors.nombre}</div>}
         </label>
+        
         <label className="block text-sm">
           Email
           <input
@@ -1318,6 +1319,7 @@ export default function SolicitantesPage() {
           />
           {editErrors.email && <div className="mt-1 text-xs text-rose-600">{editErrors.email}</div>}
         </label>
+
         <label className="block text-sm">
           Empresa
           <select

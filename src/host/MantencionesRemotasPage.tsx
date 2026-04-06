@@ -65,10 +65,10 @@ function StatusBadge({ status }: { status: MantencionStatus | string }) {
   );
 }
 
-/** ✅ Estados disponibles en UI */
+/**  Estados disponibles en UI */
 const STATUS: MantencionStatus[] = ["EN_CURSO", "COMPLETADA"];
 
-/** ✅ Keys checklist tipadas (sin any) */
+/**  Keys checklist tipadas (sin any) */
 type ChecklistKey = keyof Pick<
   MantencionRemota,
   | "soporteRemoto"
@@ -83,7 +83,7 @@ type ChecklistKey = keyof Pick<
 >;
 
 /**
- * ✅ Checklist (SIN 'otros' aquí)
+ *  Checklist (SIN 'otros' aquí)
  * "Otros" se renderiza aparte porque activa textarea.
  */
 const FLAGS: Array<{ key: ChecklistKey; label: string }> = [
@@ -627,7 +627,8 @@ export default function MantencionesRemotasPage() {
       otrosDetalle: form.otros ? (form.otrosDetalle.trim() || null) : null,
     };
   }
-
+  
+  // corrige typo del patch: form.cccleaner -> form.ccleaner (y lo mismo en el payload de create)
   function buildPatchPayload(): MantencionRemotaUpsert {
     if (!isCliente && form.empresaId === "") throw new Error("Debes seleccionar una empresa.");
     if (form.solicitanteId === "") throw new Error("Debes seleccionar un solicitante.");
@@ -656,7 +657,8 @@ export default function MantencionesRemotasPage() {
       otrosDetalle: form.otros ? (form.otrosDetalle.trim() || null) : null,
     };
   }
-
+  
+  // al crear, se permite detectar el técnico por email si no se selecciona uno en el form (útil para clientes que no deberían elegir técnico). Al actualizar, se hace lo mismo pero priorizando el form para permitir cambiar el técnico asignado. En ambos casos, se corrige el typo del ccleaner tanto en el form como en el payload.
   async function onSubmit(): Promise<CreateMantencionResponse | void> {
     if (saving) return; // ✅ evita doble click
     setErr(null);
@@ -671,7 +673,7 @@ export default function MantencionesRemotasPage() {
         return created;
       }
 
-      // ⚠️ corrige typo del patch: form.cccleaner -> form.ccleaner
+      // corrige typo del patch: form.cccleaner -> form.ccleaner
       const patchRaw = buildPatchPayload();
       const patch =
         "cccleaner" in (patchRaw as Record<string, unknown>)
@@ -711,7 +713,8 @@ export default function MantencionesRemotasPage() {
       alert(e instanceof Error ? e.message : "No se pudo eliminar");
     }
   }
-
+  
+  // ... resto del componente (renderizado, modales, etc.) ...
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
       {/* Fondo */}

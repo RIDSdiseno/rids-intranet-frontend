@@ -130,6 +130,7 @@ function statusStyles(statusRaw?: string) {
   return "bg-neutral-50 text-neutral-700 border border-neutral-200";
 }
 
+// Componente para mostrar un chip con estilo
 const Chip: React.FC<{
   label: string;
   subtitle?: string;
@@ -169,6 +170,7 @@ const Chip: React.FC<{
   );
 };
 
+// Componente para mostrar una fila de información con etiqueta y valor
 const Row: React.FC<{ label: string; children?: React.ReactNode }> = ({ label, children }) => (
   <div className="grid grid-cols-3 gap-3 py-2 border-b border-neutral-100 last:border-0">
     <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
@@ -228,7 +230,8 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
       </span>
     </div>
   );
-
+  
+  // Renderizado del modal
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"

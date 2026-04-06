@@ -8,7 +8,9 @@ import {
   LaptopOutlined,
   PieChartOutlined,
 } from "@ant-design/icons";
+
 import { motion } from "framer-motion";
+
 import {
   ResponsiveContainer,
   BarChart,
@@ -21,6 +23,7 @@ import {
   PieChart,
   Pie,
 } from "recharts";
+
 import type { PieLabelRenderProps } from "recharts";
 
 import type {
@@ -154,6 +157,7 @@ function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
 }
 
+// Esta es la página principal de empresas, donde se muestra un dashboard con estadísticas generales, gráficos de distribución y una lista de empresas. Permite filtrar por nombre o email, ver detalles de cada empresa, y acceder a una ficha completa con información adicional. También incluye un botón para crear nuevas empresas y refrescar los datos. La página se adapta según el rol del usuario (cliente o admin) mostrando más o menos información según corresponda.
 const EmpresasPage: React.FC = () => {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -438,7 +442,8 @@ const EmpresasPage: React.FC = () => {
       </div>
     );
   }
-
+  
+  // Renderizamos el dashboard principal con las estadísticas generales, los gráficos de distribución y la lista de empresas. Incluimos animaciones suaves al cargar los datos y al interactuar con los elementos. También mostramos botones para refrescar los datos y crear nuevas empresas, y adaptamos la información mostrada según el rol del usuario (cliente o admin).
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
       <div className="flex-1">

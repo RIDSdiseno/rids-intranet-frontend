@@ -81,6 +81,7 @@ const COMPANY_TAG_PALETTE = [
   "border-lime-200 bg-lime-50 text-lime-900",
   "border-green-200 bg-green-50 text-green-900",
 ];
+
 function companyTagClasses(emp?: Empresa) {
   if (!emp) return "border-neutral-200 bg-neutral-50 text-neutral-700";
   const seed =
@@ -254,7 +255,8 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
       /* noop */
     }
   };
-
+  
+  // Función para determinar clases de estilo del chip de empresa, basada en un hash del ID o nombre para estabilidad de colores entre renders
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"

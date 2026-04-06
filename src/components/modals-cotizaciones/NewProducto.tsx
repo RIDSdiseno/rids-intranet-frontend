@@ -82,7 +82,8 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 
         try {
             setIsSubmitting(true);
-            // 1️⃣ Crear producto (sin imagen)
+
+            // 1️⃣ Crear producto
             const nuevoProductoResp = await fetchApi("/productos-gestioo", {
                 method: "POST",
                 body: JSON.stringify({
@@ -115,13 +116,10 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                 form.append("productoId", String(nuevoProducto.id));
                 form.append("imagen", formData.imagenFile);
 
-                const uploadResp = await fetchApi(
-                    "/upload-imagenes/upload",
-                    {
-                        method: "POST",
-                        body: form,
-                    }
-                );
+                const uploadResp = await fetchApi("/upload-imagenes/upload", {
+                    method: "POST",
+                    body: form,
+                });
 
                 imagenUrl = uploadResp?.imagen || imagenUrl;
                 publicId = uploadResp?.publicId || publicId;
@@ -136,6 +134,8 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
         } catch (error) {
             console.error("❌ Error al crear producto:", error);
             alert("Error al crear el producto. Intente nuevamente.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 

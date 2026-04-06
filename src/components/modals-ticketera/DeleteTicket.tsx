@@ -1,3 +1,4 @@
+// DeleteTicket.tsx
 import { Modal } from "antd";
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
     onCancel: () => void;
 }
 
+// Modal para confirmar eliminación de un ticket, con título, mensaje de advertencia, botones de confirmación y cancelación, y manejo de estados de carga para evitar acciones múltiples.
 export function DeleteTicketModal({ open, loading, onConfirm, onCancel }: Props) {
     return (
         <Modal

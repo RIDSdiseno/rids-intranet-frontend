@@ -1,3 +1,4 @@
+// Página principal del host, mostrando un dashboard con estadísticas generales, gráficos de distribución y alertas rápidas basadas solo en las visitas del mes. Se incluyen tarjetas para cada métrica clave como total de solicitantes, equipos registrados, visitas del mes y total de incidencias, con la posibilidad de refrescar cada una individualmente. También se muestran alertas para técnicos sobre el promedio y con baja actividad, y un gráfico detallado de visitas por técnico con tooltip personalizado que muestra el desglose por empresa. La página se adapta a diferentes tamaños de pantalla y utiliza animaciones suaves para mejorar la experiencia del usuario.
 import { useEffect, useMemo, useState, type FC, type ReactNode } from "react";
 import {
   UserOutlined,
@@ -302,7 +303,8 @@ const Home: FC = () => {
       setLoading(false);
     }
   };
-
+  
+  // Funciones para cargar cada métrica individualmente, con manejo de loading y error. Se pueden llamar al montar el componente y también al refrescar cada tarjeta.
   const fetchTotalSolicitantes = (signal?: AbortSignal) =>
     fetchTotal("/solicitantes", setTotalSolicitantes, setLoadingSol, setErrorSol, signal);
 
@@ -340,7 +342,8 @@ const Home: FC = () => {
       setLoadingVis(false);
     }
   };
-
+  
+  // Al montar el componente, se cargan todas las métricas en paralelo utilizando AbortController para poder cancelar las solicitudes si el componente se desmonta antes de que terminen.
   useEffect(() => {
     const c1 = new AbortController();
     const c2 = new AbortController();
@@ -541,7 +544,8 @@ const Home: FC = () => {
       tecnicosSobrePromedio.length,
     ]
   );
-
+  
+  // Renderizamos el dashboard principal con las estadísticas generales, los gráficos de distribución y la lista de empresas. Incluimos animaciones suaves al cargar los datos y al interactuar con los elementos. También mostramos botones para refrescar los datos y crear nuevas empresas, y adaptamos la información mostrada según el rol del usuario (cliente o admin).
   return (
     <div className="py-2 px-4 sm:px-6 lg:px-8">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>

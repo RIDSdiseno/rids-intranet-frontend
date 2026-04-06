@@ -1,3 +1,4 @@
+// DashboardTecnicos.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card, Row, Col, Spin, message, Empty, Tag, Progress } from "antd";
 import {
@@ -71,6 +72,7 @@ function MetricPill({
     );
 }
 
+// Componente para mostrar el dashboard de técnicos en el centro de soporte, con métricas de carga de trabajo y cumplimiento de SLA para cada técnico, y un resumen general al inicio. Utiliza Ant Design para el diseño y visualización de las métricas, y muestra indicadores de colores para facilitar la interpretación rápida del desempeño de cada técnico.
 export default function HelpdeskDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState<TecnicoMetric[]>([]);

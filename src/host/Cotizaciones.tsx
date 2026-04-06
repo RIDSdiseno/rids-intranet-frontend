@@ -1,3 +1,4 @@
+// Este componente es el corazón de la gestión de cotizaciones. Aquí se listan todas las cotizaciones con paginación, búsqueda y filtros avanzados. Desde esta vista se pueden crear nuevas cotizaciones, editar las existentes, eliminar o generar PDF. También se manejan los modales para seleccionar productos/servicios del catálogo, crear nuevos productos/servicios/entidades, y vincular equipos a los items de las cotizaciones. Se utiliza una combinación de estados locales para manejar la UI y llamadas a la API para persistir los cambios en el backend. Además, se implementa un sistema de toast para mostrar mensajes de éxito o error al usuario.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Select, Tooltip } from "antd";
 import {
@@ -64,6 +65,7 @@ import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquip
 
 import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
 
+// Definición de tipos específicos para esta vista
 type EstadoDTE =
     | "EMITIDO"
     | "RECIBIDO"
@@ -123,6 +125,7 @@ const getTipoDTELabel = (tipo: number) => {
     }
 };
 
+// Componente principal de la vista de cotizaciones
 const Cotizaciones: React.FC = () => {
 
     // === ESTADOS PRINCIPALES ===
@@ -280,7 +283,7 @@ const Cotizaciones: React.FC = () => {
             message = defaultMessage;
         }
 
-        // 🔥 Traducciones comunes del backend
+        // Traducciones comunes del backend
         if (message.includes("Unique constraint")) {
             message = "Ya existe un registro con esos datos.";
         }
@@ -306,9 +309,10 @@ const Cotizaciones: React.FC = () => {
         setToast({ type: "error", message: msg });
     };
 
+    // Función para cargar técnicos desde el backend, utilizada para el filtro de técnicos en el historial de cotizaciones y para asignar técnicos a las cotizaciones. Se llama al montar el componente y se almacena la lista de técnicos en el estado local.
     const fetchTecnicos = async () => {
         try {
-            const data = await apiFetch("/tecnicos"); // o tu endpoint real
+            const data = await apiFetch("/tecnicos");
             setTecnicos(data.data || data);
         } catch (error) {
             handleApiError(error, "Error al cargar técnicos");
@@ -336,6 +340,7 @@ const Cotizaciones: React.FC = () => {
         await fetchEquiposDisponibles();
     };
 
+    // Función que se llama al seleccionar un equipo existente para vincularlo a un item de la cotización. Actualiza visualmente el item con la información del equipo seleccionado, persiste el cambio en el backend si el item ya existe, y muestra un mensaje de éxito o error según corresponda. Finalmente, cierra el modal de selección de equipo.
     const handleSeleccionarEquipoExistente = async (equipo: EquipoOption) => {
         if (!itemEquipoActual) return;
 
@@ -391,6 +396,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función que se encarga de vincular o desvincular un equipo a un item de la cotización. Si el item ya existe en el backend, se hace una llamada a la API para actualizar su equipo asociado. Luego, se actualiza visualmente el item en la UI con la información del equipo vinculado o desvinculado. Finalmente, se muestra un mensaje de éxito o error según corresponda.
     const handleVincularEquipoAItem = async (
         itemId: number,
         equipoId: number | null
@@ -398,7 +404,7 @@ const Cotizaciones: React.FC = () => {
         try {
             let itemActualizado: any = null;
 
-            // 🔥 IDs temporales son muy grandes (Date.now() ~ 13 dígitos)
+            //  IDs temporales son muy grandes (Date.now() ~ 13 dígitos)
             // IDs reales de BD son pequeños (1, 2, 3...)
             const esItemReal = typeof itemId === "number" && itemId > 0 && itemId < 1_000_000_000;
 
@@ -443,8 +449,9 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función que se llama al crear un nuevo equipo desde el modal de creación de equipo vinculado a un item. Actualiza visualmente el item con la información del nuevo equipo creado, persiste el cambio en el backend si el item ya existe, y muestra un mensaje de éxito o error según corresponda. Finalmente, cierra el modal de creación de equipo.
     const handleEquipoCreado = (nuevoEquipo: EquipoDTO) => {
-        console.log("🔥 equipo creado:", nuevoEquipo);
+        console.log("equipo creado:", nuevoEquipo);
 
         if (!itemParaEquipo) return;
 
@@ -553,6 +560,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función que se llama al abrir el modal de selección de equipo para un item. Carga la lista de equipos disponibles desde el backend y los almacena en el estado local para mostrarlos en el modal. También maneja el estado de carga mientras se obtienen los datos.
     const fetchEquiposDisponibles = async () => {
         try {
             setLoadingEquipos(true);
@@ -574,6 +582,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función para cargar entidades desde el backend, utilizada para llenar el dropdown de selección de entidad en el formulario de creación y edición de cotizaciones. Se llama al montar el componente y se almacena la lista de entidades en el estado local.
     const fetchEntidades = async () => {
         try {
             const data = await apiFetch("/entidades");
@@ -583,6 +592,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función para cargar el catálogo de productos y servicios desde el backend, utilizada en los modales de selección de productos y servicios al crear o editar una cotización. Mapea los datos obtenidos a un formato uniforme para facilitar su uso en la UI, y también extrae las categorías únicas de los productos para llenar el filtro de categorías. Se llama al abrir el modal de creación o edición de cotizaciones.
     const fetchCatalogo = async () => {
         try {
             const [productosData, serviciosData] = await Promise.all([
@@ -622,6 +632,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función específica para cargar productos, utilizada cuando se abre el selector de productos desde el formulario de creación o edición de cotizaciones. Similar a fetchCatalogo pero enfocada solo en productos y con la opción de mostrar directamente el selector al finalizar la carga. Mapea los datos obtenidos a un formato uniforme y extrae las categorías únicas para llenar el filtro de categorías.
     const cargarProductos = async (mostrarSelector = true) => {
         try {
             const data = await apiFetch("/productos-gestioo");
@@ -659,6 +670,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Función específica para cargar servicios, utilizada cuando se abre el selector de servicios desde el formulario de creación o edición de cotizaciones. Similar a fetchCatalogo pero enfocada solo en servicios y con la opción de mostrar directamente el selector al finalizar la carga. Mapea los datos obtenidos a un formato uniforme para facilitar su uso en la UI.
     const cargarServicios = async () => {
         try {
             const data = await apiFetch("/servicios-gestioo");
@@ -990,6 +1002,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // ACTUALIZAR COTIZACIÓN
     const handleUpdateCotizacion = async () => {
         if (!selectedCotizacion) {
             handleApiError(null, "No hay cotización seleccionada");
@@ -1200,6 +1213,7 @@ const Cotizaciones: React.FC = () => {
     };
 
 
+    // Función unificada para abrir el modal de edición de producto, ya sea desde el catálogo o desde la cotización. Resuelve el producto a editar buscando en el catálogo y utilizando los datos del ítem de la cotización como fallback. Luego, prepara el estado para mostrar el modal de edición con la información correcta del producto.
     const abrirEditarProducto = (
         data: { productoId: number } | CotizacionItemGestioo,
         origen: "catalogo" | "cotizacion"
@@ -1250,7 +1264,7 @@ const Cotizaciones: React.FC = () => {
         if (!producto) {
             console.warn("Producto no encontrado en catálogo, usando datos del item");
 
-            // 🔥 fallback: usar datos del item directamente
+            // fallback: usar datos del item directamente
             if (item) {
                 setProductoAEditar({
                     id: item.productoId ?? null,
@@ -1288,7 +1302,7 @@ const Cotizaciones: React.FC = () => {
         setProductoAEditar({
             ...producto,
 
-            // 👇 Prioridad: datos del ítem → catálogo
+            // Prioridad: datos del ítem → catálogo
             nombre: item?.nombre ?? producto.nombre,
             descripcion: item?.descripcion ?? producto.descripcion ?? "",
 
@@ -1320,7 +1334,7 @@ const Cotizaciones: React.FC = () => {
         abrirEditarProducto(item, "cotizacion");
     };
 
-    // 🌟 Sincronizador global de productos
+    // Sincronizador global de productos
     const syncProductoEnSistema = (producto: any) => {
 
         // 1️⃣ Actualizar catálogo local
@@ -1530,6 +1544,7 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Editar persona existente
     const handleEditarPersona = async (datos: any) => {
         if (!entidadParaEditar) return;
         try {
@@ -1576,9 +1591,9 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    // Editar empresa existente
     const handleCrearProducto = async (productoFinal: any) => {
-
-        if (loadingCrearProducto) return; // 🔥 anti doble click
+        if (loadingCrearProducto) return;
 
         const yaExiste = productosCatalogo.some(
             (p) =>
@@ -1594,43 +1609,68 @@ const Cotizaciones: React.FC = () => {
         try {
             setLoadingCrearProducto(true);
 
-            // 1️⃣ Agregar al catálogo local
-            setProductosCatalogo(prev => [...prev, {
+            const productoCatalogo = {
                 id: productoFinal.id,
-                tipo: "PRODUCTO",
+                tipo: "PRODUCTO" as const,
                 descripcion: productoFinal.descripcion || productoFinal.nombre,
                 precio: productoFinal.precioTotal || productoFinal.precio,
-                porcGanancia: productoFinal.porcGanancia,
-                precioTotal: productoFinal.precioTotal,
+                porcGanancia: productoFinal.porcGanancia || 0,
+                precioTotal: productoFinal.precioTotal || productoFinal.precio || 0,
                 nombre: productoFinal.nombre,
                 sku: productoFinal.serie,
                 categoria: productoFinal.categoria,
                 imagen: productoFinal.imagen || null
-            }]);
+            };
 
-            // 2️⃣ lógica que ya tienes...
+            setProductosCatalogo(prev => [...prev, productoCatalogo]);
+
+            const seccionIdEdicion =
+                selectedCotizacion?.secciones?.[0]?.id ??
+                selectedCotizacion?.items?.[0]?.seccionId ??
+                1;
+
+            const nuevoItem: CotizacionItemGestioo = {
+                id: showEditModal && selectedCotizacion
+                    ? Number(`-9${Date.now()}`)
+                    : Date.now(),
+                cotizacionId: showEditModal && selectedCotizacion ? selectedCotizacion.id : 0,
+                tipo: ItemTipoGestioo.PRODUCTO,
+
+                nombre: productoFinal.nombre,
+                descripcion: productoFinal.descripcion ?? "",
+
+                cantidad: 1,
+                precio: productoFinal.precioTotal || productoFinal.precio || 0,
+                precioOriginalCLP: productoFinal.precioTotal || productoFinal.precio || 0,
+                precioCosto: productoFinal.precio || 0,
+                porcGanancia: productoFinal.porcGanancia || 0,
+
+                porcentaje: 0,
+                tieneIVA: true,
+                tieneDescuento: false,
+
+                sku: productoFinal.serie || "",
+                seccionId: showEditModal && selectedCotizacion
+                    ? seccionIdEdicion
+                    : formData.seccionActiva,
+                imagen: productoFinal.imagen || null,
+                productoId: productoFinal.id,
+                createdAt: new Date().toISOString(),
+            };
+
             if (showEditModal && selectedCotizacion) {
-                const nuevoItem: any = {
-                    id: Date.now(),
-                    tipo: "PRODUCTO",
-                    descripcion: productoFinal.nombre,
-                    cantidad: 1,
-                    precio: productoFinal.precioTotal,
-                    precioCosto: productoFinal.precio,
-                    porcGanancia: productoFinal.porcGanancia,
-                    porcentaje: 0,
-                    tieneIVA: true,
-                    tieneDescuento: false,
-                    sku: productoFinal.serie,
-                    seccionId: 1,
-                    imagen: productoFinal.imagen || null,
-                    precioOriginalCLP: productoFinal.precioTotal,
-                };
+                const normalizado = normalizarItemCotizacion(
+                    nuevoItem,
+                    selectedCotizacion.moneda || "CLP",
+                    selectedCotizacion.tasaCambio ?? 1
+                );
 
                 setSelectedCotizacion(prev => ({
                     ...prev!,
-                    items: [...prev!.items, nuevoItem]
+                    items: [...prev!.items, normalizado]
                 }));
+            } else {
+                setItems(prev => [...prev, nuevoItem]);
             }
 
             setShowNewProductoModal(false);
@@ -1648,12 +1688,13 @@ const Cotizaciones: React.FC = () => {
                 imagenFile: null,
             });
 
-            showSuccess("Producto creado correctamente");
+            document.body.classList.remove("modal-nested-open");
 
+            showSuccess("Producto creado y agregado a la cotización");
         } catch (error) {
             handleApiError(error, "Error al procesar el nuevo producto");
         } finally {
-            setLoadingCrearProducto(false); // 🔥 SIEMPRE liberar
+            setLoadingCrearProducto(false);
         }
     };
 
@@ -1751,6 +1792,7 @@ const Cotizaciones: React.FC = () => {
             : items
     );
 
+    // Render principal
     return (
         <div className="min-h-screen relative bg-gradient-to-b from-white via-white to-cyan-50">
 
@@ -2448,7 +2490,10 @@ const Cotizaciones: React.FC = () => {
             <EditCotizacionModal
                 show={showEditModal}
                 cotizacion={selectedCotizacion}
-                onGenerarPDF={() => setShowGenerarPDFModal(true)}
+                onGenerarPDF={(cotizacionActualizada) => {
+                    setSelectedCotizacion(cotizacionActualizada);
+                    setShowGenerarPDFModal(true);
+                }}
                 onClose={() => setShowEditModal(false)}
                 onUpdate={handleUpdateCotizacion}
                 onCargarProductos={cargarProductos}
@@ -2466,6 +2511,7 @@ const Cotizaciones: React.FC = () => {
                 onVincularEquipo={handleVincularEquipoAItem}
                 onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
             />
+
             <SelectProductoModal
                 show={showSelectorProducto}
                 onClose={() => setShowSelectorProducto(false)}
@@ -2541,7 +2587,7 @@ const Cotizaciones: React.FC = () => {
 
                         setSelectedCotizacion({
                             ...selectedCotizacion,
-                            items: itemsActualizados // ✅ Usa los items actualizados
+                            items: itemsActualizados // Usa los items actualizados
                         });
                     }
 
@@ -2604,7 +2650,7 @@ const Cotizaciones: React.FC = () => {
                 onClose={() => {
                     setShowNewProductoModal(false);
 
-                    // 🔥 RESET FORM
+                    // RESET FORM
                     setProductoForm({
                         nombre: "",
                         descripcion: "",
@@ -2690,7 +2736,7 @@ const Cotizaciones: React.FC = () => {
                     exit={{ y: -40, opacity: 0 }}
                     className={`
             fixed top-5 right-5 
-            z-[99999]  /* 🔥 Mayor que cualquier modal */
+            z-[99999]  /*  Mayor que cualquier modal */
             flex items-center gap-3 
             px-4 py-3 rounded-xl 
             shadow-[0_10px_40px_rgba(0,0,0,0.3)]
