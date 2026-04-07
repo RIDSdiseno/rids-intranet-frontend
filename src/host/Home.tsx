@@ -79,6 +79,14 @@ function getCurrentMonthRange() {
   return { from: toIsoDate(from), to: toIsoDate(to) };
 }
 
+function formatMinutes(min: number | null | undefined): string {
+  if (min == null) return "—";
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 /* =================== Tipos =================== */
 type PagedTotal = { total: number };
 
@@ -106,8 +114,39 @@ type StatBase = {
   icon: ReactNode;
   change: ReactNode;
 };
+
 type RefreshableStat = StatBase & { onRefresh: () => void; isLoading: boolean };
+
 type Stat = StatBase | RefreshableStat;
+
+type TecnicoMetric = {
+  tecnicoId: number;
+  nombre: string;
+  email?: string;
+  assignedTickets: number;
+  openTickets: number;
+  pendingTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
+  reopenedTickets: number;
+  avgFirstResponseMinutes: number | null;
+  avgResolutionMinutes: number | null;
+  firstResponse: {
+    ok: number;
+    breached: number;
+    pending: number;
+    total: number;
+    compliance: number;
+  };
+  resolution: {
+    ok: number;
+    breached: number;
+    pending: number;
+    total: number;
+    compliance: number;
+  };
+};
+
 function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
 }
@@ -275,6 +314,10 @@ const Home: FC = () => {
   const [loadingTic, setLoadingTic] = useState<boolean>(false);
   const [errorTic, setErrorTic] = useState<string | null>(null);
 
+  const [tecnicosMetrics, setTecnicosMetrics] = useState<TecnicoMetric[]>([]);
+  const [loadingTecnicosMetrics, setLoadingTecnicosMetrics] = useState(false);
+  const [errorTecnicosMetrics, setErrorTecnicosMetrics] = useState<string | null>(null);
+
   // breakpoints
   const isMobile = useMediaQuery("(max-width: 640px)");
   const isTablet = useMediaQuery("(min-width: 641px) and (max-width: 1024px)");
@@ -303,7 +346,7 @@ const Home: FC = () => {
       setLoading(false);
     }
   };
-  
+
   // Funciones para cargar cada métrica individualmente, con manejo de loading y error. Se pueden llamar al montar el componente y también al refrescar cada tarjeta.
   const fetchTotalSolicitantes = (signal?: AbortSignal) =>
     fetchTotal("/solicitantes", setTotalSolicitantes, setLoadingSol, setErrorSol, signal);
@@ -342,13 +385,42 @@ const Home: FC = () => {
       setLoadingVis(false);
     }
   };
-  
+
+  const fetchTecnicosMetrics = async (signal?: AbortSignal) => {
+    try {
+      setLoadingTecnicosMetrics(true);
+      setErrorTecnicosMetrics(null);
+
+      const { data } = await api.get("/helpdesk/tickets/tecnicos/metrics", {
+        signal,
+      });
+
+      if (data?.ok) {
+        const rows = [...(data.data ?? [])].sort(
+          (a, b) => b.closedTickets - a.closedTickets
+        );
+        setTecnicosMetrics(rows);
+      } else {
+        setTecnicosMetrics([]);
+      }
+    } catch (e) {
+      if ((e as Error).name === "CanceledError" || (e as Error).name === "AbortError") return;
+      setErrorTecnicosMetrics(toErrorMessage(e, "Error al cargar métricas de técnicos"));
+      setTecnicosMetrics([]);
+    } finally {
+      setLoadingTecnicosMetrics(false);
+    }
+  };
+
   // Al montar el componente, se cargan todas las métricas en paralelo utilizando AbortController para poder cancelar las solicitudes si el componente se desmonta antes de que terminen.
   useEffect(() => {
     const c1 = new AbortController();
     const c2 = new AbortController();
     const c3 = new AbortController();
     const c4 = new AbortController();
+
+    const c5 = new AbortController();
+    fetchTecnicosMetrics(c5.signal);
 
     fetchTotalSolicitantes(c1.signal);
     fetchTotalEquipos(c2.signal);
@@ -360,6 +432,7 @@ const Home: FC = () => {
       c2.abort();
       c3.abort();
       c4.abort();
+      c5.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -392,6 +465,12 @@ const Home: FC = () => {
   const rankingTecnicos = useMemo(() => {
     return [...visitasByTech].sort((a, b) => b.cantidad - a.cantidad);
   }, [visitasByTech]);
+
+  const topTecnicosHelpdesk = useMemo(() => {
+    return [...tecnicosMetrics]
+      .sort((a, b) => b.closedTickets - a.closedTickets)
+      .slice(0, 5);
+  }, [tecnicosMetrics]);
 
   /* ===== estadísticas ===== */
   const computedStats: Stat[] = useMemo(
@@ -544,10 +623,11 @@ const Home: FC = () => {
       tecnicosSobrePromedio.length,
     ]
   );
-  
+
   // Renderizamos el dashboard principal con las estadísticas generales, los gráficos de distribución y la lista de empresas. Incluimos animaciones suaves al cargar los datos y al interactuar con los elementos. También mostramos botones para refrescar los datos y crear nuevas empresas, y adaptamos la información mostrada según el rol del usuario (cliente o admin).
   return (
     <div className="py-2 px-4 sm:px-6 lg:px-8">
+      <br />
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
         <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
         <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
@@ -698,6 +778,91 @@ const Home: FC = () => {
           Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
         </div>
       </motion.div>
+      <motion.div
+        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.6 }}
+      >
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800">
+            Top técnicos por tickets resueltos
+          </h2>
+
+          <button
+            onClick={() => fetchTecnicosMetrics()}
+            className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${loadingTecnicosMetrics ? "animate-spin" : ""
+              }`}
+            disabled={loadingTecnicosMetrics}
+          >
+            {loadingTecnicosMetrics ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
+          </button>
+        </div>
+
+        {loadingTecnicosMetrics ? (
+          <div className="py-10 text-neutral-500 flex items-center justify-center">
+            <LoadingOutlined /> &nbsp; Cargando…
+          </div>
+        ) : errorTecnicosMetrics ? (
+          <div className="py-6 text-red-600">{errorTecnicosMetrics}</div>
+        ) : topTecnicosHelpdesk.length === 0 ? (
+          <div className="py-6 text-neutral-400">No hay métricas de técnicos disponibles.</div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {topTecnicosHelpdesk.map((t, index) => (
+              <div
+                key={t.tecnicoId}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div className="text-sm text-slate-500">#{index + 1}</div>
+                    <div className="text-base font-semibold text-slate-800">{t.nombre}</div>
+                    <div className="text-xs text-slate-500">{t.email || "Sin email"}</div>
+                  </div>
+
+                  <div className="rounded-full bg-cyan-100 text-cyan-800 text-xs font-semibold px-3 py-1">
+                    {t.closedTickets} cerrados
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">SLA 1ra respuesta</span>
+                    <span className="font-semibold text-slate-800">
+                      {t.firstResponse.compliance}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">SLA cierre</span>
+                    <span className="font-semibold text-slate-800">
+                      {t.resolution.compliance}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Tiempo prom. 1ra respuesta</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatMinutes(t.avgFirstResponseMinutes)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Tiempo prom. creación → cierre</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatMinutes(t.avgResolutionMinutes)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+      <br />
+      <br />
+      <br />
     </div>
   );
 };

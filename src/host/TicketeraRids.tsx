@@ -34,7 +34,8 @@ import {
     SettingOutlined,
 
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { socket } from "../lib/socket";
 import { api } from "../api/api";
@@ -222,11 +223,21 @@ function SlaCard({
 export default function TicketeraRids() {
     const navigate = useNavigate();
 
+    const [searchParams, setSearchParams] = useSearchParams();
+
     // Estados principales
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(false);
-    const [searchText, setSearchText] = useState("");
-    const [activeTab, setActiveTab] = useState("all");
+
+    const [searchText, setSearchText] = useState(searchParams.get("search") ?? "");
+
+    const initialTab =
+        searchParams.get("tab") ??
+        (searchParams.get("status") && ["OPEN", "PENDING", "RESOLVED", "CLOSED"].includes(searchParams.get("status")!)
+            ? searchParams.get("status")!
+            : "all");
+
+    const [activeTab, setActiveTab] = useState(initialTab);
 
     const [drawerCrear, setDrawerCrear] = useState(false);
 
@@ -234,20 +245,45 @@ export default function TicketeraRids() {
     const [solicitantes, setSolicitantes] = useState<SolicitanteOption[]>([]);
     const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
 
-    const [statusFilter, setStatusFilter] = useState<string | undefined>();
-    const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
-    const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>();
-    const [areaFilter, setAreaFilter] = useState<AreaFilter>("TODAS");
+    const [statusFilter, setStatusFilter] = useState<string | undefined>(
+        searchParams.get("status") ?? undefined
+    );
 
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(30);
+    const [priorityFilter, setPriorityFilter] = useState<string | undefined>(
+        searchParams.get("priority") ?? undefined
+    );
+
+    const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>(
+        searchParams.get("assigneeId") ? Number(searchParams.get("assigneeId")) : undefined
+    );
+
+    const [areaFilter, setAreaFilter] = useState<AreaFilter>(
+        (searchParams.get("area") as AreaFilter) ?? "TODAS"
+    );
+
+    const [sortOrder, setSortOrder] = useState<"recent_first" | "old_first">(
+        (searchParams.get("sortOrder") as "recent_first" | "old_first") ?? "recent_first"
+    );
+
+    const [page, setPage] = useState(Number(searchParams.get("page") ?? 1));
+    const [pageSize, setPageSize] = useState(Number(searchParams.get("pageSize") ?? 30));
+
     const [totalTickets, setTotalTickets] = useState(0);
 
-    const [dateRange, setDateRange] = useState<[string, string] | null>(null);
+    const [dateRange, setDateRange] = useState<[string, string] | null>(
+        searchParams.get("from") && searchParams.get("to")
+            ? [searchParams.get("from")!, searchParams.get("to")!]
+            : null
+    );
+
     const [newTicketsCount, setNewTicketsCount] = useState<number>(0);
     const [, forceUpdate] = useState(0);
     const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
-    const [activeRange, setActiveRange] = useState<string | null>(null);
+
+    const [activeRange, setActiveRange] = useState<string | null>(
+        searchParams.get("activeRange") ?? null
+    );
+
     const [selectedTickets, setSelectedTickets] = useState<number[]>([]);
 
     const [bulkAssignModalOpen, setBulkAssignModalOpen] = useState(false);
@@ -283,7 +319,6 @@ export default function TicketeraRids() {
         assigneeId: undefined as number | undefined,
     });
 
-    const ticketsListRef = useRef<HTMLDivElement | null>(null);
 
     // Funciones auxiliares
     function formatRelativeTime(date: string | Date) {
@@ -410,14 +445,18 @@ export default function TicketeraRids() {
     }
 
     const filteredTickets = useMemo(() => {
-        return [...tickets]
-            .filter((ticket) => {
-                if (activeTab === "unassigned") return !ticket.assignee;
-                if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
-                return true;
-            })
-            .reverse();
-    }, [tickets, activeTab]);
+        const filtered = [...tickets].filter((ticket) => {
+            if (activeTab === "unassigned") return !ticket.assignee;
+            if (activeTab === "my") return ticket.assignee?.id_tecnico === 1;
+            return true;
+        });
+
+        if (sortOrder === "old_first") {
+            return [...filtered].reverse();
+        }
+
+        return filtered;
+    }, [tickets, activeTab, sortOrder]);
 
     const getTicketCount = (status: string) => {
         if (status === "all") {
@@ -522,9 +561,14 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === "CLOSED") setStatusFilter("CLOSED");
-        else if (activeTab === "all") setStatusFilter(undefined);
-        else if (["OPEN", "PENDING", "RESOLVED"].includes(activeTab)) {
+        if (!activeTab) return;
+
+        if (activeTab === "all") {
+            setStatusFilter(undefined);
+            return;
+        }
+
+        if (["OPEN", "PENDING", "RESOLVED", "CLOSED"].includes(activeTab)) {
             setStatusFilter(activeTab);
         }
     }, [activeTab]);
@@ -617,18 +661,39 @@ export default function TicketeraRids() {
     }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
 
     useEffect(() => {
-        if (loading) return;
+        const nextParams = new URLSearchParams();
 
-        const fullHeight = Math.max(
-            document.body.scrollHeight,
-            document.documentElement.scrollHeight
-        );
+        if (searchText) nextParams.set("search", searchText);
+        if (activeTab && activeTab !== "all") nextParams.set("tab", activeTab);
+        if (statusFilter) nextParams.set("status", statusFilter);
+        if (priorityFilter) nextParams.set("priority", priorityFilter);
+        if (assigneeFilter) nextParams.set("assigneeId", String(assigneeFilter));
+        if (areaFilter && areaFilter !== "TODAS") nextParams.set("area", areaFilter);
+        if (sortOrder !== "recent_first") nextParams.set("sortOrder", sortOrder);
+        if (page !== 1) nextParams.set("page", String(page));
+        if (pageSize !== 30) nextParams.set("pageSize", String(pageSize));
+        if (activeRange) nextParams.set("activeRange", activeRange);
 
-        window.scrollTo({
-            top: fullHeight,
-            behavior: "auto",
-        });
-    }, [loading, filteredTickets, page, pageSize]);
+        if (dateRange) {
+            nextParams.set("from", dateRange[0]);
+            nextParams.set("to", dateRange[1]);
+        }
+
+        setSearchParams(nextParams, { replace: true });
+    }, [
+        searchText,
+        activeTab,
+        statusFilter,
+        priorityFilter,
+        assigneeFilter,
+        areaFilter,
+        sortOrder,
+        page,
+        pageSize,
+        dateRange,
+        activeRange,
+        setSearchParams,
+    ]);
 
     const setLastDays = (days: number) => {
         const now = new Date();
@@ -825,6 +890,37 @@ export default function TicketeraRids() {
             return { color: "gold" };
         }
         return { color: "red" };
+    };
+
+    const assignTicketInline = async (ticketId: number, assigneeId?: number) => {
+        try {
+            await api.patch(`/helpdesk/tickets/${ticketId}`, {
+                assigneeId: assigneeId ?? null,
+            });
+
+            setTickets((prev) =>
+                prev.map((ticket) =>
+                    ticket.id === ticketId
+                        ? {
+                            ...ticket,
+                            assignee: assigneeId
+                                ? tecnicos.find((t) => t.id_tecnico === assigneeId)
+                                    ? {
+                                        id_tecnico: assigneeId,
+                                        nombre:
+                                            tecnicos.find((t) => t.id_tecnico === assigneeId)?.nombre ?? "Asignado",
+                                    }
+                                    : undefined
+                                : undefined,
+                        }
+                        : ticket
+                )
+            );
+
+            message.success("Técnico asignado correctamente");
+        } catch (error: any) {
+            message.error(error?.response?.data?.message || "No se pudo asignar el técnico");
+        }
     };
 
     // Renderizamos el componente principal con el resumen de SLA, los filtros, la lista de tickets y las acciones disponibles. Utilizamos componentes de Ant Design para la interfaz y aplicamos estilos personalizados para mejorar la apariencia.
@@ -1033,6 +1129,15 @@ export default function TicketeraRids() {
                                     onChange={setAreaFilter}
                                     options={AREA_OPTIONS}
                                 />
+                                <Select
+                                    style={{ width: 190 }}
+                                    value={sortOrder}
+                                    onChange={setSortOrder}
+                                    options={[
+                                        { value: "recent_first", label: "Más recientes primero" },
+                                        { value: "old_first", label: "Más antiguos primero" },
+                                    ]}
+                                />
                             </Space>
                         </div>
 
@@ -1173,7 +1278,7 @@ export default function TicketeraRids() {
                                             <div className="flex-1 min-w-0">
                                                 <div
                                                     className="cursor-pointer"
-                                                    onClick={() => navigate(`/helpdesk/tickets/${ticket.id}`)}
+                                                    onClick={() => navigate(`/helpdesk/tickets/${ticket.id}?${searchParams.toString()}`)}
                                                 >
                                                     <div className="flex items-start justify-between gap-4">
                                                         <div className="min-w-0">
@@ -1227,12 +1332,19 @@ export default function TicketeraRids() {
                                                         </div>
 
                                                         <div className="flex items-center gap-2 shrink-0">
-                                                            <Tag
-                                                                className="m-0 rounded-full px-3"
-                                                                color={ticket.assignee?.nombre ? "blue" : "default"}
-                                                            >
-                                                                {ticket.assignee?.nombre ?? "Sin asignar"}
-                                                            </Tag>
+                                                            <Select
+                                                                size="small"
+                                                                allowClear
+                                                                placeholder="Sin asignar"
+                                                                value={ticket.assignee?.id_tecnico}
+                                                                style={{ width: 170 }}
+                                                                options={tecnicos.map((t) => ({
+                                                                    value: t.id_tecnico,
+                                                                    label: t.nombre,
+                                                                }))}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onChange={(value) => assignTicketInline(ticket.id, value)}
+                                                            />
 
                                                             <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
                                                                 <Button

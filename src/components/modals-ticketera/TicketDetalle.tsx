@@ -23,7 +23,8 @@ import {
     ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import DOMPurify from "dompurify";
-import { useNavigate, useParams } from "react-router-dom";
+
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../api/api";
 
@@ -264,6 +265,8 @@ export default function TicketDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
 
+    const location = useLocation();
+
     const [ticketDetalle, setTicketDetalle] = useState<TicketDetail | null>(null);
     const [loadingDetalle, setLoadingDetalle] = useState(true);
 
@@ -294,7 +297,7 @@ export default function TicketDetailPage() {
             timer = setTimeout(() => fn(...args), delay);
         };
     };
-    
+
     // Función para buscar contactos por email, con debounce para evitar llamadas excesivas a la API
     const handleSearchContactos = async (value: string) => {
         if (!value) {
@@ -312,7 +315,7 @@ export default function TicketDetailPage() {
             setLoadingContactos(false);
         }
     };
-    
+
     // Crear función debounce para la búsqueda de contactos, para evitar llamadas excesivas a la API mientras el usuario escribe
     const debouncedSearchContactos = useMemo(
         () => debounce(handleSearchContactos, 400),
@@ -324,13 +327,13 @@ export default function TicketDetailPage() {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }, 100);
     };
-    
+
     // Determinar si el formulario de respuesta es válido para enviar, basado en que haya texto o archivos adjuntos, y que haya al menos un destinatario
     const loadTecnicos = async () => {
         const { data } = await api.get("/tecnicos");
         setTecnicos(Array.isArray(data) ? data : []);
     };
-    
+
     // Función para cargar el detalle del ticket, incluyendo su información y mensajes, y preparar el formulario de respuesta con destinatarios y texto predefinido. Maneja estados de carga y errores.
     const loadTicket = async () => {
         if (!id) return;
@@ -379,7 +382,7 @@ Soporte Técnico`);
             setLoadingDetalle(false);
         }
     };
-    
+
     // Función para actualizar campos del ticket, como estado, prioridad o asignado, con llamada a API y recarga del detalle después de la actualización. Maneja errores y muestra mensajes de éxito o error.
     const updateTicket = async (payload: {
         status?: string;
@@ -390,13 +393,19 @@ Soporte Técnico`);
 
         try {
             await api.patch(`/helpdesk/tickets/${ticketDetalle.id}`, payload);
-            await loadTicket();
             message.success("Ticket actualizado");
+
+            if (payload.status === "CLOSED") {
+                navigate(`/helpdesk${location.search}`, { replace: true });
+                return;
+            }
+
+            await loadTicket();
         } catch (error: any) {
             message.error(error?.response?.data?.message || "No se pudo actualizar el ticket");
         }
     };
-    
+
     // Función para responder al ticket, ya sea con una respuesta al cliente o una nota interna, incluyendo validación de texto, construcción de payload con destinatarios y archivos adjuntos, llamada a API para enviar la respuesta, y recarga del detalle después de enviar. Maneja estados de envío y muestra mensajes de éxito o error.
     const responderTicket = async (isInternal: boolean) => {
         if (!ticketDetalle) return;
@@ -426,11 +435,12 @@ Soporte Técnico`);
                 message.success("Nota interna guardada");
                 setReplyFiles([]);
                 await loadTicket();
+                scrollToBottom();
             } else {
                 setReplyText("");
                 setReplyFiles([]);
                 message.success("Respuesta enviada");
-                navigate("/helpdesk/", { replace: true });
+                navigate(`/helpdesk${location.search}`, { replace: true });
                 return;
             }
 
@@ -457,10 +467,6 @@ Soporte Técnico`);
     useEffect(() => {
         loadTicket();
     }, [id]);
-
-    useEffect(() => {
-        if (ticketDetalle?.messages) scrollToBottom();
-    }, [ticketDetalle]);
 
     const lastMessage =
         ticketDetalle?.messages && ticketDetalle.messages.length > 0
@@ -550,7 +556,7 @@ Soporte Técnico`);
             />
         );
     }
-    
+
     // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
     return (
         <div className="min-h-screen bg-gray-50">
@@ -558,7 +564,10 @@ Soporte Técnico`);
                 <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-7 py-4">
                     <div className="flex items-center justify-between gap-4 mb-3">
                         <div className="flex items-center gap-3">
-                            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
+                            <Button
+                                icon={<ArrowLeftOutlined />}
+                                onClick={() => navigate(`/helpdesk${location.search}`, { replace: true })}
+                            >
                                 Volver
                             </Button>
 

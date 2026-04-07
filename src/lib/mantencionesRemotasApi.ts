@@ -238,3 +238,66 @@ export async function getMantencionesRemotasFilters(): Promise<FiltersResp> {
     throw normalizeApiError(err);
   }
 }
+
+// =================== TeamViewer stats ===================
+export type TeamViewerMonthlyAverageRow = {
+  id_empresa: number;
+  empresa: string;
+  promedio_sesiones_mes: number;
+  promedio_minutos_mes: number;
+};
+
+export type TeamViewerMonthlyAverageResp = {
+  ok: boolean;
+  items: TeamViewerMonthlyAverageRow[];
+  summary: {
+    empresas: number;
+    totalSesiones: number;
+    totalMinutos: number;
+    totalHoras: number;
+  };
+};
+
+export async function getTeamViewerMonthlyAverages(params?: {
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const query = new URLSearchParams();
+
+  if (params?.fromDate) query.set("fromDate", params.fromDate);
+  if (params?.toDate) query.set("toDate", params.toDate);
+
+  const qs = query.toString();
+  const url = `/teamviewer/monthly-averages${qs ? `?${qs}` : ""}`;
+
+  const res = await http.get(url);
+  return res.data as TeamViewerMonthlyAverageResp;
+}
+
+export type TeamViewerMonthlyBreakdownRow = {
+  id_empresa: number;
+  empresa: string;
+  mes: string;
+  sesiones_mes: number;
+  minutos_mes: number;
+  horas_mes: number;
+};
+
+export async function getTeamViewerMonthlyBreakdown(params?: {
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const query = new URLSearchParams();
+
+  if (params?.fromDate) query.set("fromDate", params.fromDate);
+  if (params?.toDate) query.set("toDate", params.toDate);
+
+  const qs = query.toString();
+  const url = `/teamviewer/monthly-breakdown${qs ? `?${qs}` : ""}`;
+
+  const res = await http.get(url);
+  return res.data as {
+    ok: boolean;
+    items: TeamViewerMonthlyBreakdownRow[];
+  };
+}
