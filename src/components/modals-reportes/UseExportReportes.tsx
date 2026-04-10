@@ -12,7 +12,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 import type {
-  ExportStatus, ReporteGeneralData, VisitaRow, EquipoRow, SolicitanteRow, TicketRow,
+  ExportStatus, ReporteGeneralData
 } from "../modals-reportes/typesReportes";
 import {
   TEXTO_FIJO, CHART_CONFIG,
@@ -347,7 +347,7 @@ export const useExportReportes = ({
       const [
         chartMantFechaUrl, chartSolicitudesPieUrl, chartMantenimientosUrl,
         chartTopUsuariosUrl, chartEquiposMarcaUrl, chartMantUsuarioUrl,
-        chartTendenciasUrl, chartDistribucionUrl,
+        ,chartDistribucionUrl,
       ] = await Promise.all([
         mantPorFecha.length > 0 ? generateBarChart("chart-mantxfecha-docx", mantPorFecha.map(r => r.Fecha), mantPorFecha.map(r => r.Cantidad), "Cantidad de mantenciones por fecha", CHART_CONFIG.colors.primary) : null,
         tiposVisita.length > 0 ? generatePieChart("chart-solicitudes-pie-docx", tiposVisita.map(r => r.Tipo), tiposVisita.map(r => r.Cantidad), "Solicitudes programadas vs adicionales") : null,

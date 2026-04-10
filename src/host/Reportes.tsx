@@ -5,7 +5,6 @@ import {
   DownloadOutlined,
   FileExcelOutlined,
   LoadingOutlined,
-  HomeOutlined,
   BarChartOutlined,
   BuildOutlined,
   EyeOutlined,
@@ -13,7 +12,7 @@ import {
   RobotOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { Button, Input, message } from "antd";
+import { Input, message } from "antd";
 
 // Types
 import type { ReporteGeneralData } from "../components/modals-reportes/typesReportes";
@@ -33,9 +32,6 @@ import {
   generarFolio,
   contarMantenimientos,
   contarExtras,
-  obtenerTopUsuariosGeneral,
-  calcularDistribucionServicios,
-  calcularTendenciasMensuales
 } from "../components/modals-reportes/UtilsReportes";
 
 import { http } from "../service/http";

@@ -115,7 +115,6 @@ const renderChangeValue = (key: string, value: any, action: string) => {
 // 3. Función simplificada para la tabla
 const formatChanges = (changes: any, action: string) => {
     if (!changes) return "-";
-    console.log("🔍 [DEBUG FRONTEND] Objeto changes recibido:", changes);
     const entries = Object.entries(changes).filter(([key]) => !IGNORED_FIELDS.includes(key));
     if (!entries.length) return "-";
 

@@ -1,7 +1,6 @@
 // src/host/Solicitantes.tsx
 import React, { useCallback, useEffect, useMemo, useState, Suspense, useRef } from "react";
 import { AxiosError } from "axios";
-import Header from "../components/Header";
 import {
   PlusOutlined,
   ReloadOutlined,

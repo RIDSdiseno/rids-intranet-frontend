@@ -26,7 +26,7 @@ import {
     HomeOutlined,
     DeleteOutlined
 } from "@ant-design/icons";
-import { http } from "../../../service/http";  // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // ajusta ruta
 
 interface Props {
     empresaId: number;

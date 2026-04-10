@@ -18,11 +18,9 @@ import type {
     Prioridad,
     Area,
     OrigenGestioo,
-    TipoEquipoValue,
 } from "./types";
 
 import {
-    TipoEquipo,
     TipoEquipoLabel,
 } from "./types";
 
@@ -63,9 +61,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     tecnicos,
     loading,
     buttonLabel,
-    setShowNewEntidadModal,
     setShowNuevoEquipoModal,
-    setShowEditEntidadModal,
     setShowEditEquipoModal,
     setEntidades,
     setEquipoEditando,

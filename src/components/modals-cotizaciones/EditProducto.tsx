@@ -10,6 +10,7 @@ import {
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import { useApi } from "./UseApi";
 
+//  Props del modal de edición de producto
 interface EditProductoModalProps {
     show: boolean;
     producto: any;
@@ -33,6 +34,7 @@ interface FormDataState {
     imagenFile: File | null;
 }
 
+// Modal para editar un producto existente
 const EditProductoModal: React.FC<EditProductoModalProps> = ({
     show,
     producto,
@@ -57,7 +59,7 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
 
     const { fetchApi } = useApi(); // hook estable
 
-    // ✅ UN SOLO useEffect
+    // UN SOLO useEffect
     useEffect(() => {
         if (!show || !producto) return;
 

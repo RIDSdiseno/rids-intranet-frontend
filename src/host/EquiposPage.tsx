@@ -21,11 +21,9 @@ import {
   BuildingOfficeIcon,
   CalendarIcon,
   ChevronDownIcon,
-  ExclamationCircleIcon,
-  XMarkIcon
 } from '@heroicons/react/24/outline';
 
-import { DatePicker, AutoComplete } from "antd";
+import { DatePicker } from "antd";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 
@@ -702,7 +700,7 @@ const EquiposPage: React.FC = () => {
     disco: string;
     propiedad: string;
 
-    // 🔥 DETALLE
+    // DETALLE
     macWifi: string;
     redEthernet: string;
     so: string;
@@ -920,7 +918,7 @@ const EquiposPage: React.FC = () => {
     { key: "empresa", label: "Empresa", className: "min-w-[140px]" },
     { key: "createdAt", label: "Fecha ingreso", className: "min-w-[150px]" },
   ] as const;
-  
+
   // Para formatear fechas en la tabla
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -1059,7 +1057,7 @@ const EquiposPage: React.FC = () => {
                       <select
                         value={empresaFilterId ?? ""}
                         onChange={(e) => {
-                          if (isCliente) return; // 🔒 bloqueado
+                          if (isCliente) return;
                           const v = e.target.value;
                           setEmpresaFilterId(v === "" ? null : Number(v));
                           setPage(1);
@@ -1077,11 +1075,10 @@ const EquiposPage: React.FC = () => {
             appearance-none
             cursor-pointer
             disabled:opacity-50 disabled:cursor-not-allowed
-            ${empLoading ? 'bg-slate-50' : 'bg-white'}
+            ${empLoading ? "bg-slate-50" : "bg-white"}
           `}
                         aria-label="Filtrar por empresa"
                       >
-                        {/* Opción VACÍA real */}
                         {!isCliente && (
                           <option value="">Todas las empresas</option>
                         )}
@@ -1093,71 +1090,92 @@ const EquiposPage: React.FC = () => {
                         ))}
                       </select>
 
-                      {/* Ícono del select */}
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <BuildingOfficeIcon className="w-5 h-5" />
                       </div>
 
-                      {/* Flecha del select */}
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                         <ChevronDownIcon className="w-5 h-5 text-slate-400" />
                       </div>
                     </div>
-
-                    {empError && (
-                      <div className="flex items-center gap-1.5 text-xs text-rose-600 mt-1.5 animate-pulse">
-                        <ExclamationCircleIcon className="w-4 h-4 flex-shrink-0" />
-                        <span>{empError}</span>
-                      </div>
-                    )}
                   </div>
+
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-cyan-600" />
-                  <label className="block text-sm font-medium text-slate-700">
+              {/* Fechas en grid de 2 columnas */}
+              {/* Fechas - agregar md:col-span-12 al wrapper */}
+              <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Fecha de ingreso */}
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <CalendarIcon className="w-3.5 h-3.5 text-cyan-500" />
                     Fecha de ingreso
                   </label>
+                  <RangePicker
+                    value={[
+                      createdFrom ? dayjs(createdFrom) : null,
+                      createdTo ? dayjs(createdTo) : null,
+                    ]}
+                    onChange={(dates) => {
+                      setCreatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                      setCreatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                      setPage(1);
+                    }}
+                    format="DD/MM/YYYY"
+                    className="w-full"
+                    allowClear
+                    placeholder={["Desde", "Hasta"]}
+                    presets={[
+                      { label: "Hoy", value: [dayjs().startOf("day"), dayjs().endOf("day")] },
+                      { label: "Últimos 7 días", value: [dayjs().subtract(6, "day").startOf("day"), dayjs().endOf("day")] },
+                      { label: "Este mes", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                      { label: "Mes anterior", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
+                    ]}
+                  />
+                  {(createdFrom || createdTo) && (
+                    <p className="text-xs text-cyan-600 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block" />
+                      Filtro activo
+                    </p>
+                  )}
                 </div>
 
-                <RangePicker
-                  value={[
-                    createdFrom ? dayjs(createdFrom) : null,
-                    createdTo ? dayjs(createdTo) : null,
-                  ]}
-                  onChange={(dates) => {
-                    setCreatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
-                    setCreatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
-                    setPage(1);
-                  }}
-                  format="DD/MM/YYYY"
-                  className="w-full"
-                  allowClear
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-cyan-600" />
-                  <label className="block text-sm font-medium text-slate-700">
+                {/* Fecha de edición */}
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <CalendarIcon className="w-3.5 h-3.5 text-cyan-500" />
                     Fecha de edición
                   </label>
+                  <RangePicker
+                    value={[
+                      updatedFrom ? dayjs(updatedFrom) : null,
+                      updatedTo ? dayjs(updatedTo) : null,
+                    ]}
+                    onChange={(dates) => {
+                      setUpdatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                      setUpdatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                      setPage(1);
+                    }}
+                    format="DD/MM/YYYY"
+                    className="w-full"
+                    allowClear
+                    placeholder={["Desde", "Hasta"]}
+                    presets={[
+                      { label: "Hoy", value: [dayjs().startOf("day"), dayjs().endOf("day")] },
+                      { label: "Últimos 7 días", value: [dayjs().subtract(6, "day").startOf("day"), dayjs().endOf("day")] },
+                      { label: "Este mes", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                      { label: "Mes anterior", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
+                    ]}
+                  />
+                  {(updatedFrom || updatedTo) && (
+                    <p className="text-xs text-cyan-600 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block" />
+                      Filtro activo
+                    </p>
+                  )}
                 </div>
 
-                <RangePicker
-                  value={[
-                    updatedFrom ? dayjs(updatedFrom) : null,
-                    updatedTo ? dayjs(updatedTo) : null,
-                  ]}
-                  onChange={(dates) => {
-                    setUpdatedFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
-                    setUpdatedTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
-                    setPage(1);
-                  }}
-                  format="DD/MM/YYYY"
-                  className="w-full"
-                  allowClear
-                />
               </div>
             </div>
 

@@ -21,7 +21,7 @@ import {
 } from "@ant-design/icons";
 import type { ChecklistKey, ChecklistState } from "../../../config/checklistTypes";
 import type { ChecklistTabProps } from "../types";
-import { http } from "../../../service/http"; // 🔥 ajusta ruta
+import { http } from "../../../service/http"; // ajusta ruta
 
 const DEFAULT_CHECKLIST: ChecklistState = {
     levantamientoEquipos: false,

@@ -3,6 +3,7 @@ import { EditOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons"
 import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
 
+// Definición del tipo Técnico
 type Tecnico = {
   id_tecnico: number;
   nombre: string;
@@ -11,8 +12,8 @@ type Tecnico = {
   rol: string;
 };
 
+// Componente principal
 const TecnicosPage: React.FC = () => {
-  //console.log("Renderizando");
   const { isAdmin } = useAuth();
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,42 +36,45 @@ const TecnicosPage: React.FC = () => {
   const [newStatus, setNewStatus] = useState(true);
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
 
+  // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroRol, setFiltroRol] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
 
+  // Para controlar el estado de eliminación
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
-
+  
+  // Filtrar técnicos según búsqueda, rol y estado
   const tecnicosFiltrados = tecnicos.filter((t) => {
-  const texto = busqueda.toLowerCase();
+    const texto = busqueda.toLowerCase();
 
-  const matchNombre =
-    (t.nombre?.toLowerCase() || "").includes(texto) ||
-    (t.email?.toLowerCase() || "").includes(texto);
+    const matchNombre =
+      (t.nombre?.toLowerCase() || "").includes(texto) ||
+      (t.email?.toLowerCase() || "").includes(texto);
 
-  const matchRol = filtroRol
-    ? t.rol?.toUpperCase().trim() === filtroRol.toUpperCase().trim()
-    : true;
+    const matchRol = filtroRol
+      ? t.rol?.toUpperCase().trim() === filtroRol.toUpperCase().trim()
+      : true;
 
-  const statusBool = Boolean(t.status);
+    const statusBool = Boolean(t.status);
 
-  const matchStatus =
-    filtroStatus === ""
-      ? true
-      : filtroStatus === "activo"
-      ? statusBool
-      : !statusBool;
+    const matchStatus =
+      filtroStatus === ""
+        ? true
+        : filtroStatus === "activo"
+          ? statusBool
+          : !statusBool;
 
-  return matchNombre && matchRol && matchStatus;
-});
+    return matchNombre && matchRol && matchStatus;
+  });
 
   const totalPages = Math.max(1, Math.ceil(tecnicosFiltrados.length / PAGE_SIZE));
   const tecnicosPaginados = tecnicosFiltrados.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-
+  // Función para cargar técnicos
   const fetchTecnicos = useCallback(async () => {
     try {
       setLoading(true);
@@ -83,15 +87,18 @@ const TecnicosPage: React.FC = () => {
       setLoading(false);
     }
   }, [http]);
-
+  
+  // Cargar técnicos al montar el componente
   useEffect(() => {
     fetchTecnicos();
   }, [fetchTecnicos]);
-
+  
+  // Ajustar página actual si el número total de páginas cambia
   useEffect(() => {
     setPage((prev) => Math.min(prev, totalPages));
   }, [totalPages]);
-
+  
+  // Funciones para editar, eliminar y crear técnicos
   const onClickEdit = (t: Tecnico) => {
     setEditando(t);
     setFormNombre(t.nombre);
@@ -99,7 +106,8 @@ const TecnicosPage: React.FC = () => {
     setFormStatus(t.status);
     setFormRol(t.rol ?? "TECNICO");
   };
-
+  
+  // Función para guardar cambios de edición
   const onGuardar = async () => {
     if (!editando) return;
     try {
@@ -118,7 +126,8 @@ const TecnicosPage: React.FC = () => {
       setGuardando(false);
     }
   };
-
+  
+  // Función para eliminar técnico
   const onClickDelete = async (t: Tecnico) => {
     if (!window.confirm(`¿Eliminar a ${t.nombre}? Esta acción no se puede deshacer.`)) return;
     try {
@@ -131,7 +140,8 @@ const TecnicosPage: React.FC = () => {
       setDeletingId(null);
     }
   };
-
+  
+  // Función para crear nuevo técnico
   const onCrearTecnico = async () => {
     try {
       setGuardandoNuevo(true);
@@ -155,7 +165,8 @@ const TecnicosPage: React.FC = () => {
       setGuardandoNuevo(false);
     }
   };
-
+  
+  // Renderizado del componente
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-white to-cyan-50 px-4 py-6 max-w-5xl mx-auto">
 
@@ -194,61 +205,61 @@ const TecnicosPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-    {/* Buscador */}
-    <div className="flex-1">
-      <input
-        value={busqueda}
-        onChange={(e) => {
-          setBusqueda(e.target.value);
-          setPage(1);
-        }}
-        placeholder=" Buscar por nombre o email..."
-        className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 shadow-sm"
-      />
-    </div>
+            {/* Buscador */}
+            <div className="flex-1">
+              <input
+                value={busqueda}
+                onChange={(e) => {
+                  setBusqueda(e.target.value);
+                  setPage(1);
+                }}
+                placeholder=" Buscar por nombre o email..."
+                className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 shadow-sm"
+              />
+            </div>
 
-    {/* Rol */}
-    <select
-      value={filtroRol}
-      onChange={(e) => {
-        setFiltroRol(e.target.value);
-        setPage(1);
-      }}
-      className="rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm"
-    >
-      <option value="">Rol</option>
-      <option value="ADMIN">Admin</option>
-      <option value="TECNICO">Técnico</option>
-      <option value="CLIENTE">Cliente</option>
-    </select>
+            {/* Rol */}
+            <select
+              value={filtroRol}
+              onChange={(e) => {
+                setFiltroRol(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm"
+            >
+              <option value="">Rol</option>
+              <option value="ADMIN">Admin</option>
+              <option value="TECNICO">Técnico</option>
+              <option value="CLIENTE">Cliente</option>
+            </select>
 
-    {/* Estado */}
-    <select
-      value={filtroStatus}
-      onChange={(e) => {
-        setFiltroStatus(e.target.value);
-        setPage(1);
-      }}
-      className="rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm"
-    >
-      <option value="">Estado</option>
-      <option value="activo">Activo</option>
-      <option value="inactivo">Inactivo</option>
-    </select>
+            {/* Estado */}
+            <select
+              value={filtroStatus}
+              onChange={(e) => {
+                setFiltroStatus(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm"
+            >
+              <option value="">Estado</option>
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
 
-    {/* Botón limpiar */}
-    <button
-      onClick={() => {
-        setBusqueda("");
-        setFiltroRol("");
-        setFiltroStatus("");
-        setPage(1);
-      }}
-      className="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-100 transition"
-    >
-      Limpiar
-    </button>
-  </div>
+            {/* Botón limpiar */}
+            <button
+              onClick={() => {
+                setBusqueda("");
+                setFiltroRol("");
+                setFiltroStatus("");
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-100 transition"
+            >
+              Limpiar
+            </button>
+          </div>
 
         </div>
 
@@ -258,7 +269,8 @@ const TecnicosPage: React.FC = () => {
         {error && (
           <div className="p-8 text-center text-rose-700">{error}</div>
         )}
-
+        
+        {/* Tabla de técnicos */}
         {!loading && !error && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -318,6 +330,7 @@ const TecnicosPage: React.FC = () => {
           </div>
         )}
       </div>
+
       {/* Paginador */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-cyan-200 bg-slate-50">
         <span className="text-sm text-slate-600">
@@ -348,11 +361,10 @@ const TecnicosPage: React.FC = () => {
                 <button
                   key={n}
                   onClick={() => setPage(Number(n))}
-                  className={`rounded-xl border px-3 py-1.5 text-sm transition ${
-                    page === n
+                  className={`rounded-xl border px-3 py-1.5 text-sm transition ${page === n
                       ? "bg-cyan-600 text-white border-cyan-600 font-semibold"
                       : "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50"
-                  }`}
+                    }`}
                 >
                   {n}
                 </button>
@@ -368,6 +380,7 @@ const TecnicosPage: React.FC = () => {
           </button>
         </div>
       </div>
+      
       {/* Modal crear */}
       {creando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -446,20 +459,20 @@ const TecnicosPage: React.FC = () => {
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
-                  type="radio"
-                  name="status"
-                  checked={formStatus === true}
-                  onChange={() => setFormStatus(true)}
+                    type="radio"
+                    name="status"
+                    checked={formStatus === true}
+                    onChange={() => setFormStatus(true)}
                   />
                   Activo
                 </label>
 
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
-                  type="radio"
-                  name="status"
-                  checked={formStatus === false}
-                  onChange={() => setFormStatus(false)}
+                    type="radio"
+                    name="status"
+                    checked={formStatus === false}
+                    onChange={() => setFormStatus(false)}
                   />
                   Inactivo
                 </label>

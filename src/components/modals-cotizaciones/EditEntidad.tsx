@@ -14,6 +14,7 @@ import {
 import { formatearRut, validarRut } from "./utils";
 import type { EntidadGestioo } from "./types";
 
+// Props del modal de edición de entidad
 interface EditEntidadModalProps {
     show: boolean;
     entidad: EntidadGestioo | null;
@@ -30,6 +31,7 @@ interface EditEntidadModalProps {
     apiLoading: boolean;
 }
 
+// Modal para editar una entidad (persona)
 const EditEntidadModal: React.FC<EditEntidadModalProps> = ({
     show,
     entidad,
@@ -67,7 +69,10 @@ const EditEntidadModal: React.FC<EditEntidadModalProps> = ({
 
         onSubmit(formData);
     };
-
+    
+    // ==========================
+    // RENDERIZADO DEL MODAL
+    // ==========================
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <motion.div

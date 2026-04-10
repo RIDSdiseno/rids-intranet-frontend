@@ -10,7 +10,6 @@ import EntityAuditTab from "./tabs/HistorialCambiosTab";
 
 import type {
   FichaEmpresaModalProps,
-  ContactoEmpresa,
   FichaEmpresaCompleta
 } from "./types";
 import RedesTab from "./tabs/RedesTab";
@@ -21,10 +20,6 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   open,
   onClose,
   empresa,
-  ficha,
-  checklist,
-  detalleEmpresa,
-  contactos,
   loading,
   onUpdated,
 }) => {

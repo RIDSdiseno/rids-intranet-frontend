@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
     CloseOutlined,
-    CheckCircleOutlined,
 } from "@ant-design/icons";
 
 interface NewServicioModalProps {
@@ -12,6 +11,7 @@ interface NewServicioModalProps {
     apiLoading: boolean;
 }
 
+//  Modal para crear un nuevo servicio
 const NewServicioModal: React.FC<NewServicioModalProps> = ({
     show,
     onClose,
@@ -53,7 +53,10 @@ const NewServicioModal: React.FC<NewServicioModalProps> = ({
                 : null,
         });
     };
-
+    
+    // ==========================
+    // FUNCIONES AUXILIARES
+    // ==========================
     return (
         <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4">
             <motion.div

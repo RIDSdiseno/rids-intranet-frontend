@@ -260,6 +260,74 @@ function getMessageAuthor(m: TicketMessage, ticketDetalle: TicketDetail | null) 
     };
 }
 
+// Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
+function buildEmailHtml(html: string) {
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0; padding: 0;
+        background: #fff;
+        font-family: Arial, sans-serif;
+        color: #374151;
+        overflow-x: hidden;
+        overflow-y: visible;
+      }
+      body { padding: 12px; }
+      img { max-width: 100% !important; height: auto !important; display: block; }
+      table { max-width: 100% !important; border-collapse: collapse; }
+      td, th { max-width: 100%; word-break: break-word; }
+      * { box-sizing: border-box; }
+      a { color: #2563eb; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    ${html}
+    <script>
+      function sendHeight() {
+        const h = document.documentElement.scrollHeight;
+        window.parent.postMessage({ type: 'iframe-resize', height: h }, '*');
+      }
+      // Enviar altura inicial y cuando cambien imágenes
+      document.addEventListener('DOMContentLoaded', sendHeight);
+      window.addEventListener('load', sendHeight);
+      const observer = new ResizeObserver(sendHeight);
+      observer.observe(document.body);
+    <\/script>
+  </body>
+</html>`;
+}
+
+function AutoResizeIframe({ srcDoc }: { srcDoc: string }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [height, setHeight] = useState(120);
+
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.data?.type === "iframe-resize" && typeof event.data.height === "number") {
+                // Verificar que el mensaje viene de este iframe específico
+                if (iframeRef.current?.contentWindow === event.source) {
+                    setHeight(event.data.height + 8);
+                }
+            }
+        };
+        window.addEventListener("message", handler);
+        return () => window.removeEventListener("message", handler);
+    }, []);
+
+    return (
+        <iframe
+            ref={iframeRef}
+            srcDoc={srcDoc}
+            sandbox="allow-same-origin allow-popups allow-scripts"
+            className="w-full border-0 rounded"
+            style={{ height: `${height}px`, minHeight: "80px" }}
+        />
+    );
+}
+
 // Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 export default function TicketDetailPage() {
     const { id } = useParams();
@@ -369,13 +437,9 @@ export default function TicketDetailPage() {
             setCcEmails(uniqueEmails(lastMsg?.cc ? lastMsg.cc : []));
 
             setReplyText(`Estimado(a) ${ticket.requester?.nombre ?? ""},
+                \n\nGracias por contactarnos.\n\nQuedamos atentos a su respuesta.
+                \n\nSaludos cordiales,\nSoporte Técnico`);
 
-Gracias por contactarnos.
-
-Quedamos atentos a su respuesta.
-
-Saludos cordiales,
-Soporte Técnico`);
         } catch {
             message.error("Error al cargar detalle");
         } finally {
@@ -490,74 +554,6 @@ Soporte Técnico`);
     }
 
     // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
-    function buildEmailHtml(html: string) {
-        return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <style>
-      html, body {
-        margin: 0; padding: 0;
-        background: #fff;
-        font-family: Arial, sans-serif;
-        color: #374151;
-        overflow-x: hidden;
-        overflow-y: visible;
-      }
-      body { padding: 12px; }
-      img { max-width: 100% !important; height: auto !important; display: block; }
-      table { max-width: 100% !important; border-collapse: collapse; }
-      td, th { max-width: 100%; word-break: break-word; }
-      * { box-sizing: border-box; }
-      a { color: #2563eb; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    ${html}
-    <script>
-      function sendHeight() {
-        const h = document.documentElement.scrollHeight;
-        window.parent.postMessage({ type: 'iframe-resize', height: h }, '*');
-      }
-      // Enviar altura inicial y cuando cambien imágenes
-      document.addEventListener('DOMContentLoaded', sendHeight);
-      window.addEventListener('load', sendHeight);
-      const observer = new ResizeObserver(sendHeight);
-      observer.observe(document.body);
-    <\/script>
-  </body>
-</html>`;
-    }
-
-    function AutoResizeIframe({ srcDoc }: { srcDoc: string }) {
-        const iframeRef = useRef<HTMLIFrameElement>(null);
-        const [height, setHeight] = useState(120);
-
-        useEffect(() => {
-            const handler = (event: MessageEvent) => {
-                if (event.data?.type === "iframe-resize" && typeof event.data.height === "number") {
-                    // Verificar que el mensaje viene de este iframe específico
-                    if (iframeRef.current?.contentWindow === event.source) {
-                        setHeight(event.data.height + 8);
-                    }
-                }
-            };
-            window.addEventListener("message", handler);
-            return () => window.removeEventListener("message", handler);
-        }, []);
-
-        return (
-            <iframe
-                ref={iframeRef}
-                srcDoc={srcDoc}
-                sandbox="allow-same-origin allow-popups allow-scripts"
-                className="w-full border-0 rounded"
-                style={{ height: `${height}px`, minHeight: "80px" }}
-            />
-        );
-    }
-
-    // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
@@ -590,7 +586,7 @@ Soporte Técnico`);
                     </h1>
                 </div>
 
-                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] bg-white rounded-b-2xl overflow-hidden border border-gray-200 border-t-0 shadow-sm">
+                <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] bg-white rounded-b-2xl overflow-hidden border border-gray-200 border-t-0 shadow-sm">
                     <div className="min-h-0 flex flex-col border-r border-gray-200">
                         {lastActivityBy && (
                             <div className="shrink-0 px-6 pt-3 pb-1">
@@ -613,8 +609,7 @@ Soporte Técnico`);
                         )}
 
                         <div className="flex-1 min-h-0 overflow-y-auto px-7 py-5">
-                            <div className="relative pl-9">
-                                <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-200 z-0" />
+                            <div className="relative">
 
                                 {ticketDetalle.messages.map((m) => {
                                     const isOutbound = m.direction === "OUTBOUND";
@@ -640,13 +635,6 @@ Soporte Técnico`);
 
                                     return (
                                         <div key={m.id} className="relative mb-8">
-                                            <div className="absolute left-[-36px] top-3 z-10">
-                                                <div
-                                                    className={`w-8 h-8 rounded-full ${avatarBg} flex items-center justify-center shadow-sm`}
-                                                >
-                                                    {avatarIcon}
-                                                </div>
-                                            </div>
 
                                             <div
                                                 className={`rounded-xl border ${bgColor} ${borderColor} border-l-4`}
@@ -685,29 +673,31 @@ Soporte Técnico`);
                                                     </div>
 
                                                     {!m.isInternal && (
-                                                        <div className="mt-2 text-xs text-gray-400 space-y-0.5">
+                                                        <div className="mt-2 space-y-1">
                                                             {m.fromEmail && (
-                                                                <div>
-                                                                    <span className="font-medium text-gray-500">De:</span>{" "}
-                                                                    {m.fromEmail}
+                                                                <div className="flex items-center text-m">
+                                                                    <span className="font-semibold text-gray-500 w-8 shrink-0">De:</span>
+                                                                    <span className="py-0.5 rounded-md font-medium">
+                                                                        {m.fromEmail}
+                                                                    </span>
                                                                 </div>
                                                             )}
 
                                                             {(() => {
-                                                                const toList =
-                                                                    typeof m.toEmail === "string"
-                                                                        ? m.toEmail.split(",").map((v) => v.trim()).filter(Boolean)
-                                                                        : [];
+                                                                const toList = typeof m.toEmail === "string"
+                                                                    ? m.toEmail.split(",").map((v) => v.trim()).filter(Boolean)
+                                                                    : [];
                                                                 if (!toList.length) return null;
-
                                                                 return (
-                                                                    <div className="flex flex-wrap gap-1 items-center">
-                                                                        <span className="font-medium text-gray-500">Para:</span>
-                                                                        {toList.map((e, i) => (
-                                                                            <Tag key={i} className="text-xs m-0">
-                                                                                {e}
-                                                                            </Tag>
-                                                                        ))}
+                                                                    <div className="flex items-center gap-2 text-m">
+                                                                        <span className="font-semibold text-gray-500 w-8 shrink-0">Para:</span>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {toList.map((e, i) => (
+                                                                                <span key={i} className="py-0.5 rounded-md font-medium">
+                                                                                    {e}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
                                                                     </div>
                                                                 );
                                                             })()}
@@ -715,15 +705,16 @@ Soporte Técnico`);
                                                             {(() => {
                                                                 const ccList = Array.isArray(m.cc) ? m.cc : [];
                                                                 if (!ccList.length) return null;
-
                                                                 return (
-                                                                    <div className="flex flex-wrap gap-1 items-center">
-                                                                        <span className="font-medium text-gray-500">CC:</span>
-                                                                        {ccList.map((e, i) => (
-                                                                            <Tag key={i} className="text-xs m-0">
-                                                                                {e}
-                                                                            </Tag>
-                                                                        ))}
+                                                                    <div className="flex items-center text-m">
+                                                                        <span className="font-semibold text-gray-500 w-8 shrink-0">CC:</span>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {ccList.map((e, i) => (
+                                                                                <span key={i} className="bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md">
+                                                                                    {e}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
                                                                     </div>
                                                                 );
                                                             })()}
@@ -873,8 +864,12 @@ Soporte Técnico`);
                                                             value={replyText}
                                                             onChange={(e) => setReplyText(e.target.value)}
                                                             placeholder="Escribe tu respuesta al cliente..."
-                                                            className="resize-none"
-                                                            autoSize={{ minRows: 3, maxRows: 6 }}
+                                                            autoSize={false}
+                                                            style={{
+                                                                height: "450px",        // ← altura fija que sí funciona
+                                                                minHeight: "400px",     // ← evita que Ant Design la reduzca
+                                                                resize: "vertical",     // ← permite al agente ajustarla manualmente
+                                                            }}
                                                         />
 
                                                         <div className="flex items-center gap-2 flex-wrap">
@@ -944,7 +939,8 @@ Soporte Técnico`);
                                                             onChange={(e) => setInternalNoteText(e.target.value)}
                                                             placeholder="Nota interna visible solo para agentes..."
                                                             className="resize-none bg-amber-50 border-amber-200"
-                                                            autoSize={{ minRows: 3, maxRows: 5 }}
+                                                            autoSize={false}
+                                                            rows={10}
                                                         />
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-xs text-gray-400 flex items-center gap-1">

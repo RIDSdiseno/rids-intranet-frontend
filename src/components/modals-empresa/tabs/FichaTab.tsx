@@ -29,7 +29,7 @@ import {
     StarFilled
 } from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
-import { http } from "../../../service/http"; // 🔥 ajusta ruta
+import { http } from "../../../service/http"; // ajusta ruta
 
 const { Text } = Typography;
 

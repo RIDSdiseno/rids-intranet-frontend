@@ -1,5 +1,5 @@
 // Este archivo contiene el componente principal de la ticketera, con la lista de tickets, filtros, resumen y acciones masivas.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Card,
     Tag,
@@ -560,6 +560,7 @@ export default function TicketeraRids() {
         loadSla();
     }, []);
 
+    // Cuando cambia la pestaña activa, actualizamos el filtro de estado para cargar los tickets correspondientes. Si es "all", quitamos el filtro de estado, si es uno de los estados específicos, lo aplicamos.
     useEffect(() => {
         if (!activeTab) return;
 
@@ -660,6 +661,7 @@ export default function TicketeraRids() {
         loadSla();
     }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
 
+    // Cada vez que cambian los filtros, la búsqueda o la paginación, actualizamos los parámetros de la URL para reflejar el estado actual de la aplicación y permitir compartir enlaces con los mismos filtros aplicados. Solo incluimos en los parámetros aquellos filtros que tienen un valor diferente al predeterminado para mantener la URL limpia.
     useEffect(() => {
         const nextParams = new URLSearchParams();
 
@@ -798,6 +800,20 @@ export default function TicketeraRids() {
             setSelectedTickets([]);
         } catch {
             message.error("Error al cerrar tickets");
+        }
+    };
+
+    const handleCloseTicket = async (ticketId: number) => {
+        try {
+            await api.patch(`/helpdesk/tickets/${ticketId}`, { status: "CLOSED" });
+            setTickets(prev =>
+                prev.map(t =>
+                    t.id === ticketId ? { ...t, status: "CLOSED" } : t
+                )
+            );
+            message.success("Ticket cerrado correctamente");
+        } catch {
+            message.error("No se pudo cerrar el ticket");
         }
     };
 
@@ -1233,7 +1249,7 @@ export default function TicketeraRids() {
                         />
                         <span className="text-sm text-gray-500">Seleccionar visibles</span>
                     </div>
-
+                    
                     {loading ? (
                         <div className="py-16 flex justify-center">
                             <Spin size="large" />
@@ -1249,6 +1265,16 @@ export default function TicketeraRids() {
                                 const activityText = getTicketActivityText(ticket);
 
                                 const menuItems: MenuProps["items"] = [
+                                    {
+                                        key: "close",
+                                        label: <span className="text-orange-500">Cerrar ticket</span>,
+                                        icon: <CheckCircleOutlined style={{ color: "#f97316" }} />,
+                                        onClick: ({ domEvent }) => {
+                                            domEvent.stopPropagation();
+                                            handleCloseTicket(ticket.id);
+                                        },
+                                    },
+                                    { type: "divider" },
                                     {
                                         key: "delete",
                                         label: <span className="text-red-500">Eliminar</span>,

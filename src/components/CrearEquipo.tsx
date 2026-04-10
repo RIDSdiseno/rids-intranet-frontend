@@ -31,10 +31,6 @@ import {
   MARCAS_EQUIPO,
   MODELOS_POR_MARCA,
   PROCESADORES,
-  RAMS,
-  DISCOS,
-  TipoEquipo,
-  TipoEquipoLabel,
 } from "../components/modals-gestioo/types";
 
 /* =================== Tipos =================== */

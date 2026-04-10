@@ -10,7 +10,6 @@ import {
     Package,
     Search,
     X,
-    Filter,
     Tag,
     DollarSign,
     Percent,

@@ -1,4 +1,3 @@
-import React from "react";
 import type { MantencionRemota, MantencionStatus } from "../../lib/mantencionesRemotasApi";
 
 function clsx(...xs: Array<string | false | null | undefined>) {

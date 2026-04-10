@@ -1,8 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { FileTextOutlined } from "@ant-design/icons";
 import type { CotizacionGestioo } from "./types";
-import { formatEstado, formatTipo, formatearPrecio } from "./utils";
+import { formatEstado, formatearPrecio } from "./utils";
 
 interface ViewCotizacionModalProps {
     show: boolean;
@@ -23,7 +22,7 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
     if (!show) return null;
 
     /* ============================================================
-       ⭐ 1) MODO VISTA PREVIA REAL DEL PDF
+        1) MODO VISTA PREVIA REAL DEL PDF
        ============================================================ */
     if (pdfURL) {
         return (
@@ -52,11 +51,8 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
     }
 
     /* ============================================================
-       ⭐ 2) MODO NORMAL (vista simple)
+        2) MODO NORMAL (vista simple)
        ============================================================ */
-    /* ============================================================
-   ⭐ 2) MODO NORMAL (vista previa dashboard)
-   ============================================================ */
     if (!cotizacion) return null;
 
     return (

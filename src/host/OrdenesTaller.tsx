@@ -13,7 +13,6 @@ import {
     CloseCircleOutlined,
     EditOutlined,
     SwapOutlined,
-    FileTextOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
@@ -296,8 +295,6 @@ const OrdenesTaller: React.FC = () => {
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
                 incluyeCargador: formData.incluyeCargador,
             };
-
-            console.log("📤 Enviando payload de creación:", payload);
 
             await http.post("/detalle-trabajo-gestioo", payload);
 

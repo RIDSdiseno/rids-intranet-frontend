@@ -1,6 +1,5 @@
 // Este componente es el corazón de la gestión de cotizaciones. Aquí se listan todas las cotizaciones con paginación, búsqueda y filtros avanzados. Desde esta vista se pueden crear nuevas cotizaciones, editar las existentes, eliminar o generar PDF. También se manejan los modales para seleccionar productos/servicios del catálogo, crear nuevos productos/servicios/entidades, y vincular equipos a los items de las cotizaciones. Se utiliza una combinación de estados locales para manejar la UI y llamadas a la API para persistir los cambios en el backend. Además, se implementa un sistema de toast para mostrar mensajes de éxito o error al usuario.
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Select, Tooltip } from "antd";
 import {
     PlusOutlined,
     SearchOutlined,
@@ -13,7 +12,6 @@ import {
     FileTextOutlined,
     PrinterOutlined,
     CopyOutlined,
-    ToolOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import { useApi } from "../components/modals-cotizaciones/UseApi";
@@ -51,11 +49,9 @@ import {
 import {
     calcularTotales,
     formatEstado,
-    formatTipo,
     formatearPrecio,
     validarCotizacion,
     normalizarItemCotizacion,
-    calcularLineaItem
 } from "../components/modals-cotizaciones/utils";
 
 import CrearEquipoModal from "../components/CrearEquipo";
@@ -451,7 +447,6 @@ const Cotizaciones: React.FC = () => {
 
     // Función que se llama al crear un nuevo equipo desde el modal de creación de equipo vinculado a un item. Actualiza visualmente el item con la información del nuevo equipo creado, persiste el cambio en el backend si el item ya existe, y muestra un mensaje de éxito o error según corresponda. Finalmente, cierra el modal de creación de equipo.
     const handleEquipoCreado = (nuevoEquipo: EquipoDTO) => {
-        console.log("equipo creado:", nuevoEquipo);
 
         if (!itemParaEquipo) return;
 
@@ -834,9 +829,6 @@ const Cotizaciones: React.FC = () => {
                 };
             });
 
-            console.log("🔥 itemsParaEnviar:", itemsParaEnviar);
-            console.log("🔥 equipoId primer item:", itemsParaEnviar[0]?.equipoId);
-
             // === 3️⃣ CALCULAR TOTALES REALES EN CLP ===
             const totales = calcularTotales(itemsParaEnviar);
 
@@ -864,8 +856,6 @@ const Cotizaciones: React.FC = () => {
                 personaResponsable: formData.personaResponsable || null,
                 imagen: imagenUrl
             };
-
-            console.log("🔥 Enviando cotización:", cotizacionData);
 
             // === 5️⃣ ENVIAR AL BACKEND ===
             const data = await apiFetch("/cotizaciones", {
@@ -1034,9 +1024,6 @@ const Cotizaciones: React.FC = () => {
                     equipo: item.equipo ?? null,
                 };
             });
-
-            console.log("🧪 selectedCotizacion.items:", selectedCotizacion.items);
-            console.log("🧪 itemsNormalizados:", itemsNormalizados);
 
             const { total } = calcularTotales(itemsNormalizados as any);
 
@@ -1218,7 +1205,6 @@ const Cotizaciones: React.FC = () => {
         data: { productoId: number } | CotizacionItemGestioo,
         origen: "catalogo" | "cotizacion"
     ) => {
-        console.log("🔧 Abrir editar producto:", data, "origen:", origen);
 
         setOrigenEditProducto(origen);
 
@@ -1701,7 +1687,6 @@ const Cotizaciones: React.FC = () => {
     // === MODAL EDICIÓN COTIZACIÓN ===
     const openEditModal = async (cotizacion: CotizacionGestioo) => {
         try {
-            console.log("🔥 Cotización recibida:", cotizacion);
 
             // 1) Traer cotización completa y fresca desde backend
             const resp = await apiFetch(`/cotizaciones/${cotizacion.id}`);
@@ -1724,12 +1709,6 @@ const Cotizaciones: React.FC = () => {
             const itemsNormalizados = items.map((item: any) =>
                 normalizarItemCotizacion(item, moneda, tasaCambio)
             );
-
-            // Logs de validación
-            console.log("🧩 items editables:", itemsNormalizados);
-            console.log("🧩 primer item editable:", itemsNormalizados[0]);
-            console.log("🧩 equipoId:", itemsNormalizados[0]?.equipoId);
-            console.log("🧩 equipo:", itemsNormalizados[0]?.equipo);
 
             // 6) Armar cotización editable usando cotCompleta, no cotizacion
             const cotizacionEditable: CotizacionGestioo = {

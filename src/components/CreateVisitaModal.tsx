@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+import CrearSolicitante from "../components/CrearSolicitante";
+
 type ViteEnv = { env?: { VITE_API_URL?: string } };
 const API_URL =
   ((import.meta as unknown) as ViteEnv).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -72,10 +74,13 @@ type ApiListResp<T> = { items: T[] };
 
 function isoLocalFromDateTimeLocal(dt: string) {
   if (!dt) return new Date().toISOString();
-  const d = new Date(dt.replace(" ", "T"));
-  const tzOffset = d.getTimezoneOffset();
-  const utcMs = d.getTime() - tzOffset * 60_000;
-  return new Date(utcMs).toISOString();
+  // Agregar offset explícito para que Date lo interprete como hora local
+  const offset = new Date().getTimezoneOffset();
+  const sign = offset <= 0 ? "+" : "-";
+  const abs = Math.abs(offset);
+  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm = String(abs % 60).padStart(2, "0");
+  return new Date(`${dt.replace(" ", "T")}:00${sign}${hh}:${mm}`).toISOString();
 }
 
 // Funciones para llamadas a API con manejo de token, errores y JSON
@@ -209,6 +214,8 @@ export default function CreateVisitaModal({
   const [mantenimientoReloj, setMantenimientoReloj] = useState(false);
   const [rendimientoEquipo, setRendimientoEquipo] = useState(false);
 
+  const [openCrearSolicitante, setOpenCrearSolicitante] = useState(false);
+
   // reset / prefill
   useEffect(() => {
     if (!open) return;
@@ -323,6 +330,10 @@ export default function CreateVisitaModal({
     if (el) el.scrollTop = 0;
   }, [solicitantes.length]);
 
+  useEffect(() => {
+    setOpenCrearSolicitante(false);
+  }, [empresaId]);
+
   // === Helpers selección múltiple (create) ===
   function addSolicitanteById(idStr: string) {
     if (!idStr) return;
@@ -371,7 +382,7 @@ export default function CreateVisitaModal({
       ||
       (mode === "create" && selectedSolicitantes.length > 0)
     );
-  
+
   // Función para enviar el formulario, con validación básica y construcción de payload según modo (uno vs lote), y llamadas a API correspondientes
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -422,8 +433,38 @@ export default function CreateVisitaModal({
     }
   }
 
+  function handleSolicitanteCreated(created: {
+    id_solicitante: number;
+    nombre: string;
+    empresaId: number;
+  }) {
+    const nuevo = { id: created.id_solicitante, nombre: created.nombre };
+
+    setSolicitantes((prev) => {
+      const exists = prev.some((s) => s.id === nuevo.id);
+      return exists ? prev : [...prev, nuevo];
+    });
+
+    if (mode === "edit") {
+      setSolicitanteId(created.id_solicitante);
+      setSolicitante(created.nombre);
+    } else {
+      const exists = selectedSolicitantes.some((s) => s.id === created.id_solicitante);
+      if (!exists) {
+        setSelectedSolicitantes((prev) => [
+          ...prev,
+          { id: created.id_solicitante, nombre: created.nombre },
+        ]);
+      }
+    }
+
+    setOpenCrearSolicitante(false);
+    setSolSearch("");
+    setManualNombre("");
+  }
+
   if (!open) return null;
-  
+
   // Helper para convertir ISO UTC a formato local para inputs datetime-local
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -455,7 +496,7 @@ export default function CreateVisitaModal({
                   onChange={(e) => { setEmpresaId(e.target.value ? Number(e.target.value) : ""); setSolSearch(""); }}
                   required
                 >
-                  <option value="">{mode==="edit" ? "Cambiar…" : "Seleccione…"}</option>
+                  <option value="">{mode === "edit" ? "Cambiar…" : "Seleccione…"}</option>
                   {empresas.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                 </select>
               </Field>
@@ -467,7 +508,7 @@ export default function CreateVisitaModal({
                   onChange={(e) => setTecnicoId(e.target.value ? Number(e.target.value) : "")}
                   required
                 >
-                  <option value="">{mode==="edit" ? "Cambiar…" : "Seleccione…"}</option>
+                  <option value="">{mode === "edit" ? "Cambiar…" : "Seleccione…"}</option>
                   {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
               </Field>
@@ -580,16 +621,7 @@ export default function CreateVisitaModal({
 
                 {/* Agregar manual por nombre */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Field className="md:col-span-2" label="Agregar por nombre (si no existe)">
-                    <input
-                      className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-2.5 text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600/60 transition"
-                      placeholder="Ej: Invitado RIDS"
-                      value={manualNombre}
-                      onChange={(e) => setManualNombre(e.target.value)}
-                      disabled={!empresaElegida}
-                    />
-                  </Field>
+
                   <div className="flex items-end">
                     <button
                       type="button"
@@ -598,6 +630,17 @@ export default function CreateVisitaModal({
                       className="w-full rounded-2xl px-4 py-2 text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:bg-emerald-200"
                     >
                       Agregar nombre
+                    </button>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => setOpenCrearSolicitante(true)}
+                      disabled={!empresaElegida}
+                      className="w-full rounded-2xl px-4 py-2 text-sm border border-cyan-300 text-cyan-700 hover:bg-cyan-50 transition disabled:opacity-50"
+                    >
+                      Crear solicitante
                     </button>
                   </div>
                 </div>
@@ -704,17 +747,31 @@ export default function CreateVisitaModal({
             <button
               type="submit"
               disabled={!canSubmit || submitting}
-              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm ${
-                !canSubmit || submitting
-                  ? "bg-emerald-200 text-white cursor-not-allowed"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200/50 transition"
-              }`}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm ${!canSubmit || submitting
+                ? "bg-emerald-200 text-white cursor-not-allowed"
+                : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200/50 transition"
+                }`}
             >
               {submitting && <Spinner className="w-4 h-4 text-white" />}
               {submitting ? "Guardando…" : mode === "edit" ? "Actualizar visita" : "Crear visita(s)"}
             </button>
           </footer>
         </form>
+        {openCrearSolicitante && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+            <div
+              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              onClick={() => setOpenCrearSolicitante(false)}
+            />
+            <div className="relative w-full max-w-2xl">
+              <CrearSolicitante
+                defaultEmpresaId={typeof empresaId === "number" ? empresaId : undefined}
+                onCancel={() => setOpenCrearSolicitante(false)}
+                onSuccess={handleSolicitanteCreated}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,14 +3,12 @@ import { motion } from "framer-motion";
 import {
     SearchOutlined,
     BarcodeOutlined,
-    EditOutlined,
     PlusOutlined,
     PercentageOutlined,
     ShoppingCartOutlined,
     TableOutlined,
     AppstoreOutlined
 } from "@ant-design/icons";
-import type { Descriptions } from "antd";
 
 interface SelectProductoModalProps {
     show: boolean;
@@ -32,12 +30,8 @@ const SelectProductoModal: React.FC<SelectProductoModalProps> = ({
     productos,
     filtros,
     onFiltroChange,
-    onLimpiarFiltros,
     onAgregarProducto,
-    onEliminarProducto,
     orden,
-    onOrdenChange,
-    categoriasDisponibles,
 }) => {
 
     if (!show) return null;

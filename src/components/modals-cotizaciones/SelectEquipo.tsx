@@ -8,8 +8,8 @@ export interface EquipoOption {
     marca: string;
     modelo: string;
     tipo?: string;
-    empresa?: string | null;       // 🔥 NUEVO
-    solicitante?: string | null;   // 🔥 NUEVO
+    empresa?: string | null;       // NUEVO
+    solicitante?: string | null;   // NUEVO
 }
 
 interface SelectEquipoModalProps {

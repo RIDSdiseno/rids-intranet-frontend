@@ -7,8 +7,6 @@ import type {
   VisitaRow,
   TicketRow,
   MantencionRemotaRow,
-  ApiList,
-  TicketsResp,
   TicketLike,
   ReporteGeneralData,
 } from "./typesReportes";

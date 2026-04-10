@@ -22,6 +22,7 @@ interface NewProductoModalProps {
     apiLoading: boolean;
 }
 
+// Modal para crear un nuevo producto
 const NewProductoModal: React.FC<NewProductoModalProps> = ({
     show,
     onClose,

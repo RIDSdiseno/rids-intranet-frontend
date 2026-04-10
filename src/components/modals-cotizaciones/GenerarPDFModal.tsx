@@ -13,6 +13,7 @@ interface GenerarPDFModalProps {
     onPreviewPDF?: (url: string) => void;
 }
 
+// Modal para generar y descargar el PDF de una cotización
 const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
     show,
     onClose,
@@ -21,7 +22,8 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
 }) => {
     const [generating, setGenerating] = useState(false);
     const [mostrarTotales, setMostrarTotales] = useState(true);
-
+    
+    // Función principal para generar el PDF, con opción de vista previa o descarga directa
     const handleGenerarPDF = async (previewMode = false) => {
         if (!cotizacion) return;
 
@@ -54,7 +56,10 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
     };
 
     if (!cotizacion) return null;
-
+    
+    // =========================
+    // FUNCIONES AUXILIARES
+    // =========================
     return (
         <Modal
             open={show}
@@ -242,7 +247,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
         if (limpio.length <= maxCaracteres) return limpio;
         return limpio.substring(0, maxCaracteres).trimEnd() + "...";
     };
-
+    
     const calcularLineaItem = (item: any) => {
         const precio = Number(item.precio) || 0;
         const cantidad = Number(item.cantidad) || 0;
@@ -539,7 +544,8 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 
     await Promise.all(imagePromises);
     await new Promise(resolve => setTimeout(resolve, 500));
-
+    
+    // Opciones avanzadas para mejorar la calidad y compatibilidad
     const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
@@ -558,7 +564,10 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
             });
         }
     });
-
+    
+    // ================================
+    // CREAR PDF CON JSPDF
+    // ================================
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const imgData = canvas.toDataURL("image/jpeg", 0.95);
     const pdfWidth = pdf.internal.pageSize.getWidth();

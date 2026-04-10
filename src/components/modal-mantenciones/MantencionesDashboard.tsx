@@ -37,6 +37,8 @@ export default function MantencionesDashboardTab({ active }: Props) {
     const [toDate, setToDate] = useState("");
     const [selectedEmpresa, setSelectedEmpresa] = useState<string>("TODAS");
 
+    const [expandedEmpresa, setExpandedEmpresa] = useState<string | null>(null);
+
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
@@ -91,10 +93,37 @@ export default function MantencionesDashboardTab({ active }: Props) {
         return map;
     }, [items, monthlyItems]);
 
+    const monthlyGrouped = useMemo(() => {
+        const grouped = new Map<string, TeamViewerMonthlyBreakdownRow[]>();
+
+        monthlyItems.forEach((row) => {
+            const current = grouped.get(row.empresa) ?? [];
+            current.push(row);
+            grouped.set(row.empresa, current);
+        });
+
+        return Array.from(grouped.entries())
+            .map(([empresa, meses]) => ({
+                empresa,
+                meses: [...meses].sort((a, b) => a.mes.localeCompare(b.mes)),
+                totalSesiones: meses.reduce((acc, r) => acc + Number(r.sesiones_mes || 0), 0),
+                totalMinutos: meses.reduce((acc, r) => acc + Number(r.minutos_mes || 0), 0),
+            }))
+            .sort((a, b) => b.totalMinutos - a.totalMinutos);
+    }, [monthlyItems]);
+
     const monthlyFiltrado = useMemo(() => {
         if (selectedEmpresa === "TODAS") return monthlyItems;
         return monthlyItems.filter((r) => r.empresa === selectedEmpresa);
     }, [monthlyItems, selectedEmpresa]);
+
+    useEffect(() => {
+        if (selectedEmpresa === "TODAS") {
+            setExpandedEmpresa(null);
+        } else {
+            setExpandedEmpresa(selectedEmpresa);
+        }
+    }, [selectedEmpresa]);
 
     useEffect(() => {
         if (!chartRef.current || state !== "idle") return;
@@ -329,7 +358,7 @@ export default function MantencionesDashboardTab({ active }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {items.map((row, idx) => {
+                                {items.map((row) => {
                                     const minutos = Number(row.promedio_minutos_mes || 0);
                                     const pct = rankingData.totalMin > 0
                                         ? Math.round((minutos / rankingData.totalMin) * 100)
@@ -337,44 +366,109 @@ export default function MantencionesDashboardTab({ active }: Props) {
                                     const barWidth = rankingData.maxMin > 0
                                         ? Math.round((minutos / rankingData.maxMin) * 100)
                                         : 0;
-                                  const color = empresaColorMap.get(row.empresa) ?? "#888780";
+                                    const color = empresaColorMap.get(row.empresa) ?? "#888780";
+
+                                    const group = monthlyGrouped.find((g) => g.empresa === row.empresa);
+                                    const isOpen = expandedEmpresa === row.empresa;
 
                                     return (
-                                        <tr
-                                            key={row.id_empresa}
-                                            className="border-t border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
-                                            onClick={() => setSelectedEmpresa(row.empresa)}
-                                        >
-                                            <td className="px-5 py-3 font-medium text-gray-900">
-                                                <span className="flex items-center gap-2">
-                                                    <span
-                                                        style={{ backgroundColor: color }}
-                                                        className="w-2 h-2 rounded-full shrink-0"
-                                                    />
-                                                    {row.empresa}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-3 text-gray-700">
-                                                {fmtNum(Number(row.promedio_sesiones_mes))}
-                                            </td>
-                                            <td className="px-5 py-3 text-gray-700">
-                                                {fmtNum(minutos)}
-                                            </td>
-                                            <td className="px-5 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-12">
-                                                        <div
-                                                            style={{ width: `${barWidth}%`, backgroundColor: color }}
-                                                            className="h-full rounded-full"
+                                        <React.Fragment key={row.id_empresa}>
+                                            <tr
+                                                className="border-t border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                onClick={() => {
+                                                    setSelectedEmpresa(row.empresa);
+                                                    setExpandedEmpresa((prev) => (prev === row.empresa ? null : row.empresa));
+                                                }}
+                                            >
+                                                <td className="px-5 py-3 font-medium text-gray-900">
+                                                    <span className="flex items-center gap-2">
+                                                        <span
+                                                            style={{ backgroundColor: color }}
+                                                            className="w-2 h-2 rounded-full shrink-0"
                                                         />
+                                                        {row.empresa}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3 text-gray-700">
+                                                    {fmtNum(Number(row.promedio_sesiones_mes))}
+                                                </td>
+                                                <td className="px-5 py-3 text-gray-700">
+                                                    {fmtNum(minutos)}
+                                                </td>
+                                                <td className="px-5 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-12">
+                                                            <div
+                                                                style={{ width: `${barWidth}%`, backgroundColor: color }}
+                                                                className="h-full rounded-full"
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs text-gray-400 w-8 text-right">{pct}%</span>
                                                     </div>
-                                                    <span className="text-xs text-gray-400 w-8 text-right">{pct}%</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-3 text-gray-700">
-                                                {formatMinutesToHours(minutos)}
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td className="px-5 py-3 text-gray-700">
+                                                    {formatMinutesToHours(minutos)}
+                                                </td>
+                                            </tr>
+
+                                            {isOpen && group && (
+                                                <tr className="bg-gray-50/60">
+                                                    <td colSpan={5} className="px-5 pb-4">
+                                                        <div className="mt-2 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                                                            <div className="px-4 py-3 border-b border-gray-100 text-sm font-medium text-gray-700">
+                                                                Detalle mensual de {row.empresa}
+                                                            </div>
+
+                                                            <div className="overflow-x-auto">
+                                                                <table className="min-w-full text-sm">
+                                                                    <thead>
+                                                                        <tr className="bg-gray-50 text-gray-500 text-xs">
+                                                                            <th className="text-left px-4 py-3 font-medium">Mes</th>
+                                                                            <th className="text-left px-4 py-3 font-medium">Sesiones</th>
+                                                                            <th className="text-left px-4 py-3 font-medium">Minutos</th>
+                                                                            <th className="text-left px-4 py-3 font-medium">Horas</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {group.meses.map((mes, idx) => (
+                                                                            <tr
+                                                                                key={`${mes.id_empresa}-${mes.mes}-${idx}`}
+                                                                                className="border-t border-gray-100"
+                                                                            >
+                                                                                <td className="px-4 py-3 text-gray-700">{mes.mes}</td>
+                                                                                <td className="px-4 py-3 text-gray-700">
+                                                                                    {fmtNum(Number(mes.sesiones_mes))}
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-gray-700">
+                                                                                    {fmtNum(Number(mes.minutos_mes))}
+                                                                                </td>
+                                                                                <td className="px-4 py-3 text-gray-700">
+                                                                                    {formatMinutesToHours(Number(mes.minutos_mes))}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                    <tfoot>
+                                                                        <tr className="border-t-2 border-gray-200 bg-gray-50">
+                                                                            <td className="px-4 py-3 font-medium text-gray-900">Total</td>
+                                                                            <td className="px-4 py-3 font-medium text-gray-900">
+                                                                                {fmtNum(group.totalSesiones)}
+                                                                            </td>
+                                                                            <td className="px-4 py-3 font-medium text-gray-900">
+                                                                                {fmtNum(group.totalMinutos)}
+                                                                            </td>
+                                                                            <td className="px-4 py-3 font-medium text-gray-900">
+                                                                                {formatMinutesToHours(group.totalMinutos)}
+                                                                            </td>
+                                                                        </tr>
+                                                                    </tfoot>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     );
                                 })}
                             </tbody>
@@ -397,56 +491,6 @@ export default function MantencionesDashboardTab({ active }: Props) {
                     </div>
                 )}
             </div>
-
-            {/* ── Detalle mensual ── */}
-            {state === "idle" && monthlyItems.length > 0 && (
-                <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-                        <span className="text-sm font-medium text-gray-800">Detalle mensual por empresa</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead>
-                                <tr className="bg-gray-50 text-gray-500 text-xs">
-                                    <th className="text-left px-5 py-3 font-medium">Empresa</th>
-                                    <th className="text-left px-5 py-3 font-medium">Mes</th>
-                                    <th className="text-left px-5 py-3 font-medium">Sesiones</th>
-                                    <th className="text-left px-5 py-3 font-medium">Minutos</th>
-                                    <th className="text-left px-5 py-3 font-medium">Horas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {monthlyItems.map((row, idx) => (
-                                    <tr
-                                        key={`${row.id_empresa}-${row.mes}-${idx}`}
-                                        className="border-t border-gray-100 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <td className="px-5 py-3 font-medium text-gray-900">
-                                            <span className="flex items-center gap-2">
-                                                <span
-                                                    style={{ backgroundColor: empresaColorMap.get(row.empresa) ?? "#888" }}
-                                                    className="w-2 h-2 rounded-full shrink-0"
-                                                />
-                                                {row.empresa}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-700">{row.mes}</td>
-                                        <td className="px-5 py-3 text-gray-700">
-                                            {fmtNum(Number(row.sesiones_mes))}
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-700">
-                                            {fmtNum(Number(row.minutos_mes))}
-                                        </td>
-                                        <td className="px-5 py-3 text-gray-700">
-                                            {formatMinutesToHours(Number(row.minutos_mes))}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

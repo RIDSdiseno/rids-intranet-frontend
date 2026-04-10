@@ -12,6 +12,9 @@ import {
 } from "@ant-design/icons";
 import { formatearRut, validarRut } from "./utils";
 
+// ==========================
+// PROPS DEL MODAL
+// ==========================
 interface NewEntidadModalProps {
     show: boolean;
     onClose: () => void;
@@ -27,6 +30,7 @@ interface NewEntidadModalProps {
     apiLoading: boolean;
 }
 
+// Modal para crear una nueva empresa o contacto
 const NewEntidadModal: React.FC<NewEntidadModalProps> = ({
     show,
     onClose,
@@ -71,7 +75,10 @@ const NewEntidadModal: React.FC<NewEntidadModalProps> = ({
             origen: null,
         });
     };
-
+    
+    // ==========================
+    // RENDERIZADO DEL MODAL
+    // ==========================
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <motion.div

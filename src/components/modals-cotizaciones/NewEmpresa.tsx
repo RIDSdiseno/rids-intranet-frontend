@@ -31,6 +31,7 @@ interface NewEmpresaModalProps {
     apiLoading: boolean;
 }
 
+// Modal para crear una nueva empresa
 const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
     show,
     onClose,
@@ -85,7 +86,10 @@ const NewEmpresaModal: React.FC<NewEmpresaModalProps> = ({
             tipo: "EMPRESA",
         });
     };
-
+    
+    // ==========================
+    // RENDERIZADO DEL MODAL
+    // ==========================
     return (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
             <motion.div

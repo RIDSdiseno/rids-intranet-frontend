@@ -25,7 +25,7 @@ import {
 
 import { useApi } from "./UseApi"; // ajusta la ruta si es necesario
 
-import { formatearPrecio, normalizarCLP, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
+import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
 import EditServicioModal from "./EditServicio";
 
 interface EditCotizacionModalProps {
@@ -40,13 +40,14 @@ interface EditCotizacionModalProps {
     apiLoading: boolean;
     onCrearProducto: () => void;
     onUpdateRealTime?: (itemActualizado: any) => void;
-    onEditarProducto: (item: CotizacionItemGestioo) => void; // 👈 ESTA
+    onEditarProducto: (item: CotizacionItemGestioo) => void; // ESTA
     onItemChange: (index: number, field: string, value: any) => void;
-    onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;  // 🔥 NUEVO
-    onVincularEquipo?: (itemId: number, equipoId: number | null) => void;  // 🔥 NUEVO
+    onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;  // NUEVO
+    onVincularEquipo?: (itemId: number, equipoId: number | null) => void;  // NUEVO
     onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
 }
 
+// Configuración de estados para mostrar en el badge
 const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     show,
     cotizacion,
@@ -80,6 +81,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
     const { fetchApi: apiFetch } = useApi();
 
+    // Sincronizar estado local de ítems con la cotización cada vez que se abra el modal o cambie la cotización
     useEffect(() => {
         if (show && cotizacion) {
             setItemsLocal(cotizacion.items || []);
@@ -144,6 +146,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         });
     };
 
+    // Manejo de cambios en campos de ítems (precio, cantidad, descripción, etc.)
     const handleItemChange = (
         index: number,
         campo: keyof CotizacionItemGestioo,
@@ -170,6 +173,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         syncItems(items);
     };
 
+    // Manejo de edición de ítems (abrir modal específico para servicios, o usar flujo existente para productos)
     const handleEditarItem = (item: CotizacionItemGestioo) => {
         if (item.tipo === ItemTipoGestioo.SERVICIO) {
             setServicioAEditar(item);
@@ -177,7 +181,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             return;
         }
 
-        // 👇 Productos siguen usando el flujo existente
+        // Productos siguen usando el flujo existente
         onEditarProducto(item);
     };
 
@@ -230,6 +234,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     const { subtotalBruto, descuentos, subtotal, iva, total } =
         calcularTotales(itemsLocal);
 
+    // Renderizar el modal completo
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <motion.div
@@ -692,15 +697,13 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </div>
                                 </div>
 
+                                {/* TABLA DE ÍTEMS */}
                                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                                     <div className="w-full overflow-x-auto">
                                         <table className="w-full text-sm table-fixed">
                                             <thead className="bg-slate-100 border-b border-slate-200">
                                                 <tr>
-                                                    <th className="px-4 px-3 text-left text-sm font-semibold text-slate-700">
-                                                        Tipo
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 break-words">
+                                                    <th className="px-3 py-3 text-left text-sm font-semibold text-slate-700 w-[160px] max-w-[160px]">
                                                         Nombre
                                                     </th>
                                                     <th className="px-2 py-2 text-center text-sm font-semibold text-slate-700 w-15">
@@ -751,6 +754,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                         </td>
                                                     </tr>
                                                 ) : (
+                                                    // Renderizar cada ítem en una fila de la tabla
                                                     itemsLocal.map((item, index) => {
                                                         const valores = calcularValoresItem(item);
 
@@ -775,6 +779,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
                                                                 : 0;
 
+                                                        // Si el ítem es un producto, mostrar el precio original (sin descuento) debajo del input de precio, formateado en CLP para referencia, incluso si la moneda actual es USD
                                                         return (
                                                             <tr
                                                                 key={item.id}
@@ -784,55 +789,24 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                     : ""
                                                                     }`}
                                                             >
-                                                                {/* TIPO */}
-                                                                <td className="px-6 py-4">
-                                                                    <span
-                                                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${item.tipo ===
-                                                                            ItemTipoGestioo.PRODUCTO
-                                                                            ? "bg-cyan-100 text-cyan-800"
-                                                                            : item.tipo ===
-                                                                                ItemTipoGestioo.SERVICIO
-                                                                                ? "bg-emerald-100 text-emerald-800"
-                                                                                : "bg-amber-100 text-amber-800"
-                                                                            }`}
-                                                                    >
-                                                                        {item.tipo ===
-                                                                            ItemTipoGestioo.PRODUCTO
-                                                                            ? "Producto"
-                                                                            : item.tipo ===
-                                                                                ItemTipoGestioo.SERVICIO
-                                                                                ? "Servicio"
-                                                                                : "Descuento"}
-                                                                    </span>
-                                                                </td>
 
                                                                 {/* DESCRIPCIÓN */}
-                                                                <td className="px-6 py-4 min-w-[200px]">
+                                                                <td className="px-3 py-4 w-[160px] max-w-[160px]">
                                                                     <input
                                                                         value={item.nombre || ""}
+                                                                        title={item.nombre || ""}
                                                                         readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
                                                                         onChange={(e) =>
-                                                                            handleItemChange(
-                                                                                index,
-                                                                                "nombre",
-                                                                                e.target.value
-                                                                            )
+                                                                            handleItemChange(index, "nombre", e.target.value)
                                                                         }
-                                                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
-                                                                        placeholder="Descripción del ítem"
+                                                                        className="w-full border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-sm truncate"
+                                                                        placeholder="Nombre del ítem"
                                                                     />
-                                                                    {item.tipo ===
-                                                                        ItemTipoGestioo.PRODUCTO &&
-                                                                        precioCosto > 0 && (
-                                                                            <div className="text-xs text-slate-500 mt-1 truncate">
-                                                                                Costo:{" "}
-                                                                                {formatearPrecio(
-                                                                                    precioCosto,
-                                                                                    moneda,
-                                                                                    tasa
-                                                                                )}
-                                                                            </div>
-                                                                        )}
+                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
+                                                                        <div className="text-m text-slate-500 mt-1 truncate">
+                                                                            Costo: {formatearPrecio(precioCosto, moneda, tasa)}
+                                                                        </div>
+                                                                    )}
                                                                 </td>
 
                                                                 {/* CANTIDAD */}
@@ -890,22 +864,23 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                                 }
                                                                             }}
                                                                             className={`
-                w-24      /* ← MÁS ANCHO */
-                px-4 py-2.5       /* ← MÁS GRANDE Y LEGIBLE */
-                border border-slate-200 rounded-lg
-                text-right         /* ← Precios alineados a la derecha */
-                text-sm
-                transition-all
-                ${item.tipo === ItemTipoGestioo.SERVICIO
+    w-24
+    min-w-[90px]
+    px-3 py-2.5
+    border border-slate-200 rounded-lg
+    text-right
+    text-sm
+    transition-all
+    ${item.tipo === ItemTipoGestioo.SERVICIO
                                                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                                                                                     : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                                                                                 }
-            `}
+`}
                                                                             placeholder={moneda === "USD" ? "US$" : "$"}
                                                                         />
 
                                                                         {/* Precio en CLP formateado debajo */}
-                                                                        <div className="text-xs text-slate-500">
+                                                                        <div className="text-m text-slate-500">
                                                                             {formatearPrecio(
                                                                                 valores.base / (item.cantidad || 1),
                                                                                 moneda,
@@ -1093,6 +1068,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </div>
                                 </div>
 
+                                {/* PIE DE TABLA CON TOTALES Y MONEDA */}
                                 {itemsLocal.length > 0 && (
                                     <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
                                         <div className="flex justify-between items-center">

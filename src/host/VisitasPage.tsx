@@ -64,12 +64,13 @@ function useDebouncedValue<T>(value: T, delay = 400): T {
   return debounced;
 }
 
+// formatea la fecha/hora en formato local de Chile, o devuelve "—" si no es válida o no existe
 function formatDateTime(d: string | Date | null | undefined) {
   if (!d) return "—";
   try {
     return new Date(d).toLocaleString("es-CL", {
       timeZone: "America/Santiago",
-      hour12: false,              // ✅ 24h
+      hour12: false,              // 24h
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -82,6 +83,7 @@ function formatDateTime(d: string | Date | null | undefined) {
   }
 }
 
+// devuelve un badge con color según el estado (PENDIENTE, EN_PROGRESO, COMPLETADA, CANCELADA), o gris si no reconoce el estado
 function StatusBadge({ status }: { status: string }) {
   const norm = (status || "").toUpperCase();
   const styles: Record<string, string> = {
@@ -105,9 +107,11 @@ function ymd(dateIso: string): string {
   const d = new Date(dateIso);
   return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
 }
+
 function incCounter(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
+
 function asTrue(v: unknown): boolean {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v === 1;
@@ -138,6 +142,7 @@ function anyProgramada(v: VisitaRow) {
     asTrue(v.mantenimientoReloj)
   );
 }
+
 function anyAdicional(v: VisitaRow) {
   return (
     asTrue(v.confImpresoras) ||
@@ -319,6 +324,7 @@ function setupResumenSheet(ws: WorksheetLike) {
   ws.freezePanes?.(2, 1);
 }
 
+// agrega los bloques de datos al resumen y les pone bordes
 function styleResumenBlocks(ws: WorksheetLike, s: { daily: number; checklist: number; pie: number; users: number; }) {
   if (s.daily > 0) setAllBorders(ws, 1, 1, 1 + s.daily, 2);
   if (s.checklist > 0) setAllBorders(ws, 1, 6, 1 + s.checklist, 7);
@@ -326,6 +332,7 @@ function styleResumenBlocks(ws: WorksheetLike, s: { daily: number; checklist: nu
   if (s.users > 0) setAllBorders(ws, 1, 16, 1 + s.users, 17);
 }
 
+// si quieres que el resumen se vea también en Hoja1, haz que esta función copie los datos de Resumen a Hoja1 cada vez
 function mirrorResumenToHoja1(
   wb: WorkbookLike,
   wsResumen: WorksheetLike,
@@ -449,12 +456,14 @@ const VisitasPage: React.FC = () => {
   const [monthFilter, setMonthFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<string>("");
 
+  // paginación
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ApiList<VisitaRow> | null>(null);
   const totalPages = useMemo(() => Math.max(1, data?.totalPages ?? 1), [data]);
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
+  // estado de carga y errores
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tecnicos, setTecnicos] = useState<TecnicoMini[]>([]);
@@ -485,14 +494,15 @@ const VisitasPage: React.FC = () => {
     try {
       const r = await http.get("/visitas/filters", { signal });
       const json = r.data as { tecnicos: TecnicoMini[]; empresas: EmpresaMini[] };
-
       setTecnicos(json.tecnicos || []);
       setEmpresas(json.empresas || []);
-    } catch (err) {
+    } catch (err: any) {
+      // Ignorar cancelaciones (desmonte del componente)
+      if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") return;
       console.error("Error cargando filtros:", err);
     }
   }, []);
-
+  // Función para cargar la lista de visitas según filtros y paginación, con manejo de concurrencia y cancelación
   const fetchList = useCallback(async (signal?: AbortSignal) => {
     const seq = ++reqSeqRef.current;
 
@@ -530,6 +540,7 @@ const VisitasPage: React.FC = () => {
     }
   }, [page, qDebounced, tecnicoId, empresaId, monthFilter, yearFilter]);
 
+  // Función para refrescar la lista después de crear/editar/eliminar sin esperar al efecto
   const refreshNow = useCallback(() => {
     const c = new AbortController();
     void fetchList(c.signal);
@@ -542,12 +553,14 @@ const VisitasPage: React.FC = () => {
     return () => c.abort();
   }, [fetchFilters]);
 
+  // Al cargar la página o cambiar filtros/página, cargar la lista de visitas
   useEffect(() => {
     const c = new AbortController();
     fetchList(c.signal);
     return () => c.abort();
   }, [fetchList]);
 
+  //  Al cambiar cualquier filtro, volver a la página 1
   const clearAll = () => {
     setQ("");
     setTecnicoId("");
@@ -559,6 +572,7 @@ const VisitasPage: React.FC = () => {
 
   const { user, isCliente, isAdmin } = useAuth();
 
+  // Si el usuario es cliente, preseleccionar su empresa y no permitir cambiarla
   useEffect(() => {
     if (isCliente && user?.empresaId) {
       setEmpresaId(user.empresaId);
@@ -600,7 +614,7 @@ const VisitasPage: React.FC = () => {
   async function apiDeleteVisita(id: number) {
     await http.delete(`/visitas/${id}`);
   }
-  
+
   // Al hacer click en editar, abrir el modal de edición con los datos cargados
   const onClickEdit = (row: VisitaRow) => {
     const v: VisitaForEdit = {
@@ -629,7 +643,7 @@ const VisitasPage: React.FC = () => {
     setEditVisita(v);
     setOpenEdit(true);
   };
-  
+
   // Al hacer click en eliminar, pedir confirmación y eliminar la visita
   const onClickDelete = async (row: VisitaRow) => {
     if (!window.confirm(`¿Eliminar la visita #${row.id_visita}? Esta acción no se puede deshacer.`)) return;
@@ -643,7 +657,7 @@ const VisitasPage: React.FC = () => {
       setDeletingId(null);
     }
   };
-  
+
   // Al hacer click en exportar, traer TODAS las visitas (respetando filtros), generar el Excel y descargarlo
   const onExportEmpresas = async () => {
     try {
@@ -708,7 +722,7 @@ const VisitasPage: React.FC = () => {
       alert("No se pudo exportar el Excel. Revisa consola (plantilla/rutas/permiso).");
     }
   };
- 
+
   // Funciones para determinar elegibilidad de visitas para el resumen
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -965,12 +979,12 @@ const VisitasPage: React.FC = () => {
                       className={clsx(
                         "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
                         isDeleting
-                        ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
-                        : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                          ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                          : "border-rose-200 text-rose-700 hover:bg-rose-50"
                       )}
-                      >
-                        <DeleteOutlined /> {isDeleting ? "..." : "Eliminar"}
-                      </button>
+                    >
+                      <DeleteOutlined /> {isDeleting ? "..." : "Eliminar"}
+                    </button>
                   )}
                 </div>
               </article>

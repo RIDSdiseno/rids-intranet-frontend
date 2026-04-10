@@ -8,15 +8,12 @@ import {
     Col,
     Spin,
     Alert,
-    ConfigProvider,
 } from "antd";
 import {
     LaptopOutlined,
     NumberOutlined,
-    DesktopOutlined,
     DashboardOutlined,
     HddOutlined,
-    BuildOutlined,
     GlobalOutlined,
     SaveOutlined,
     CloseOutlined,

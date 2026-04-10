@@ -1,6 +1,5 @@
 import type {
   CotizacionItemGestioo,
-  MonedaCotizacion,
   ItemCotizacionFrontend
 } from "./types";
 import { EstadoCotizacionGestioo, TipoCotizacionGestioo } from "./types";

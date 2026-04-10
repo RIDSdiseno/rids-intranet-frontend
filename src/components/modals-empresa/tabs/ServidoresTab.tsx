@@ -23,7 +23,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import UsuariosServidorTable from "./UsuariosServidorTab";
-import { http } from "../../../service/http";  // 🔥 ajusta la ruta según tu estructura
+import { http } from "../../../service/http";  // ajusta la ruta según tu estructura
 
 interface Servidor {
   id: number;

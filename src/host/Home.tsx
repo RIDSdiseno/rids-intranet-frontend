@@ -669,53 +669,6 @@ const Home: FC = () => {
         ))}
       </div>
 
-      {/* Alertas rápidas */}
-      <motion.div
-        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
-        initial={{ opacity: 0, y: 26 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.35 }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base sm:text-lg font-bold text-slate-800">Alertas de actividad</h2>
-          <span className="text-xs text-slate-500">Basado solo en visitas del mes</span>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
-            <div className="text-sm font-semibold text-amber-800">Técnicos sobre promedio</div>
-            {tecnicosSobrePromedio.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-sm text-amber-900">
-                {tecnicosSobrePromedio.slice(0, 5).map((t) => (
-                  <li key={t.tecnico} className="flex items-center justify-between gap-3">
-                    <span className="truncate">{t.tecnico}</span>
-                    <span className="font-semibold">{formatNumber(t.cantidad)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="mt-2 text-sm text-amber-700">Sin técnicos sobre promedio.</div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3">
-            <div className="text-sm font-semibold text-rose-800">Baja actividad</div>
-            {tecnicosBajaActividad.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-sm text-rose-900">
-                {tecnicosBajaActividad.slice(0, 5).map((t) => (
-                  <li key={t.tecnico} className="flex items-center justify-between gap-3">
-                    <span className="truncate">{t.tecnico}</span>
-                    <span className="font-semibold">{formatNumber(t.cantidad)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="mt-2 text-sm text-rose-700">No se detecta baja actividad.</div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-
       {/* Gráfico principal */}
       <motion.div
         className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"

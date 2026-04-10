@@ -10,6 +10,7 @@ interface EditServicioModalProps {
     apiLoading: boolean;
 }
 
+// Modal para editar un servicio existente
 const EditServicioModal: React.FC<EditServicioModalProps> = ({
     show,
     servicio,
@@ -25,7 +26,7 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
         duracionHoras: "",
     });
 
-    // 🔄 sincroniza cuando cambia el servicio
+    // sincroniza cuando cambia el servicio
     useEffect(() => {
         if (servicio) {
             setFormData({
@@ -39,7 +40,8 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
     }, [servicio]);
 
     if (!show || !servicio) return null;
-
+    
+    // Maneja el envío del formulario
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -53,7 +55,10 @@ const EditServicioModal: React.FC<EditServicioModalProps> = ({
                 : null,
         });
     };
-
+    
+    // ==========================
+    // RENDERIZADO DEL MODAL
+    // ==========================
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <motion.div

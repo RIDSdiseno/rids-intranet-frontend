@@ -1,0 +1,224 @@
+# RIDS CRM — Frontend
+Interfaz web principal del sistema operativo de **Asesorías RIDS Ltda.**, construida como una Single Page Application (SPA) que consume la REST API del backend RIDS CRM.
+
+## Tabla de contenidos
+
+1. [Descripción general](#descripción-general)
+2. [Stack tecnológico](#stack-tecnológico)
+3. [Requisitos](#requisitos)
+4. [Instalación](#instalación)
+5. [Variables de entorno](#variables-de-entorno)
+6. [Ejecución local](#ejecución-local)
+7. [Estructura del proyecto](#estructura-del-proyecto)
+8. [Módulos principales](#módulos-principales)
+9. [Notas importantes](#notas-importantes)
+10. [Roadmap](#roadmap)
+
+## Descripción general
+
+El frontend de RIDS CRM permite a técnicos, agentes y administradores operar el sistema completo desde el navegador:
+
+- Gestión de tickets de soporte en tiempo real
+- Comunicación con clientes vía respuestas a tickets
+- Administración de empresas, solicitantes y equipos
+- Generación y descarga de reportes operativos mensuales
+- Gestión de cotizaciones y órdenes de trabajo
+- Registro y análisis de mantenciones remotas (TeamViewer)
+- Visualización de métricas operativas y SLA
+- Configuración de plantillas de correo
+
+## Stack tecnológico
+
+| Tecnología | Versión | Propósito |
+|---|---|---|
+| React | 18+ | Framework base de la SPA |
+| TypeScript | Strict | Tipado estático en toda la aplicación |
+| Vite | Build tool | Bundler y servidor de desarrollo |
+| Ant Design | 5.x | Sistema de componentes UI principal |
+| Tailwind CSS | 3.x | Utilidades de estilo complementarias |
+| React Router | v6 | Navegación y rutas protegidas |
+| Axios | http.ts | Cliente HTTP con interceptores JWT |
+| Socket.IO | Client | Notificaciones y eventos en tiempo real |
+| Chart.js | 4.x | Gráficos de barras, líneas y distribución |
+| Framer Motion | — | Transiciones y animaciones de UI |
+| DOMPurify | — | Sanitización XSS en HTML de emails |
+| docx | — | Generación de documentos Word |
+
+## Requisitos
+
+- Node.js >= 18
+- npm
+
+## Instalación
+
+git clone <repo>
+cd rids-crm-frontend
+npm install
+
+## Variables de entorno
+
+Crea un archivo `.env` en la raíz del proyecto:
+
+```env
+VITE_API_URL=http://localhost:4000/api
+```
+
+En producción apunta a la URL del backend desplegado en Railway.
+
+## Ejecución local
+
+# Desarrollo
+npm run dev
+
+# Build para producción
+npm run build
+
+# Preview del build
+npm run preview
+
+## Estructura del proyecto
+
+src/
+├── pages/                          # Una página por módulo funcional
+│   ├── TicketeraRids.tsx           # Lista de tickets helpdesk
+│   ├── ReportesPage.tsx            # Generación de reportes
+│   ├── MantencionesRemotasPage.tsx # Mantenciones + dashboard TeamViewer
+│   ├── EmpresasPage.tsx            # Gestión de empresas
+│   ├── EquiposPage.tsx             # Inventario de equipos
+│   ├── SolicitantesPage.tsx        # Gestión de solicitantes
+│   ├── CotizacionesPage.tsx        # Cotizaciones
+│   └── LoginPage.tsx               # Autenticación
+│
+├── components/
+│   ├── modals-ticketera/           # Modales del helpdesk
+│   │   ├── CrearTicket.tsx
+│   │   ├── TicketDetalle.tsx
+│   │   ├── BulkAssign.tsx
+│   │   ├── BulkMerge.tsx
+│   │   └── DeleteTicket.tsx
+│   ├── modals-reportes/            # Componentes de reportes
+│   │   ├── KpiCards.tsx
+│   │   ├── WizardSelector.tsx
+│   │   ├── UseReportesData.ts
+│   │   ├── UseExportReportes.ts
+│   │   └── typesReportes.ts
+│   ├── modal-mantenciones/         # Mantenciones remotas
+│   │   ├── MantencionUpsert.tsx
+│   │   ├── MantencionDetail.tsx
+│   │   ├── MantencionFiltersBar.tsx
+│   │   ├── MantencionDesktopTable.tsx
+│   │   ├── MantencionMobileList.tsx
+│   │   └── MantencionesDashboard.tsx
+│   └── layout/                     # Navbar, sidebar, wrappers
+│
+├── hooks/                          # Custom hooks reutilizables
+├── service/
+│   └── http.ts                     # Instancia axios + interceptores JWT
+├── api/
+│   └── api.ts                      # Cliente HTTP nombrado
+├── lib/
+│   └── socket.ts                   # Configuración Socket.IO
+├── types/                          # Interfaces TypeScript compartidas
+├── utils/                          # Funciones utilitarias puras
+└── App.tsx                         # Router principal y rutas protegidas
+
+## Módulos principales
+
+| Módulo | Ruta | Descripción |
+|---|---|---|
+| Helpdesk | `/helpdesk` | Lista y gestión de tickets con filtros, SLA y acciones masivas |
+| Ticket detalle | `/helpdesk/tickets/:id` | Conversación completa, respuesta, notas internas |
+| Reportes | `/reportes` | Generación DOCX/XLSX/PDF con IA |
+| Mantenciones | `/mantenciones-remotas` | TeamViewer + dashboard de métricas |
+| Empresas | `/empresas` | CRUD de empresas clientes |
+| Equipos | `/equipos` | Inventario y relación con solicitantes |
+| Solicitantes | `/solicitantes` | Gestión de contactos por empresa |
+| Cotizaciones | `/cotizaciones` | Flujo de cotizaciones e ítems |
+| Plantillas email | `/helpdesk/email-templates` | Edición de plantillas de correo |
+
+## Notas importantes
+
+### Autenticación
+
+El token JWT se almacena en `localStorage` como `accessToken` o `token`.
+El interceptor de axios lo adjunta automáticamente en cada request.
+Un 401 del backend redirige automáticamente a `/login`.
+
+### Renderizado de emails
+
+Los mensajes HTML de tickets se renderizan en un `iframe` con:
+
+- `DOMPurify.sanitize()` para prevenir XSS
+- `sandbox="allow-same-origin allow-popups allow-scripts"`
+- `AutoResizeIframe` con `postMessage` + `ResizeObserver` para altura dinámica
+
+### Imágenes inline en emails (cid:)
+
+Outlook embebe imágenes como adjuntos con `Content-ID`.
+El backend reemplaza `cid:` por URLs de Cloudinary al guardar el mensaje.
+El frontend tiene una capa de fallback con `resolveInlineImages()`.
+
+### Tiempo real (Socket.IO)
+
+El helpdesk escucha los siguientes eventos:
+
+| Evento | Acción |
+|---|---|
+| `ticket.created` | Notificación + recarga de lista + badge de nuevos tickets |
+| `ticket.customer_replied` | Alerta de respuesta entrante |
+| `ticket.status_changed` | Notificación con nuevo estado |
+| `ticket.updated` | Recarga silenciosa de la lista |
+
+### Colores de estado
+
+| Estado / Concepto | Color Ant Design |
+|---|---|
+| Nuevo (NEW) | blue |
+| Abierto (OPEN) | gold |
+| Pendiente (PENDING) | orange |
+| Resuelto (RESOLVED) | green |
+| Cerrado (CLOSED) | default (gris) |
+| Prioridad URGENT | red |
+| Prioridad HIGH | orange |
+| Prioridad NORMAL | blue |
+| Prioridad LOW | green |
+| SLA OK | green |
+| SLA PENDING | gold |
+| SLA BREACHED | red |
+
+### Roles y visibilidad
+
+El payload del JWT se decodifica localmente para extraer `rol`, `empresaId` y `tecnicoId`.
+La verificación real de permisos ocurre exclusivamente en el backend.
+
+| Rol | Acceso |
+|---|---|
+| ADMIN | Acceso completo a todos los módulos |
+| TECNICO | Gestión operativa completa |
+| CLIENTE | Solo tickets de su propia empresa |
+
+### Firma de técnicos en emails
+
+Al crear o responder tickets, la firma del técnico se construye con los campos
+`cargo`, `area` y `telefono` del modelo `Tecnico`.
+Los acentos se convierten a entidades HTML con `toHtmlEntities()` para
+compatibilidad con clientes de correo (Outlook, Gmail, etc.).
+
+### Encoding en emails
+
+Los strings con acentos que provienen del backend se convierten a entidades HTML
+(`&eacute;`, `&aacute;`, etc.) antes de incluirlos en el `bodyHtml` del email.
+Esto es necesario por el comportamiento de Microsoft Graph API con UTF-8.
+
+## Roadmap
+
+- [ ] Editor WYSIWYG (Tiptap) para respuestas de ticket con formato enriquecido
+- [ ] React Context para datos maestros compartidos (empresas, técnicos)
+- [ ] React Query para cache y revalidación automática de datos
+- [ ] Lazy loading de rutas con `React.lazy()` + `Suspense`
+- [ ] Tests unitarios de hooks críticos con Vitest
+- [ ] Tests de integración de flujos de ticket con Testing Library
+- [ ] Modo oscuro
+- [ ] Error boundary global para errores inesperados
+- [ ] Optimistic UI en cambios de estado de tickets
+- [ ] Vista móvil mejorada para detalle de ticket

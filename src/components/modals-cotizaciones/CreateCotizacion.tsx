@@ -27,6 +27,7 @@ import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig } f
 import { message } from "antd";
 import EditServicioModal from "./EditServicio";
 
+// Props del modal de creación de cotización
 interface CreateCotizacionModalProps {
     show: boolean;
     onClose: () => void;
@@ -57,6 +58,7 @@ interface CreateCotizacionModalProps {
     onVincularEquipo?: (itemId: number, equipoId: number | null) => void;
 }
 
+// Modal para crear una nueva cotización, con múltiples secciones y items, selección de entidad, y creación/edición rápida de productos y servicios
 const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     show,
     onClose,
@@ -225,7 +227,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
     // Renderizar item individual
     const renderItem = (item: any, index: number) => {
-        // 🔥 ÚNICA FUENTE DE VERDAD
+        // ÚNICA FUENTE DE VERDAD
         const valores = calcularValoresItem(item);
 
         const baseFinal = valores.neto;
@@ -233,19 +235,19 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
         const iva = valores.iva;
         const total = valores.total;
 
-        // 🔥 PRECIO BASE REAL (NO AFECTADO POR DESCUENTO)
+        // PRECIO BASE REAL (NO AFECTADO POR DESCUENTO)
         const precioBaseCLP =
             item.precioOriginalCLP ?? item.precio;
 
         const costoCLP = item.precioCosto ?? 0;
 
-        // ✅ GANANCIA REAL DEL PRODUCTO (SIN DESCUENTO)
+        // GANANCIA REAL DEL PRODUCTO (SIN DESCUENTO)
         const gananciaItem =
             item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
                 ? (precioBaseCLP - costoCLP) * item.cantidad
                 : 0;
 
-        // ✅ % GANANCIA REAL (NO CAMBIA CON DESCUENTO)
+        // % GANANCIA REAL (NO CAMBIA CON DESCUENTO)
         const margenGanancia =
             item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
                 ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
@@ -258,6 +260,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                 ? formatearPrecio(descuentoItem, moneda, tasaCambio)
                 : "";
 
+        // Si es un ítem de ajuste adicional, mostrar el descuento como un valor negativo en el total, y resaltar en rojo
         return (
             <tr
                 key={item.id}
@@ -268,24 +271,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                         : "bg-cyan-50/30"
                     }`}
             >
-                {/* TIPO */}
-                <td className="px-3 py-2 border-r border-cyan-100">
-                    <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${item.tipo === ItemTipoGestioo.PRODUCTO
-                            ? "bg-cyan-100 text-cyan-800"
-                            : item.tipo === ItemTipoGestioo.SERVICIO
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
-                            }`}
-                    >
-                        {item.tipo === ItemTipoGestioo.PRODUCTO
-                            ? "Producto"
-                            : item.tipo === ItemTipoGestioo.SERVICIO
-                                ? "Servicio"
-                                : "Ajuste global"}
-                    </span>
-                </td>
-
                 {/* NOMBRE */}
                 <td className="px-3 py-2 border-r border-cyan-100">
                     <input
@@ -543,6 +528,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
         );
     };
 
+    // Renderizar el modal completo
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <motion.div
@@ -1049,7 +1035,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     <table className="w-full text-sm">
                                         <thead className="bg-cyan-50 text-slate-700 border-b border-cyan-200">
                                             <tr>
-                                                <th className="px-3 py-2 text-left border-r border-cyan-200">Tipo</th>
                                                 <th className="px-3 py-2 text-left border-r border-cyan-200">Nombre</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">Cant.</th>
                                                 <th className="px-3 py-2 text-center border-r border-cyan-200 w-28">P.Unitario</th>
@@ -1077,7 +1062,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 </div>
                             )}
 
-                            {/* 🔥 DETALLE REAL DE PRODUCTOS */}
+                            {/* DETALLE REAL DE PRODUCTOS */}
                             {itemsSeccionActiva
                                 .filter(item => item.tipo === ItemTipoGestioo.PRODUCTO && item.descripcion)
                                 .length > 0 && (
@@ -1094,10 +1079,10 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                         key={idx}
                                                         className="border-b last:border-b-0 border-slate-200 pb-2 last:pb-0"
                                                     >
-                                                        {/* 🔥 Mostrar NOMBRE del producto */}
+                                                        {/* Mostrar NOMBRE del producto */}
                                                         <p className="font-semibold">{item.nombre || "Producto sin nombre"}</p>
 
-                                                        {/* 🔥 Mostrar DESCRIPCIÓN si existe */}
+                                                        {/* Mostrar DESCRIPCIÓN si existe */}
                                                         {item.descripcion && (
                                                             <p className="text-slate-600 whitespace-pre-line mt-1">
                                                                 {item.descripcion}
@@ -1119,6 +1104,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                             const totalesSeccion = calcularTotalesSeccion(seccion.id);
                                             const itemsCount = items.filter(item => item.seccionId === seccion.id).length;
 
+                                            // Si la sección no tiene items, no mostrarla en el resumen
                                             return (
                                                 <div
                                                     key={seccion.id}

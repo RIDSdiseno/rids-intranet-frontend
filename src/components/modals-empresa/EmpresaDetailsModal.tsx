@@ -8,8 +8,6 @@ import {
   CalendarOutlined,
   PhoneOutlined,
   MailOutlined,
-  EnvironmentOutlined,
-  IdcardOutlined,
   UserOutlined,
   RobotOutlined
 } from "@ant-design/icons";
