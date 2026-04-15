@@ -86,7 +86,7 @@ const ReportesPage: React.FC = () => {
   const canGenerate = !!empresaFiltro && !!selectedYear && !!selectedMonth;
 
   // ── Export hook ──
-  const { exportStatus, exportDOCX, exportXLSX, generarPdfBlob } = useExportReportes({
+  const { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX,  generarPdfBlob } = useExportReportes({
     empresaFiltro,
     selectedYear,
     selectedMonth,
@@ -294,6 +294,21 @@ const ReportesPage: React.FC = () => {
                 ? <><LoadingOutlined className="animate-spin mr-2" />Generando…</>
                 : <><DownloadOutlined className="mr-2" />Descargar Word (DOCX)</>}
             </button>
+
+            
+            
+          
+
+            <button
+              onClick={exportDOCXIABeta}
+              disabled={!canGenerate || exportStatus.exporting}
+              className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+            >
+              <RobotOutlined className="mr-2" /> Descargar Word IA (Beta)
+            </button>
+
+
+
             <button
               onClick={exportXLSX}
               disabled={!canGenerate || exportStatus.exporting}
@@ -318,6 +333,8 @@ const ReportesPage: React.FC = () => {
 
         {/* ── Canvas ocultos para charts DOCX ── */}
         <div style={{ position: "fixed", left: -10000, top: -10000, opacity: 0, pointerEvents: "none", zIndex: -1 }}>
+          
+          
           <canvas id="chart-mantxfecha-docx" width={800} height={400} />
           <canvas id="chart-solicitudes-pie-docx" width={800} height={400} />
           <canvas id="chart-mantenimientos-docx" width={800} height={400} />
@@ -326,7 +343,26 @@ const ReportesPage: React.FC = () => {
           <canvas id="chart-mantxusuario-docx" width={800} height={400} />
           <canvas id="chart-distribucion-docx" width={800} height={400} />
           <canvas id="chart-tendencias-docx" width={800} height={400} />
+
+
+      
+          <canvas id="chart-wordbeta-mant-fecha" width={800} height={400} />
+          <canvas id="chart-wordbeta-distribucion-servicios" width={800} height={400} />
+          <canvas id="chart-wordbeta-solicitudes-programadas" width={800} height={400} />
+          <canvas id="chart-wordbeta-actividades-mantenimiento" width={800} height={400} />
+          <canvas id="chart-wordbeta-tickets-categoria" width={800} height={400} />
+          <canvas id="chart-wordbeta-top-usuarios" width={800} height={400} />
+          <canvas id="chart-wordbeta-visitas-tecnico" width={800} height={400} />
+          <canvas id="chart-wordbeta-visitas-tipo" width={800} height={400} />
+          <canvas id="chart-wordbeta-mant-status" width={800} height={400} />
+          <canvas id="chart-wordbeta-mant-tecnico" width={800} height={400} />
+          <canvas id="chart-wordbeta-inventario-marca" width={800} height={400} />
+
+
         </div>
+
+
+
 
         {/* ── Contenedor oculto PDF ── */}
         <div

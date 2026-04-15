@@ -13,7 +13,7 @@ import {
     LineElement,
     PointElement,
 } from "chart.js";
-import type { VisitaRow, TicketRow } from "./typesReportes";
+import type { VisitaRow, TicketRow, EquipoRow } from "./typesReportes";
 
 Chart.register(
     CategoryScale, LinearScale, BarElement, BarController,
@@ -35,6 +35,12 @@ export const CHART_CONFIG = {
         pink: "#EC4899",
         indigo: "#4F46E5",
         teal: "#14B8A6",
+        sky: "#0EA5E9",
+        emerald: "#059669",
+        orange: "#F97316",
+        rose: "#E11D48",
+        cyan: "#06B6D4",
+        lime: "#84CC16",
     },
     fonts: {
         size: 14,
@@ -264,6 +270,27 @@ export const dataUrlToUint8Array = (dataUrl: string): Uint8Array => {
 
 const TICK_COLOR = "#ccd0d8ff";
 
+const PIE_PALETTE = [
+    CHART_CONFIG.colors.primary,
+    CHART_CONFIG.colors.secondary,
+    CHART_CONFIG.colors.accent,
+    CHART_CONFIG.colors.danger,
+    CHART_CONFIG.colors.purple,
+    CHART_CONFIG.colors.pink,
+    CHART_CONFIG.colors.indigo,
+    CHART_CONFIG.colors.teal,
+    CHART_CONFIG.colors.sky,
+    CHART_CONFIG.colors.orange,
+    CHART_CONFIG.colors.rose,
+    CHART_CONFIG.colors.cyan,
+    CHART_CONFIG.colors.lime,
+    CHART_CONFIG.colors.gray,
+];
+
+const getPieColors = (size: number) =>
+    Array.from({ length: size }, (_, index) => PIE_PALETTE[index % PIE_PALETTE.length]);
+
+
 export const generateBarChart = async (
     canvasId: string,
     labels: string[],
@@ -323,11 +350,7 @@ export const generatePieChart = async (
             labels,
             datasets: [{
                 label: title, data,
-                backgroundColor: [
-                    CHART_CONFIG.colors.primary, CHART_CONFIG.colors.secondary,
-                    CHART_CONFIG.colors.accent, CHART_CONFIG.colors.danger,
-                    CHART_CONFIG.colors.purple, CHART_CONFIG.colors.pink,
-                ],
+                backgroundColor: getPieColors(labels.length),
                 borderColor: "#FFFFFF", borderWidth: 2,
             }],
         },
@@ -373,13 +396,13 @@ export const generateLineChart = async (
         options: {
             responsive: false, maintainAspectRatio: false, animation: false,
             plugins: {
-                legend: { display: true, position: "top", labels: { font: { size: 14 }, color: "#d2d8e0ff" } },
-                title: { display: true, text: title, font: { size: 16, weight: "bold" } },
+                legend: { display: true, position: "top", labels: { font: { size: 14 }, color: TICK_COLOR } },
+                title: { display: true, text: title, font: { size: 16, weight: "bold" }, color: TICK_COLOR },
                 tooltip: { mode: "index", intersect: false },
             },
             scales: {
-                x: { grid: { display: false }, ticks: { color: "#FFFFFF" } },
-                y: { beginAtZero: true, grid: { color: "#F3F4F6" } },
+                x: { grid: { display: false }, ticks: { color: TICK_COLOR } },
+                y: { beginAtZero: true, grid: { color: "#F3F4F6" }, ticks: { color: TICK_COLOR, precision: 0 } },
             },
         },
     });
