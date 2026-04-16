@@ -77,6 +77,8 @@ export default function HelpdeskDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState<TecnicoMetric[]>([]);
 
+    const [slaSummary, setSlaSummary] = useState<any>(null);
+
     const loadMetrics = async () => {
         try {
             setLoading(true);
@@ -96,35 +98,32 @@ export default function HelpdeskDashboardPage() {
         }
     };
 
+    const loadSlaSummary = async () => {
+        try {
+            const { data } = await api.get("/helpdesk/tickets/sla");
+            if (data?.ok) {
+                setSlaSummary(data.sla);
+            } else {
+                setSlaSummary(null);
+            }
+        } catch (error) {
+            console.error("Error cargando SLA global:", error);
+            setSlaSummary(null);
+        }
+    };
+
     useEffect(() => {
         loadMetrics();
+        loadSlaSummary();
     }, []);
 
     const summary = useMemo(() => {
         const totalTecnicos = metrics.length;
         const totalAsignados = metrics.reduce((acc, t) => acc + t.assignedTickets, 0);
 
-        const avgFirstResponseCompliance =
-            totalTecnicos > 0
-                ? Math.round(
-                    metrics.reduce((acc, t) => acc + t.firstResponse.compliance, 0) /
-                    totalTecnicos
-                )
-                : 0;
-
-        const avgResolutionCompliance =
-            totalTecnicos > 0
-                ? Math.round(
-                    metrics.reduce((acc, t) => acc + t.resolution.compliance, 0) /
-                    totalTecnicos
-                )
-                : 0;
-
         return {
             totalTecnicos,
             totalAsignados,
-            avgFirstResponseCompliance,
-            avgResolutionCompliance,
         };
     }, [metrics]);
 
@@ -180,9 +179,9 @@ export default function HelpdeskDashboardPage() {
                     <Card className="rounded-2xl shadow-sm border-l-4 border-l-green-500">
                         <div className="flex items-center justify-between">
                             <div>
-                                <div className="text-sm text-gray-500">SLA 1ra respuesta</div>
+                                <div className="text-sm text-gray-500">SLA global 1ra respuesta</div>
                                 <div className="text-2xl font-bold text-gray-800">
-                                    {summary.avgFirstResponseCompliance}%
+                                    {slaSummary?.firstResponse?.compliance ?? 0}%
                                 </div>
                             </div>
                             <ClockCircleOutlined className="text-xl text-green-500" />
@@ -194,9 +193,9 @@ export default function HelpdeskDashboardPage() {
                     <Card className="rounded-2xl shadow-sm border-l-4 border-l-emerald-500">
                         <div className="flex items-center justify-between">
                             <div>
-                                <div className="text-sm text-gray-500">SLA cierre</div>
+                                <div className="text-sm text-gray-500">SLA global cierre</div>
                                 <div className="text-2xl font-bold text-gray-800">
-                                    {summary.avgResolutionCompliance}%
+                                    {slaSummary?.resolution?.compliance ?? 0}%
                                 </div>
                             </div>
                             <CheckCircleOutlined className="text-xl text-emerald-500" />

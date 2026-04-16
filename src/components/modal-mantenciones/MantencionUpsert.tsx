@@ -131,7 +131,7 @@ export default function MantencionUpsertModal(props: Props) {
     return (
         <div
             className={clsx(
-                "fixed inset-0 z-50 grid place-items-center p-4 bg-black/40",
+                "fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-3 sm:grid sm:place-items-center sm:p-4",
                 saving && "cursor-wait"
             )}
             onClick={() => {
@@ -141,15 +141,22 @@ export default function MantencionUpsertModal(props: Props) {
         >
             <div
                 className={clsx(
-                    "relative w-full max-w-4xl rounded-3xl border border-cyan-200 bg-white shadow-xl overflow-hidden",
+                    "relative w-full max-w-4xl max-h-[94vh] overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-xl",
                     saving && "opacity-95"
                 )}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-4 border-b border-cyan-200 bg-gradient-to-r from-cyan-50 to-indigo-50 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900">
-                        {editing ? "Editar mantención" : "Nueva mantención"}
-                    </h3>
+                <div className="flex flex-col gap-3 border-b border-cyan-200 bg-gradient-to-r from-cyan-50 to-indigo-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-slate-900 sm:text-xl">
+                            {editing ? "Editar mantención" : "Nueva mantención"}
+                        </h3>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                            {editing
+                                ? "Modifica los datos y guarda para actualizar la mantención."
+                                : "Completa los datos y guarda para registrar una nueva mantención."}
+                        </p>
+                    </div>
 
                     <button
                         onClick={() => {
@@ -158,8 +165,8 @@ export default function MantencionUpsertModal(props: Props) {
                         }}
                         disabled={!canClose}
                         className={clsx(
-                            "rounded-xl border border-cyan-200 bg-white px-3 py-1.5 text-sm text-cyan-800 hover:bg-cyan-50",
-                            !canClose && "opacity-50 cursor-not-allowed"
+                            "w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-cyan-800 hover:bg-cyan-50 sm:w-auto sm:py-1.5",
+                            !canClose && "cursor-not-allowed opacity-50"
                         )}
                     >
                         Cerrar
@@ -168,24 +175,23 @@ export default function MantencionUpsertModal(props: Props) {
 
                 <div
                     className={clsx(
-                        "p-5",
+                        "max-h-[calc(94vh-140px)] overflow-y-auto p-4 sm:p-5",
                         (saving || isBlocked) && "pointer-events-none select-none"
                     )}
                 >
                     {err && (
-                        <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-sm">
+                        <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                             {err}
                         </div>
                     )}
 
                     {isBlocked && (
-                        <div className="mb-3 rounded-2xl border border-yellow-200 bg-yellow-50 text-yellow-700 px-3 py-2 text-sm">
-                            ⚠️ Esta mantención está en curso y no puede ser editada hasta que
-                            se complete.
+                        <div className="mb-3 rounded-2xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-700">
+                            ⚠️ Esta mantención está en curso y no puede ser editada hasta que se complete.
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
                         {!isCliente && (
                             <div className="md:col-span-6">
                                 <label className="text-xs text-slate-600">Empresa</label>
@@ -198,7 +204,7 @@ export default function MantencionUpsertModal(props: Props) {
                                             solicitanteId: "",
                                         }))
                                     }
-                                    className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                                    className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                 >
                                     <option value="">Selecciona empresa</option>
                                     {filters?.empresas?.map((emp) => (
@@ -216,9 +222,7 @@ export default function MantencionUpsertModal(props: Props) {
                             {isCliente ? (
                                 <input
                                     value={
-                                        filters?.tecnicos?.find(
-                                            (t) => t.id === Number(form.tecnicoId)
-                                        )?.nombre ||
+                                        filters?.tecnicos?.find((t) => t.id === Number(form.tecnicoId))?.nombre ||
                                         user.nombre ||
                                         user.email ||
                                         (form.tecnicoId ? `#${form.tecnicoId}` : "No detectado")
@@ -235,7 +239,7 @@ export default function MantencionUpsertModal(props: Props) {
                                             tecnicoId: parseNumberOrEmpty(e.target.value),
                                         }))
                                     }
-                                    className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                                    className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                 >
                                     <option value="">Selecciona técnico</option>
                                     {filters?.tecnicos?.map((t) => (
@@ -252,10 +256,8 @@ export default function MantencionUpsertModal(props: Props) {
                             <input
                                 type="datetime-local"
                                 value={form.fin}
-                                onChange={(e) =>
-                                    setForm((p) => ({ ...p, fin: e.target.value }))
-                                }
-                                className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                                onChange={(e) => setForm((p) => ({ ...p, fin: e.target.value }))}
+                                className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                             />
                         </div>
 
@@ -269,7 +271,7 @@ export default function MantencionUpsertModal(props: Props) {
                                         status: (e.target.value as MantencionStatus) || "COMPLETADA",
                                     }))
                                 }
-                                className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                                className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                             >
                                 {STATUS.map((s) => (
                                     <option key={s} value={s}>
@@ -280,23 +282,19 @@ export default function MantencionUpsertModal(props: Props) {
                         </div>
 
                         <div className="md:col-span-12">
-                            <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-                                <div className="flex-1">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                                <div className="min-w-0">
                                     <label className="text-xs text-slate-600">Solicitante</label>
                                     <select
                                         disabled={!isCliente && form.empresaId === ""}
-                                        value={
-                                            form.solicitanteId === ""
-                                                ? ""
-                                                : String(form.solicitanteId)
-                                        }
+                                        value={form.solicitanteId === "" ? "" : String(form.solicitanteId)}
                                         onChange={(e) =>
                                             setForm((p) => ({
                                                 ...p,
                                                 solicitanteId: parseNumberOrEmpty(e.target.value),
                                             }))
                                         }
-                                        className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm disabled:opacity-50"
+                                        className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                     >
                                         <option value="">
                                             {!isCliente && form.empresaId === ""
@@ -320,14 +318,14 @@ export default function MantencionUpsertModal(props: Props) {
                                     )}
                                 </div>
 
-                                <div className="sm:w-64">
+                                <div>
                                     <label className="text-xs text-slate-600">Buscar</label>
                                     <input
                                         value={solSearch}
                                         onChange={(e) => setSolSearch(e.target.value)}
                                         placeholder="Buscar solicitante…"
                                         disabled={!isCliente && form.empresaId === ""}
-                                        className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm disabled:opacity-50"
+                                        className="mt-1 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                     />
                                 </div>
                             </div>
@@ -335,16 +333,15 @@ export default function MantencionUpsertModal(props: Props) {
 
                         <div className="md:col-span-12">
                             <div className="mt-2 rounded-2xl border border-cyan-200 bg-white p-4">
-                                <h4 className="text-sm font-semibold text-slate-900 mb-3">
-                                    Checklist
-                                </h4>
+                                <h4 className="mb-3 text-sm font-semibold text-slate-900">Checklist</h4>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                     {FLAGS.map((f) => (
                                         <label
                                             key={String(f.key)}
-                                            className="flex items-center gap-2 text-sm text-slate-700"
+                                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                                         >
+                                            <span>{f.label}</span>
                                             <input
                                                 type="checkbox"
                                                 checked={!!form[f.key]}
@@ -356,13 +353,12 @@ export default function MantencionUpsertModal(props: Props) {
                                                 }
                                                 className="h-4 w-4"
                                             />
-                                            {f.label}
                                         </label>
                                     ))}
                                 </div>
 
-                                <div className="mt-3">
-                                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
                                         <input
                                             type="checkbox"
                                             checked={!!form.otros}
@@ -384,7 +380,7 @@ export default function MantencionUpsertModal(props: Props) {
                                                 }))
                                             }
                                             rows={3}
-                                            className="mt-2 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm"
+                                            className="mt-2 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                             placeholder="Detalle otros..."
                                         />
                                     )}
@@ -393,13 +389,13 @@ export default function MantencionUpsertModal(props: Props) {
                         </div>
                     </div>
 
-                    <div className="mt-5 flex flex-col sm:flex-row gap-2 justify-end">
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
                         <button
                             onClick={onClose}
                             disabled={!canClose}
                             className={clsx(
-                                "rounded-2xl border border-cyan-200 bg-white px-4 py-2 text-sm text-cyan-800 hover:bg-cyan-50",
-                                !canClose && "opacity-50 cursor-not-allowed"
+                                "w-full rounded-2xl border border-cyan-200 bg-white px-4 py-2 text-sm text-cyan-800 hover:bg-cyan-50 sm:w-auto",
+                                !canClose && "cursor-not-allowed opacity-50"
                             )}
                         >
                             Cancelar
@@ -409,11 +405,11 @@ export default function MantencionUpsertModal(props: Props) {
                             onClick={onSubmit}
                             disabled={saving || isBlocked}
                             className={clsx(
-                                "rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-cyan-600 to-indigo-600 hover:brightness-110",
-                                (saving || isBlocked) && "opacity-50 cursor-not-allowed"
+                                "w-full rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 px-4 py-2 text-sm font-medium text-white hover:brightness-110 sm:w-auto",
+                                (saving || isBlocked) && "cursor-not-allowed opacity-50"
                             )}
                         >
-                            <span className="inline-flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center gap-2">
                                 {saving && <Spinner />}
                                 {editing
                                     ? saving

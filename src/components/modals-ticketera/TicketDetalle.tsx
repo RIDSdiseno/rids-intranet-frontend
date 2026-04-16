@@ -67,6 +67,10 @@ type TicketDetail = {
     requester?: { nombre: string; email?: string };
     assignee?: { id_tecnico: number; nombre: string; email?: string };
     messages: TicketMessage[];
+    replyRecipients?: {
+        to: string[];
+        cc: string[];
+    };
     sla?: {
         firstResponse?: {
             dueAt?: string;
@@ -90,8 +94,6 @@ const TICKET_STATUS_LABEL: Record<string, string> = {
     NEW: "Nuevo",
     OPEN: "Abierto",
     PENDING: "Pendiente",
-    ON_HOLD: "En espera",
-    RESOLVED: "Resuelto",
     CLOSED: "Cerrado",
 };
 
@@ -358,6 +360,7 @@ export default function TicketDetailPage() {
 
     const [showReplyPanel, setShowReplyPanel] = useState(false);
 
+
     const debounce = (fn: any, delay: number) => {
         let timer: any;
         return (...args: any[]) => {
@@ -431,10 +434,30 @@ export default function TicketDetailPage() {
             const uniqueEmails = (emails: Array<string | null | undefined>) =>
                 [...new Set(emails.map(normalizeEmail).filter(Boolean) as string[])];
 
-            setToEmails(uniqueEmails([ticket.requester?.email, ticket.fromEmail]));
+            setToEmails(
+                uniqueEmails(
+                    ticket.replyRecipients?.to?.length
+                        ? ticket.replyRecipients.to
+                        : [ticket.requester?.email, ticket.fromEmail]
+                )
+            );
 
-            const lastMsg = ticket.messages?.[0];
-            setCcEmails(uniqueEmails(lastMsg?.cc ? lastMsg.cc : []));
+            const nextCc = uniqueEmails(
+                ticket.replyRecipients?.cc?.length
+                    ? ticket.replyRecipients.cc
+                    : []
+            );
+
+            setCcEmails(nextCc);
+            setShowCc(nextCc.length > 0);
+
+            setCcEmails(
+                uniqueEmails(
+                    ticket.replyRecipients?.cc?.length
+                        ? ticket.replyRecipients.cc
+                        : []
+                )
+            );
 
             setReplyText(`Estimado(a) ${ticket.requester?.nombre ?? ""},
                 \n\nGracias por contactarnos.\n\nQuedamos atentos a su respuesta.
@@ -802,8 +825,9 @@ export default function TicketDetailPage() {
                             </div>
 
                             {showReplyPanel && (
-                                <div className="px-6 pb-4">
+                                <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
                                     <Tabs
+                                        className="h-full"
                                         items={[
                                             {
                                                 key: "reply",
@@ -813,8 +837,8 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="space-y-3">
-                                                        <div>
+                                                    <div className="flex h-full min-h-0 flex-col gap-3">
+                                                        <div className="shrink-0">
                                                             <div className="flex justify-between items-center mb-1">
                                                                 <span className="text-xs text-gray-500">Para:</span>
                                                                 {!showCc && (
@@ -838,41 +862,43 @@ export default function TicketDetailPage() {
                                                                 }))}
                                                                 style={{ width: "100%" }}
                                                             />
+
+                                                            {showCc && (
+                                                                <div className="mt-3">
+                                                                    <span className="text-xs text-gray-500">CC:</span>
+                                                                    <Select
+                                                                        mode="tags"
+                                                                        showSearch
+                                                                        placeholder="Agregar CC"
+                                                                        value={ccEmails}
+                                                                        onChange={setCcEmails}
+                                                                        onSearch={debouncedSearchContactos}
+                                                                        loading={loadingContactos}
+                                                                        options={contactos.map((c) => ({
+                                                                            label: `${c.nombre} (${c.email})`,
+                                                                            value: c.email,
+                                                                        }))}
+                                                                        style={{ width: "100%" }}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
 
-                                                        {showCc && (
-                                                            <div>
-                                                                <span className="text-xs text-gray-500">CC:</span>
-                                                                <Select
-                                                                    mode="tags"
-                                                                    showSearch
-                                                                    placeholder="Agregar CC"
-                                                                    value={ccEmails}
-                                                                    onChange={setCcEmails}
-                                                                    onSearch={debouncedSearchContactos}
-                                                                    loading={loadingContactos}
-                                                                    options={contactos.map((c) => ({
-                                                                        label: `${c.nombre} (${c.email})`,
-                                                                        value: c.email,
-                                                                    }))}
-                                                                    style={{ width: "100%" }}
-                                                                />
-                                                            </div>
-                                                        )}
+                                                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                                            <Input.TextArea
+                                                                value={replyText}
+                                                                onChange={(e) => setReplyText(e.target.value)}
+                                                                placeholder="Escribe tu respuesta al cliente..."
+                                                                autoSize={false}
+                                                                style={{
+                                                                    height: "clamp(150px, 40vh, 400px)",
+                                                                    minHeight: "150px",
+                                                                    resize: "vertical",
+                                                                }}
+                                                            />
+                                                        </div>
 
-                                                        <Input.TextArea
-                                                            value={replyText}
-                                                            onChange={(e) => setReplyText(e.target.value)}
-                                                            placeholder="Escribe tu respuesta al cliente..."
-                                                            autoSize={false}
-                                                            style={{
-                                                                height: "450px",        // ← altura fija que sí funciona
-                                                                minHeight: "400px",     // ← evita que Ant Design la reduzca
-                                                                resize: "vertical",     // ← permite al agente ajustarla manualmente
-                                                            }}
-                                                        />
-
-                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -933,23 +959,63 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="space-y-3">
-                                                        <Input.TextArea
-                                                            value={internalNoteText}
-                                                            onChange={(e) => setInternalNoteText(e.target.value)}
-                                                            placeholder="Nota interna visible solo para agentes..."
-                                                            className="resize-none bg-amber-50 border-amber-200"
-                                                            autoSize={false}
-                                                            rows={10}
-                                                        />
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-xs text-gray-400 flex items-center gap-1">
-                                                                <EyeInvisibleOutlined /> Solo visible para agentes
-                                                            </span>
+                                                    <div className="flex h-full min-h-0 flex-col gap-3">
+                                                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                                            <Input.TextArea
+                                                                value={internalNoteText}
+                                                                onChange={(e) => setInternalNoteText(e.target.value)}
+                                                                placeholder="Escribe una nota interna (no visible para el cliente)..."
+                                                                autoSize={false}
+                                                                style={{
+                                                                    height: "clamp(150px, 40vh, 400px)",
+                                                                    minHeight: "150px",
+                                                                    resize: "vertical",
+                                                                    background: "#fffbeb", // fondo amarillo suave para distinguirla
+                                                                }}
+                                                            />
+                                                        </div>
+
+                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
+                                                            <input
+                                                                ref={replyFileInputRef}
+                                                                type="file"
+                                                                multiple
+                                                                hidden
+                                                                onChange={(e) => {
+                                                                    const files = e.target.files;
+                                                                    if (!files?.length) return;
+                                                                    setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                    e.target.value = "";
+                                                                }}
+                                                            />
+
                                                             <Button
+                                                                icon={<PaperClipOutlined />}
+                                                                size="small"
+                                                                onClick={() => replyFileInputRef.current?.click()}
+                                                            >
+                                                                Adjuntar
+                                                            </Button>
+
+                                                            {replyFiles.map((file, i) => (
+                                                                <Tag
+                                                                    key={i}
+                                                                    closable
+                                                                    onClose={() =>
+                                                                        setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
+                                                                    }
+                                                                >
+                                                                    {file.name}
+                                                                </Tag>
+                                                            ))}
+
+                                                            <Button
+                                                                type="primary"
                                                                 loading={sendingReply}
-                                                                onClick={() => responderTicket(true)}
-                                                                icon={<EditOutlined />}
+                                                                onClick={() => responderTicket(true)}  // ← true = interna
+                                                                icon={<EyeInvisibleOutlined />}
+                                                                className="ml-auto"
+                                                                style={{ background: "#d97706" }} // color ámbar para distinguirla
                                                             >
                                                                 Guardar nota
                                                             </Button>
@@ -1023,7 +1089,6 @@ export default function TicketDetailPage() {
                                                 { value: "NEW", label: "Nuevo" },
                                                 { value: "OPEN", label: "Abierto" },
                                                 { value: "PENDING", label: "Pendiente" },
-                                                { value: "RESOLVED", label: "Resuelto" },
                                                 { value: "CLOSED", label: "Cerrado" },
                                             ]}
                                             style={{ width: "100%" }}
@@ -1073,7 +1138,7 @@ export default function TicketDetailPage() {
                                 <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
                                     <div className="font-semibold text-sm text-gray-800 mb-3">SLA</div>
 
-                                    <div className="space-y-3">
+                                    <div className="flex h-full min-h-0 flex-col gap-3">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
                                                 <div className="text-xs text-gray-400 mb-0.5">SLA 1ª respuesta</div>

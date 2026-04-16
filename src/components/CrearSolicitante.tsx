@@ -19,6 +19,7 @@ type CreatedSolicitante = {
   id_solicitante: number;
   nombre: string;
   email: string | null;
+  telefono: string | null;
   empresaId: number;
   empresa?: { id_empresa: number; nombre: string };
 };
@@ -117,6 +118,7 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
   // Form state
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState<string>("");
+  const [telefono, setTelefono] = useState<string>("");
   const [empresaId, setEmpresaId] = useState<string>(
     defaultEmpresaId ? String(defaultEmpresaId) : ""
   );
@@ -251,6 +253,7 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
       const body = {
         nombre: nombre.trim(),
         email: email.trim() ? email.trim() : null,
+        telefono: telefono.trim() ? telefono.trim() : null,
         empresaId: Number(empresaId),
       };
 
@@ -288,6 +291,7 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
       // Reset si es standalone
       setNombre("");
       setEmail("");
+      setTelefono("");
       setEmpresaId(defaultEmpresaId ? String(defaultEmpresaId) : "");
       setSearch("");
       setDropdownOpen(false);
@@ -329,9 +333,9 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
   };
 
   const tokens = useMemo(() => tokenize(searchDebounced), [searchDebounced]);
-  
+
   // Determinar si el formulario es válido para enviar, basado en validaciones individuales y global
-  return ( 
+  return (
     <div
       ref={containerRef}
       className="relative w-full max-w-2xl mx-auto rounded-3xl border border-cyan-200/60 bg-white/80 backdrop-blur-xl shadow-[0_16px_50px_-20px_rgba(14,165,233,0.45)] overflow-hidden"
@@ -444,10 +448,10 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
                 {loadingEmpresas
                   ? "Cargando empresas…"
                   : searchDebounced.trim()
-                  ? empresasFiltradas.length > 0
-                    ? `Resultados: ${empresasFiltradas.length}`
-                    : "Sin resultados"
-                  : `Total empresas: ${empresas.length}`}
+                    ? empresasFiltradas.length > 0
+                      ? `Resultados: ${empresasFiltradas.length}`
+                      : "Sin resultados"
+                    : `Total empresas: ${empresas.length}`}
               </div>
 
               <div className="max-h-60 overflow-auto">
@@ -587,6 +591,23 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
           {emailError && (
             <p className="mt-1 text-xs text-rose-600">{emailError}</p>
           )}
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Teléfono
+            </label>
+            <span className="text-xs text-slate-400">(opcional)</span>
+          </div>
+          <input
+            type="text"
+            placeholder="+56 9 1234 5678"
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            disabled={submitting}
+            className="w-full px-3 py-2.5 rounded-2xl border text-sm bg-white border-cyan-200 focus:border-cyan-400 focus:ring-cyan-500/30 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 transition"
+          />
         </div>
 
         {/* Footer acciones */}

@@ -1,24 +1,25 @@
-// HelpdeskLayout.tsx
 import { Outlet, useLocation, useNavigate, matchPath } from "react-router-dom";
 import { Tabs } from "antd";
 import {
     CustomerServiceOutlined,
     DashboardOutlined,
+    BarChartOutlined,
     SettingOutlined,
 } from "@ant-design/icons";
 
-// Componente de layout para el centro de soporte, que muestra una barra de navegación con pestañas para acceder a la lista de tickets, el dashboard de métricas, y la configuración de plantillas de correo. Utiliza React Router para renderizar el contenido correspondiente según la ruta, y muestra un diseño limpio y organizado con Ant Design.
 export default function HelpdeskLayout() {
     const navigate = useNavigate();
     const location = useLocation();
 
     const isTicketDetail = !!matchPath("/helpdesk/tickets/:id", location.pathname);
 
-    const activeKey = location.pathname.startsWith("/helpdesk/dashboard")
-        ? "dashboard"
-        : location.pathname.startsWith("/helpdesk/email-templates")
-            ? "templates"
-            : "tickets";
+    const activeKey = location.pathname.startsWith("/helpdesk/tickets-dashboard")
+        ? "tickets-dashboard"
+        : location.pathname.startsWith("/helpdesk/dashboard")
+            ? "dashboard"
+            : location.pathname.startsWith("/helpdesk/email-templates")
+                ? "templates"
+                : "tickets";
 
     const items = [
         {
@@ -35,7 +36,16 @@ export default function HelpdeskLayout() {
             label: (
                 <span className="flex items-center gap-2">
                     <DashboardOutlined />
-                    Dashboard
+                    Dashboard técnicos
+                </span>
+            ),
+        },
+        {
+            key: "tickets-dashboard",
+            label: (
+                <span className="flex items-center gap-2">
+                    <BarChartOutlined />  {/* ← diferente al de técnicos */}
+                    Dashboard empresas
                 </span>
             ),
         },
@@ -78,6 +88,7 @@ export default function HelpdeskLayout() {
                                 onChange={(key) => {
                                     if (key === "tickets") navigate("/helpdesk");
                                     if (key === "dashboard") navigate("/helpdesk/dashboard");
+                                    if (key === "tickets-dashboard") navigate("/helpdesk/tickets-dashboard");
                                     if (key === "templates") navigate("/helpdesk/email-templates");
                                 }}
                                 items={items}

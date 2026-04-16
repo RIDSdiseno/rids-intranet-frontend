@@ -83,15 +83,15 @@ export default function MantencionDetailsModal(props: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/40"
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-3 sm:grid sm:place-items-center sm:p-4"
             onClick={onClose}
         >
             <div
-                className="w-full max-w-3xl rounded-3xl border border-cyan-200 bg-white shadow-xl overflow-hidden"
+               className="w-full max-w-3xl max-h-[94vh] overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-4 border-b border-cyan-200 bg-gradient-to-r from-indigo-50 to-cyan-50 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 border-b border-cyan-200 bg-gradient-to-r from-indigo-50 to-cyan-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <h3 className="text-lg font-bold text-slate-900">Detalles</h3>
                         {details?.status && <StatusBadge status={details.status} />}
                     </div>
@@ -104,7 +104,7 @@ export default function MantencionDetailsModal(props: Props) {
                     </button>
                 </div>
 
-                <div className="p-5">
+                <div className="max-h-[calc(94vh-140px)] overflow-y-auto p-4 sm:p-5">
                     {state === "loading" && (
                         <div className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
                             <div className="h-4 w-40 bg-cyan-50 rounded mb-3" />

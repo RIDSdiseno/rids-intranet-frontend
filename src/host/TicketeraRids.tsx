@@ -1,5 +1,5 @@
 // Este archivo contiene el componente principal de la ticketera, con la lista de tickets, filtros, resumen y acciones masivas.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import {
     Card,
     Tag,
@@ -82,7 +82,7 @@ type Ticket = {
 };
 
 type Empresa = { id_empresa: number; nombre: string };
-type SolicitanteOption = { value: number; label: string };
+type SolicitanteOption = { value: number; label: string; email?: string | null };
 type Tecnico = {
     id_tecnico: number;
     nombre: string;
@@ -122,8 +122,6 @@ const TICKET_STATUS_LABEL: Record<string, string> = {
     NEW: "Nuevo",
     OPEN: "Abierto",
     PENDING: "Pendiente",
-    ON_HOLD: "En espera",
-    RESOLVED: "Resuelto",
     CLOSED: "Cerrado",
 };
 
@@ -319,6 +317,7 @@ export default function TicketeraRids() {
         assigneeId: undefined as number | undefined,
     });
 
+    const ignoreNextSocketReload = useRef(false);
 
     // Funciones auxiliares
     function formatRelativeTime(date: string | Date) {
@@ -373,8 +372,13 @@ export default function TicketeraRids() {
             onClick: () => navigate("/helpdesk/dashboard"),
         },
         {
-            key: "email-templates",
-            label: "Plantillas de correo",
+            key: "tickets-dashboard",
+            label: "Dashboard de tickets",
+            onClick: () => navigate("/helpdesk/tickets-dashboard"),
+        },
+        {
+            key: "config",
+            label: "Configuración",
             onClick: () => navigate("/helpdesk/email-templates"),
         },
     ];
@@ -505,13 +509,13 @@ export default function TicketeraRids() {
 
     // Cuando se selecciona una empresa, cargamos sus solicitantes para el filtro y el formulario de creación de tickets
     const loadSolicitantes = async (empresaId: number) => {
-        const { data } = await api.get(
-            `/solicitantes/by-empresa?empresaId=${empresaId}`
-        );
+        const { data } = await api.get(`/solicitantes/by-empresa?empresaId=${empresaId}`);
+
         setSolicitantes(
             (data?.items ?? []).map((s: any) => ({
                 value: s.id,
-                label: s.nombre,
+                label: s.email ? `${s.nombre} (${s.email})` : s.nombre,
+                email: s.email ?? null,
             }))
         );
     };
@@ -569,7 +573,7 @@ export default function TicketeraRids() {
             return;
         }
 
-        if (["OPEN", "PENDING", "RESOLVED", "CLOSED"].includes(activeTab)) {
+        if (["NEW", "OPEN", "PENDING", "CLOSED"].includes(activeTab)) {
             setStatusFilter(activeTab);
         }
     }, [activeTab]);
@@ -591,8 +595,11 @@ export default function TicketeraRids() {
     // Manejadores para eventos de socket relacionados con tickets: creación, respuesta del solicitante y cambio de estado. Cada uno muestra una notificación y recarga la lista de tickets y el resumen de SLA.
     useEffect(() => {
         const onTicketCreated = (payload: any) => {
+            if (ignoreNextSocketReload.current) {
+                ignoreNextSocketReload.current = false;
+                return;
+            }
             setNewTicketsCount((prev) => prev + 1);
-
             notification.info({
                 message: "Nuevo ticket recibido",
                 description: payload?.subject
@@ -601,12 +608,15 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
-
             loadTickets();
             loadSla();
         };
 
         const onCustomerReplied = (payload: any) => {
+            if (ignoreNextSocketReload.current) {
+                ignoreNextSocketReload.current = false;
+                return;
+            }
             notification.warning({
                 message: "Nueva respuesta del solicitante",
                 description: payload?.subject
@@ -615,15 +625,17 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
-
             loadTickets();
             loadSla();
         };
 
         const onStatusChanged = (payload: any) => {
+            if (ignoreNextSocketReload.current) {
+                ignoreNextSocketReload.current = false;
+                return;
+            }
             const newStatusLabel =
                 STATUS_LABELS[payload?.newStatus] || payload?.newStatus || "Actualizado";
-
             notification.success({
                 message: "Estado actualizado",
                 description: payload?.subject
@@ -632,7 +644,6 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
-
             loadTickets();
             loadSla();
         };
@@ -771,17 +782,20 @@ export default function TicketeraRids() {
 
     const confirmDelete = async () => {
         if (!ticketToDelete) return;
-
         try {
             setDeletingTicket(true);
+
+            // 🆕 Ignorar el próximo evento de socket
+            ignoreNextSocketReload.current = true;
+
             await api.delete(`/helpdesk/tickets/${ticketToDelete}`);
             message.success("Ticket eliminado correctamente");
             setDeleteModalOpen(false);
-            //  Eliminar del estado local inmediatamente
             setTickets(prev => prev.filter(t => t.id !== ticketToDelete));
             setTicketToDelete(null);
         } catch {
             message.error("No se pudo eliminar el ticket");
+            ignoreNextSocketReload.current = false; // reset si falla
         } finally {
             setDeletingTicket(false);
         }
@@ -805,15 +819,22 @@ export default function TicketeraRids() {
 
     const handleCloseTicket = async (ticketId: number) => {
         try {
-            await api.patch(`/helpdesk/tickets/${ticketId}`, { status: "CLOSED" });
             setTickets(prev =>
                 prev.map(t =>
                     t.id === ticketId ? { ...t, status: "CLOSED" } : t
                 )
             );
+
+            await api.patch(`/helpdesk/tickets/${ticketId}`, { status: "CLOSED" });
+
             message.success("Ticket cerrado correctamente");
+
+            await loadTickets();
+            await loadSla();
         } catch {
             message.error("No se pudo cerrar el ticket");
+            await loadTickets();
+            await loadSla();
         }
     };
 
@@ -1040,7 +1061,7 @@ export default function TicketeraRids() {
 
                             <Col span={6}>
                                 <SlaCard
-                                    title="SLA 1ra respuesta"
+                                    title="SLA global 1ra respuesta"
                                     icon={<ClockCircleOutlined className="text-xl" />}
                                     compliance={slaSummary?.firstResponse?.compliance ?? 0}
                                     breached={slaSummary?.firstResponse?.breached ?? 0}
@@ -1054,7 +1075,7 @@ export default function TicketeraRids() {
 
                             <Col span={6}>
                                 <SlaCard
-                                    title="SLA cierre"
+                                    title="SLA global cierre"
                                     icon={<CheckCircleOutlined className="text-xl" />}
                                     compliance={slaSummary?.resolution?.compliance ?? 0}
                                     breached={slaSummary?.resolution?.breached ?? 0}
@@ -1075,10 +1096,10 @@ export default function TicketeraRids() {
                                 Urgentes: {tickets.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length}
                             </Tag>
                             <Tag color={getSlaStatus(slaSummary?.firstResponse?.compliance ?? 0).color}>
-                                SLA 1ra resp: {slaSummary?.firstResponse?.compliance ?? 0}%
+                                SLA global 1ra resp: {slaSummary?.firstResponse?.compliance ?? 0}%
                             </Tag>
                             <Tag color={getSlaStatus(slaSummary?.resolution?.compliance ?? 0).color}>
-                                SLA cierre: {slaSummary?.resolution?.compliance ?? 0}%
+                                SLA global cierre: {slaSummary?.resolution?.compliance ?? 0}%
                             </Tag>
                         </div>
                     )}
@@ -1111,7 +1132,6 @@ export default function TicketeraRids() {
                                         { value: "NEW", label: "Nuevo" },
                                         { value: "OPEN", label: "Abierto" },
                                         { value: "PENDING", label: "Pendiente" },
-                                        { value: "RESOLVED", label: "Resuelto" },
                                         { value: "CLOSED", label: "Cerrado" },
                                     ]}
                                 />
@@ -1199,6 +1219,13 @@ export default function TicketeraRids() {
                         </Button>
                     </Badge>
 
+                    {/*  Agregar esto */}
+                    <Badge count={getTicketCount("PENDING")}>
+                        <Button type={activeTab === "PENDING" ? "primary" : "default"} onClick={() => setActiveTab("PENDING")}>
+                            Pendientes
+                        </Button>
+                    </Badge>
+
                     <Badge count={getTicketCount("CLOSED")}>
                         <Button type={activeTab === "CLOSED" ? "primary" : "default"} onClick={() => setActiveTab("CLOSED")}>
                             Cerrados
@@ -1249,7 +1276,7 @@ export default function TicketeraRids() {
                         />
                         <span className="text-sm text-gray-500">Seleccionar visibles</span>
                     </div>
-                    
+
                     {loading ? (
                         <div className="py-16 flex justify-center">
                             <Spin size="large" />

@@ -23,8 +23,10 @@ const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const HelpdeskLayout = lazy(() => import("../src/components/modals-ticketera/HelpdeskLayout"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
 const DashboardTecnicosdPage = lazy(() => import("../src/components/modals-ticketera/DashboardTecnicos"));
-const TicketEmailTemplatesPage = lazy(() => import("../src/components/modals-ticketera/reply-templates/TicketEmailTemplate"));
+const TicketEmailTemplatesPage = lazy(() => import("../src/components/modals-ticketera/config-ticktes/reply-templates/TicketEmailTemplate"));
 const TicketeraDetalle = lazy(() => import("../src/components/modals-ticketera/TicketDetalle"));
+const TicketsDashboardPage = lazy(() => import("./components/modals-ticketera/dashboard-tickets/ticketDashboard"));
+const HelpdeskConfigPage = lazy(() => import("./components/modals-ticketera/config-ticktes/reply-templates/tickets-config"));
 
 const MantencionesRemotasPage = lazy(() => import("./host/MantencionesRemotasPage"));
 const AgendaPage = lazy(() => import("./host/AgendaPage"));
@@ -35,7 +37,7 @@ const ForgotPasswordPage = lazy(() => import("./host/ForgotPassword"));
 const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 
 /* =========================
-   Auth
+   Auth helpers
 ========================= */
 
 function isAuthed(): boolean {
@@ -46,9 +48,40 @@ function isAuthed(): boolean {
   );
 }
 
+function getUserRol(): string | null {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? (JSON.parse(raw)?.rol ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/* =========================
+   Guards
+========================= */
+
+// Verifica que el usuario esté autenticado
 function ProtectedRoute() {
   if (!isAuthed()) return <Navigate to="/login" replace />;
   return <Outlet />;
+}
+
+// Verifica que el usuario tenga uno de los roles permitidos
+// Si no tiene el rol, redirige a /home
+function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
+  const rol = getUserRol();
+  if (!rol || !allowedRoles.includes(rol)) {
+    return <Navigate to="/home" replace />;
+  }
+  return <Outlet />;
+}
+
+// Cambia el redirect raíz según el rol
+function getRootRedirect(): string {
+  const rol = getUserRol();
+  if (rol === "CLIENTE") return "/empresas";
+  return "/home";
 }
 
 /* =========================
@@ -76,7 +109,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* LOGIN */}
+
+        {/* ===== RUTAS PÚBLICAS ===== */}
         <Route
           path="/login"
           element={
@@ -85,7 +119,6 @@ export default function App() {
             </Suspense>
           }
         />
-
         <Route
           path="/forgot-password"
           element={
@@ -94,7 +127,6 @@ export default function App() {
             </Suspense>
           }
         />
-
         <Route
           path="/reset-password"
           element={
@@ -104,43 +136,53 @@ export default function App() {
           }
         />
 
-        {/* PROTEGIDO */}
+        <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
+
+        {/* ===== RUTAS PROTEGIDAS (requieren login) ===== */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
+
             <Route path="/" element={<Navigate to="/home" replace />} />
 
-            <Route path="/home" element={<HomePage />} />
-            <Route path="/solicitantes" element={<SolicitantesPage />} />
-            <Route path="/visitas" element={<VisitasPage />} />
-            <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
-            <Route path="/equipos" element={<EquiposPage />} />
-            <Route path="/tickets" element={<TicketsPage />} />
+            {/* Accesibles por TODOS los roles */}
             <Route path="/empresas" element={<EmpresasPage />} />
+            <Route path="/solicitantes" element={<SolicitantesPage />} />
+            <Route path="/equipos" element={<EquiposPage />} />
+            <Route path="/visitas" element={<VisitasPage />} />
             <Route path="/reportes" element={<ReportesPage />} />
-            <Route path="/documentos" element={<DocumentosPage />} />
-            <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
-            <Route path="/Cotizaciones" element={<CotizacionesPage />} />
-            <Route path="/clientes" element={<ClientesPage />} />
-            <Route path="/productos" element={<ProductosPage />} />
 
-            {/* HELPDESK */}
-            <Route path="/helpdesk" element={<HelpdeskLayout />}>
-              <Route index element={<TicketeraRids />} />
-              <Route path="dashboard" element={<DashboardTecnicosdPage />} />
-              <Route path="email-templates" element={<TicketEmailTemplatesPage />} />
-              <Route path="tickets/:id" element={<TicketeraDetalle />} />
+            {/* Solo TECNICO y ADMIN */}
+            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/tecnicos" element={<TecnicosPage />} />
+              <Route path="/agenda" element={<AgendaPage />} />
+              <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
+              <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+              <Route path="/Cotizaciones" element={<CotizacionesPage />} />
+              <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/productos" element={<ProductosPage />} />
+              <Route path="/documentos" element={<DocumentosPage />} />
+              <Route path="/tickets" element={<TicketsPage />} />
+
+              {/* Helpdesk completo solo para TECNICO/ADMIN */}
+              <Route path="/helpdesk" element={<HelpdeskLayout />}>
+                <Route index element={<TicketeraRids />} />
+                <Route path="dashboard" element={<DashboardTecnicosdPage />} />
+                <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
+                <Route path="tickets/:id" element={<TicketeraDetalle />} />
+                <Route path="email-templates" element={<HelpdeskConfigPage />} />
+              </Route>
             </Route>
 
-            <Route path="/agenda" element={<AgendaPage />} />
-            <Route path="/tecnicos" element={<TecnicosPage />} />
           </Route>
         </Route>
 
-        {/* fallback */}
+        {/* Fallback */}
         <Route
           path="*"
-          element={<Navigate to={isAuthed() ? "/home" : "/login"} replace />}
+          element={<Navigate to={isAuthed() ? getRootRedirect() : "/login"} replace />}
         />
+
       </Routes>
     </BrowserRouter>
   );

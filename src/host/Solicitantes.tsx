@@ -38,6 +38,7 @@ export type SolicitanteRow = {
   id_solicitante: number;
   nombre: string;
   email: string | null;
+  telefono: string | null;
   empresaId: number | null;
   empresa: Empresa | null;
   equipos: Equipo[];
@@ -103,6 +104,7 @@ async function apiListSolicitantes(params: ListParams, signal?: AbortSignal): Pr
   });
   return data;
 }
+
 async function apiMetrics(params: { q?: string; empresaId?: number | null }) {
   const { data } = await api.get<{ solicitantes: number; empresas: number; equipos: number }>(
     "/solicitantes/metrics",
@@ -110,21 +112,25 @@ async function apiMetrics(params: { q?: string; empresaId?: number | null }) {
   );
   return data;
 }
+
 async function apiCreateSolicitante(payload: {
   nombre: string;
   email?: string | null;
+  telefono?: string | null;
   empresaId: number;
 }) {
   const { data } = await api.post<SolicitanteRow>("/solicitantes", payload);
   return data;
 }
+
 async function apiUpdateSolicitante(
   id: number,
-  payload: Partial<{ nombre: string; email: string | null; empresaId: number }>
+  payload: Partial<{ nombre: string; email: string | null; telefono: string | null; empresaId: number }>
 ) {
   const { data } = await api.patch<SolicitanteRow>(`/solicitantes/${id}`, payload);
   return data;
 }
+
 async function apiDeleteSolicitante(
   id: number,
   opts: { transferToId?: number; fallback?: "null" | "sa" } = {}
@@ -137,6 +143,7 @@ async function apiDeleteSolicitante(
   });
   return data;
 }
+
 async function apiGetSolicitante(id: number, includeMsDetails: boolean): Promise<SolicitanteRow> {
   const { data } = await api.get<SolicitanteRow>(`/solicitantes/${id}`, {
     params: { includeMsDetails },
@@ -325,8 +332,18 @@ const TWModal: React.FC<TWModalProps> = ({
 };
 
 // ========= Estado de upsert =========
-type UpsertState = { nombre: string; email: string | null; empresaId: number | null };
-const emptyUpsert: UpsertState = { nombre: "", email: null, empresaId: null };
+type UpsertState = {
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  empresaId: number | null;
+};
+const emptyUpsert: UpsertState = {
+  nombre: "",
+  email: null,
+  telefono: null,
+  empresaId: null,
+};
 
 function useUpsert(initial?: Partial<UpsertState>) {
   const [v, setV] = useState<UpsertState>({ ...emptyUpsert, ...(initial ?? {}) });
@@ -355,6 +372,8 @@ export default function SolicitantesPage() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState(q);
   const { user, isCliente } = useAuth();
+
+  const canManage = !isCliente;
 
   const [empresaId, setEmpresaId] = useState<number | null>(() => {
     if (isCliente && user?.empresaId) {
@@ -566,6 +585,7 @@ export default function SolicitantesPage() {
 
   // Crear / Editar
   const openCreate = () => {
+    if (!canManage) return;
     setCreating(true);
     setCreateErrors({});
     createForm.setV({ ...emptyUpsert, empresaId: empresaId ?? null });
@@ -585,6 +605,7 @@ export default function SolicitantesPage() {
       await apiCreateSolicitante({
         nombre: createForm.v.nombre.trim(),
         email: createForm.v.email ? createForm.v.email.trim() : null,
+        telefono: createForm.v.telefono ? createForm.v.telefono.trim() : null,
         empresaId: createForm.v.empresaId!,
       });
       setCreating(false);
@@ -599,9 +620,15 @@ export default function SolicitantesPage() {
 
   // Abrir modal de edición con datos cargados
   const openEdit = (row: SolicitanteRow) => {
+    if (!canManage) return;
     setEditing(row);
     setEditErrors({});
-    editForm.setV({ nombre: row.nombre, email: row.email ?? null, empresaId: row.empresaId });
+    editForm.setV({
+      nombre: row.nombre,
+      email: row.email ?? null,
+      telefono: row.telefono ?? null,
+      empresaId: row.empresaId,
+    });
   };
 
   const editInvalid = useMemo(() => {
@@ -619,6 +646,7 @@ export default function SolicitantesPage() {
       await apiUpdateSolicitante(editing.id_solicitante, {
         nombre: editForm.v.nombre.trim(),
         email: editForm.v.email ? editForm.v.email.trim() : null,
+        telefono: editForm.v.telefono ? editForm.v.telefono.trim() : null,
         empresaId: editForm.v.empresaId!,
       });
       setEditing(null);
@@ -632,6 +660,7 @@ export default function SolicitantesPage() {
   };
 
   const removeRow = async (row: SolicitanteRow) => {
+    if (!canManage) return;
     if (!confirm(`Eliminar a "${row.nombre}"?`)) return;
     try {
       await apiDeleteSolicitante(row.id_solicitante, { fallback: "sa" });
@@ -877,43 +906,49 @@ export default function SolicitantesPage() {
                   <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
                 </button>
 
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-emerald-600 to-cyan-600 px-3 py-2.5 text-sm font-medium text-white hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px] shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]"
-                  onClick={openCreate}
-                  title="Nuevo solicitante"
-                >
-                  <PlusOutlined /> <span className="hidden sm:inline">Nuevo</span>
-                </button>
+                {!isCliente && (
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-emerald-600 to-cyan-600 px-3 py-2.5 text-sm font-medium text-white hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px] shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]"
+                    onClick={openCreate}
+                    title="Nuevo solicitante"
+                  >
+                    <PlusOutlined /> <span className="hidden sm:inline">Nuevo</span>
+                  </button>
+                )}
 
                 {/* Botón Google con estética Googley */}
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
-                    syncing
-                      ? "bg-gradient-to-tr from-[#A8C7FA] to-[#81C995] cursor-wait"
-                      : "bg-gradient-to-tr from-[#34A853] to-[#4285F4] hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(66,133,244,0.45)]"
-                  )}
-                  onClick={openSyncGoogle}
-                  disabled={syncing}
-                  title="Actualizar cuentas desde Google Workspace"
-                >
-                  <GoogleOutlined /> <span className="hidden sm:inline">Actualizar Google</span>
-                </button>
+                {!isCliente && (
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
+                      syncing
+                        ? "bg-gradient-to-tr from-[#A8C7FA] to-[#81C995] cursor-wait"
+                        : "bg-gradient-to-tr from-[#34A853] to-[#4285F4] hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(66,133,244,0.45)]"
+                    )}
+                    onClick={openSyncGoogle}
+                    disabled={syncing}
+                    title="Actualizar cuentas desde Google Workspace"
+                  >
+                    <GoogleOutlined /> <span className="hidden sm:inline">Actualizar Google</span>
+                  </button>
+                )}
 
                 {/* Botón Microsoft con estética Windows */}
-                <button
-                  className={clsx(
-                    "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
-                    syncingMs
-                      ? "bg-gradient-to-tr from-blue-400 to-blue-500 cursor-wait"
-                      : "bg-gradient-to-tr from-blue-700 to-blue-600 hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]"
-                  )}
-                  onClick={openSyncMicrosoft}
-                  disabled={syncingMs}
-                  title="Actualizar cuentas desde Microsoft 365"
-                >
-                  <WindowsOutlined /> <span className="hidden sm:inline">Actualizar Microsoft</span>
-                </button>
+                {!isCliente && (
+                  <button
+                    className={clsx(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white transition w-full min-w-[120px]",
+                      syncingMs
+                        ? "bg-gradient-to-tr from-blue-400 to-blue-500 cursor-wait"
+                        : "bg-gradient-to-tr from-blue-700 to-blue-600 hover:brightness-110 active:scale-[0.98] shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]"
+                    )}
+                    onClick={openSyncMicrosoft}
+                    disabled={syncingMs}
+                    title="Actualizar cuentas desde Microsoft 365"
+                  >
+                    <WindowsOutlined /> <span className="hidden sm:inline">Actualizar Microsoft</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -999,6 +1034,10 @@ export default function SolicitantesPage() {
 
                     <p className="text-sm text-slate-700 mt-2">
                       <span className="text-slate-500">Email:</span> {r.email ?? "—"}
+                    </p>
+
+                    <p className="text-sm text-slate-700 mt-1">
+                      <span className="text-slate-500">Teléfono:</span> {r.telefono ?? "—"}
                     </p>
 
                     <div className="mt-3 flex items-center gap-2">
@@ -1112,6 +1151,7 @@ export default function SolicitantesPage() {
                             {r.nombre}
                           </button>
                           <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
+                          <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
                         </td>
                         <td className="px-4 py-3">
                           {r.empresa?.nombre ? (
@@ -1250,6 +1290,19 @@ export default function SolicitantesPage() {
           />
           {createErrors.email && <div className="mt-1 text-xs text-rose-600">{createErrors.email}</div>}
         </label>
+
+        <label className="block text-sm">
+          Teléfono
+          <input
+            className="mt-1 w-full rounded-xl border px-3 py-2"
+            value={createForm.v.telefono ?? ""}
+            onChange={(e) => {
+              const v = { ...createForm.v, telefono: e.target.value || null };
+              createForm.setV(v);
+            }}
+          />
+        </label>
+        
         <label className="block text-sm">
           Empresa
           <select
@@ -1301,7 +1354,7 @@ export default function SolicitantesPage() {
           />
           {editErrors.nombre && <div className="mt-1 text-xs text-rose-600">{editErrors.nombre}</div>}
         </label>
-        
+
         <label className="block text-sm">
           Email
           <input
@@ -1317,6 +1370,18 @@ export default function SolicitantesPage() {
             }}
           />
           {editErrors.email && <div className="mt-1 text-xs text-rose-600">{editErrors.email}</div>}
+        </label>
+
+        <label className="block text-sm">
+          Teléfono
+          <input
+            className="mt-1 w-full rounded-xl border px-3 py-2"
+            value={editForm.v.telefono ?? ""}
+            onChange={(e) => {
+              const v = { ...editForm.v, telefono: e.target.value || null };
+              editForm.setV(v);
+            }}
+          />
         </label>
 
         <label className="block text-sm">

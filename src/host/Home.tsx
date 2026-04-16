@@ -189,14 +189,16 @@ const CustomTooltip: FC<TooltipProps> = ({ active, label, payload }) => {
         <div className="mt-2 text-xs">
           <div className="mb-1 font-medium text-neutral-600">Por empresa</div>
           <ul className="space-y-1">
-            {empresas.slice(0, 8).map((e) => (
+            {empresas.slice(0, 5).map((e) => (
               <li key={e.empresaId} className="flex items-center justify-between gap-4">
                 <span className="truncate text-neutral-700">{e.empresa}</span>
                 <span className="font-semibold text-neutral-900">{e.cantidad}</span>
               </li>
             ))}
-            {empresas.length > 8 && (
-              <li className="text-[11px] text-neutral-500 mt-1">+{empresas.length - 8} empresas más…</li>
+            {empresas.length > 5 && (
+              <li className="mt-1 text-[11px] text-neutral-500">
+                +{empresas.length - 5} empresas más…
+              </li>
             )}
           </ul>
         </div>
@@ -626,196 +628,212 @@ const Home: FC = () => {
 
   // Renderizamos el dashboard principal con las estadísticas generales, los gráficos de distribución y la lista de empresas. Incluimos animaciones suaves al cargar los datos y al interactuar con los elementos. También mostramos botones para refrescar los datos y crear nuevas empresas, y adaptamos la información mostrada según el rol del usuario (cliente o admin).
   return (
-    <div className="py-2 px-4 sm:px-6 lg:px-8">
-      <br />
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800">Dashboard de Estadísticas</h1>
-        <p className="mt-2 text-slate-600">Resumen general de la actividad y soporte de RIDS.</p>
-      </motion.div>
+    <div className="mx-auto w-full max-w-screen-2xl px-3 py-4 sm:px-6 lg:px-8">
+      <div className="space-y-5 sm:space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="space-y-1"
+        >
+          <h1 className="text-lg sm:text-2xl font-extrabold leading-tight text-slate-800">
+            Dashboard de Estadísticas
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600">
+            Resumen general de la actividad y soporte de RIDS.
+          </p>
+        </motion.div>
 
-      {/* Cards */}
-      <div className="mt-4 grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        {computedStats.map((stat, idx) => (
-          <motion.div
-            key={stat.name}
-            className="bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100 relative overflow-hidden"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: idx * 0.08 }}
-            whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
-          >
-            <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-cyan-100/40 blur-2xl" />
-            <div className="flex items-start justify-between">
-              <div className="text-slate-600 font-medium">{stat.name}</div>
-              <div className="flex items-center gap-2">
-                {stat.icon}
-                {isRefreshableStat(stat) && (
-                  <button
-                    onClick={stat.onRefresh}
-                    className={`ml-1 rounded-full p-1.5 transition text-cyan-700 hover:bg-cyan-100 disabled:opacity-50 disabled:cursor-not-allowed ${stat.isLoading ? "animate-spin" : ""
-                      }`}
-                    title="Actualizar"
-                    aria-label={`Actualizar ${stat.name}`}
-                    disabled={stat.isLoading}
-                  >
-                    <ReloadOutlined className="text-sm" />
-                  </button>
-                )}
+        {/* Cards */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+          {computedStats.map((stat, idx) => (
+            <motion.div
+              key={stat.name}
+              className="bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100 relative overflow-hidden"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: idx * 0.08 }}
+              whileHover={{ scale: 1.03, boxShadow: "0 12px 24px rgba(0,0,0,.12)" }}
+            >
+              <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-cyan-100/40 blur-2xl" />
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-slate-600 sm:text-base">
+                    {stat.name}
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  {stat.icon}
+                  {isRefreshableStat(stat) && (
+                    <button
+                      onClick={stat.onRefresh}
+                      className={`rounded-full p-1.5 text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 ${stat.isLoading ? "animate-spin" : ""
+                        }`}
+                      title="Actualizar"
+                      aria-label={`Actualizar ${stat.name}`}
+                      disabled={stat.isLoading}
+                    >
+                      <ReloadOutlined className="text-sm" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="mt-2 text-xl sm:text-2xl font-bold text-slate-800">{stat.value}</div>
-            <div className="text-sm text-slate-500 mt-1">{stat.change}</div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Gráfico principal */}
-      <motion.div
-        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.5 }}
-      >
-        <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
-          <h2 className="text-base sm:text-lg font-bold text-slate-800">Visitas del mes por técnico</h2>
-          <button
-            onClick={() => fetchVisitasMetrics()}
-            className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${loadingVis ? "animate-spin" : ""
-              }`}
-            title="Actualizar"
-            aria-label="Actualizar visitas"
-            disabled={loadingVis}
-          >
-            {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
-          </button>
+              <div className="mt-2 text-xl font-bold text-slate-800 sm:text-2xl break-words">
+                {stat.value}
+              </div>
+              <div className="mt-1 text-xs text-slate-500 sm:text-sm break-words">
+                {stat.change}
+              </div>
+            </motion.div>
+          ))}
         </div>
 
-        <div className="h-64 sm:h-72">
-          {loadingVis ? (
-            <div className="h-full flex items-center justify-center text-neutral-500" role="status" aria-live="polite">
+        {/* Gráfico principal */}
+        <motion.div
+          className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+        >
+          <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">Visitas del mes por técnico</h2>
+            <button
+              onClick={() => fetchVisitasMetrics()}
+              className={`inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-200 px-3 py-2 text-xs text-cyan-700 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${loadingVis ? "animate-spin" : ""
+                }`}
+              title="Actualizar"
+              aria-label="Actualizar visitas"
+              disabled={loadingVis}
+            >
+              {loadingVis ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
+            </button>
+          </div>
+
+          <div className="h-[280px] sm:h-72">
+            {loadingVis ? (
+              <div className="h-full flex items-center justify-center text-neutral-500" role="status" aria-live="polite">
+                <LoadingOutlined /> &nbsp; Cargando…
+              </div>
+            ) : visitasByTech.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-neutral-400">
+                No hay visitas registradas en el rango ({from} → {to})
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={visitasByTech}
+                  margin={{ top: 8, right: 8, left: 8, bottom: isMobile ? 24 : 12 }}
+                  barCategoryGap={isMobile ? "20%" : "10%"}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="tecnico"
+                    height={isMobile ? 54 : 46}
+                    interval={isMobile ? "preserveStartEnd" : 0}
+                    minTickGap={isMobile ? 4 : 8}
+                    tickMargin={isMobile ? 6 : 10}
+                    tick={(props) => <ResponsiveTick {...props} isMobile={isMobile} isTablet={isTablet} />}
+                  />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip content={(props) => <CustomTooltip {...props} />} />
+                  <Bar dataKey="cantidad">
+                    {visitasByTech.map((row) => (
+                      <Cell key={row.tecnicoId} fill={colorForTech(row.tecnicoId, row.tecnico)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="mt-2 text-xs text-neutral-500">
+            Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
+          </div>
+        </motion.div>
+        <motion.div
+          className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.6 }}
+        >
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">
+              Top técnicos por tickets resueltos
+            </h2>
+
+            <button
+              onClick={() => fetchTecnicosMetrics()}
+              className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${loadingTecnicosMetrics ? "animate-spin" : ""
+                }`}
+              disabled={loadingTecnicosMetrics}
+            >
+              {loadingTecnicosMetrics ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
+            </button>
+          </div>
+
+          {loadingTecnicosMetrics ? (
+            <div className="py-10 text-neutral-500 flex items-center justify-center">
               <LoadingOutlined /> &nbsp; Cargando…
             </div>
-          ) : visitasByTech.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-neutral-400">
-              No hay visitas registradas en el rango ({from} → {to})
-            </div>
+          ) : errorTecnicosMetrics ? (
+            <div className="py-6 text-red-600">{errorTecnicosMetrics}</div>
+          ) : topTecnicosHelpdesk.length === 0 ? (
+            <div className="py-6 text-neutral-400">No hay métricas de técnicos disponibles.</div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={visitasByTech}
-                margin={{ top: 8, right: 8, left: 8, bottom: isMobile ? 24 : 12 }}
-                barCategoryGap={isMobile ? "20%" : "10%"}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="tecnico"
-                  height={isMobile ? 54 : 46}
-                  interval={isMobile ? "preserveStartEnd" : 0}
-                  minTickGap={isMobile ? 4 : 8}
-                  tickMargin={isMobile ? 6 : 10}
-                  tick={(props) => <ResponsiveTick {...props} isMobile={isMobile} isTablet={isTablet} />}
-                />
-                <YAxis allowDecimals={false} />
-                <Tooltip content={(props) => <CustomTooltip {...props} />} />
-                <Bar dataKey="cantidad">
-                  {visitasByTech.map((row) => (
-                    <Cell key={row.tecnicoId} fill={colorForTech(row.tecnicoId, row.tecnico)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {topTecnicosHelpdesk.map((t, index) => (
+                <div
+                  key={t.tecnicoId}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="text-sm text-slate-500">#{index + 1}</div>
+                      <div className="text-base font-semibold text-slate-800">{t.nombre}</div>
+                      <div className="text-xs text-slate-500">{t.email || "Sin email"}</div>
+                    </div>
+
+                    <div className="rounded-full bg-cyan-100 text-cyan-800 text-xs font-semibold px-3 py-1">
+                      {t.closedTickets} cerrados
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">SLA 1ra respuesta</span>
+                      <span className="font-semibold text-slate-800">
+                        {t.firstResponse.compliance}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">SLA cierre</span>
+                      <span className="font-semibold text-slate-800">
+                        {t.resolution.compliance}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Tiempo prom. 1ra respuesta</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMinutes(t.avgFirstResponseMinutes)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Tiempo prom. creación → cierre</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMinutes(t.avgResolutionMinutes)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
-
-        <div className="mt-2 text-xs text-neutral-500">
-          Rango: <span className="font-medium">{from}</span> a <span className="font-medium">{to}</span>
-        </div>
-      </motion.div>
-      <motion.div
-        className="mt-5 sm:mt-6 bg-white rounded-xl shadow-md p-3 sm:p-4 border border-slate-100"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.6 }}
-      >
-        <div className="flex items-center justify-between mb-4 gap-2">
-          <h2 className="text-base sm:text-lg font-bold text-slate-800">
-            Top técnicos por tickets resueltos
-          </h2>
-
-          <button
-            onClick={() => fetchTecnicosMetrics()}
-            className={`inline-flex items-center gap-2 rounded-lg border border-cyan-200 text-cyan-700 px-3 py-1.5 text-xs hover:bg-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed ${loadingTecnicosMetrics ? "animate-spin" : ""
-              }`}
-            disabled={loadingTecnicosMetrics}
-          >
-            {loadingTecnicosMetrics ? <LoadingOutlined /> : <ReloadOutlined />} Refrescar
-          </button>
-        </div>
-
-        {loadingTecnicosMetrics ? (
-          <div className="py-10 text-neutral-500 flex items-center justify-center">
-            <LoadingOutlined /> &nbsp; Cargando…
-          </div>
-        ) : errorTecnicosMetrics ? (
-          <div className="py-6 text-red-600">{errorTecnicosMetrics}</div>
-        ) : topTecnicosHelpdesk.length === 0 ? (
-          <div className="py-6 text-neutral-400">No hay métricas de técnicos disponibles.</div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {topTecnicosHelpdesk.map((t, index) => (
-              <div
-                key={t.tecnicoId}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <div className="text-sm text-slate-500">#{index + 1}</div>
-                    <div className="text-base font-semibold text-slate-800">{t.nombre}</div>
-                    <div className="text-xs text-slate-500">{t.email || "Sin email"}</div>
-                  </div>
-
-                  <div className="rounded-full bg-cyan-100 text-cyan-800 text-xs font-semibold px-3 py-1">
-                    {t.closedTickets} cerrados
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">SLA 1ra respuesta</span>
-                    <span className="font-semibold text-slate-800">
-                      {t.firstResponse.compliance}%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">SLA cierre</span>
-                    <span className="font-semibold text-slate-800">
-                      {t.resolution.compliance}%
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Tiempo prom. 1ra respuesta</span>
-                    <span className="font-semibold text-slate-800">
-                      {formatMinutes(t.avgFirstResponseMinutes)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Tiempo prom. creación → cierre</span>
-                    <span className="font-semibold text-slate-800">
-                      {formatMinutes(t.avgResolutionMinutes)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-      <br />
-      <br />
-      <br />
+        </motion.div>
+      </div>
     </div>
   );
 };

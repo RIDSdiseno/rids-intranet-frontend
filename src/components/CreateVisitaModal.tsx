@@ -467,20 +467,20 @@ export default function CreateVisitaModal({
 
   // Helper para convertir ISO UTC a formato local para inputs datetime-local
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:items-center sm:px-4">
       <div className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="relative w-full max-w-3xl rounded-3xl border border-cyan-100/60 bg-white/90 shadow-2xl shadow-cyan-200/30 ring-1 ring-cyan-100 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-3xl max-h-[94vh] overflow-hidden rounded-3xl border border-cyan-100/60 bg-white/90 shadow-2xl shadow-cyan-200/30 ring-1 ring-cyan-100 animate-in fade-in zoom-in-95 duration-200">
         <form onSubmit={handleSubmit}>
-          <header className="px-6 py-4 border-b border-cyan-100/60 bg-gradient-to-r from-cyan-50/60 to-white rounded-t-3xl">
-            <h2 className="text-xl font-extrabold tracking-tight text-neutral-900">
+          <header className="rounded-t-3xl border-b border-cyan-100/60 bg-gradient-to-r from-cyan-50/60 to-white px-4 py-4 sm:px-6">
+            <h2 className="text-lg font-extrabold tracking-tight text-neutral-900 sm:text-xl">
               {mode === "edit" ? "Editar visita" : "Nueva visita"}
             </h2>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs leading-relaxed text-neutral-500">
               {mode === "edit" ? "Modifica los datos y guarda para actualizar el registro." : "Completa los datos y guarda para crear el registro (puedes agregar varios solicitantes)."}
             </p>
           </header>
 
-          <div className="p-6 space-y-6 md:max-h-[75vh] overflow-auto">
+          <div className="max-h-[calc(94vh-140px)] overflow-y-auto p-4 space-y-5 sm:p-6 sm:space-y-6">
             {error && (
               <div className="rounded-xl border border-rose-200 bg-rose-50/80 text-rose-800 px-3 py-2 text-sm animate-in fade-in duration-150">
                 {error}

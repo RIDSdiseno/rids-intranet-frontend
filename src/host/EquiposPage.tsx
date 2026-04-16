@@ -911,12 +911,12 @@ const EquiposPage: React.FC = () => {
 
   /* =================== UI =================== */
   const headerCols = [
-    { key: "serial", label: "Serial", className: "min-w-[180px]" },
-    { key: "marca", label: "Marca", className: "min-w-[160px]" },
-    { key: "modelo", label: "Modelo", className: "min-w-[200px]" },
-    { key: "solicitante", label: "Solicitante", className: "min-w-[200px]" },
-    { key: "empresa", label: "Empresa", className: "min-w-[140px]" },
-    { key: "createdAt", label: "Fecha ingreso", className: "min-w-[150px]" },
+    { key: "serial", label: "Serial", className: "min-w-[120px]" },
+    { key: "marca", label: "Marca", className: "min-w-[100px]" },
+    { key: "modelo", label: "Modelo", className: "min-w-[120px]" },
+    { key: "solicitante", label: "Solicitante", className: "min-w-[120px]" },
+    { key: "empresa", label: "Empresa", className: "min-w-[100px]" },
+    { key: "createdAt", label: "Fecha ingreso", className: "min-w-[110px]" },
   ] as const;
 
   // Para formatear fechas en la tabla
@@ -1356,7 +1356,8 @@ const EquiposPage: React.FC = () => {
 
         {/* Tabla (desktop) */}
         <section
-          className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
+          className="hidden md:block rounded-3xl border border-cyan-200 bg-white mt-4"
+          style={{ overflowX: "auto" }}
           aria-live="polite"
           aria-busy={loading ? "true" : "false"}
         >
@@ -1364,7 +1365,7 @@ const EquiposPage: React.FC = () => {
             {(() => {
               const colsWithActions = headerCols.length + 1;
               return (
-                <table className="min-w-full text-[13px] sm:text-sm">
+                <table className="w-full text-[13px] sm:text-sm" style={{ minWidth: "900px" }}>
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200">
                       {headerCols.map((col, i) => (

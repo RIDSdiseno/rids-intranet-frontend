@@ -22,7 +22,7 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
 }) => {
     const [generating, setGenerating] = useState(false);
     const [mostrarTotales, setMostrarTotales] = useState(true);
-    
+
     // Función principal para generar el PDF, con opción de vista previa o descarga directa
     const handleGenerarPDF = async (previewMode = false) => {
         if (!cotizacion) return;
@@ -56,7 +56,7 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
     };
 
     if (!cotizacion) return null;
-    
+
     // =========================
     // FUNCIONES AUXILIARES
     // =========================
@@ -247,7 +247,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
         if (limpio.length <= maxCaracteres) return limpio;
         return limpio.substring(0, maxCaracteres).trimEnd() + "...";
     };
-    
+
     const calcularLineaItem = (item: any) => {
         const precio = Number(item.precio) || 0;
         const cantidad = Number(item.cantidad) || 0;
@@ -293,6 +293,32 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
            <th style="padding:8px;text-align:left; border:1px solid #dee2e6;">Nombre</th>
            <th style="padding:8px;text-align:center; border:1px solid #dee2e6;">Cant.</th>`;
 
+    const buildEquipoDetalle = (item: any) => {
+        if (!item.equipo) return "";
+
+        const partes: string[] = [];
+
+        if (item.equipo.serial) {
+            partes.push(`<b>Serial:</b> ${item.equipo.serial}`);
+        }
+
+        if (item.equipo.marca) {
+            partes.push(`<b>Marca:</b> ${item.equipo.marca}`);
+        }
+
+        if (item.equipo.modelo) {
+            partes.push(`<b>Modelo:</b> ${item.equipo.modelo}`);
+        }
+
+        if (partes.length === 0) return "";
+
+        return `
+        <div style="margin-top:4px; font-size:9px; color:#1f2937; line-height:1.4; background:#f8fafc; border:1px solid #e5e7eb; border-radius:6px; padding:6px;">
+            ${partes.join(" · ")}
+        </div>
+    `;
+    };
+
     const buildItemRow = (item: any, valores: ReturnType<typeof calcularLineaItem>) => {
         if (mostrarTotales) {
             return `
@@ -301,6 +327,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
     <td style="padding:8px;text-align:left;vertical-align:top;">
         <div style="font-weight:600;font-size:11px;margin-bottom:3px;">${item.nombre}</div>
         ${item.descripcion ? `<div style="font-size:9px;color:#666;line-height:1.4;">${truncarTexto(item.descripcion, 250)}</div>` : ""}
+        ${buildEquipoDetalle(item)}
     </td>
     <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(Number(item.precio) || 0)}</td>
     <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
@@ -309,16 +336,6 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
     <td style="padding:8px;text-align:center;vertical-align:top;">${valores.ivaPorcentajeMostrar}%</td>
     <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.ivaMonto)}</td>
     <td style="padding:8px;text-align:right;vertical-align:top;font-weight:bold;">${formatPDF(valores.totalItem)}</td>
-</tr>`;
-        } else {
-            return `
-<tr>
-    <td style="padding:8px;text-align:center;vertical-align:top;">${item.sku || ""}</td>
-    <td style="padding:8px;text-align:left;vertical-align:top;">
-        <div style="font-weight:600;font-size:11px;margin-bottom:3px;">${item.nombre}</div>
-        ${item.descripcion ? `<div style="font-size:9px;color:#666;line-height:1.4;">${truncarTexto(item.descripcion, 250)}</div>` : ""}
-    </td>
-    <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
 </tr>`;
         }
     };
@@ -544,7 +561,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 
     await Promise.all(imagePromises);
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     // Opciones avanzadas para mejorar la calidad y compatibilidad
     const canvas = await html2canvas(container, {
         scale: 2,
@@ -564,7 +581,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
             });
         }
     });
-    
+
     // ================================
     // CREAR PDF CON JSPDF
     // ================================

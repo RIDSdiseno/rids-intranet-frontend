@@ -13,6 +13,7 @@ import {
     CloseCircleOutlined,
     EditOutlined,
     SwapOutlined,
+    FileTextOutlined
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 

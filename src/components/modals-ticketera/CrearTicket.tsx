@@ -3,7 +3,7 @@ import { PaperClipOutlined } from "@ant-design/icons";
 
 interface Empresa { id_empresa: number; nombre: string; }
 
-interface SolicitanteOption { value: number; label: string; }
+interface SolicitanteOption { value: number; label: string; email?: string | null }
 
 interface Tecnico {
     id_tecnico: number;
@@ -123,11 +123,7 @@ export function CrearTicketDrawer({
                         options={solicitantes}
                         value={form.requesterId}
                         onChange={(v) =>
-                            onFormChange({
-                                ...form,
-                                requesterId: v,
-                                fromEmail: "",
-                            })
+                            onFormChange({ ...form, requesterId: v, fromEmail: "" })
                         }
                     />
                     <div className="mt-3">
