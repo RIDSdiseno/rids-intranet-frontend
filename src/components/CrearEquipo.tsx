@@ -11,7 +11,7 @@ import {
   Tag,
   Alert,
   InputNumber,
-  AutoComplete
+  AutoComplete,
 } from "antd";
 import {
   LoadingOutlined,
@@ -35,6 +35,13 @@ import {
 
 /* =================== Tipos =================== */
 type EmpresaOpt = { id: number; nombre: string };
+
+type EquipoAdicionalInput = {
+  tipo: string;
+  descripcion?: string | null;
+  cantidad: number;
+  serialAdicional?: string | null;
+};
 
 // Añade esto cerca de tus otros tipos en el archivo
 type EquipoLite = { empresaId: number | null; empresa: string | null };
@@ -117,6 +124,8 @@ type CreateEquipoPayload = {
   passwordEmpresa?: string;
   usuarioPersonal?: string;
   passwordPersonal?: string;
+
+  adicionales?: EquipoAdicionalInput[];
 };
 
 type CrearEquipoModalProps = {
@@ -247,6 +256,19 @@ function getModelosPorMarca(marca: string): readonly string[] {
   const key = marca.toUpperCase() as keyof typeof MODELOS_POR_MARCA;
   return MODELOS_POR_MARCA[key] ?? [];
 }
+
+const ADICIONAL_TIPOS = [
+  { value: "MONITOR", label: "Monitor" },
+  { value: "CARGADOR", label: "Cargador" },
+  { value: "MOUSE", label: "Mouse" },
+  { value: "TECLADO", label: "Teclado" },
+  { value: "DOCKING", label: "Docking" },
+  { value: "ADAPTADOR", label: "Adaptador" },
+  { value: "BOLSO", label: "Bolso" },
+  { value: "UPS", label: "UPS" },
+  { value: "AURICULARES", label: "Auriculares" },
+  { value: "OTRO", label: "Otro" },
+] as const;
 
 /* =================== Componente =================== */
 const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
@@ -410,6 +432,15 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         passwordEmpresa: values.passwordEmpresa,
         usuarioPersonal: values.usuarioPersonal,
         passwordPersonal: values.passwordPersonal,
+
+        adicionales: (values.adicionales ?? [])
+          .filter((a: EquipoAdicionalInput) => !!a?.tipo?.trim())
+          .map((a: EquipoAdicionalInput) => ({
+            tipo: a.tipo.trim(),
+            descripcion: a.descripcion?.trim() || null,
+            cantidad: Number(a.cantidad) > 0 ? Number(a.cantidad) : 1,
+            serialAdicional: a.serialAdicional?.trim() || null,
+          })),
       };
 
       const resp = await postEquipo(payload);
@@ -495,7 +526,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const stepEmpresaDone = !!empresaId;
   const stepSolicDone =
     stepEmpresaDone && open && form.getFieldValue("idSolicitante") !== undefined;
-  
+
   // Determinar si el formulario es válido para enviar, basado en validaciones individuales y globales
   return (
     <Modal
@@ -620,7 +651,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             )}
           </AnimatePresence>
         </div>
-        
+
         <Form
           form={form}
           layout="vertical"
@@ -1047,6 +1078,78 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   <Input.Password allowClear placeholder="Contraseña cuenta personal" />
                 </Form.Item>
               </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
+                Adicionales
+              </div>
+
+              <Form.List name="adicionales" initialValue={[]}>
+                {(fields, { add, remove }) => (
+                  <div className="space-y-3">
+                    {fields.map(({ key, name, ...restField }) => (
+                      <div
+                        key={key}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Form.Item
+                            {...restField}
+                            name={[name, "tipo"]}
+                            label="Tipo"
+                            rules={[{ required: true, message: "Selecciona el tipo" }]}
+                          >
+                            <Select
+                              placeholder="Selecciona un tipo"
+                              options={ADICIONAL_TIPOS.map((item) => ({
+                                value: item.value,
+                                label: item.label,
+                              }))}
+                            />
+                          </Form.Item>
+
+                          <Form.Item
+                            {...restField}
+                            name={[name, "cantidad"]}
+                            label="Cantidad"
+                            initialValue={1}
+                            rules={[{ required: true, message: "Ingresa la cantidad" }]}
+                          >
+                            <InputNumber min={1} className="w-full" />
+                          </Form.Item>
+
+                          <Form.Item
+                            {...restField}
+                            name={[name, "descripcion"]}
+                            label="Descripción"
+                          >
+                            <Input allowClear placeholder="Ej: Samsung 24 pulgadas" />
+                          </Form.Item>
+
+                          <Form.Item
+                            {...restField}
+                            name={[name, "serialAdicional"]}
+                            label="Serial adicional"
+                          >
+                            <Input allowClear placeholder="Opcional" />
+                          </Form.Item>
+                        </div>
+
+                        <div className="mt-2 flex justify-end">
+                          <Button danger onClick={() => remove(name)}>
+                            Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ cantidad: 1 })}>
+                      Agregar adicional
+                    </Button>
+                  </div>
+                )}
+              </Form.List>
             </div>
           </motion.div>
 

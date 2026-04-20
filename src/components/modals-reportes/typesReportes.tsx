@@ -11,14 +11,6 @@ export interface Empresa {
   nombre: string;
 }
 
-export interface SolicitanteRow {
-  id_solicitante: number;
-  nombre: string;
-  email: string | null;
-  empresa?: { nombre: string } | null;
-  equipos?: unknown[];
-}
-
 export interface EquipoRow {
   id_equipo: number;
   serial?: string | null;
@@ -33,7 +25,7 @@ export interface EquipoRow {
 
 export interface VisitaRow {
   id_visita: number;
-  tecnico?: { nombre: string } | null;
+  tecnico?: { nombre?: string } | null;
   empresa?: { nombre: string } | null;
   solicitante?: string | null;
   solicitanteRef?: { nombre: string } | null;
@@ -58,7 +50,7 @@ export interface VisitaRow {
 
 export interface MantencionRemotaRow {
   id_mantencion: number;
-  tecnico?: { nombre: string } | null;
+  tecnico?: { nombre?: string } | null;
   inicio?: string | null;
   fin?: string | null;
   status?: string | null;
@@ -72,16 +64,45 @@ export interface TicketRow {
   subject: string;
   type: string | null;
   fecha: string;
+  createdAt?: string | null;
+  closedAt?: string | null;
+  resolvedAt?: string | null;
+  assigneeNombre?: string | null;
+  status?: string | null;
+}
+
+export type TicketMonthlyRow = {
+  id_empresa: number;
+  empresa: string;
+  mes: string;
+  total_tickets: number;
+  tickets_cerrados: number;
+  horas_cap8h: number;
+  pct_resueltos_8h: number;
+  tickets_complejos: number;
+  mediana_minutos: number;
+};
+
+export interface TicketDashboardMonthlyRow {
+  id_empresa: number;
+  empresa: string;
+  mes: string;
+  total_tickets: number;
+  tickets_cerrados: number;
+  horas_cap8h: number;
+  pct_resueltos_8h: number;
+  tickets_complejos: number;
+  mediana_minutos: number;
 }
 
 export interface TicketTimingExtras {
-  created_at?: string;
-  createdAt?: string;
-  closed_at?: string;
-  closedAt?: string;
-  resolved_at?: string;
-  resolvedAt?: string;
-  minutosResolucion?: number;
+  created_at?: string | null;
+  createdAt?: string | null;
+  closed_at?: string | null;
+  closedAt?: string | null;
+  resolved_at?: string | null;
+  resolvedAt?: string | null;
+  minutosResolucion?: number | null;
 }
 
 export type TicketLike = TicketRow & TicketTimingExtras;
@@ -103,6 +124,28 @@ export interface TicketsResp {
   totalPages?: number;
 }
 
+export interface TeamViewerMonthlyAverageRow {
+  id_empresa: number;
+  empresa: string;
+  promedio_sesiones_mes: number;
+  promedio_minutos_mes: number;
+}
+
+export interface TeamViewerMonthlyBreakdownRow {
+  id_empresa: number;
+  empresa: string;
+  mes: string;
+  sesiones_mes: number;
+  minutos_mes: number;
+}
+
+export interface TeamViewerMonthlySummary {
+  empresas: number;
+  totalSesiones: number;
+  totalMinutos: number;
+  totalHoras: number;
+}
+
 export interface ReporteGeneralData {
   solicitantes: SolicitanteRow[];
   equipos: EquipoRow[];
@@ -110,4 +153,31 @@ export interface ReporteGeneralData {
   tickets: TicketRow[];
   empresaFiltro?: string;
   mantencionesRemotas?: MantencionRemotaRow[];
+  ticketDashboardMonthly?: TicketDashboardMonthlyRow[];
+  teamViewerMonthlyAverages?: TeamViewerMonthlyAverageRow[];
+  teamViewerMonthlyBreakdown?: TeamViewerMonthlyBreakdownRow[];
+  teamViewerMonthlySummary?: TeamViewerMonthlySummary | null;
+}
+
+export interface SolicitanteRow {
+  id_solicitante: number;
+  nombre: string;
+  email: string | null;
+  isActive?: boolean | null;
+  empresa?: { nombre: string } | null;
+  equipos?: unknown[];
+}
+
+export interface HistorialReporteRow {
+  id: number;
+  empresaId?: number | null;
+  empresaNombre: string;
+  periodo: string;
+  tipo: string;
+  nombreArchivo: string;
+  urlArchivo?: string | null;
+  sharepointPath?: string | null;
+  generadoPor?: string | null;
+  estado: string;
+  createdAt: string;
 }

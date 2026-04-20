@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import CrearSolicitante from "../components/CrearSolicitante";
+import CrearSolicitante from "../CrearSolicitante";
 
 type ViteEnv = { env?: { VITE_API_URL?: string } };
 const API_URL =

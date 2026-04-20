@@ -9,6 +9,10 @@ import type {
   MantencionRemotaRow,
   TicketLike,
   ReporteGeneralData,
+  TicketDashboardMonthlyRow,
+  TeamViewerMonthlyAverageRow,
+  TeamViewerMonthlySummary,
+  TeamViewerMonthlyBreakdownRow
 } from "./typesReportes";
 
 import { http } from "../../service/http"
@@ -107,35 +111,97 @@ const fetchVisitas = async (empresaId: string): Promise<VisitaRow[]> => {
 };
 
 const fetchTickets = async (
-  empresaId: string,
-  empresas: Empresa[]
+  empresaId: string
 ): Promise<TicketRow[]> => {
-
   const all: TicketRow[] = [];
   let page = 1;
   let totalPages = 1;
 
-  const emp = empresas.find(e => e.id_empresa === Number(empresaId));
-
   do {
-
-    const { data } = await http.get("/tickets", {
+    const { data } = await http.get("/helpdesk/tickets", {
       params: {
         page,
         pageSize: 200,
-        empresa: emp?.nombre
-      }
+        empresaId,
+      },
     });
 
     totalPages =
-      data.totalPages ?? Math.max(1, Math.ceil(data.total / data.pageSize));
+      data.totalPages ??
+      Math.max(1, Math.ceil((data.total ?? 0) / (data.pageSize ?? 200)));
 
-    all.push(...(data.rows ?? []));
+    const rows = (data.tickets ?? []).map((t: any) => ({
+      ticket_id: String(t.id ?? t.publicId ?? ""),
+      solicitante_email: t.requester?.email ?? t.fromEmail ?? null,
+      empresa: t.empresa?.nombre ?? null,
+      subject: t.subject ?? "",
+      type: t.category ?? t.type ?? null,
+      fecha: t.createdAt ?? t.created_at ?? new Date().toISOString(),
+      createdAt: t.createdAt ?? null,
+      closedAt: t.closedAt ?? null,
+      resolvedAt: t.resolvedAt ?? null,
+      assigneeNombre: t.assignee?.nombre ?? null,
+      status: t.status ?? null,
+    }));
+
+    all.push(...rows);
     page++;
-
   } while (page <= totalPages);
 
   return all;
+};
+
+const fetchTicketDashboardMonthly = async (
+  empresaId: string,
+  selectedYear: string,
+  selectedMonth: string
+): Promise<TicketDashboardMonthlyRow[]> => {
+  const fromDate = new Date(Number(selectedYear), Number(selectedMonth) - 1, 1);
+  const toDate = new Date(Number(selectedYear), Number(selectedMonth), 0, 23, 59, 59, 999);
+
+  const { data } = await http.get("/helpdesk/tickets/dashboard-empresas/monthly", {
+    params: {
+      empresaId: Number(empresaId),
+      fromDate: fromDate.toISOString(),
+      toDate: toDate.toISOString(),
+    },
+  });
+
+  return data?.items ?? [];
+};
+
+const fetchTeamViewerMonthlyAverages = async (
+  fromDate?: string,
+  toDate?: string
+): Promise<{
+  items: TeamViewerMonthlyAverageRow[];
+  summary: TeamViewerMonthlySummary | null;
+}> => {
+  const { data } = await http.get("/teamviewer/monthly-averages", {
+    params: {
+      fromDate,
+      toDate,
+    },
+  });
+
+  return {
+    items: data?.items ?? [],
+    summary: data?.summary ?? null,
+  };
+};
+
+const fetchTeamViewerMonthlyBreakdown = async (
+  fromDate?: string,
+  toDate?: string
+): Promise<TeamViewerMonthlyBreakdownRow[]> => {
+  const { data } = await http.get("/teamviewer/monthly-breakdown", {
+    params: {
+      fromDate,
+      toDate,
+    },
+  });
+
+  return data?.items ?? [];
 };
 
 const fetchMantencionesRemotas = async (
@@ -205,20 +271,66 @@ export const useReportesData = () => {
       return { solicitantes: [], equipos: [], visitas: [], tickets: [] };
     }
 
-    const [solicitantes, equipos, visitas, tickets, mantencionesRemotas] =
-      await Promise.all([
-        fetchSolicitantes(empresaFiltro),
-        fetchEquipos(empresaFiltro),
-        fetchVisitas(empresaFiltro),
-        fetchTickets(empresaFiltro, empresas),
-        fetchMantencionesRemotas(empresaFiltro),
-      ]);
+    const fromDate = new Date(Number(selectedYear), Number(selectedMonth) - 1, 1).toISOString();
+    const toDate = new Date(Number(selectedYear), Number(selectedMonth), 0, 23, 59, 59, 999).toISOString();
+
+    const [
+      solicitantes,
+      equipos,
+      visitas,
+      tickets,
+      mantencionesRemotas,
+      ticketDashboardMonthly,
+      teamViewerAveragesResp,
+      teamViewerBreakdown,
+    ] = await Promise.all([
+      fetchSolicitantes(empresaFiltro),
+      fetchEquipos(empresaFiltro),
+      fetchVisitas(empresaFiltro),
+      fetchTickets(empresaFiltro),
+      fetchMantencionesRemotas(empresaFiltro),
+      fetchTicketDashboardMonthly(empresaFiltro, selectedYear, selectedMonth),
+      fetchTeamViewerMonthlyAverages(fromDate, toDate),
+      fetchTeamViewerMonthlyBreakdown(fromDate, toDate),
+    ]);
 
     const y = Number(selectedYear);
     const m = Number(selectedMonth);
 
+    const solicitantesActivos = solicitantes.filter((s) => s.isActive !== false);
+
+    const empresaIdNum = Number(empresaFiltro);
+
+    const teamViewerAveragesEmpresa = (teamViewerAveragesResp.items ?? []).filter(
+      (r) => Number(r.id_empresa) === empresaIdNum
+    );
+
+    const teamViewerBreakdownEmpresa = (teamViewerBreakdown ?? []).filter(
+      (r) => Number(r.id_empresa) === empresaIdNum
+    );
+
+    const teamViewerSummaryEmpresa = {
+      empresas: teamViewerAveragesEmpresa.length,
+      totalSesiones: teamViewerBreakdownEmpresa.reduce(
+        (acc, r) => acc + Number(r.sesiones_mes || 0),
+        0
+      ),
+      totalMinutos: teamViewerBreakdownEmpresa.reduce(
+        (acc, r) => acc + Number(r.minutos_mes || 0),
+        0
+      ),
+      totalHoras: Number(
+        (
+          teamViewerBreakdownEmpresa.reduce(
+            (acc, r) => acc + Number(r.minutos_mes || 0),
+            0
+          ) / 60
+        ).toFixed(1)
+      ),
+    };
+
     return {
-      solicitantes,
+      solicitantes: solicitantesActivos,
       equipos,
       visitas: visitas.filter((v) => isSameYearMonth(v.inicio ?? null, y, m)),
       tickets: tickets.filter((t) =>
@@ -228,8 +340,14 @@ export const useReportesData = () => {
       mantencionesRemotas: mantencionesRemotas.filter((mr) =>
         isSameYearMonth(mr.inicio ?? null, y, m)
       ),
+      ticketDashboardMonthly,
+      teamViewerMonthlyAverages: teamViewerAveragesEmpresa,
+      teamViewerMonthlyBreakdown: teamViewerBreakdownEmpresa,
+      teamViewerMonthlySummary: teamViewerSummaryEmpresa,
     };
   };
+
+
 
   return { empresas, globalError, obtenerDatosReporteGeneral };
 };

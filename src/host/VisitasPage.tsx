@@ -11,12 +11,14 @@ import {
   EditOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
-import VisitaDetailModal, { type VisitaDetail } from "../components/VisitaDetailModal";
+import VisitaDetailModal, { type VisitaDetail } from "../components/modals-visitas/VisitaDetailModal";
 import CreateVisitaModal, {
   type TecnicoMini,
   type EmpresaMini,
   type VisitaForEdit,
-} from "../components/CreateVisitaModal";
+} from "../components/modals-visitas/CreateVisitaModal";
+
+import VisitasDashboardModal, { VisitasDashboardInline } from "../components/modals-visitas/visitas-dashboard";
 
 import { useAuth } from "../components/hooks/useAuth";
 
@@ -480,6 +482,12 @@ const VisitasPage: React.FC = () => {
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  const [openDashboard, setOpenDashboard] = useState(false);
+  const [dashboardItems, setDashboardItems] = useState<VisitaRow[]>([]);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<"lista" | "dashboard">("lista");
+
   const reqSeqRef = useRef(0);
 
   const showingRange = useMemo(() => {
@@ -748,149 +756,174 @@ const VisitasPage: React.FC = () => {
               Filtra por técnico, empresa, mes o texto libre. Exporta y gestiona en tiempo real.
             </p>
 
-            {/* Toolbar: búsqueda + filtros + acciones */}
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
-              {/* Búsqueda */}
-              <div className="relative md:col-span-4">
-                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
-                <input
-                  value={q}
-                  onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                  placeholder="Buscar…"
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-                  aria-label="Buscar visitas"
-                />
-                {q.length > 0 && (
-                  <button
-                    onClick={() => setQ("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
-                    aria-label="Limpiar búsqueda"
-                    title="Limpiar"
-                    type="button"
-                  >
-                    <CloseCircleFilled />
-                  </button>
-                )}
-              </div>
+            {/* ── Tabs ── */}
+            <div className="mt-5 flex gap-1 border-b border-cyan-100">
+              <button
+                type="button"
+                onClick={() => setActiveTab("lista")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "lista"
+                  ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
+                  : "text-slate-500 hover:text-cyan-600"
+                  }`}
+              >
+                Lista de visitas
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("dashboard")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "dashboard"
+                  ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
+                  : "text-slate-500 hover:text-cyan-600"
+                  }`}
+              >
+                Dashboard
+              </button>
+            </div>
 
-              {/* Filtro técnico */}
-              <div className="md:col-span-3">
-                <select
-                  value={tecnicoId}
-                  onChange={(e) => { const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  aria-label="Filtrar por técnico"
-                >
-                  <option value="">Todos los técnicos</option>
-                  {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                </select>
-              </div>
+            {/* ── Toolbar (solo en tab lista) ── */}
+            {activeTab === "lista" && (
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
+                {/* Búsqueda */}
+                <div className="relative md:col-span-4">
+                  <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
+                  <input
+                    value={q}
+                    onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                    placeholder="Buscar…"
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
+                    aria-label="Buscar visitas"
+                  />
+                  {q.length > 0 && (
+                    <button
+                      onClick={() => setQ("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
+                      aria-label="Limpiar búsqueda"
+                      title="Limpiar"
+                      type="button"
+                    >
+                      <CloseCircleFilled />
+                    </button>
+                  )}
+                </div>
 
-              {/* Filtro empresa */}
-              {isAdmin && (
+                {/* Filtro técnico */}
                 <div className="md:col-span-3">
                   <select
-                    value={empresaId}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setEmpresaId(v ? Number(v) : "");
-                      setPage(1);
-                    }}
-                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm"
+                    value={tecnicoId}
+                    onChange={(e) => { const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    aria-label="Filtrar por técnico"
                   >
-                    <option value="">Todas las empresas</option>
-                    {empresas.map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.nombre}</option>
-                    ))}
+                    <option value="">Todos los técnicos</option>
+                    {tecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                   </select>
                 </div>
-              )}
 
-              {/* Filtro mes */}
-              <div className="md:col-span-1">
-                <select
-                  value={monthFilter}
-                  onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  aria-label="Filtrar por mes"
-                >
-                  <option value="">Mes</option>
-                  <option value="1">Ene</option>
-                  <option value="2">Feb</option>
-                  <option value="3">Mar</option>
-                  <option value="4">Abr</option>
-                  <option value="5">May</option>
-                  <option value="6">Jun</option>
-                  <option value="7">Jul</option>
-                  <option value="8">Ago</option>
-                  <option value="9">Sep</option>
-                  <option value="10">Oct</option>
-                  <option value="11">Nov</option>
-                  <option value="12">Dic</option>
-                </select>
-              </div>
+                {/* Filtro empresa */}
+                {isAdmin && (
+                  <div className="md:col-span-3">
+                    <select
+                      value={empresaId}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setEmpresaId(v ? Number(v) : "");
+                        setPage(1);
+                      }}
+                      className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm"
+                    >
+                      <option value="">Todas las empresas</option>
+                      {empresas.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-              {/* Filtro año */}
-              <div className="md:col-span-1">
-                <select
-                  value={yearFilter}
-                  onChange={(e) => { setYearFilter(e.target.value); setPage(1); }}
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                  aria-label="Filtrar por año"
-                >
-                  <option value="">Año</option>
-                  <option value="2024">2024</option>
-                  <option value="2025">2025</option>
-                  <option value="2026">2026</option>
-                </select>
-              </div>
+                {/* Filtro mes */}
+                <div className="md:col-span-1">
+                  <select
+                    value={monthFilter}
+                    onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    aria-label="Filtrar por mes"
+                  >
+                    <option value="">Mes</option>
+                    <option value="1">Ene</option>
+                    <option value="2">Feb</option>
+                    <option value="3">Mar</option>
+                    <option value="4">Abr</option>
+                    <option value="5">May</option>
+                    <option value="6">Jun</option>
+                    <option value="7">Jul</option>
+                    <option value="8">Ago</option>
+                    <option value="9">Sep</option>
+                    <option value="10">Oct</option>
+                    <option value="11">Nov</option>
+                    <option value="12">Dic</option>
+                  </select>
+                </div>
 
-              {/* Acciones */}
-              <div className="md:col-span-12 lg:col-span-12 xl:col-span-12">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {/* Limpiar */}
-                  <button
-                    onClick={clearAll}
-                    type="button"
-                    className="
+                {/* Filtro año */}
+                <div className="md:col-span-1">
+                  <select
+                    value={yearFilter}
+                    onChange={(e) => { setYearFilter(e.target.value); setPage(1); }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    aria-label="Filtrar por año"
+                  >
+                    <option value="">Año</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                  </select>
+                </div>
+
+                {/* Acciones */}
+                <div className="md:col-span-12 lg:col-span-12 xl:col-span-12">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {/* Limpiar */}
+                    <button
+                      onClick={clearAll}
+                      type="button"
+                      className="
                     inline-flex items-center justify-center gap-2
                     rounded-2xl border border-cyan-200/70 bg-white/90
                     px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 active:scale-[0.98]
                     transition duration-200 w-full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
-                    title="Limpiar filtros"
-                  >
-                    <CloseCircleFilled className="hidden sm:inline" />
-                    <span className="truncate">Limpiar</span>
-                  </button>
+                      title="Limpiar filtros"
+                    >
+                      <CloseCircleFilled className="hidden sm:inline" />
+                      <span className="truncate">Limpiar</span>
+                    </button>
 
-                  {/* Exportar */}
-                  <button
-                    onClick={onExportEmpresas}
-                    disabled={!data || (data?.total ?? 0) === 0}
-                    type="button"
-                    className={clsx(
-                      "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
-                      "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                      (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
-                    )}
-                    title="Exportar"
-                  >
-                    <DownloadOutlined className="hidden sm:inline" />
-                    <span className="truncate">Exportar</span>
-                  </button>
+                    {/* Exportar */}
+                    <button
+                      onClick={onExportEmpresas}
+                      disabled={!data || (data?.total ?? 0) === 0}
+                      type="button"
+                      className={clsx(
+                        "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
+                        "bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(14,165,233,0.45)] hover:brightness-110 active:scale-[0.98] transition duration-200 w-full min-w-[120px]",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                        (!data || (data?.total ?? 0) === 0) && "opacity-60 cursor-not-allowed"
+                      )}
+                      title="Exportar"
+                    >
+                      <DownloadOutlined className="hidden sm:inline" />
+                      <span className="truncate">Exportar</span>
+                    </button>
 
-                  {/* Nueva visita */}
-                  <button
-                    onClick={() => {
-                      if (isCliente) return;
-                      setOpenCreate(true);
-                    }}
-                    disabled={isCliente}
-                    type="button"
-                    className="
+                    {/* Nueva visita */}
+                    <button
+                      onClick={() => {
+                        if (isCliente) return;
+                        setOpenCreate(true);
+                      }}
+                      disabled={isCliente}
+                      type="button"
+                      className="
                     inline-flex items-center justify-center gap-2
                     rounded-2xl px-3 py-2.5 text-sm font-medium text-white
                     bg-gradient-to-tr from-emerald-600 to-cyan-600
@@ -899,14 +932,15 @@ const VisitasPage: React.FC = () => {
                     transition duration-200 w-full min-w-[120px]
                     focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
                   "
-                    title="Nueva visita"
-                  >
-                    <span className="sm:hidden">+</span>
-                    <span className="hidden sm:inline">+ Nueva</span>
-                  </button>
+                      title="Nueva visita"
+                    >
+                      <span className="sm:hidden">+</span>
+                      <span className="hidden sm:inline">+ Nueva</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Separador */}
             <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
@@ -915,219 +949,227 @@ const VisitasPage: React.FC = () => {
       </div>
 
       {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
-      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
-        {/* Cards (mobile) */}
-        <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading ? "true" : "false"}>
-          {loading && (
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
-                  <div className="h-4 w-24 bg-cyan-50 rounded mb-2" />
-                  <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
-                  <div className="h-3 w-1/2 bg-cyan-50 rounded" />
-                </div>
-              ))}
-            </div>
-          )}
-          {!loading && error && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
-          )}
-          {!loading && !error && data?.items?.length === 0 && (
-            <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
-          )}
-          {!loading && !error && data?.items?.map((v) => {
-            const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-            const isDeleting = deletingId === v.id_visita;
-            return (
-              <article key={v.id_visita} className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md">
-                <header className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs text-slate-500">#{v.id_visita}</div>
-                    <h3 className="text-base font-semibold text-slate-900">
-                      {v.empresa?.nombre ?? `#${v.empresaId}`}
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
-                    </p>
+      {activeTab === "lista" && (
+        <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+          {/* Cards (mobile) */}
+          <section className="md:hidden space-y-3 mt-4" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+            {loading && (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
+                    <div className="h-4 w-24 bg-cyan-50 rounded mb-2" />
+                    <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
+                    <div className="h-3 w-1/2 bg-cyan-50 rounded" />
                   </div>
-                  <StatusBadge status={v.status} />
-                </header>
+                ))}
+              </div>
+            )}
+            {!loading && error && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-center">{error}</div>
+            )}
+            {!loading && !error && data?.items?.length === 0 && (
+              <div className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center">Sin resultados.</div>
+            )}
+            {!loading && !error && data?.items?.map((v) => {
+              const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+              const isDeleting = deletingId === v.id_visita;
+              return (
+                <article key={v.id_visita} className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md">
+                  <header className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs text-slate-500">#{v.id_visita}</div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        {v.empresa?.nombre ?? `#${v.empresaId}`}
+                      </h3>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
+                      </p>
+                    </div>
+                    <StatusBadge status={v.status} />
+                  </header>
 
-                <p className="text-sm text-slate-700 mt-2">
-                  <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
-                </p>
+                  <p className="text-sm text-slate-700 mt-2">
+                    <span className="text-slate-500">Solicitante:</span> {nombreSolicitante}
+                  </p>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => openRow(v)}
-                    className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
-                  >
-                    Detalle
-                  </button>
-                  {isAdmin && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <button
-                      onClick={() => onClickEdit(v)}
-                      className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                      onClick={() => openRow(v)}
+                      className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
                     >
-                      <EditOutlined />Editar
+                      Detalle
                     </button>
-                  )}
-                  {isAdmin && (
-                    <button
-                      onClick={() => onClickDelete(v)}
-                      disabled={isDeleting}
-                      className={clsx(
-                        "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
-                        isDeleting
-                          ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
-                          : "border-rose-200 text-rose-700 hover:bg-rose-50"
-                      )}
-                    >
-                      <DeleteOutlined /> {isDeleting ? "..." : "Eliminar"}
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </section>
+                    {isAdmin && (
+                      <button
+                        onClick={() => onClickEdit(v)}
+                        className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
+                      >
+                        <EditOutlined />Editar
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => onClickDelete(v)}
+                        disabled={isDeleting}
+                        className={clsx(
+                          "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                          isDeleting
+                            ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                            : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                        )}
+                      >
+                        <DeleteOutlined /> {isDeleting ? "..." : "Eliminar"}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
 
-        {/* Tabla (desktop) */}
-        <section
-          className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
-          aria-live="polite"
-          aria-busy={loading ? "true" : "false"}
-        >
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
-                <tr>
-                  {["ID", "Técnico", "Empresa", "Solicitante", "Inicio", "Estado", "Acciones"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="text-slate-800">
-                {loading && <TableSkeletonRows cols={7} rows={8} />}
-                {!loading && error && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
-                )}
-                {!loading && !error && data?.items?.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
-                )}
-                {!loading && !error && data?.items?.map((v) => {
-                  const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
-                  const isDeleting = deletingId === v.id_visita;
-                  return (
-                    <tr
-                      key={v.id_visita}
-                      className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
-                    >
-                      <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
-                      <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
-                      <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
-                      <td className="px-4 py-3">
-                        <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
-                      </td>
-                      <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            onClick={() => openRow(v)}
-                            className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-1 hover:bg-cyan-50 transition"
-                          >
-                            Detalle
-                          </button>
-                          {isAdmin && (
+          {/* Tabla (desktop) */}
+          <section
+            className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4"
+            aria-live="polite"
+            aria-busy={loading ? "true" : "false"}
+          >
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
+                  <tr>
+                    {["ID", "Técnico", "Empresa", "Solicitante", "Inicio", "Estado", "Acciones"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="text-slate-800">
+                  {loading && <TableSkeletonRows cols={7} rows={8} />}
+                  {!loading && error && (
+                    <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
+                  )}
+                  {!loading && !error && data?.items?.length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
+                  )}
+                  {!loading && !error && data?.items?.map((v) => {
+                    const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
+                    const isDeleting = deletingId === v.id_visita;
+                    return (
+                      <tr
+                        key={v.id_visita}
+                        className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
+                        <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
+                        <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
+                        <td className="px-4 py-3">
+                          <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
+                        </td>
+                        <td className="px-4 py-3">{formatDateTime(v.inicio)}</td>
+                        <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
-                              onClick={() => onClickEdit(v)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                              onClick={() => openRow(v)}
+                              className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-1 hover:bg-cyan-50 transition"
                             >
-                              <EditOutlined /> Editar
+                              Detalle
                             </button>
-                          )}
-                          {isAdmin && (
-                            <button
-                              onClick={() => onClickDelete(v)}
-                              disabled={isDeleting}
-                              className={clsx(
-                                "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
-                                isDeleting
-                                  ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
-                                  : "border-rose-200 text-rose-700 hover:bg-rose-50"
-                              )}
-                            >
-                              <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer paginación */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
-            <div className="text-sm text-slate-700 text-center sm:text-left">
-              {data ? (
-                showingRange ? (
-                  <>
-                    Mostrando{" "}
-                    <strong className="text-slate-900">{showingRange.start}</strong>–
-                    <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
-                    <strong className="text-slate-900">{data.total}</strong> • Página{" "}
-                    <strong className="text-slate-900">{data.page}</strong> de{" "}
-                    <strong className="text-slate-900">{totalPages}</strong>
-                  </>
-                ) : "—"
-              ) : "—"}
+                            {isAdmin && (
+                              <button
+                                onClick={() => onClickEdit(v)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                              >
+                                <EditOutlined /> Editar
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => onClickDelete(v)}
+                                disabled={isDeleting}
+                                className={clsx(
+                                  "col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-sm transition",
+                                  isDeleting
+                                    ? "border-rose-200 bg-rose-50 text-rose-700 cursor-wait"
+                                    : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                                )}
+                              >
+                                <DeleteOutlined /> {isDeleting ? "…" : "Eliminar"}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
-              <button
-                onClick={refreshNow}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition"
-                title="Recargar"
-                type="button"
-              >
-                <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
-              </button>
-              <button
-                onClick={() => canPrev && setPage(p => p - 1)}
-                disabled={!canPrev || loading}
-                className={clsx(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                  (!canPrev || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-                )}
-                aria-label="Página anterior"
-                type="button"
-              >
-                <LeftOutlined />
-                <span className="hidden sm:inline">Anterior</span>
-              </button>
-              <button
-                onClick={() => canNext && setPage(p => p + 1)}
-                disabled={!canNext || loading}
-                className={clsx(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
-                  "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
-                  (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
-                )}
-                aria-label="Página siguiente"
-                type="button"
-              >
-                <span className="hidden sm:inline">Siguiente</span>
-                <RightOutlined />
-              </button>
+            {/* Footer paginación */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-cyan-200">
+              <div className="text-sm text-slate-700 text-center sm:text-left">
+                {data ? (
+                  showingRange ? (
+                    <>
+                      Mostrando{" "}
+                      <strong className="text-slate-900">{showingRange.start}</strong>–
+                      <strong className="text-slate-900">{showingRange.end}</strong> de{" "}
+                      <strong className="text-slate-900">{data.total}</strong> • Página{" "}
+                      <strong className="text-slate-900">{data.page}</strong> de{" "}
+                      <strong className="text-slate-900">{totalPages}</strong>
+                    </>
+                  ) : "—"
+                ) : "—"}
+              </div>
+
+              <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
+                <button
+                  onClick={refreshNow}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50 transition"
+                  title="Recargar"
+                  type="button"
+                >
+                  <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
+                </button>
+                <button
+                  onClick={() => canPrev && setPage(p => p - 1)}
+                  disabled={!canPrev || loading}
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                    "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                    (!canPrev || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+                  )}
+                  aria-label="Página anterior"
+                  type="button"
+                >
+                  <LeftOutlined />
+                  <span className="hidden sm:inline">Anterior</span>
+                </button>
+                <button
+                  onClick={() => canNext && setPage(p => p + 1)}
+                  disabled={!canNext || loading}
+                  className={clsx(
+                    "inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm",
+                    "border-cyan-200 text-cyan-800 bg-white hover:bg-cyan-50",
+                    (!canNext || loading) && "opacity-40 cursor-not-allowed hover:bg-white"
+                  )}
+                  aria-label="Página siguiente"
+                  type="button"
+                >
+                  <span className="hidden sm:inline">Siguiente</span>
+                  <RightOutlined />
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
+      )}
+
+      {activeTab === "dashboard" && (
+        <div className="px-3 sm:px-4 md:px-6 lg:px-8 pb-10 max-w-7xl mx-auto w-full mt-4">
+          <VisitasDashboardInline />
+        </div>
+      )}
 
       {/* Modales */}
       <VisitaDetailModal open={openDetail} onClose={() => setOpenDetail(false)} visita={selected} />
@@ -1149,6 +1191,12 @@ const VisitasPage: React.FC = () => {
         onUpdated={() => { setOpenEdit(false); setEditVisita(null); refreshNow(); }}
         tecnicos={tecnicos}
         empresas={empresas}
+      />
+
+      <VisitasDashboardModal
+        open={openDashboard}
+        onClose={() => setOpenDashboard(false)}
+        items={[]}
       />
     </div>
   );

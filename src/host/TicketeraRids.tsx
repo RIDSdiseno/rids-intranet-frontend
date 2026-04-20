@@ -229,11 +229,13 @@ export default function TicketeraRids() {
 
     const [searchText, setSearchText] = useState(searchParams.get("search") ?? "");
 
+    const validStatusTabs = ["OPEN", "PENDING", "CLOSED"];
+
     const initialTab =
         searchParams.get("tab") ??
-        (searchParams.get("status") && ["OPEN", "PENDING", "RESOLVED", "CLOSED"].includes(searchParams.get("status")!)
+        (searchParams.get("status") && validStatusTabs.includes(searchParams.get("status")!)
             ? searchParams.get("status")!
-            : "all");
+            : "OPEN");
 
     const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -707,6 +709,18 @@ export default function TicketeraRids() {
         activeRange,
         setSearchParams,
     ]);
+
+    useEffect(() => {
+        const hasTab = searchParams.get("tab");
+        const hasStatus = searchParams.get("status");
+
+        if (!hasTab && !hasStatus) {
+            const next = new URLSearchParams(searchParams);
+            next.set("tab", "OPEN");
+            next.set("status", "OPEN");
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     const setLastDays = (days: number) => {
         const now = new Date();

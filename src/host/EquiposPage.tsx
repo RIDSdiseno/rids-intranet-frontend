@@ -38,6 +38,14 @@ const EXPORT_PAGE_CANDIDATES = [500, 200, 100, 50, 25, 10];
 const API_BASE = API_URL.replace(/\/api\/?$/, "");
 
 /* =================== Tipos =================== */
+type EquipoAdicional = {
+  id: number;
+  tipo: string;
+  descripcion?: string | null;
+  cantidad: number;
+  serialAdicional?: string | null;
+};
+
 type EquipoRow = {
   id_equipo: number;
   serial: string | null;
@@ -68,6 +76,8 @@ type EquipoRow = {
   passwordEmpresa?: string | null;
   usuarioPersonal?: string | null;
   passwordPersonal?: string | null;
+
+  adicionales?: EquipoAdicional[];
 };
 
 type ApiList<T> = {
@@ -152,6 +162,7 @@ const fieldLabels: Record<string, string> = {
   redEthernet: "Red Ethernet (MAC)",
   claveTv: "Clave TeamViewer",
   revisado: "Revisado",
+  adicionalesResumen: "Adicionales",
 };
 
 // labels según las acciones que tengas en tu backend
@@ -364,6 +375,19 @@ function companyRowTheme(empresa?: string | null): { bg: string; borderLeft: str
   const idx = strHash(e || "empresa") % palette.length;
   return palette[idx];
 }
+
+const ADICIONAL_TIPOS = [
+  "MONITOR",
+  "CARGADOR",
+  "MOUSE",
+  "TECLADO",
+  "DOCKING",
+  "ADAPTADOR",
+  "BOLSO",
+  "UPS",
+  "AURICULARES",
+  "OTRO",
+] as const;
 
 /* =================== Page =================== */
 const EquiposPage: React.FC = () => {
@@ -658,6 +682,19 @@ const EquiposPage: React.FC = () => {
     return arr;
   }, [data?.items]);
 
+  const ADICIONAL_TIPO_LABEL: Record<string, string> = {
+    MONITOR: "Monitor",
+    CARGADOR: "Cargador",
+    MOUSE: "Mouse",
+    TECLADO: "Teclado",
+    DOCKING: "Docking",
+    ADAPTADOR: "Adaptador",
+    BOLSO: "Bolso",
+    UPS: "UPS",
+    AURICULARES: "Auriculares",
+    OTRO: "Otro",
+  };
+
   /* ================== CREAR (via Modal reutilizable) ================== */
   const [createOpen, setCreateOpen] = useState(false);
   const startCreate = () => setCreateOpen(true);
@@ -748,6 +785,8 @@ const EquiposPage: React.FC = () => {
 
   });
 
+  const [editAdicionales, setEditAdicionales] = useState<EquipoAdicional[]>([]);
+
   // Nueva cadena Empresa -> Solicitante
   const [editEmpresaId, setEditEmpresaId] = useState<number | null>(null);
   const [editSolicitanteId, setEditSolicitanteId] = useState<number | null>(null);
@@ -837,16 +876,20 @@ const EquiposPage: React.FC = () => {
       passwordPersonal: row.passwordPersonal || "",
     });
 
+    setEditAdicionales(row.adicionales ?? []);
+
     setEditEmpresaId(row.empresaId ?? null);
     setEditSolicitanteId(row.idSolicitante ?? null);
     setSolSearchE("");
     setEditOpen(true);
+
   };
 
   const cancelEdit = () => {
     if (editSaving) return;
     setEditOpen(false);
     setEditRow(null);
+    setEditAdicionales([]);
   };
 
   const saveEdit = async () => {
@@ -883,11 +926,20 @@ const EquiposPage: React.FC = () => {
         ...editForm,
         idSolicitante: editSolicitanteId,
         empresaId: editEmpresaId,
+        adicionales: editAdicionales
+          .filter((a) => !!a?.tipo?.trim())
+          .map((a) => ({
+            tipo: a.tipo.trim(),
+            descripcion: a.descripcion?.trim() || null,
+            cantidad: Number(a.cantidad) > 0 ? Number(a.cantidad) : 1,
+            serialAdicional: a.serialAdicional?.trim() || null,
+          })),
       });
 
       await reload();
       setEditOpen(false);
       setEditRow(null);
+      setEditAdicionales([]);
     } catch (err: unknown) {
       alert(getErrorMessage(err) || "No se pudo actualizar el equipo");
     } finally {
@@ -1953,6 +2005,99 @@ const EquiposPage: React.FC = () => {
 
                 </div>
               </div>
+
+              <div className="sm:col-span-2 mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-slate-700">Adicionales</h4>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditAdicionales((prev) => [
+                        ...prev,
+                        { id: Date.now(), tipo: "", descripcion: "", cantidad: 1, serialAdicional: "" },
+                      ])
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm border-cyan-200 bg-white hover:bg-cyan-50"
+                  >
+                    <PlusOutlined />
+                    Agregar
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {editAdicionales.map((a, idx) => (
+                    <div key={`${a.id}-${idx}`} className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                      <select
+                        value={a.tipo || ""}
+                        onChange={(e) =>
+                          setEditAdicionales((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, tipo: e.target.value } : x))
+                          )
+                        }
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      >
+                        <option value="">Selecciona un tipo</option>
+                        {ADICIONAL_TIPOS.map((tipo) => (
+                          <option key={tipo} value={tipo}>
+                            {tipo}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="number"
+                        min={1}
+                        value={String(a.cantidad ?? 1)}
+                        onChange={(e) =>
+                          setEditAdicionales((prev) =>
+                            prev.map((x, i) =>
+                              i === idx ? { ...x, cantidad: Number(e.target.value) || 1 } : x
+                            )
+                          )
+                        }
+                        placeholder="Cantidad"
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      />
+
+                      <input
+                        value={a.descripcion || ""}
+                        onChange={(e) =>
+                          setEditAdicionales((prev) =>
+                            prev.map((x, i) => (i === idx ? { ...x, descripcion: e.target.value } : x))
+                          )
+                        }
+                        placeholder="Descripción"
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      />
+
+                      <div className="flex gap-2">
+                        <input
+                          value={a.serialAdicional || ""}
+                          onChange={(e) =>
+                            setEditAdicionales((prev) =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, serialAdicional: e.target.value } : x
+                              )
+                            )
+                          }
+                          placeholder="Serial adicional"
+                          className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditAdicionales((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="px-5 py-4 border-t border-cyan-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end bg-slate-50">
@@ -2135,6 +2280,22 @@ const EquiposPage: React.FC = () => {
 
                 </div>
               </div>
+
+              {viewRow.adicionales?.length ? (
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-700 mb-3">Adicionales</h4>
+                  <div className="space-y-2">
+                    {viewRow.adicionales.map((a) => (
+                      <div key={a.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div><strong>Tipo:</strong> {ADICIONAL_TIPO_LABEL[a.tipo] || a.tipo}</div>
+                        <div><strong>Descripción:</strong> {a.descripcion || "—"}</div>
+                        <div><strong>Cantidad:</strong> {a.cantidad}</div>
+                        <div><strong>Serial:</strong> {a.serialAdicional || "—"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Historial */}
               <div className="mt-6">

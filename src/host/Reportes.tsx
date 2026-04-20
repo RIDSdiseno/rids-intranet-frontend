@@ -1,5 +1,5 @@
 // pages/ReportesPage.tsx
-import React, { useRef, useState, useMemo, useCallback } from "react";
+import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   DownloadOutlined,
@@ -10,12 +10,13 @@ import {
   EyeOutlined,
   CheckCircleOutlined,
   RobotOutlined,
+  EyeInvisibleOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Input, message } from "antd";
 
 // Types
-import type { ReporteGeneralData } from "../components/modals-reportes/typesReportes";
+import type { ReporteGeneralData, HistorialReporteRow } from "../components/modals-reportes/typesReportes";
 
 // Hooks
 import { useReportesData } from "../components/modals-reportes/UseReportesData";
@@ -25,6 +26,7 @@ import { useExportReportes } from "../components/modals-reportes/UseExportReport
 import { KPICards } from "../components/modals-reportes/KpiCards";
 import { WizardSelector } from "../components/modals-reportes/WizardSelector";
 import { PdfModal } from "../components/modals-reportes/PdfModal";
+import { ReporteExportView } from "../components/modals-reportes/ReportExportView";
 
 // Utils
 import {
@@ -47,6 +49,15 @@ const MONTHS_NAMES = [
 
 const ReportesPage: React.FC = () => {
   const navigate = useNavigate();
+
+  const esCliente = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw)?.rol === "CLIENTE" : false;
+    } catch {
+      return false;
+    }
+  }, []);
 
   // ── Data hook ──
   const { empresas, globalError, obtenerDatosReporteGeneral } = useReportesData();
@@ -72,6 +83,12 @@ const ReportesPage: React.FC = () => {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
+  // ── Historial ──
+  const [historialReportes, setHistorialReportes] = useState<HistorialReporteRow[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [historialVisible, setHistorialVisible] = useState(true);
+  const [filtroFecha, setFiltroFecha] = useState({ desde: "", hasta: "" });
+
   // ── Derived ──
   const empresaNombre = useMemo(
     () => empresas.find((e) => e.id_empresa === Number(empresaFiltro))?.nombre || TEXTO_FIJO.paraDefault,
@@ -86,7 +103,7 @@ const ReportesPage: React.FC = () => {
   const canGenerate = !!empresaFiltro && !!selectedYear && !!selectedMonth;
 
   // ── Export hook ──
-  const { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX,  generarPdfBlob } = useExportReportes({
+  const { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX, generarPdfBlob, exportPDFToStorage } = useExportReportes({
     empresaFiltro,
     selectedYear,
     selectedMonth,
@@ -99,7 +116,26 @@ const ReportesPage: React.FC = () => {
     obtenerDatosReporteGeneral,
     onDataLoaded: setDataPrev,
   });
-  
+
+  const cargarHistorialReportes = useCallback(async () => {
+    try {
+      setLoadingHistorial(true);
+
+      const { data } = await http.get("/reportes-upload/history", {
+        params: {
+          empresaId: empresaFiltro || undefined,
+        },
+      });
+
+      setHistorialReportes(data?.items ?? []);
+    } catch (error) {
+      console.error(error);
+      message.error("No se pudo cargar el historial de reportes");
+    } finally {
+      setLoadingHistorial(false);
+    }
+  }, [empresaFiltro]);
+
   // ── Generar recomendaciones IA ──
   const generarInformeIA = async () => {
 
@@ -208,11 +244,9 @@ const ReportesPage: React.FC = () => {
     setPdfModalOpen(false);
   };
 
-  // ── Estilos para contenedor PDF oculto ──
-  const cellBorder: React.CSSProperties = { border: "1px solid #E5E7EB", padding: "6px 8px", fontSize: 12, color: "#0F172A" };
-  const cellHeader: React.CSSProperties = { ...cellBorder, background: "#F1F5F9", fontWeight: 700 };
-  const labelStyle: React.CSSProperties = { fontSize: 12, color: "#1F2937", marginBottom: 2 };
-  const valueStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: "#111827" };
+  useEffect(() => {
+    void cargarHistorialReportes();
+  }, [cargarHistorialReportes]);
 
   // ── Render ──
   return (
@@ -245,17 +279,18 @@ const ReportesPage: React.FC = () => {
         )}
 
         {/* ── Wizard ── */}
-        <WizardSelector
-          empresas={empresas}
-          empresaFiltro={empresaFiltro}
-          selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onEmpresaChange={handleEmpresaChange}
-          onYearChange={(y) => { setSelectedYear(y); setSelectedMonth(""); }}
-          onMonthChange={setSelectedMonth}
-        />
+        {!esCliente && (
+          <WizardSelector
+            empresas={empresas}
+            empresaFiltro={empresaFiltro}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onEmpresaChange={handleEmpresaChange}
+            onYearChange={(y) => { setSelectedYear(y); setSelectedMonth(""); }}
+            onMonthChange={setSelectedMonth}
+          />)}
 
         {/* ── Preview ── */}
         {showPreview && dataPrev && (
@@ -271,70 +306,205 @@ const ReportesPage: React.FC = () => {
         )}
 
         {/* ── Acciones ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="text-center mb-8"
-        >
-          <div className="flex items-center justify-center gap-3 flex-wrap mb-4">
-            <button
-              onClick={previsualizarDatos}
-              disabled={!canGenerate || exportStatus.exporting}
-              className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              <EyeOutlined className="mr-2" /> Previsualizar Datos
-            </button>
-          </div>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <button
-              onClick={exportDOCX}
-              disabled={!canGenerate || exportStatus.exporting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              {exportStatus.exporting
-                ? <><LoadingOutlined className="animate-spin mr-2" />Generando…</>
-                : <><DownloadOutlined className="mr-2" />Descargar Word (DOCX)</>}
-            </button>
-
-            
-            
-          
-
-            <button
-              onClick={exportDOCXIABeta}
-              disabled={!canGenerate || exportStatus.exporting}
-              className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              <RobotOutlined className="mr-2" /> Descargar Word IA (Beta)
-            </button>
-
-
-
-            <button
-              onClick={exportXLSX}
-              disabled={!canGenerate || exportStatus.exporting}
-              className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              <DownloadOutlined className="mr-2" /> Descargar Respaldo (XLSX)
-            </button>
-            <button
-              onClick={abrirPDF}
-              disabled={!canGenerate || exportStatus.exporting}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              <EyeOutlined className="mr-2" /> Ver PDF (modal)
-            </button>
-          </div>
-          {exportStatus.error && (
-            <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
-              {exportStatus.error}
+        {!esCliente && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+            className="text-center mb-8"
+          >
+            <div className="flex items-center justify-center gap-3 flex-wrap mb-4">
+              <button
+                onClick={previsualizarDatos}
+                disabled={!canGenerate || exportStatus.exporting}
+                className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                <EyeOutlined className="mr-2" /> Previsualizar Datos
+              </button>
             </div>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button
+                onClick={exportDOCX}
+                disabled={!canGenerate || exportStatus.exporting}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                {exportStatus.exporting
+                  ? <><LoadingOutlined className="animate-spin mr-2" />Generando…</>
+                  : <><DownloadOutlined className="mr-2" />Descargar Word (DOCX)</>}
+              </button>
+
+              <button
+                onClick={exportDOCXIABeta}
+                disabled={!canGenerate || exportStatus.exporting}
+                className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                <RobotOutlined className="mr-2" /> Descargar Word IA (Beta)
+              </button>
+
+              <button
+                onClick={exportXLSX}
+                disabled={!canGenerate || exportStatus.exporting}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                <DownloadOutlined className="mr-2" /> Descargar Respaldo (XLSX)
+              </button>
+              <button
+                onClick={abrirPDF}
+                disabled={!canGenerate || exportStatus.exporting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                <EyeOutlined className="mr-2" /> Ver PDF (modal)
+              </button>
+            </div>
+
+            {exportStatus.error && (
+              <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+                {exportStatus.error}
+              </div>
+            )}
+          </motion.div>)}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mt-6"
+        >
+          {/* ── Header con toggle ── */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-slate-800 text-xl">
+              Historial de reportes
+            </h3>
+            <button
+              onClick={() => setHistorialVisible((v) => !v)}
+              className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+            >
+              {historialVisible ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+              {historialVisible ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+
+          {historialVisible && (
+            <>
+              {/* ── Filtros de fecha ── */}
+              <div className="flex flex-wrap items-end gap-4 mb-6">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Desde</label>
+                  <input
+                    type="date"
+                    value={filtroFecha.desde}
+                    onChange={(e) => setFiltroFecha((f) => ({ ...f, desde: e.target.value }))}
+                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Hasta</label>
+                  <input
+                    type="date"
+                    value={filtroFecha.hasta}
+                    onChange={(e) => setFiltroFecha((f) => ({ ...f, hasta: e.target.value }))}
+                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {(filtroFecha.desde || filtroFecha.hasta) && (
+                  <button
+                    onClick={() => setFiltroFecha({ desde: "", hasta: "" })}
+                    className="text-sm text-red-500 hover:text-red-700 py-2"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
+                <span className="text-xs text-slate-400 py-2">
+                  {(() => {
+                    const filtrados = historialReportes.filter((item) => {
+                      const fecha = new Date(item.createdAt);
+                      if (filtroFecha.desde && fecha < new Date(filtroFecha.desde)) return false;
+                      if (filtroFecha.hasta && fecha > new Date(filtroFecha.hasta + "T23:59:59")) return false;
+                      return true;
+                    });
+                    return `${filtrados.length} registro${filtrados.length !== 1 ? "s" : ""}`;
+                  })()}
+                </span>
+              </div>
+
+              {/* ── Tabla ── */}
+              {loadingHistorial ? (
+                <div className="text-slate-500">Cargando historial...</div>
+              ) : historialReportes.length === 0 ? (
+                <div className="text-slate-500">No hay reportes generados todavía.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 text-sm">
+                        <th className="text-left px-4 py-3">Fecha</th>
+                        <th className="text-left px-4 py-3">Empresa</th>
+                        <th className="text-left px-4 py-3">Período</th>
+                        <th className="text-left px-4 py-3">Tipo</th>
+                        <th className="text-left px-4 py-3">Archivo</th>
+                        <th className="text-left px-4 py-3">Generado por</th>
+                        <th className="text-left px-4 py-3">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historialReportes
+                        .filter((item) => {
+                          const fecha = new Date(item.createdAt);
+                          if (filtroFecha.desde && fecha < new Date(filtroFecha.desde)) return false;
+                          if (filtroFecha.hasta && fecha > new Date(filtroFecha.hasta + "T23:59:59")) return false;
+                          return true;
+                        })
+                        .map((item) => (
+                          <tr key={item.id} className="border-t border-slate-200 text-sm">
+                            <td className="px-4 py-3">
+                              {new Date(item.createdAt).toLocaleString("es-CL", { hour12: false })}
+                            </td>
+                            <td className="px-4 py-3">{item.empresaNombre}</td>
+                            <td className="px-4 py-3">{item.periodo}</td>
+                            <td className="px-4 py-3">{item.tipo}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <span className={item.urlArchivo ? "text-slate-800" : "text-slate-500"}>
+                                  {item.nombreArchivo}
+                                </span>
+                                {item.urlArchivo ? (
+                                  item.tipo === "PDF" ? (
+                                    <a
+                                      href={item.urlArchivo}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                                    >
+                                      Ver PDF
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={item.urlArchivo}
+                                      download={item.nombreArchivo}
+                                      className="inline-flex items-center rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                                    >
+                                      Descargar {item.tipo}
+                                    </a>
+                                  )
+                                ) : (
+                                  <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-500">
+                                    Sin enlace
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">{item.generadoPor || "—"}</td>
+                            <td className="px-4 py-3">{item.estado}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </motion.div>
 
         {/* ── Canvas ocultos para charts DOCX ── */}
         <div style={{ position: "fixed", left: -10000, top: -10000, opacity: 0, pointerEvents: "none", zIndex: -1 }}>
-          
-          
+
           <canvas id="chart-mantxfecha-docx" width={800} height={400} />
           <canvas id="chart-solicitudes-pie-docx" width={800} height={400} />
           <canvas id="chart-mantenimientos-docx" width={800} height={400} />
@@ -344,13 +514,17 @@ const ReportesPage: React.FC = () => {
           <canvas id="chart-distribucion-docx" width={800} height={400} />
           <canvas id="chart-tendencias-docx" width={800} height={400} />
 
-
-      
           <canvas id="chart-wordbeta-mant-fecha" width={800} height={400} />
           <canvas id="chart-wordbeta-distribucion-servicios" width={800} height={400} />
           <canvas id="chart-wordbeta-solicitudes-programadas" width={800} height={400} />
+          <canvas id="chart-teamviewer-minutos-mes-docx" width={800} height={400} />
           <canvas id="chart-wordbeta-actividades-mantenimiento" width={800} height={400} />
           <canvas id="chart-wordbeta-tickets-categoria" width={800} height={400} />
+          <canvas id="chart-topsolicitantes-tickets-docx" width={800} height={400} />
+          <canvas id="chart-dashboard-tickets-mes-docx" width={800} height={400} />
+          <canvas id="chart-dashboard-horas-mes-docx" width={800} height={400} />
+          <canvas id="chart-teamviewer-minutos-mes-docx" width={800} height={400} />
+          <canvas id="chart-wordbeta-top-solicitantes-tickets" width={800} height={400} />
           <canvas id="chart-wordbeta-top-usuarios" width={800} height={400} />
           <canvas id="chart-wordbeta-visitas-tecnico" width={800} height={400} />
           <canvas id="chart-wordbeta-visitas-tipo" width={800} height={400} />
@@ -358,194 +532,67 @@ const ReportesPage: React.FC = () => {
           <canvas id="chart-wordbeta-mant-tecnico" width={800} height={400} />
           <canvas id="chart-wordbeta-inventario-marca" width={800} height={400} />
 
-
         </div>
-
-
-
 
         {/* ── Contenedor oculto PDF ── */}
         <div
           ref={previewRef}
           id="pdf-preview-root"
-          style={{ position: "fixed", left: -10000, top: -10000, width: 794, background: "#FFFFFF", color: "#0F172A", border: "1px solid #E2E8F0", borderRadius: 12, padding: 24, opacity: 0, pointerEvents: "none", zIndex: -1 }}
+          style={{
+            position: "fixed",
+            left: -10000,
+            top: -10000,
+            opacity: 0,
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
         >
-          {/* Cabecera */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
-            <img src="/login/LOGO_RIDS.png" alt="RIDS" style={{ height: 44, width: "auto", objectFit: "contain" }} onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#1F2937" }}>{docxTitulo}</div>
-          </div>
-
-          <div style={{ background: "linear-gradient(90deg,#111827 0%,#1F2937 100%)", color: "#FFFFFF", borderRadius: 10, padding: 24, marginBottom: 16 }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{docxSubtitulo}</div>
-            <div style={{ marginTop: 8, opacity: 0.9 }}>{TEXTO_FIJO.correo} · Periodo: {periodoTexto || "—"}</div>
-            <div style={{ marginTop: 10, fontWeight: 700 }}>{generarFolio(empresaNombre)}</div>
-          </div>
-
-          {/* Metadata grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 12, marginBottom: 16 }}>
-            {[
-              ["Para", empresaNombre],
-              ["De", TEXTO_FIJO.de],
-              ["Asunto", `${TEXTO_FIJO.asunto} (${periodoTexto || "—"})`],
-              ["Fecha", new Date().toLocaleDateString("es-CL")],
-              ["Ingeniera en conocimiento", TEXTO_FIJO.ingeniera],
-              ["Técnicos en conocimientos", TEXTO_FIJO.tecnicos],
-            ].map(([l, v]) => (
-              <div key={l} style={{ background: "#F3F4F6", borderRadius: 8, padding: 12 }}>
-                <div style={labelStyle}>{l}</div>
-                <div style={valueStyle}>{v}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginBottom: 12, fontSize: 14, lineHeight: 1.5 }}>{TEXTO_FIJO.intro}</div>
-
-          {[
-            ["Antecedentes", TEXTO_FIJO.antecedentes],
-            ["Objetivos", TEXTO_FIJO.objetivos],
-          ].map(([title, content]) => (
-            <React.Fragment key={title}>
-              <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>{title}</h4>
-              <div style={{ fontSize: 14 }}>{content}</div>
-            </React.Fragment>
-          ))}
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Métodos</h4>
-          <ul style={{ fontSize: 14, paddingLeft: 18, marginTop: 4 }}>
-            {TEXTO_FIJO.metodos.map((m) => <li key={m}>{m}</li>)}
-          </ul>
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Resultados</h4>
-          <ul style={{ fontSize: 14, paddingLeft: 18, marginTop: 4 }}>
-            {TEXTO_FIJO.resultados.map((m) => <li key={m}>{m}</li>)}
-          </ul>
-
-          {/* Tabla mantenimientos */}
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Actividades de mantenimiento</h4>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["Ítem", "Cantidad"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {contarMantenimientos(dataPrev?.visitas || []).map((r) => (
-                <tr key={r.Ítem}><td style={cellBorder}>{r.Ítem}</td><td style={cellBorder}>{r.Cantidad}</td></tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Tabla mantenciones remotas */}
-          <h4 style={{ fontWeight: 800, marginTop: 24, marginBottom: 8 }}>Mantenciones Remotas</h4>
-          <div style={{ fontSize: 14, marginBottom: 12 }}>
-            Durante el periodo se ejecutaron <strong>{(dataPrev?.mantencionesRemotas || []).length}</strong> actividades de mantención remota.
-          </div>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["ID", "Técnico", "Inicio", "Fin", "Estado", "Usuario"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {(dataPrev?.mantencionesRemotas || []).map((m) => (
-                <tr key={m.id_mantencion}>
-                  <td style={cellBorder}>{m.id_mantencion}</td>
-                  <td style={cellBorder}>{m.tecnico?.nombre ?? "—"}</td>
-                  <td style={cellBorder}>{m.inicio ? new Date(m.inicio).toLocaleString("es-CL") : "—"}</td>
-                  <td style={cellBorder}>{m.fin ? new Date(m.fin).toLocaleString("es-CL") : "—"}</td>
-                  <td style={cellBorder}>{m.status ?? "—"}</td>
-                  <td style={cellBorder}>{m.solicitante ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <canvas id="chart-preview-mantenimientos" width={700} height={300} />
-
-          {/* Extras */}
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Configuraciones y otros (totales)</h4>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["Ítem", "Cantidad"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {contarExtras(dataPrev?.visitas || []).totales.map((r) => (
-                <tr key={r.Ítem}><td style={cellBorder}>{r.Ítem}</td><td style={cellBorder}>{r.Cantidad}</td></tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Detalle de "Otros"</h4>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["Detalle otros", "Cantidad"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {(contarExtras(dataPrev?.visitas || []).detalles.length
-                ? contarExtras(dataPrev?.visitas || []).detalles
-                : [{ Detalle: "—", Cantidad: 0 }]
-              ).map((d, i) => (
-                <tr key={i}><td style={cellBorder}>{d.Detalle}</td><td style={cellBorder}>{d.Cantidad}</td></tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Listado de correos activos</h4>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["Nro", "Nombre", "Correo electrónico"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {(dataPrev?.solicitantes || []).slice(0, 400).map((s, i) => (
-                <tr key={s.id_solicitante}><td style={cellBorder}>{i + 1}</td><td style={cellBorder}>{s.nombre}</td><td style={cellBorder}>{s.email || ""}</td></tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Inventario de equipamiento</h4>
-          <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
-            <thead><tr>{["Serial", "Marca", "Modelo", "RAM", "Disco", "Propiedad", "Solicitante"].map(h => <th key={h} style={cellHeader}>{h}</th>)}</tr></thead>
-            <tbody>
-              {(dataPrev?.equipos || []).slice(0, 400).map((e, i) => {
-                const sol = e.idSolicitante != null
-                  ? (dataPrev?.solicitantes || []).find(s => s.id_solicitante === e.idSolicitante)?.nombre ?? ""
-                  : "";
-                return (
-                  <tr key={i}>
-                    <td style={cellBorder}>{e.serial ?? ""}</td><td style={cellBorder}>{e.marca ?? ""}</td>
-                    <td style={cellBorder}>{e.modelo ?? ""}</td><td style={cellBorder}>{e.ram ?? ""}</td>
-                    <td style={cellBorder}>{e.disco ?? ""}</td><td style={cellBorder}>{e.propiedad ?? ""}</td>
-                    <td style={cellBorder}>{sol}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          <h4 style={{ fontWeight: 800, marginTop: 16, marginBottom: 8 }}>Recomendaciones del periodo</h4>
-          <div style={{ fontSize: 14 }}>{recomendaciones || "Sin recomendaciones adicionales para el periodo."}</div>
+          {dataPrev && (
+            <ReporteExportView
+              data={dataPrev}
+              empresaNombre={empresaNombre}
+              periodoTexto={periodoTexto}
+              recomendaciones={recomendaciones}
+              showDetails
+            />
+          )}
         </div>
 
         {/* ── Panel edición portada ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mt-6"
-        >
-          <h3 className="font-bold text-slate-800 mb-6 text-xl flex items-center justify-center">
-            <BuildOutlined className="mr-3 text-slate-600" /> Portada y recomendaciones
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm text-slate-600 mb-2">Título</label>
-              <input className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" value={docxTitulo} onChange={(e) => setDocxTitulo(e.target.value)} />
+        {!esCliente && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mt-6"
+          >
+            <h3 className="font-bold text-slate-800 mb-6 text-xl flex items-center justify-center">
+              <BuildOutlined className="mr-3 text-slate-600" /> Portada y recomendaciones
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm text-slate-600 mb-2">Título</label>
+                <input className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" value={docxTitulo} onChange={(e) => setDocxTitulo(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-600 mb-2">Subtítulo</label>
+                <input className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" value={docxSubtitulo} onChange={(e) => setDocxSubtitulo(e.target.value)} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm text-slate-600 mb-2">Subtítulo</label>
-              <input className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" value={docxSubtitulo} onChange={(e) => setDocxSubtitulo(e.target.value)} />
+            <div className="mt-4">
+              <label className="block text-sm text-slate-600 mb-2">Recomendaciones</label>
+              <Input.TextArea rows={5} value={recomendaciones} onChange={(e) => setRecomendaciones(e.target.value)} placeholder="Agrega recomendaciones del periodo..." />
+              <br /><br />
+              <button
+                onClick={generarInformeIA}
+                disabled={loadingIA || !canGenerate}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 disabled:opacity-50"
+              >
+                {loadingIA
+                  ? <><LoadingOutlined className="animate-spin" />Generando informe…</>
+                  : <><RobotOutlined /> Generar recomendaciones con IA</>}
+              </button>
             </div>
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm text-slate-600 mb-2">Recomendaciones</label>
-            <Input.TextArea rows={5} value={recomendaciones} onChange={(e) => setRecomendaciones(e.target.value)} placeholder="Agrega recomendaciones del periodo..." />
-            <br /><br />
-            <button
-              onClick={generarInformeIA}
-              disabled={loadingIA || !canGenerate}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow flex items-center gap-2 disabled:opacity-50"
-            >
-              {loadingIA
-                ? <><LoadingOutlined className="animate-spin" />Generando informe…</>
-                : <><RobotOutlined /> Generar recomendaciones con IA</>}
-            </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
       </main>
 

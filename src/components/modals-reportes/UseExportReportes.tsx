@@ -21,8 +21,14 @@ import {
   calcularTendenciasMensuales, calcularDistribucionServicios,
   obtenerTopUsuariosGeneral,
   generateBarChart, generatePieChart, generateLineChart,
-  dataUrlToUint8Array, generarFolio,
+  dataUrlToUint8Array, generarFolio, obtenerTopSolicitantesTickets
 } from "./UtilsReportes";
+
+import type {
+  TicketDashboardMonthlyRow,
+} from "./typesReportes";
+
+import { buildReporteExportData } from "./buildReporteExportData";
 
 import { http } from "../../service/http";
 import { buildAndDownloadReporteIABetaDocx } from "./buildReporteIABetaDocx";
@@ -88,6 +94,7 @@ const noBorders: ITableBordersOptions = {
   insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
 };
 
+// Configuración de visualización de tablas del doc word
 const H1 = (t: string) =>
   new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 260, after: 140, line: 360 }, children: [new TextRun({ text: t, bold: true })] });
 
@@ -103,6 +110,88 @@ const Note = (t: string) =>
 const Divider = () =>
   new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: THEME.border } }, spacing: { after: 220 } });
 
+// Función para que los datos en la tabla se vean hacia la derecha
+const tableProRight = (
+  caption: string,
+  headers: string[],
+  rows: Array<Record<string, string | number>>,
+  columnWidths?: number[]
+): Table[] => {
+  const colW = columnWidths || Array(headers.length).fill(100 / headers.length);
+
+  const headerCells = headers.map((h, ci) =>
+    new TableCell({
+      shading: { fill: THEME.primary },
+      verticalAlign: VerticalAlign.CENTER,
+      width: { size: colW[ci], type: WidthType.PERCENTAGE },
+      margins: {
+        top: 80,
+        bottom: 80,
+        left: 120,
+        right: 120,
+      },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 20 })],
+        }),
+      ],
+    })
+  );
+
+  const bodyRows = rows.map((r, idx) => {
+    const bg = idx % 2 === 0 ? THEME.zebra : "FFFFFF";
+    return new TableRow({
+      children: headers.map((k, ci) =>
+        new TableCell({
+          shading: { fill: bg },
+          verticalAlign: VerticalAlign.CENTER,
+          width: { size: colW[ci], type: WidthType.PERCENTAGE },
+          margins: {
+            top: 80,
+            bottom: 80,
+            left: 120,
+            right: 120,
+          },
+          children: [
+            new Paragraph({
+              alignment: ci === 0 ? AlignmentType.LEFT : AlignmentType.RIGHT,
+              children: [new TextRun({ text: String(r[k] ?? ""), color: THEME.text, size: 18 })],
+            }),
+          ],
+        })
+      ),
+    });
+  });
+
+  return [
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: noBorders,
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: noBorders,
+              children: [
+                new Paragraph({
+                  spacing: { before: 80, after: 40 },
+                  children: [new TextRun({ text: caption, italics: true, color: THEME.textMuted, size: 18 })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [new TableRow({ children: headerCells }), ...bodyRows],
+    }),
+  ];
+};
+
+// Función de visualización de contenido en la tabla
 const tablePro = (
   caption: string,
   headers: string[],
@@ -187,6 +276,25 @@ const buildHeader = (empresa: string) =>
 const buildFooter = () =>
   new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Página " }), new TextRun({ children: [PageNumber.CURRENT] }), new TextRun({ text: " de " }), new TextRun({ children: [PageNumber.TOTAL_PAGES] }), new TextRun({ text: "  ·  soporte@rids.cl" })] })] });
 
+const ticketStatusLabel = (status?: string | null) => {
+  switch ((status || "").toUpperCase()) {
+    case "NEW":
+      return "Nuevo";
+    case "OPEN":
+      return "Abierto";
+    case "PENDING":
+      return "Pendiente";
+    case "ON_HOLD":
+      return "En espera";
+    case "RESOLVED":
+      return "Resuelto";
+    case "CLOSED":
+      return "Cerrado";
+    default:
+      return status ? String(status) : "—";
+  }
+};
+
 // ─── IA REPORT PARSER ─────────────────────────────────────────────
 
 function parseInformeIA(text: string) {
@@ -267,10 +375,8 @@ export const useExportReportes = ({
     error: null,
   });
 
-
   // word IA
-
-    const exportDOCXIABeta = async () => {
+  const exportDOCXIABeta = async () => {
     try {
       setExportStatus({ exporting: true, error: null });
 
@@ -285,7 +391,6 @@ export const useExportReportes = ({
         `/ia-reportes/word-beta/${empresaFiltro}/${selectedYear}/${selectedMonth}`
       );
 
-      
       const iaPayload = data.data;
       const logoBytes = await fetchImageBytes("/login/rids_logo.png");
       const headerLogoBytes = await fetchImageBytes("/login/LOGO_RIDS.png");
@@ -295,6 +400,7 @@ export const useExportReportes = ({
         const key = (t.type || "Sin categoría").trim();
         ticketsPorCategoriaMap[key] = (ticketsPorCategoriaMap[key] || 0) + 1;
       }
+
       const ticketsPorCategoria = Object.entries(ticketsPorCategoriaMap).map(
         ([label, value]) => ({ label, value })
       );
@@ -370,6 +476,11 @@ export const useExportReportes = ({
         }));
       })();
 
+      const topSolicitantesTickets = obtenerTopSolicitantesTickets(dataBase.tickets || []).map((x: any) => ({
+        label: String(x.Solicitante),
+        value: Number(x.Tickets),
+      }));
+
       const datasetMap: Record<string, { labels: string[]; values: number[] }> = {
         mantenciones_por_fecha: {
           labels: mantencionesPorFechaRows.map((x) => x.label),
@@ -415,6 +526,10 @@ export const useExportReportes = ({
           labels: mantencionesPorTecnico.map((x) => x.label),
           values: mantencionesPorTecnico.map((x) => x.value),
         },
+        tickets_top_solicitantes: {
+          labels: topSolicitantesTickets.map((x) => x.label),
+          values: topSolicitantesTickets.map((x) => x.value),
+        },
       };
 
       const chartIdMap: Record<string, string> = {
@@ -426,6 +541,7 @@ export const useExportReportes = ({
         inventario_por_marca: "chart-wordbeta-inventario-marca",
         tickets_por_categoria: "chart-wordbeta-tickets-categoria",
         tickets_top_usuarios: "chart-wordbeta-top-usuarios",
+        tickets_top_solicitantes: "chart-wordbeta-top-solicitantes-tickets",
         visitas_por_tecnico: "chart-wordbeta-visitas-tecnico",
         visitas_por_tipo: "chart-wordbeta-visitas-tipo",
         mantenciones_por_status: "chart-wordbeta-mant-status",
@@ -439,10 +555,11 @@ export const useExportReportes = ({
         actividades_mantenimiento: CHART_CONFIG.colors.accent,
         inventario_por_marca: CHART_CONFIG.colors.danger,
         tickets_por_categoria: CHART_CONFIG.colors.teal,
-        tickets_top_usuarios: CHART_CONFIG.colors.green || CHART_CONFIG.colors.secondary,
-        visitas_por_tecnico: CHART_CONFIG.colors.primaryLight || CHART_CONFIG.colors.primary,
+        tickets_top_usuarios: CHART_CONFIG.colors.emerald,
+        tickets_top_solicitantes: CHART_CONFIG.colors.rose,
+        visitas_por_tecnico: CHART_CONFIG.colors.cyan,
         visitas_por_tipo: CHART_CONFIG.colors.pink,
-        mantenciones_por_status: CHART_CONFIG.colors.warning || CHART_CONFIG.colors.accent,
+        mantenciones_por_status: CHART_CONFIG.colors.warning,
         mantenciones_por_tecnico: CHART_CONFIG.colors.teal,
       };
 
@@ -481,6 +598,13 @@ export const useExportReportes = ({
           dataset_key: "inventario_por_marca",
           lectura:
             "Entrega visibilidad sobre la composición del parque tecnológico por fabricante.",
+        },
+        {
+          tipo: "bar",
+          titulo: "Top 5 solicitantes con más tickets",
+          dataset_key: "tickets_top_solicitantes",
+          lectura:
+            "Permite identificar los solicitantes que generaron mayor volumen de tickets durante el periodo.",
         },
       ];
 
@@ -527,8 +651,7 @@ export const useExportReportes = ({
               {
                 label: grafico.titulo || "Serie",
                 data: ds.values,
-                borderColor: chartColor,
-                backgroundColor: chartColor,
+                color: chartColor,
               },
             ],
             grafico.titulo || "Gráfico"
@@ -578,10 +701,89 @@ export const useExportReportes = ({
     }
   };
 
+  const formatMesTexto = (mes: string) => {
+    if (!mes) return "el período";
+    const [year, month] = mes.split("-");
+    const monthIndex = Number(month) - 1;
 
+    const meses = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    ];
 
+    if (monthIndex < 0 || monthIndex > 11 || !year) return mes;
+    return `${meses[monthIndex]} de ${year}`;
+  };
 
+  const buildTicketMonthlySummary = (row: TicketDashboardMonthlyRow) => {
+    const mesTexto = formatMesTexto(row.mes);
+    const tickets = Number(row.total_tickets || 0);
+    const cerrados = Number(row.tickets_cerrados || 0);
+    const horas = Number(row.horas_cap8h || 0);
+    const pct8h = Number(row.pct_resueltos_8h || 0);
+    const complejos = Number(row.tickets_complejos || 0);
+    const mediana = Number(row.mediana_minutos || 0);
 
+    const medianaTexto = mediana > 0 ? `${mediana} minutos` : "sin mediana disponible";
+    const complejosTexto =
+      complejos === 0
+        ? "sin casos clasificados como complejos"
+        : complejos === 1
+          ? "1 caso clasificado como complejo"
+          : `${complejos} casos clasificados como complejos`;
+
+    return `En ${mesTexto} se registraron ${tickets} tickets, de los cuales ${cerrados} fueron cerrados durante el período. El tiempo total estimado de atención fue de ${horas.toFixed(1)} horas, y el ${pct8h.toFixed(1)}% se resolvió en 8 horas o menos. La media de resolución fue de ${medianaTexto}, con ${complejosTexto}.`;
+  };
+
+  const formatHorasMinutos = (minutos: number) => {
+    const total = Number(minutos || 0);
+    const horas = Math.floor(total / 60);
+    const mins = total % 60;
+
+    if (horas <= 0) return `${mins}m`;
+    if (mins === 0) return `${horas}h`;
+    return `${horas}h ${mins}m`;
+  };
+
+  const buildTeamViewerMonthlySummary = (row: {
+    mes: string;
+    sesiones_mes: number;
+    minutos_mes: number;
+  }) => {
+    const mesTexto = formatMesTexto(row.mes);
+    const sesiones = Number(row.sesiones_mes || 0);
+    const minutos = Number(row.minutos_mes || 0);
+    const tiempoTexto = formatHorasMinutos(minutos);
+
+    return `En ${mesTexto} se realizaron ${sesiones} sesiones de mantención remota, con un tiempo total invertido de ${minutos} minutos, equivalente a ${tiempoTexto}.`;
+  };
+
+  const buildTeamViewerGeneralSummary = (
+    summary: { totalSesiones: number; totalMinutos: number } | null,
+    firstRow?: { mes: string; sesiones_mes: number; minutos_mes: number }
+  ) => {
+    if (firstRow) {
+      return buildTeamViewerMonthlySummary(firstRow);
+    }
+
+    if (!summary) {
+      return "No hay resumen disponible para mantenciones remotas en este período.";
+    }
+
+    return `Durante el período seleccionado se registraron ${summary.totalSesiones} sesiones de mantención remota, con un total de ${summary.totalMinutos} minutos invertidos, equivalentes a ${formatHorasMinutos(summary.totalMinutos)}.`;
+  };
+
+  const getDuracionMinutos = (inicio?: string | null, fin?: string | null) => {
+    if (!inicio || !fin) return 0;
+
+    const i = new Date(inicio);
+    const f = new Date(fin);
+
+    if (Number.isNaN(i.getTime()) || Number.isNaN(f.getTime())) return 0;
+
+    const diff = Math.round((f.getTime() - i.getTime()) / 60000);
+    return diff > 0 ? diff : 0;
+  };
 
   // ─── DOCX ────────────────────────────────────────────────────────────
 
@@ -596,10 +798,130 @@ export const useExportReportes = ({
         if (typeof s.id_solicitante === "number") sMap.set(s.id_solicitante, s.nombre ?? "");
 
       const ticketsRows = data.tickets.map((t) => ({
-        ID: t.ticket_id, Asunto: t.subject ?? "", Estado: "Cerrado",
-        Categoría: t.type ?? "—",
-        Fecha: t.fecha ? new Date(t.fecha).toLocaleString("es-CL") : "",
+        ID: t.ticket_id,
+        Asunto: t.subject ?? "",
+        Estado: ticketStatusLabel(t.status),
+        "Fecha creación": t.createdAt
+          ? new Date(t.createdAt).toLocaleString("es-CL")
+          : t.fecha
+            ? new Date(t.fecha).toLocaleString("es-CL")
+            : "—",
+        "Fecha resolución": t.resolvedAt
+          ? new Date(t.resolvedAt).toLocaleString("es-CL")
+          : "—",
+        "Técnico asignado": t.assigneeNombre ?? "—",
+        "Correo solicitante": t.solicitante_email ?? "—",
       }));
+
+      const topSolicitantesTickets = obtenerTopSolicitantesTickets(data.tickets);
+
+      const chartTopSolicitantesTicketsUrl =
+        topSolicitantesTickets.length > 0
+          ? await generateBarChart(
+            "chart-topsolicitantes-tickets-docx",
+            topSolicitantesTickets.map((r) => r.Solicitante),
+            topSolicitantesTickets.map((r) => Number(r.Tickets)),
+            "Top 5 solicitantes con más tickets",
+            CHART_CONFIG.colors.rose
+          )
+          : null;
+
+      const exportData = buildReporteExportData({
+        data,
+        periodoTexto,
+        empresaNombre,
+      });
+
+      const {
+        formatHorasMinutos,
+        dashboardMonthlySummary,
+        dashboardMonthlyRows,
+        teamViewerMonthlySummaryText,
+        tvBreakdownRows,
+        totalMinutosVisitas,
+        totalJornadasVisitas,
+        resumenVisitasTecnicas,
+        totalHorasTickets,
+        totalMinutosRemotas,
+        totalHorasSoporte,
+        totalSoporteResumen,
+        tvAverages,
+        tvBreakdown,
+        tvSummary
+      } = exportData;
+
+      const dashboardMonthly = data.ticketDashboardMonthly ?? [];
+
+      const monthlyLabels = dashboardMonthly.map((r) => r.mes);
+      const monthlyTickets = dashboardMonthly.map((r) => r.total_tickets);
+      const monthlyHoras = dashboardMonthly.map((r) => r.horas_cap8h);
+
+      const chartTicketsMensualUrl =
+        monthlyLabels.length > 0
+          ? await generateBarChart(
+            "chart-dashboard-tickets-mes-docx",
+            monthlyLabels,
+            monthlyTickets,
+            "Tickets por mes",
+            CHART_CONFIG.colors.teal
+          )
+          : null;
+
+      const chartHorasMensualUrl =
+        monthlyLabels.length > 0
+          ? await generateLineChart(
+            "chart-dashboard-horas-mes-docx",
+            monthlyLabels,
+            [
+              {
+                label: "Horas est. (cap 8h)",
+                data: monthlyHoras,
+                color: CHART_CONFIG.colors.orange,
+              },
+            ],
+            "Horas estimadas por mes"
+          )
+          : null;
+
+
+      const visitasAgrupadas = Array.from(
+        new Map(
+          (data.visitas ?? []).map((v) => {
+            const key = [
+              v.tecnico?.nombre?.trim() || "sin-tecnico",
+              v.inicio || "sin-inicio",
+              v.fin || "sin-fin",
+            ].join("|");
+
+            return [key, v];
+          })
+        ).values()
+      );
+
+
+      const totalHorasRemotas = totalMinutosRemotas / 60;
+      const totalHorasVisitas = totalMinutosVisitas / 60;
+
+      const tvAverageRows = tvAverages.map((r) => ({
+        Empresa: r.empresa,
+        "Prom. sesiones/mes": Number(r.promedio_sesiones_mes || 0),
+        "Prom. minutos/mes": Number(r.promedio_minutos_mes || 0),
+        "Equivalente": `${Math.floor(Number(r.promedio_minutos_mes || 0) / 60)}h ${Math.round(Number(r.promedio_minutos_mes || 0) % 60)}m`,
+      }));
+
+      const tvMonthlyLabels = tvBreakdown.map((r) => r.mes);
+      const tvMonthlyMinutes = tvBreakdown.map((r) => Number(r.minutos_mes || 0));
+
+      const chartTeamViewerMensualUrl =
+        tvMonthlyLabels.length > 0
+          ? await generateBarChart(
+            "chart-teamviewer-minutos-mes-docx",
+            tvMonthlyLabels,
+            tvMonthlyMinutes,
+            "Minutos por mes",
+            CHART_CONFIG.colors.primary
+          )
+          : null;
 
       const visitasRows = data.visitas.map((v) => {
         let fechaVisita = "—";
@@ -635,7 +957,7 @@ export const useExportReportes = ({
 
       const extras = contarExtras(data.visitas);
       const informeIASections = parseInformeIA(recomendaciones || "");
-      const logoBytes = await fetchLogoBytes();
+      const logoBytes = await fetchImageBytes("/login/rids_logo.png");
 
       const kpis = [
         { label: "Tickets del periodo", value: data.tickets.length },
@@ -715,17 +1037,96 @@ export const useExportReportes = ({
             Fin: m.fin ? new Date(m.fin).toLocaleString("es-CL") : "—",
             Estado: (m.status ?? "").toUpperCase(), Usuario: m.solicitante ?? "—",
           }))),
+
+        H1("Resumen mensual de mantenciones remotas"),
+        Body("Resumen mensual de sesiones y tiempo invertido en mantenciones remotas para la empresa seleccionada."),
+        Body(teamViewerMonthlySummaryText),
+
+        ...(tvSummary
+          ? [
+            Body(
+              `Total sesiones: ${tvSummary.totalSesiones} · Total minutos: ${tvSummary.totalMinutos} · Total horas equivalentes: ${formatHorasMinutos(tvSummary.totalMinutos)}`
+            ),
+          ]
+          : [Note("No hay resumen disponible para mantenciones remotas.")]),
+
+        ...(tvBreakdownRows.length > 0
+          ? tableProRight(
+            "Detalle mensual de mantenciones remotas.",
+            ["Mes", "Sesiones", "Minutos", "Horas"],
+            tvBreakdownRows,
+            [22, 18, 18, 18]
+          )
+          : [Note("No hay datos mensuales de mantenciones remotas para este período.")]),
+
         H2("Top 5 usuarios con más solicitudes"),
         ...(toBytes(chartTopUsuariosUrl) ? [imgParagraph(toBytes(chartTopUsuariosUrl)!)] : tablePro("Top usuarios.", ["Usuario", "Solicitudes"], topUsuariosRows)),
         H2("Cantidad de mantenciones por usuario"),
         ...(toBytes(chartMantUsuarioUrl) ? [imgParagraph(toBytes(chartMantUsuarioUrl)!)] : tablePro("Mantenciones por usuario.", ["Usuario", "Cantidad"], mantPorUsuarioTop)),
         H2("Inventario de equipos por marca"),
         ...(toBytes(chartEquiposMarcaUrl) ? [imgParagraph(toBytes(chartEquiposMarcaUrl)!)] : tablePro("Equipos por marca.", ["Marca", "Cantidad"], marcasLabels.map(m => ({ Marca: m, Cantidad: String(marcasConteo[m]) })))),
+
         H1("Detalle de Gestión"),
-        H2("Tickets"), ...tablePro("Detalle de tickets.", ["ID", "Asunto", "Estado", "Categoría", "Fecha"], ticketsRows),
+        H2("Tickets"),
+        ...tablePro(
+          "Detalle de tickets.",
+          ["ID", "Asunto", "Estado", "Fecha creación", "Fecha resolución", "Técnico asignado", "Correo solicitante"],
+          ticketsRows
+        ),
+        H2("Top 5 solicitantes con más tickets"),
+        ...(toBytes(chartTopSolicitantesTicketsUrl)
+          ? [imgParagraph(toBytes(chartTopSolicitantesTicketsUrl)!)]
+          : tablePro(
+            "Solicitantes con mayor cantidad de tickets generados.",
+            ["Solicitante", "Tickets"],
+            topSolicitantesTickets
+          )),
+        H1("Resumen mensual de tickets"),
+        Body("Resumen mensual de tickets, tiempos estimados y complejidad para la empresa seleccionada."),
+        Body(dashboardMonthlySummary),
+
+        ...(dashboardMonthlyRows.length > 0
+          ? tableProRight(
+            "Detalle mensual de tickets.",
+            ["Mes", "Tickets", "Cerrados", "Horas est.", "% ≤ 8h", "Mediana", "Complejos"],
+            dashboardMonthlyRows,
+            [16, 14, 14, 18, 14, 12, 12]
+          )
+          : [Note("No hay datos de dashboard mensual para este período.")]),
+        H1("Resumen de visitas técnicas"),
+        Body("Resumen del tiempo efectivo invertido en jornadas de atención presencial durante el período seleccionado."),
+        Body(resumenVisitasTecnicas),
+        ...tableProRight(
+          "Resumen consolidado de visitas técnicas.",
+          ["Indicador", "Valor"],
+          [
+            { Indicador: "Jornadas únicas", Valor: totalJornadasVisitas },
+            { Indicador: "Tiempo total invertido", Valor: formatHorasMinutos(totalMinutosVisitas) },
+          ],
+          [70, 30]
+        ),
         H2("Visitas Técnicas"), ...tablePro("Visitas realizadas.", ["Técnico", "Fecha", "Horario", "Usuario", "Estado"], visitasRows),
         H2("Configuraciones y Otros (totales)"), ...tablePro("Totales.", ["Ítem", "Cantidad"], extras.totales.map(r => ({ Ítem: r.Ítem, Cantidad: String(r.Cantidad) }))),
         H2("Detalle de \"Otros\""), ...tablePro("Detalles 'Otros'.", ["Detalle otros", "Cantidad"], (extras.detalles.length ? extras.detalles : [{ Detalle: "—", Cantidad: 0 }]).map(d => ({ "Detalle otros": d.Detalle, Cantidad: String(d.Cantidad) }))),
+
+        H1("Total mensual de horas de soporte"),
+        Body("Consolidado total del tiempo invertido en soporte durante el período seleccionado."),
+        Body(totalSoporteResumen),
+        Body(
+          `Tickets: ${totalHorasTickets.toFixed(1)}h · Mantenciones remotas: ${formatHorasMinutos(totalMinutosRemotas)} · Visitas técnicas: ${formatHorasMinutos(totalMinutosVisitas)} · Total general: ${totalHorasSoporte.toFixed(1)}h`
+        ),
+        ...tableProRight(
+          "Resumen consolidado de horas de soporte.",
+          ["Concepto", "Tiempo"],
+          [
+            { Concepto: "Tickets", Tiempo: `${totalHorasTickets.toFixed(1)}h` },
+            { Concepto: "Mantenciones remotas", Tiempo: formatHorasMinutos(totalMinutosRemotas) },
+            { Concepto: "Visitas técnicas (jornadas únicas)", Tiempo: formatHorasMinutos(totalMinutosVisitas) },
+            { Concepto: "Total general", Tiempo: `${totalHorasSoporte.toFixed(1)}h` },
+          ],
+          [70, 30]
+        ),
+
         H2("Usuarios y Correos activos"), ...tablePro("Listado de correos.", ["#", "Nombre", "Correo"], correosRows),
         H2("Inventario de Equipamiento"), ...tablePro("Inventario.", ["Serial", "Marca", "Modelo", "RAM", "Disco", "Propiedad", "Solicitante"], inventarioRows),
         H1("Análisis y Recomendaciones del periodo"),
@@ -781,11 +1182,15 @@ export const useExportReportes = ({
           r.readAsDataURL(b);
         });
       const base64Docx = await blobToBase64(blob);
+      
+      // Sube a SharePoint + Supabase y crea UN registro
       await http.post("/reportes-upload/upload-docx", {
         fileName,
+        empresaId: Number(empresaFiltro),
         empresa: empresaNombre,
         periodo: periodoTexto || "Periodo",
-        fileBase64: base64Docx
+        tipo: "DOCX",
+        fileBase64: base64Docx,
       });
 
       setExportStatus({ exporting: false, error: null });
@@ -849,8 +1254,19 @@ export const useExportReportes = ({
       }));
 
       addSheet(data.tickets, "Tickets", (t) => ({
-        ID: t.ticket_id, Asunto: t.subject ?? "", Estado: "Cerrado",
-        Categoría: t.type ?? "—", Fecha: t.fecha ? new Date(t.fecha).toLocaleString("es-CL") : "",
+        ID: t.ticket_id,
+        Asunto: t.subject ?? "",
+        Estado: ticketStatusLabel(t.status),
+        "Fecha creación": t.createdAt
+          ? new Date(t.createdAt).toLocaleString("es-CL")
+          : t.fecha
+            ? new Date(t.fecha).toLocaleString("es-CL")
+            : "—",
+        "Fecha resolución": t.resolvedAt
+          ? new Date(t.resolvedAt).toLocaleString("es-CL")
+          : "—",
+        "Técnico asignado": t.assigneeNombre ?? "—",
+        "Correo solicitante": t.solicitante_email ?? "—",
       }));
 
       const extras = contarExtras(data.visitas);
@@ -885,7 +1301,7 @@ export const useExportReportes = ({
       if (!el) throw new Error("No se encontró el contenedor del PDF.");
 
       const canvas = await html2canvas(el, {
-        scale: 2, useCORS: true, backgroundColor: "#ffffff",
+        scale: 1.2, useCORS: true, backgroundColor: "#ffffff",
         windowWidth: el.scrollWidth, windowHeight: el.scrollHeight,
         onclone: (doc) => {
           const clone = doc.getElementById("pdf-preview-root") as HTMLElement | null;
@@ -957,5 +1373,82 @@ export const useExportReportes = ({
     }
   };
 
-  return { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX, generarPdfBlob };
+  const exportPDFToStorage = async () => {
+    try {
+      setExportStatus({ exporting: true, error: null });
+
+      const data = await obtenerDatosReporteGeneral(
+        empresaFiltro,
+        selectedYear,
+        selectedMonth
+      );
+      onDataLoaded(data);
+
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => setTimeout(r, 50));
+
+      const el = previewRef.current;
+      if (!el) throw new Error("No se encontró el contenedor del PDF.");
+
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
+        onclone: (doc) => {
+          const clone = doc.getElementById("pdf-preview-root") as HTMLElement | null;
+          if (clone) {
+            clone.style.position = "static";
+            clone.style.left = "0px";
+            clone.style.top = "0px";
+            clone.style.opacity = "1";
+            clone.style.pointerEvents = "auto";
+            clone.style.transform = "none";
+            clone.style.zIndex = "0";
+            clone.style.width = "794px";
+          }
+        },
+      });
+
+      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+      const imgData = canvas.toDataURL("image/png");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgHeight);
+
+      const blob = pdf.output("blob");
+      const fileName = `Informe_${empresaNombre}_${periodoTexto || "Periodo"}.pdf`;
+
+      const blobToBase64 = (b: Blob): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(b);
+        });
+
+      const fileBase64 = await blobToBase64(blob);
+
+      await http.post("/reportes-upload/upload", {
+        fileName,
+        empresaId: Number(empresaFiltro),
+        empresa: empresaNombre,
+        periodo: periodoTexto || "Periodo",
+        tipo: "PDF",
+        fileBase64,
+      });
+
+      setExportStatus({ exporting: false, error: null });
+    } catch (e) {
+      console.error(e);
+      setExportStatus({
+        exporting: false,
+        error: "No se pudo generar o subir el PDF.",
+      });
+    }
+  };
+
+  return { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX, generarPdfBlob, exportPDFToStorage };
 };

@@ -90,7 +90,7 @@ type PayloadIABeta = {
 
 type MantencionRemotaRow = {
   id_mantencion?: number | string;
-  tecnico?: { nombre?: string };
+  tecnico?: { nombre?: string } | null;
   inicio?: string | Date | null;
   fin?: string | Date | null;
   status?: string | null;
@@ -253,20 +253,20 @@ const buildHeader = (
                     alignment: AlignmentType.RIGHT,
                     children: headerLogoBytes
                       ? [
-                          new ImageRun({
-                            data: headerLogoBytes,
-                            type: "png",
-                            transformation: {
-                              width: 120,
-                              height: 36,
-                            },
-                          }),
-                        ]
+                        new ImageRun({
+                          data: headerLogoBytes,
+                          type: "png",
+                          transformation: {
+                            width: 120,
+                            height: 36,
+                          },
+                        }),
+                      ]
                       : [
-                          new TextRun({
-                            text: "",
-                          }),
-                        ],
+                        new TextRun({
+                          text: "",
+                        }),
+                      ],
                   }),
                 ],
               }),
@@ -353,7 +353,7 @@ const normalizeKpiItem = (item: KPIItem): KPIItem => {
     valor: valorLegible,
     lectura:
       lecturaOriginal === "—" ||
-      lecturaOriginal.toLowerCase().includes("ms")
+        lecturaOriginal.toLowerCase().includes("ms")
         ? "Expresa el tiempo promedio de atención por visita en una unidad más legible para análisis ejecutivo."
         : lecturaOriginal,
   };
@@ -437,13 +437,13 @@ const buildMetricasDestacadasTable = (items: MetricaDestacadaItem[] = []) =>
     THEME.accentSoft
   );
 
- const buildSimpleInfoCard = (
+const buildSimpleInfoCard = (
   titulo: string,
   detalle: string,
   etiqueta?: string,
   etiquetaColor?: string,
   background = "FFFFFF"
-  ) =>
+) =>
   new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
@@ -466,18 +466,18 @@ const buildMetricasDestacadasTable = (items: MetricaDestacadaItem[] = []) =>
               }),
               ...(etiqueta
                 ? [
-                    new Paragraph({
-                      spacing: { after: 50 },
-                      children: [
-                        new TextRun({
-                          text: etiqueta,
-                          bold: true,
-                          size: 20,
-                          color: etiquetaColor || THEME.accent,
-                        }),
-                      ],
-                    }),
-                  ]
+                  new Paragraph({
+                    spacing: { after: 50 },
+                    children: [
+                      new TextRun({
+                        text: etiqueta,
+                        bold: true,
+                        size: 20,
+                        color: etiquetaColor || THEME.accent,
+                      }),
+                    ],
+                  }),
+                ]
                 : []),
               new Paragraph({
                 children: [
@@ -573,17 +573,17 @@ const buildHeroPremium = (
                         children: [
                           ...(logoBytes
                             ? [
-                                new Paragraph({
-                                  spacing: { after: 70 },
-                                  children: [
-                                    new ImageRun({
-                                      data: logoBytes,
-                                      type: "png",
-                                      transformation: { width: 170, height: 52 },
-                                    }),
-                                  ],
-                                }),
-                              ]
+                              new Paragraph({
+                                spacing: { after: 70 },
+                                children: [
+                                  new ImageRun({
+                                    data: logoBytes,
+                                    type: "png",
+                                    transformation: { width: 170, height: 52 },
+                                  }),
+                                ],
+                              }),
+                            ]
                             : []),
                           new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: "ASESORÍAS RIDS · REPORTE PREMIUM CON IA", bold: true, size: 18, color: "DCE7FF" })] }),
                           new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: titulo, bold: true, size: 42, color: "FFFFFF" })] }),
@@ -698,9 +698,9 @@ const buildKpiDashboard = (
     ],
   });
 
- // word IA
+// word IA
 
- const getImpactFill = (impacto?: string) => {
+const getImpactFill = (impacto?: string) => {
   const v = String(impacto || "").toLowerCase();
   if (v === "alto") return THEME.greenSoft;
   if (v === "medio") return THEME.accentSoft;
@@ -922,7 +922,7 @@ const buildRecommendationCard = (
 
 
 
- const datasetKeyLabel = (key?: string) => {
+const datasetKeyLabel = (key?: string) => {
   switch (key) {
     case "mantenciones_por_fecha":
       return "Mantenciones por fecha";
@@ -1260,20 +1260,26 @@ export async function buildAndDownloadReporteIABetaDocx({
   );
 
   const ticketsRows = normalizeArray(
-    ticketsDetalle.map((t) => ({
+    ticketsDetalle.map((t: any) => ({
       ID: String(t.ticket_id ?? "—"),
       Asunto: t.subject ?? "—",
-      Estado: "Cerrado",
-      Categoría: t.type ?? "—",
-      Fecha: formatDateTimeCL(t.fecha),
+      Estado: String(t.status ?? "—").toUpperCase(),
+      "Fecha creación": t.createdAt
+        ? formatDateTimeCL(t.createdAt)
+        : formatDateTimeCL(t.fecha),
+      "Fecha resolución": t.resolvedAt
+        ? formatDateTimeCL(t.resolvedAt)
+        : "—",
+      "Técnico asignado": t.assigneeNombre ?? "—",
     })),
     [
       {
         ID: "—",
         Asunto: "—",
         Estado: "—",
-        Categoría: "—",
-        Fecha: "—",
+        "Fecha creación": "—",
+        "Fecha resolución": "—",
+        "Técnico asignado": "—",
       },
     ]
   );
@@ -1502,13 +1508,13 @@ export async function buildAndDownloadReporteIABetaDocx({
       "Estas acciones se proponen para seguir fortaleciendo la operación, mejorar trazabilidad y consolidar oportunidades detectadas durante el periodo."
     ),
     ...recomendaciones.flatMap((r, index) => [
-    buildRecommendationCard(
-      r.prioridad || "Media",
-      `${index + 1}. ${r.titulo || "Recomendación"}`,
-      r.detalle || "Sin detalle disponible.",
-      r.beneficio || "No informado"
-    ),
-     new Paragraph({ spacing: { after: 90 } }),
+      buildRecommendationCard(
+        r.prioridad || "Media",
+        `${index + 1}. ${r.titulo || "Recomendación"}`,
+        r.detalle || "Sin detalle disponible.",
+        r.beneficio || "No informado"
+      ),
+      new Paragraph({ spacing: { after: 90 } }),
     ]),
 
     h1("Plan de Acción 30-60-90"),
@@ -1551,13 +1557,14 @@ export async function buildAndDownloadReporteIABetaDocx({
 
     h2("Tickets"),
     buildTable(
-      ["ID", "Asunto", "Estado", "Categoría", "Fecha"],
+      ["ID", "Asunto", "Estado", "Fecha creación", "Fecha resolución", "Técnico asignado"],
       ticketsRows.map((r) => [
         r.ID,
         r.Asunto,
         r.Estado,
-        r.Categoría,
-        r.Fecha,
+        r["Fecha creación"],
+        r["Fecha resolución"],
+        r["Técnico asignado"],
       ]),
       THEME.primary,
       THEME.zebra

@@ -258,6 +258,24 @@ export const obtenerTopUsuariosGeneral = (
         .map(([Usuario, Solicitudes]) => ({ Usuario, Solicitudes }));
 };
 
+export const obtenerTopSolicitantesTickets = (tickets: TicketRow[]) => {
+    const conteo: Record<string, number> = {};
+
+    for (const t of tickets) {
+        const key =
+            (t.solicitante_email || "").trim().toLowerCase() || "Sin correo";
+        conteo[key] = (conteo[key] || 0) + 1;
+    }
+
+    return Object.entries(conteo)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([Solicitante, Tickets]) => ({
+            Solicitante,
+            Tickets,
+        }));
+};
+
 // ─── Chart generators ──────────────────────────────────────────────────────
 
 export const dataUrlToUint8Array = (dataUrl: string): Uint8Array => {
