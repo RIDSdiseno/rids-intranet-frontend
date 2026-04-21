@@ -19,6 +19,7 @@ const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
+const FacturasDashboardPage = lazy(() => import("./host/FacturasDashboard"));
 
 const HelpdeskLayout = lazy(() => import("../src/components/modals-ticketera/HelpdeskLayout"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
@@ -57,18 +58,24 @@ function getUserRol(): string | null {
   }
 }
 
+function getUserEmail(): string | null {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? (JSON.parse(raw)?.email ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 /* =========================
    Guards
 ========================= */
 
-// Verifica que el usuario esté autenticado
 function ProtectedRoute() {
   if (!isAuthed()) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
-// Verifica que el usuario tenga uno de los roles permitidos
-// Si no tiene el rol, redirige a /home
 function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rol = getUserRol();
   if (!rol || !allowedRoles.includes(rol)) {
@@ -77,7 +84,17 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   return <Outlet />;
 }
 
-// Cambia el redirect raíz según el rol
+// Acceso exclusivo por email — módulo Cobranza
+const COBRANZA_EMAILS = ["carenas@rids.cl"];
+
+function CobranzaRoute() {
+  const email = getUserEmail();
+  if (!email || !COBRANZA_EMAILS.includes(email)) {
+    return <Navigate to="/home" replace />;
+  }
+  return <Outlet />;
+}
+
 function getRootRedirect(): string {
   const rol = getUserRol();
   if (rol === "CLIENTE") return "/empresas";
@@ -172,6 +189,12 @@ export default function App() {
                 <Route path="tickets/:id" element={<TicketeraDetalle />} />
                 <Route path="email-templates" element={<HelpdeskConfigPage />} />
               </Route>
+            </Route>
+
+            {/* Cobranza — solo emails permitidos (independiente del rol) */}
+            <Route element={<CobranzaRoute />}>
+              <Route path="/facturas" element={<FacturasDashboardPage />} />
+              <Route path="/cobranza" element={<FacturasDashboardPage />} />
             </Route>
 
           </Route>

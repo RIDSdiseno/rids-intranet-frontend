@@ -20,11 +20,10 @@ import {
   ClipboardList,
   ReceiptText,
   Headset,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
-
-/* ================== CONFIGURACIÓN DE RUTAS Y API ================== */
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -44,8 +43,7 @@ const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
-
-/* ================== TIPOS ================== */
+const COBRANZA_PATH = "/cobranza";
 
 type NavItem = {
   label: string;
@@ -73,7 +71,8 @@ type StoredUser = {
   rol?: string;
 };
 
-/* ================== DATA NAVEGACIÓN (todos los roles) ================== */
+// Usuarios con acceso exclusivo al módulo de Cobranza
+const COBRANZA_EMAILS = ["carenas@rids.cl"];
 
 const NAV: NavEntry[] = [
   {
@@ -113,6 +112,7 @@ const NAV: NavEntry[] = [
       { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
+      // Facturas SII removido de aquí — ahora solo en Cobranza (acceso restringido)
     ],
     match: [ORDENESTALLER, COTIZACIONES, "/clientes", "/productos", "/tecnicos"],
   },
@@ -130,9 +130,15 @@ const NAV: NavEntry[] = [
     ],
     match: [TICKETS_PATH],
   },
+  {
+    type: "group",
+    label: "Cobranza",
+    items: [
+      { label: "Facturas SII", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
+    ],
+    match: [COBRANZA_PATH],
+  },
 ];
-
-/* ================== HELPERS ================== */
 
 function isActivePath(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(`${to}/`);
@@ -147,12 +153,6 @@ function safeParseUser(): StoredUser | null {
     return null;
   }
 }
-
-function nonNull<T>(v: T | null): v is T {
-  return v !== null;
-}
-
-/* ================== COMPONENTE ================== */
 
 const Header = () => {
   const { pathname } = useLocation();
@@ -192,18 +192,25 @@ const Header = () => {
 
   const user = useMemo(() => safeParseUser(), []);
   const isCliente = user?.rol === "CLIENTE";
+  const canAccessCobranza = COBRANZA_EMAILS.includes(user?.email ?? "");
 
-  /* ================== NAV FILTRADO POR ROL ================== */
   const filteredNav: NavEntry[] = useMemo(() => {
-    // TECNICO y ADMIN ven todo
-    if (!isCliente) return NAV;
+    // Filtrar Cobranza según email permitido
+    const nav = NAV.filter((entry) => {
+      if (entry.type === "group" && entry.label === "Cobranza") {
+        return canAccessCobranza;
+      }
+      return true;
+    });
 
-    // CLIENTE solo ve su grupo reducido, sin Inicio
+    if (!isCliente) return nav;
+
+    // CLIENTE solo ve su grupo reducido
     return [
       {
         type: "group" as const,
         label: "Mi Empresa",
-        match: [EMPRESAS_PATH, EQUIPOS_PATH, VISITAS_PATH, SOLICITANTES_PATH,REPORTES_PATH ],
+        match: [EMPRESAS_PATH, EQUIPOS_PATH, VISITAS_PATH, SOLICITANTES_PATH, REPORTES_PATH],
         items: [
           { label: "Mi Empresa", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
           { label: "Mis Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
@@ -213,9 +220,8 @@ const Header = () => {
         ],
       },
     ];
-  }, [isCliente]);
+  }, [isCliente, canAccessCobranza]);
 
-  /* ================== LOGOUT ================== */
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -235,10 +241,8 @@ const Header = () => {
 
   const sidebarCollapsed = !isMobile && collapsed;
 
-  /* ================== RENDER ================== */
   return (
     <>
-      {/* Botón abrir menú mobile */}
       {isMobile && !mobileOpen && (
         <button
           onClick={() => setMobileOpen(true)}
@@ -250,7 +254,6 @@ const Header = () => {
         </button>
       )}
 
-      {/* Overlay mobile */}
       {isMobile && mobileOpen && (
         <button
           type="button"
@@ -260,7 +263,6 @@ const Header = () => {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           ${isMobile ? "fixed inset-y-0 left-0 z-50" : "relative shrink-0"}
@@ -275,7 +277,6 @@ const Header = () => {
           }
         `}
       >
-        {/* Logo + toggle */}
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4 sm:h-20">
           <Link to={isCliente ? "/empresas" : HOME_PATH} className={sidebarCollapsed ? "mx-auto" : ""}>
             <img
@@ -308,7 +309,6 @@ const Header = () => {
           )}
         </div>
 
-        {/* Navegación */}
         <nav className="flex-1 overflow-y-auto px-2 py-4 sm:py-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
           {filteredNav.map((entry) =>
             entry.type === "link" ? (
@@ -370,7 +370,6 @@ const Header = () => {
           )}
         </nav>
 
-        {/* Usuario + logout */}
         <div className="border-t p-4 space-y-3">
           {!sidebarCollapsed ? (
             <>
