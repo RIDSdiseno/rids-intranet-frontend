@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionDesktopTable.tsx
 import React from "react";
 import type { MantencionRemota } from "../../lib/mantencionesRemotasApi";
 import StatusBadge from "./StatusBadge";
@@ -25,8 +26,8 @@ type Props = {
     onOpenEdit: (row: MantencionRemota) => void;
     onCloseMantencion: (id: number) => void;
     onDeleteMantencion: (id: number) => void;
+    canManage?: boolean;
 };
-
 export default function MantencionDesktopTable({
     state,
     err,
@@ -42,6 +43,7 @@ export default function MantencionDesktopTable({
     onOpenEdit,
     onCloseMantencion,
     onDeleteMantencion,
+    canManage = true,
 }: Props) {
     return (
         <section className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden mt-4">
@@ -108,38 +110,42 @@ export default function MantencionDesktopTable({
                                                     Detalles
                                                 </button>
 
-                                                <button
-                                                    onClick={() => onOpenEdit(r)}
-                                                    disabled={r.status === "EN_CURSO"}
-                                                    className={clsx(
-                                                        "rounded-xl border px-2 py-2 text-sm transition",
-                                                        r.status === "EN_CURSO"
-                                                            ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
-                                                            : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                                    )}
-                                                >
-                                                    Editar
-                                                </button>
+                                                {canManage && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => onOpenEdit(r)}
+                                                            disabled={r.status === "EN_CURSO"}
+                                                            className={clsx(
+                                                                "rounded-xl border px-2 py-2 text-sm transition",
+                                                                r.status === "EN_CURSO"
+                                                                    ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                                                    : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                                            )}
+                                                        >
+                                                            Editar
+                                                        </button>
 
-                                                <button
-                                                    onClick={() => onCloseMantencion(r.id_mantencion)}
-                                                    disabled={r.status === "COMPLETADA"}
-                                                    className={clsx(
-                                                        "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
-                                                        r.status === "COMPLETADA"
-                                                            ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
-                                                            : "border-cyan-200 text-cyan-800 hover:bg-cyan-50"
-                                                    )}
-                                                >
-                                                    Cerrar
-                                                </button>
+                                                        <button
+                                                            onClick={() => onCloseMantencion(r.id_mantencion)}
+                                                            disabled={r.status === "COMPLETADA"}
+                                                            className={clsx(
+                                                                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
+                                                                r.status === "COMPLETADA"
+                                                                    ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                                                    : "border-cyan-200 text-cyan-800 hover:bg-cyan-50"
+                                                            )}
+                                                        >
+                                                            Cerrar
+                                                        </button>
 
-                                                <button
-                                                    onClick={() => onDeleteMantencion(r.id_mantencion)}
-                                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
-                                                >
-                                                    Eliminar
-                                                </button>
+                                                        <button
+                                                            onClick={() => onDeleteMantencion(r.id_mantencion)}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

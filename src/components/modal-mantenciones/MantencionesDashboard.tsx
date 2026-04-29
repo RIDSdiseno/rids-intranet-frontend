@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionesDashboard.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     getTeamViewerMonthlyAverages,
@@ -20,9 +21,17 @@ function fmtNum(n: number) {
     return new Intl.NumberFormat("es-CL").format(Math.round(n));
 }
 
-type Props = { active: boolean };
+type Props = {
+    active: boolean;
+    isCliente?: boolean;
+    clienteEmpresaId?: number | null;
+};
 
-export default function MantencionesDashboardTab({ active }: Props) {
+export default function MantencionesDashboardTab({
+    active,
+    isCliente = false,
+    clienteEmpresaId = null,
+}: Props) {
     const [state, setState] = useState<LoadState>("idle");
     const [err, setErr] = useState<string | null>(null);
     const [items, setItems] = useState<TeamViewerMonthlyAverageRow[]>([]);
@@ -45,15 +54,70 @@ export default function MantencionesDashboardTab({ active }: Props) {
     async function load() {
         setState("loading");
         setErr(null);
-        setSelectedEmpresa("TODAS");
+
         try {
+            const params = {
+                fromDate: fromDate || undefined,
+                toDate: toDate || undefined,
+
+                // Si es cliente, enviamos su empresaId.
+                // Además el backend igual debería validar esto con el token.
+                empresaId: isCliente && clienteEmpresaId ? clienteEmpresaId : undefined,
+            };
+
             const [averagesResp, breakdownResp] = await Promise.all([
-                getTeamViewerMonthlyAverages({ fromDate: fromDate || undefined, toDate: toDate || undefined }),
-                getTeamViewerMonthlyBreakdown({ fromDate: fromDate || undefined, toDate: toDate || undefined }),
+                getTeamViewerMonthlyAverages(params),
+                getTeamViewerMonthlyBreakdown(params),
             ]);
-            setItems(averagesResp.items ?? []);
-            setMonthlyItems(breakdownResp.items ?? []);
-            setSummary(averagesResp.summary ?? { empresas: 0, totalSesiones: 0, totalMinutos: 0, totalHoras: 0 });
+
+            const rawItems = averagesResp.items ?? [];
+            const rawMonthlyItems = breakdownResp.items ?? [];
+
+            // Filtro defensivo en frontend.
+            // Esto evita que se rendericen otras empresas aunque el backend aún devuelva todo.
+            const filteredItems =
+                isCliente && clienteEmpresaId
+                    ? rawItems.filter((row) => Number(row.id_empresa) === Number(clienteEmpresaId))
+                    : rawItems;
+
+            const filteredMonthlyItems =
+                isCliente && clienteEmpresaId
+                    ? rawMonthlyItems.filter((row: any) => {
+                        const rowEmpresaId = row.id_empresa ?? row.empresaId;
+                        return Number(rowEmpresaId) === Number(clienteEmpresaId);
+                    })
+                    : rawMonthlyItems;
+
+            const totalSesiones = filteredMonthlyItems.reduce(
+                (acc, row) => acc + Number(row.sesiones_mes || 0),
+                0
+            );
+
+            const totalMinutos = filteredMonthlyItems.reduce(
+                (acc, row) => acc + Number(row.minutos_mes || 0),
+                0
+            );
+
+            const empresasCount =
+                new Set(filteredItems.map((row) => row.empresa)).size ||
+                new Set(filteredMonthlyItems.map((row) => row.empresa)).size;
+
+            const empresaCliente =
+                filteredItems[0]?.empresa ??
+                filteredMonthlyItems[0]?.empresa ??
+                "TODAS";
+
+            setItems(filteredItems);
+            setMonthlyItems(filteredMonthlyItems);
+
+            setSummary({
+                empresas: empresasCount,
+                totalSesiones,
+                totalMinutos,
+                totalHoras: Math.floor(totalMinutos / 60),
+            });
+
+            setSelectedEmpresa(isCliente ? empresaCliente : "TODAS");
             setState("idle");
         } catch (e: unknown) {
             setState("error");
@@ -113,9 +177,12 @@ export default function MantencionesDashboardTab({ active }: Props) {
     }, [monthlyItems]);
 
     const monthlyFiltrado = useMemo(() => {
+        if (isCliente) return monthlyItems;
+
         if (selectedEmpresa === "TODAS") return monthlyItems;
+
         return monthlyItems.filter((r) => r.empresa === selectedEmpresa);
-    }, [monthlyItems, selectedEmpresa]);
+    }, [monthlyItems, selectedEmpresa, isCliente]);
 
     useEffect(() => {
         if (selectedEmpresa === "TODAS") {
@@ -229,7 +296,10 @@ export default function MantencionesDashboardTab({ active }: Props) {
             {/* ── Métricas ── */}
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
                 {[
-                    { label: "Empresas", value: fmtNum(summary.empresas) },
+                    {
+                        label: isCliente ? "Empresa" : "Empresas",
+                        value: isCliente ? "1" : fmtNum(summary.empresas),
+                    },
                     { label: "Total sesiones", value: fmtNum(summary.totalSesiones) },
                     { label: "Total minutos", value: fmtNum(summary.totalMinutos) },
                     { label: "Total horas", value: fmtNum(summary.totalHoras) },
@@ -259,16 +329,18 @@ export default function MantencionesDashboardTab({ active }: Props) {
                 <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                     <span className="text-sm font-medium text-gray-800">Minutos por mes</span>
                     <div className="flex items-center gap-2">
-                        <select
-                            value={selectedEmpresa}
-                            onChange={(e) => setSelectedEmpresa(e.target.value)}
-                            className="text-xs rounded-lg border border-gray-200 bg-white px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="TODAS">Todas las empresas</option>
-                            {empresasUnicas.map((emp) => (
-                                <option key={emp} value={emp}>{emp}</option>
-                            ))}
-                        </select>
+                        {!isCliente && (
+                            <select
+                                value={selectedEmpresa}
+                                onChange={(e) => setSelectedEmpresa(e.target.value)}
+                                className="text-xs rounded-lg border border-gray-200 bg-white px-2 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="TODAS">Todas las empresas</option>
+                                {empresasUnicas.map((emp) => (
+                                    <option key={emp} value={emp}>{emp}</option>
+                                ))}
+                            </select>
+                        )}
                         <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
                             {[...new Set(monthlyFiltrado.map((r) => r.mes))].length} meses
                         </span>
@@ -276,7 +348,7 @@ export default function MantencionesDashboardTab({ active }: Props) {
                 </div>
 
                 {/* Leyenda de empresas clickeable */}
-                {state === "idle" && selectedEmpresa === "TODAS" && empresasUnicas.length > 0 && (
+                {!isCliente && state === "idle" && selectedEmpresa === "TODAS" && empresasUnicas.length > 0 && (
                     <div className="flex flex-wrap gap-3 px-5 pt-3 pb-1">
                         {empresasUnicas.map((emp) => (
                             <span
@@ -302,12 +374,14 @@ export default function MantencionesDashboardTab({ active }: Props) {
                             className="w-2 h-2 rounded-full shrink-0"
                         />
                         <span className="text-xs text-gray-600 font-medium">{selectedEmpresa}</span>
-                        <button
-                            onClick={() => setSelectedEmpresa("TODAS")}
-                            className="text-xs text-gray-400 hover:text-gray-700 underline ml-1"
-                        >
-                            ver todas
-                        </button>
+                        {!isCliente && (
+                            <button
+                                onClick={() => setSelectedEmpresa("TODAS")}
+                                className="text-xs text-gray-400 hover:text-gray-700 underline ml-1"
+                            >
+                                ver todas
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -331,9 +405,11 @@ export default function MantencionesDashboardTab({ active }: Props) {
             {/* ── Ranking ── */}
             <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-                    <span className="text-sm font-medium text-gray-800">Ranking por empresa</span>
+                    <span className="text-sm font-medium text-gray-800">
+                        {isCliente ? "Resumen mensual de tu empresa" : "Ranking por empresa"}
+                    </span>
                     <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                        {items.length} empresas
+                        {isCliente ? "Tu empresa" : `${items.length} empresas`}
                     </span>
                 </div>
 
@@ -374,9 +450,13 @@ export default function MantencionesDashboardTab({ active }: Props) {
                                     return (
                                         <React.Fragment key={row.id_empresa}>
                                             <tr
-                                                className="border-t border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                className={`border-t border-gray-100 hover:bg-gray-50 transition-colors ${isCliente ? "" : "cursor-pointer"
+                                                    }`}
                                                 onClick={() => {
-                                                    setSelectedEmpresa(row.empresa);
+                                                    if (!isCliente) {
+                                                        setSelectedEmpresa(row.empresa);
+                                                    }
+
                                                     setExpandedEmpresa((prev) => (prev === row.empresa ? null : row.empresa));
                                                 }}
                                             >

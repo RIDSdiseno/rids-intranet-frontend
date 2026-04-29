@@ -165,6 +165,7 @@ const EmpresasPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const { isCliente } = useAuth();
+  const canEditEmpresa = !isCliente;
   const [activeTab, setActiveTab] = useState<"overview" | "companies">(
     isCliente ? "companies" : "overview"
   );
@@ -442,7 +443,7 @@ const EmpresasPage: React.FC = () => {
       </div>
     );
   }
-  
+
   // Renderizamos el dashboard principal con las estadísticas generales, los gráficos de distribución y la lista de empresas. Incluimos animaciones suaves al cargar los datos y al interactuar con los elementos. También mostramos botones para refrescar los datos y crear nuevas empresas, y adaptamos la información mostrada según el rol del usuario (cliente o admin).
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-white">
@@ -637,6 +638,7 @@ const EmpresasPage: React.FC = () => {
         visitas={visitasSel}
         contactos={contactosSel}
         onUpdated={() => { if (empresaSel?.id_empresa) refreshEmpresaCompleta(empresaSel.id_empresa); }}
+        canEdit={canEditEmpresa}
       />
 
       <FichaEmpresaModal
@@ -648,7 +650,12 @@ const EmpresasPage: React.FC = () => {
         checklist={fichaData?.checklist ?? null}
         detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null}
         contactos={fichaData?.contactos ?? []}
-        onUpdated={() => { if (fichaData?.empresa?.id_empresa) refreshEmpresaCompleta(fichaData.empresa.id_empresa); }}
+        canEdit={canEditEmpresa}
+        onUpdated={() => {
+          if (fichaData?.empresa?.id_empresa) {
+            refreshEmpresaCompleta(fichaData.empresa.id_empresa);
+          }
+        }}
       />
 
       {createEmpresaOpen && (

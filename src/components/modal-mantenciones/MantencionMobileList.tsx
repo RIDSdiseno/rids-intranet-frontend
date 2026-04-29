@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionMobileList.tsx
 import type { MantencionRemota } from "../../lib/mantencionesRemotasApi";
 import StatusBadge from "./StatusBadge";
 
@@ -16,6 +17,7 @@ type Props = {
     onOpenEdit: (row: MantencionRemota) => void;
     onCloseMantencion: (id: number) => void;
     onDeleteMantencion: (id: number) => void;
+    canManage?: boolean;
 };
 
 export default function MantencionMobileList({
@@ -27,6 +29,7 @@ export default function MantencionMobileList({
     onOpenEdit,
     onCloseMantencion,
     onDeleteMantencion,
+    canManage = true,
 }: Props) {
     return (
         <section
@@ -95,38 +98,42 @@ export default function MantencionMobileList({
                                     Detalles
                                 </button>
 
-                                <button
-                                    onClick={() => onOpenEdit(r)}
-                                    disabled={r.status === "EN_CURSO"}
-                                    className={clsx(
-                                        "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
-                                        r.status === "EN_CURSO"
-                                            ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
-                                            : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                    )}
-                                >
-                                    Editar
-                                </button>
+                                {canManage && (
+                                    <>
+                                        <button
+                                            onClick={() => onOpenEdit(r)}
+                                            disabled={r.status === "EN_CURSO"}
+                                            className={clsx(
+                                                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 transition",
+                                                r.status === "EN_CURSO"
+                                                    ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                                    : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                            )}
+                                        >
+                                            Editar
+                                        </button>
 
-                                <button
-                                    onClick={() => onCloseMantencion(r.id_mantencion)}
-                                    disabled={r.status === "COMPLETADA"}
-                                    className={clsx(
-                                        "rounded-xl border px-2 py-2 text-sm transition",
-                                        r.status === "COMPLETADA"
-                                            ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
-                                            : "border-cyan-200 text-cyan-800 hover:bg-cyan-50"
-                                    )}
-                                >
-                                    Cerrar
-                                </button>
+                                        <button
+                                            onClick={() => onCloseMantencion(r.id_mantencion)}
+                                            disabled={r.status === "COMPLETADA"}
+                                            className={clsx(
+                                                "rounded-xl border px-2 py-2 text-sm transition",
+                                                r.status === "COMPLETADA"
+                                                    ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                                    : "border-cyan-200 text-cyan-800 hover:bg-cyan-50"
+                                            )}
+                                        >
+                                            Cerrar
+                                        </button>
 
-                                <button
-                                    onClick={() => onDeleteMantencion(r.id_mantencion)}
-                                    className="rounded-xl border border-rose-200 text-rose-700 px-2 py-2 text-sm hover:bg-rose-50"
-                                >
-                                    Eliminar
-                                </button>
+                                        <button
+                                            onClick={() => onDeleteMantencion(r.id_mantencion)}
+                                            className="rounded-xl border border-rose-200 text-rose-700 px-2 py-2 text-sm hover:bg-rose-50"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </article>
                     );

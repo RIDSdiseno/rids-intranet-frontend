@@ -1,3 +1,4 @@
+// ./../modals-empresa/tabs/FichaTecnicaTab.tsx
 import React, { useEffect, useState } from "react";
 import {
     Card,
@@ -27,12 +28,13 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { http } from "../../../service/http";  // 🔥 ajusta ruta
+import { http } from "../../../service/http";  // ajusta ruta
 
 dayjs.extend(utc);
 
 interface Props {
     empresaId: number;
+    canEdit?: boolean;
 }
 
 const hasValue = (value: any): boolean => {
@@ -47,7 +49,7 @@ const toDateInputValue = (date?: string | Date | null) => {
     return dayjs.utc(date).format("YYYY-MM-DD");
 };
 
-const FichaTecnicaTab: React.FC<Props> = ({ empresaId }) => {
+const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
     const [form] = Form.useForm();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -266,7 +268,9 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId }) => {
                 <Space>
                     {activeView === 'view' ? (
                         <Tooltip title="Editar ficha técnica">
-                            <Button type="primary" icon={<EditOutlined />} onClick={() => setActiveView('edit')}>Editar</Button>
+                            {canEdit && (
+                                <Button type="primary" icon={<EditOutlined />} onClick={() => setActiveView('edit')}>Editar</Button>
+                            )}
                         </Tooltip>
                     ) : (
                         <>
@@ -274,7 +278,9 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId }) => {
                                 <Button onClick={() => { setActiveView('view'); form.resetFields(); }}>Cancelar</Button>
                             </Tooltip>
                             <Tooltip title="Guardar cambios">
-                                <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>Guardar</Button>
+                                {canEdit && (
+                                    <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>Guardar</Button>
+                                )}
                             </Tooltip>
                         </>
                     )}

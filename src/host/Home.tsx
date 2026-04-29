@@ -214,6 +214,7 @@ type PieTooltipProps = {
   active?: boolean;
   payload?: Array<{ payload: VisitaMetricRow; value: number; name: string }>;
 };
+
 const CustomPieTooltip: FC<PieTooltipProps> = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   const item = payload[0];
@@ -356,8 +357,38 @@ const Home: FC = () => {
   const fetchTotalEquipos = (signal?: AbortSignal) =>
     fetchTotal("/equipos", setTotalEquipos, setLoadingEq, setErrorEq, signal);
 
-  const fetchTotalTickets = (signal?: AbortSignal) =>
-    fetchTotal("/tickets", setTotalTickets, setLoadingTic, setErrorTic, signal);
+  const fetchTotalTickets = async (signal?: AbortSignal) => {
+    try {
+      setLoadingTic(true);
+      setErrorTic(null);
+
+      const { data } = await api.get("/helpdesk/tickets/home-summary", {
+        params: {
+          from,
+          to,
+        },
+        signal,
+      });
+
+      if (data?.ok) {
+        setTotalTickets(data.data.recibidos ?? 0);
+      } else {
+        setTotalTickets(0);
+      }
+    } catch (e) {
+      if (
+        (e as Error).name === "CanceledError" ||
+        (e as Error).name === "AbortError"
+      ) {
+        return;
+      }
+
+      setErrorTic(toErrorMessage(e, "Error al cargar resumen de tickets"));
+      setTotalTickets(null);
+    } finally {
+      setLoadingTic(false);
+    }
+  };
 
   /* ===== métricas de visitas con axios ===== */
   const fetchVisitasMetrics = async (signal?: AbortSignal) => {
@@ -394,12 +425,13 @@ const Home: FC = () => {
       setErrorTecnicosMetrics(null);
 
       const { data } = await api.get("/helpdesk/tickets/tecnicos/metrics", {
+        params: { from, to },
         signal,
       });
 
       if (data?.ok) {
         const rows = [...(data.data ?? [])].sort(
-          (a, b) => b.closedTickets - a.closedTickets
+          (a, b) => Number(b.closedTickets || 0) - Number(a.closedTickets || 0)
         );
         setTecnicosMetrics(rows);
       } else {
@@ -440,38 +472,54 @@ const Home: FC = () => {
   }, []);
 
   /* ===== NUEVAS MÉTRICAS SOLO CON VISITAS ===== */
-  const avgVisitasPorTecnico = useMemo(() => {
-    if (!visitasByTech.length) return 0;
-    const total = visitasByTech.reduce((acc, row) => acc + row.cantidad, 0);
-    return Math.round(total / visitasByTech.length);
-  }, [visitasByTech]);
-
   const topTecnico = useMemo(() => {
     if (!visitasByTech.length) return null;
     return [...visitasByTech].sort((a, b) => b.cantidad - a.cantidad)[0];
   }, [visitasByTech]);
 
-  const tecnicosActivos = useMemo(() => {
-    return visitasByTech.filter((t) => t.cantidad > 0).length;
-  }, [visitasByTech]);
-
-  const tecnicosSobrePromedio = useMemo(() => {
-    return visitasByTech.filter((t) => t.cantidad > avgVisitasPorTecnico);
-  }, [visitasByTech, avgVisitasPorTecnico]);
-
-  const tecnicosBajaActividad = useMemo(() => {
-    if (!avgVisitasPorTecnico) return [];
-    return visitasByTech.filter((t) => t.cantidad < avgVisitasPorTecnico * 0.5);
-  }, [visitasByTech, avgVisitasPorTecnico]);
-
-  const rankingTecnicos = useMemo(() => {
-    return [...visitasByTech].sort((a, b) => b.cantidad - a.cantidad);
-  }, [visitasByTech]);
 
   const topTecnicosHelpdesk = useMemo(() => {
     return [...tecnicosMetrics]
       .sort((a, b) => b.closedTickets - a.closedTickets)
       .slice(0, 5);
+  }, [tecnicosMetrics]);
+
+  const ticketsResueltosMes = useMemo(() => {
+    return tecnicosMetrics.reduce(
+      (acc, t) => acc + Number(t.resolvedTickets || 0),
+      0
+    );
+  }, [tecnicosMetrics]);
+
+  const ticketsCerradosMes = useMemo(() => {
+    return tecnicosMetrics.reduce(
+      (acc, t) => acc + Number(t.closedTickets || 0),
+      0
+    );
+  }, [tecnicosMetrics]);
+
+  const topTecnicoTickets = useMemo(() => {
+    if (!tecnicosMetrics.length) return null;
+
+    return [...tecnicosMetrics]
+      .sort((a, b) => Number(b.closedTickets || 0) - Number(a.closedTickets || 0))[0];
+  }, [tecnicosMetrics]);
+
+  const slaCierrePromedio = useMemo(() => {
+    if (!tecnicosMetrics.length) return null;
+
+    const rows = tecnicosMetrics.filter(
+      (t) => typeof t.resolution?.compliance === "number"
+    );
+
+    if (!rows.length) return null;
+
+    const total = rows.reduce(
+      (acc, t) => acc + Number(t.resolution.compliance || 0),
+      0
+    );
+
+    return Math.round(total / rows.length);
   }, [tecnicosMetrics]);
 
   /* ===== estadísticas ===== */
@@ -529,7 +577,7 @@ const Home: FC = () => {
         isLoading: loadingVis,
       },
       {
-        name: "Total de Incidencias",
+        name: "Tickets recibidos",
         value: loadingTic ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
@@ -538,28 +586,23 @@ const Home: FC = () => {
           formatNumber(totalTickets)
         ),
         icon: <SafetyCertificateOutlined className="text-cyan-600 text-xl" />,
-        change: errorTic ? <span className="text-red-600">Error: {errorTic}</span> : <>Todos los tickets registrados</>,
+        change: errorTic ? (
+          <span className="text-red-600">Error: {errorTic}</span>
+        ) : (
+          <>
+            Recibidos en el mes{" "}
+            <span className="text-xs text-neutral-500">
+              ({from} → {to})
+            </span>
+          </>
+        ),
         onRefresh: () => fetchTotalTickets(),
         isLoading: loadingTic,
       },
 
       /* ===== NUEVAS CARDS ===== */
       {
-        name: "Promedio por técnico",
-        value: loadingVis ? (
-          <span className="inline-flex items-center gap-2">
-            <LoadingOutlined /> Cargando…
-          </span>
-        ) : (
-          formatNumber(avgVisitasPorTecnico)
-        ),
-        icon: <RiseOutlined className="text-emerald-600 text-xl" />,
-        change: errorVis ? <span className="text-red-600">Error: {errorVis}</span> : "Visitas promedio del mes",
-        onRefresh: () => fetchVisitasMetrics(),
-        isLoading: loadingVis,
-      },
-      {
-        name: "Técnico top del mes",
+        name: "Top técnico visitas",
         value: loadingVis ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
@@ -575,32 +618,40 @@ const Home: FC = () => {
         isLoading: loadingVis,
       },
       {
-        name: "Técnicos activos",
-        value: loadingVis ? (
+        name: "Top técnico tickets",
+        value: loadingTecnicosMetrics ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
           </span>
+        ) : topTecnicoTickets ? (
+          topTecnicoTickets.nombre
         ) : (
-          formatNumber(tecnicosActivos)
+          "—"
         ),
-        icon: <TeamOutlined className="text-indigo-600 text-xl" />,
-        change: "Con al menos 1 visita en el mes",
-        onRefresh: () => fetchVisitasMetrics(),
-        isLoading: loadingVis,
+        icon: <TrophyOutlined className="text-indigo-600 text-xl" />,
+        change: topTecnicoTickets
+          ? `${formatNumber(topTecnicoTickets.closedTickets)} tickets cerrados`
+          : "Sin datos",
+        onRefresh: () => fetchTecnicosMetrics(),
+        isLoading: loadingTecnicosMetrics,
       },
       {
-        name: "Sobre promedio",
-        value: loadingVis ? (
+        name: "Tickets cerrados",
+        value: loadingTecnicosMetrics ? (
           <span className="inline-flex items-center gap-2">
             <LoadingOutlined /> Cargando…
           </span>
         ) : (
-          formatNumber(tecnicosSobrePromedio.length)
+          formatNumber(ticketsCerradosMes)
         ),
-        icon: <WarningOutlined className="text-orange-500 text-xl" />,
-        change: "Técnicos con carga superior al promedio",
-        onRefresh: () => fetchVisitasMetrics(),
-        isLoading: loadingVis,
+        icon: <TrophyOutlined className="text-amber-500 text-xl" />,
+        change: errorTecnicosMetrics ? (
+          <span className="text-red-600">Error: {errorTecnicosMetrics}</span>
+        ) : (
+          "Cerrados en el mes"
+        ),
+        onRefresh: () => fetchTecnicosMetrics(),
+        isLoading: loadingTecnicosMetrics,
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -619,10 +670,13 @@ const Home: FC = () => {
       loadingTic,
       totalTickets,
       errorTic,
-      avgVisitasPorTecnico,
-      topTecnico,
-      tecnicosActivos,
-      tecnicosSobrePromedio.length,
+
+      loadingTecnicosMetrics,
+      errorTecnicosMetrics,
+      ticketsResueltosMes,
+      ticketsCerradosMes,
+      topTecnicoTickets,
+      slaCierrePromedio,
     ]
   );
 

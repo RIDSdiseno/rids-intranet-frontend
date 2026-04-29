@@ -1,3 +1,4 @@
+// ./src/components/modals-empresa/FichaEmpresaModal.tsx
 import React from "react";
 import { Drawer, Tabs } from "antd";
 
@@ -10,11 +11,11 @@ import EntityAuditTab from "./tabs/HistorialCambiosTab";
 
 import type {
   FichaEmpresaModalProps,
-  FichaEmpresaCompleta
+  FichaEmpresaCompleta,
 } from "./types";
-import RedesTab from "./tabs/RedesTab";
 
-import { http } from "../../service/http"; // ajusta la ruta según tu proyecto
+import RedesTab from "./tabs/RedesTab";
+import { http } from "../../service/http";
 
 const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   open,
@@ -22,30 +23,27 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
   empresa,
   loading,
   onUpdated,
+  canEdit = true,
 }) => {
   const [activeTab, setActiveTab] = React.useState("ficha");
 
-  /* 🔥 ESTADO LOCAL (CLAVE) */
   const [localData, setLocalData] =
     React.useState<FichaEmpresaCompleta | null>(null);
-
 
   React.useEffect(() => {
     if (!open || !empresa) return;
 
     const loadFichaCompleta = async () => {
-
       const { data } = await http.get(
         `/ficha-empresa/${empresa.id_empresa}/completa`
       );
+
       setLocalData(data);
     };
 
     loadFichaCompleta();
   }, [open, empresa]);
 
-
-  /* 🔄 Refetch ficha completa */
   const refetchFicha = async () => {
     if (!localData?.empresa) return;
 
@@ -82,14 +80,15 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Cliente",
               children: (
                 <FichaTab
-                  key={localData.empresa.id_empresa} // 🔥
+                  key={localData.empresa.id_empresa}
                   empresa={localData.empresa}
                   ficha={localData.ficha}
                   detalleEmpresa={localData.detalleEmpresa}
                   contactos={localData.contactos}
                   sucursales={localData.sucursales}
+                  canEdit={canEdit}
                   onUpdated={async () => {
-                    await refetchFicha(); // 🔥 espera
+                    await refetchFicha();
                     onUpdated?.();
                   }}
                 />
@@ -100,9 +99,10 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Checklist",
               children: (
                 <ChecklistTab
-                  key={localData.empresa.id_empresa} // 🔥
+                  key={localData.empresa.id_empresa}
                   empresaId={localData.empresa.id_empresa}
                   checklist={localData.checklist}
+                  canEdit={canEdit}
                   onUpdated={refetchFicha}
                 />
               ),
@@ -112,23 +112,30 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               label: "Ficha técnica",
               children: (
                 <FichaTecnicaTab
-                  key={localData.empresa.id_empresa} // 🔥🔥🔥
+                  key={localData.empresa.id_empresa}
                   empresaId={localData.empresa.id_empresa}
+                  canEdit={canEdit}
                 />
               ),
             },
             {
               key: "redes",
               label: "Redes / ISP",
-              children: <RedesTab empresaId={localData.empresa.id_empresa} />,
+              children: (
+                <RedesTab
+                  empresaId={localData.empresa.id_empresa}
+                  canEdit={canEdit}
+                />
+              ),
             },
             {
               key: "sucursales",
               label: "Sucursales",
               children: (
                 <SucursalTab
-                  key={localData.empresa?.id_empresa} // 🔥 CLAVE
+                  key={localData.empresa.id_empresa}
                   empresaId={localData.empresa.id_empresa}
+                  canEdit={canEdit}
                 />
               ),
             },
@@ -138,6 +145,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
               children: (
                 <ServidoresTab
                   empresaId={localData.empresa.id_empresa}
+                  canEdit={canEdit}
                 />
               ),
             },
@@ -149,7 +157,7 @@ const FichaEmpresaModal: React.FC<FichaEmpresaModalProps> = ({
                   endpoint={`/audit/empresa/${localData.empresa.id_empresa}`}
                 />
               ),
-            }
+            },
           ]}
         />
       )}

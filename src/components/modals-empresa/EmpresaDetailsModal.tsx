@@ -336,7 +336,8 @@ const EmpresaInfoGeneral: React.FC<{
     telefono?: string | null;
   } | null;
   onUpdated?: () => void;
-}> = ({ empresa, contactoPrincipal, onUpdated }) => {
+  canEdit?: boolean;
+}> = ({ empresa, contactoPrincipal, onUpdated, canEdit = true }) => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
@@ -364,11 +365,15 @@ const EmpresaInfoGeneral: React.FC<{
     null;
 
   const handleSave = async () => {
+    if (!canEdit) {
+      message.warning("No tienes permisos para editar esta empresa");
+      return;
+    }
+
     try {
       const values = await form.validateFields();
       setSaving(true);
 
-      // 🔥 usa api en lugar de fetch nativo
       await http.put(`/detalle-empresa/${empresa.detalleEmpresa?.id}`, values);
 
       message.success("Datos actualizados");
@@ -385,14 +390,22 @@ const EmpresaInfoGeneral: React.FC<{
     <Card
       className="mb-6 border-0 shadow-sm"
       extra={
-        !editing ? (
-          <Button type="primary" onClick={() => setEditing(true)}>Editar</Button>
-        ) : (
-          <Space>
-            <Button onClick={() => setEditing(false)}>Cancelar</Button>
-            <Button type="primary" loading={saving} onClick={handleSave}>Guardar</Button>
-          </Space>
-        )
+        canEdit ? (
+          !editing ? (
+            <Button type="primary" onClick={() => setEditing(true)}>
+              Editar
+            </Button>
+          ) : (
+            <Space>
+              <Button onClick={() => setEditing(false)}>
+                Cancelar
+              </Button>
+              <Button type="primary" loading={saving} onClick={handleSave}>
+                Guardar
+              </Button>
+            </Space>
+          )
+        ) : null
       }
     >
       {!editing ? (
@@ -515,6 +528,7 @@ const EmpresaDetailsModal: React.FC<
   visitas,
   contactos = [],
   onUpdated,
+  canEdit = true,
 }) => {
     const [tab, setTab] = useState<TabKey>("resumen");
     const [density, setDensity] = useState<"Cómodo" | "Compacto">("Cómodo");
@@ -727,6 +741,7 @@ const EmpresaDetailsModal: React.FC<
                 empresa={empresa}
                 contactoPrincipal={contactoPrincipal}
                 onUpdated={onUpdated}
+                canEdit={canEdit}
               />
 
               <div className="mb-6">

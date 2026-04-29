@@ -1,3 +1,4 @@
+// ./src/components/modals-empresa/InventarioIA.tsx
 import { useState } from "react";
 import { Card, Button, Spin, Alert } from "antd";
 import { RobotOutlined } from "@ant-design/icons";

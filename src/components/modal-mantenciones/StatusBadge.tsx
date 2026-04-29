@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/StatusBadge.tsx
 import React from "react";
 import type { MantencionStatus } from "../../lib/mantencionesRemotasApi";
 

@@ -229,13 +229,14 @@ export default function TicketeraRids() {
 
     const [searchText, setSearchText] = useState(searchParams.get("search") ?? "");
 
-    const validStatusTabs = ["OPEN", "PENDING", "CLOSED"];
+    const validTabs = ["ALL", "OPEN", "PENDING", "CLOSED"];
 
     const initialTab =
-        searchParams.get("tab") ??
-        (searchParams.get("status") && validStatusTabs.includes(searchParams.get("status")!)
-            ? searchParams.get("status")!
-            : "OPEN");
+        searchParams.get("tab") && validTabs.includes(searchParams.get("tab")!)
+            ? searchParams.get("tab")!
+            : searchParams.get("status") && ["OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
+                ? searchParams.get("status")!
+                : "OPEN";
 
     const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -562,15 +563,14 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        loadTickets();
-        loadSla();
-    }, []);
+        setPage(1);
+    }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange, searchText, activeTab]);
 
     // Cuando cambia la pestaña activa, actualizamos el filtro de estado para cargar los tickets correspondientes. Si es "all", quitamos el filtro de estado, si es uno de los estados específicos, lo aplicamos.
     useEffect(() => {
         if (!activeTab) return;
 
-        if (activeTab === "all") {
+        if (activeTab === "ALL") {
             setStatusFilter(undefined);
             return;
         }
@@ -579,10 +579,6 @@ export default function TicketeraRids() {
             setStatusFilter(activeTab);
         }
     }, [activeTab]);
-
-    useEffect(() => {
-        loadTickets();
-    }, [page, pageSize]);
 
     // Configuramos el socket para recibir notificaciones en tiempo real cuando se creen nuevos tickets, se respondan o cambien de estado, y actualizamos la lista de tickets y el resumen de SLA automáticamente. También mostramos una notificación emergente con la información del ticket afectado.
     useEffect(() => {
@@ -669,17 +665,54 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        setPage(1);
+        const urlTab =
+            searchParams.get("tab") && validTabs.includes(searchParams.get("tab")!)
+                ? searchParams.get("tab")!
+                : searchParams.get("status") && ["OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
+                    ? searchParams.get("status")!
+                    : "OPEN";
+
+        const urlStatus = searchParams.get("status") ?? undefined;
+        const urlPriority = searchParams.get("priority") ?? undefined;
+        const urlAssignee = searchParams.get("assigneeId")
+            ? Number(searchParams.get("assigneeId"))
+            : undefined;
+        const urlArea = (searchParams.get("area") as AreaFilter) ?? "TODAS";
+        const urlSort =
+            (searchParams.get("sortOrder") as "recent_first" | "old_first") ?? "recent_first";
+        const urlPage = Number(searchParams.get("page") ?? 1);
+        const urlPageSize = Number(searchParams.get("pageSize") ?? 30);
+        const urlSearch = searchParams.get("search") ?? "";
+        const urlActiveRange = searchParams.get("activeRange") ?? null;
+        const urlDateRange =
+            searchParams.get("from") && searchParams.get("to")
+                ? [searchParams.get("from")!, searchParams.get("to")!] as [string, string]
+                : null;
+
+        setActiveTab(urlTab);
+        setStatusFilter(urlStatus);
+        setPriorityFilter(urlPriority);
+        setAssigneeFilter(urlAssignee);
+        setAreaFilter(urlArea);
+        setSortOrder(urlSort);
+        setPage(urlPage);
+        setPageSize(urlPageSize);
+        setSearchText(urlSearch);
+        setActiveRange(urlActiveRange);
+        setDateRange(urlDateRange);
+    }, [searchParams]);
+
+    useEffect(() => {
         loadTickets();
         loadSla();
-    }, [statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange]);
+    }, [page, pageSize, statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange, searchText]);
 
     // Cada vez que cambian los filtros, la búsqueda o la paginación, actualizamos los parámetros de la URL para reflejar el estado actual de la aplicación y permitir compartir enlaces con los mismos filtros aplicados. Solo incluimos en los parámetros aquellos filtros que tienen un valor diferente al predeterminado para mantener la URL limpia.
     useEffect(() => {
         const nextParams = new URLSearchParams();
 
         if (searchText) nextParams.set("search", searchText);
-        if (activeTab && activeTab !== "all") nextParams.set("tab", activeTab);
+        if (activeTab) nextParams.set("tab", activeTab);
         if (statusFilter) nextParams.set("status", statusFilter);
         if (priorityFilter) nextParams.set("priority", priorityFilter);
         if (assigneeFilter) nextParams.set("assigneeId", String(assigneeFilter));
@@ -1125,7 +1158,7 @@ export default function TicketeraRids() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1">
                                 <Input
-                                    placeholder="Buscar por asunto, empresa, solicitante, email o ID..."
+                                    placeholder="Buscar por asunto, contenido del ticket, empresa, solicitante, email o ID..."
                                     prefix={<SearchOutlined />}
                                     value={searchText}
                                     onChange={(e) => setSearchText(e.target.value)}
@@ -1222,9 +1255,14 @@ export default function TicketeraRids() {
 
                 <div className="mt-5 mb-4 flex flex-wrap items-center gap-5">
                     <Badge count={getTicketCount("all")}>
-                        <Button type={activeTab === "all" ? "primary" : "default"} onClick={() => setActiveTab("all")}>
-                            Todos
-                        </Button>
+                        <Badge count={getTicketCount("all")}>
+                            <Button
+                                type={activeTab === "ALL" ? "primary" : "default"}
+                                onClick={() => setActiveTab("ALL")}
+                            >
+                                Todos
+                            </Button>
+                        </Badge>
                     </Badge>
 
                     <Badge count={getTicketCount("OPEN")}>

@@ -216,6 +216,7 @@ const Header = () => {
           { label: "Mis Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
           { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
           { label: "Listado de Usuarios", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
+          { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
           { label: "Informes Mensuales", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
         ],
       },

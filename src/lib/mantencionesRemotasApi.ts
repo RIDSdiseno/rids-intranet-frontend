@@ -158,7 +158,7 @@ function cleanParams<T extends Record<string, unknown>>(p: T): Partial<T> {
 /* -------------------------- API calls -------------------------- */
 
 export async function listMantencionesRemotas(
-  params: ListMantencionesParams
+  params: ListMantencionesParams = {}
 ): Promise<Paged<MantencionRemota>> {
   try {
     const { data } = await http.get<Paged<MantencionRemota>>("/mantenciones-remotas", {
@@ -261,6 +261,7 @@ export type TeamViewerMonthlyAverageResp = {
 export async function getTeamViewerMonthlyAverages(params?: {
   fromDate?: string;
   toDate?: string;
+  empresaId?: number;
 }) {
   const query = new URLSearchParams();
 
@@ -286,6 +287,7 @@ export type TeamViewerMonthlyBreakdownRow = {
 export async function getTeamViewerMonthlyBreakdown(params?: {
   fromDate?: string;
   toDate?: string;
+  empresaId?: number;
 }) {
   const query = new URLSearchParams();
 

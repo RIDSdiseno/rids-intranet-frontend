@@ -1,4 +1,4 @@
-// ServidoresTab.tsx
+// ./../modals-empresa/tabs/ServidoresTab.tsx
 import React, { useEffect, useState } from "react";
 import {
   Table,
@@ -23,7 +23,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import UsuariosServidorTable from "./UsuariosServidorTab";
-import { http } from "../../../service/http";  // ajusta la ruta según tu estructura
+import { http } from "../../../service/http";
 
 interface Servidor {
   id: number;
@@ -36,9 +36,10 @@ interface Servidor {
 
 interface Props {
   empresaId: number;
+  canEdit?: boolean;
 }
 
-const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
+const ServidoresTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
   const [servidores, setServidores] = useState<Servidor[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -62,6 +63,11 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   }, [empresaId]);
 
   const handleSubmit = async () => {
+    if (!canEdit) {
+      message.warning("No tienes permisos para editar servidores");
+      return;
+    }
+
     try {
       const values = await form.validateFields();
 
@@ -69,7 +75,10 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
         await http.put(`/ficha-empresa/servidores/${editing.id}`, values);
         message.success("Servidor actualizado");
       } else {
-        await http.post(`/ficha-empresa/servidores`, { ...values, empresaId });
+        await http.post(`/ficha-empresa/servidores`, {
+          ...values,
+          empresaId,
+        });
         message.success("Servidor creado");
       }
 
@@ -83,6 +92,8 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canEdit) return;
+
     try {
       await http.delete(`/ficha-empresa/servidores/${id}`);
       message.success("Servidor eliminado");
@@ -93,6 +104,8 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
   };
 
   const toggleProbado = async (id: number) => {
+    if (!canEdit) return;
+
     try {
       await http.patch(`/ficha-empresa/servidores/${id}/probado`);
       fetchServidores();
@@ -109,45 +122,60 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
     {
       title: "Probado",
       render: (_, record) => (
-        <Switch checked={record.probado} onChange={() => toggleProbado(record.id)} />
+        <Switch
+          checked={record.probado}
+          disabled={!canEdit}
+          onChange={() => toggleProbado(record.id)}
+        />
       ),
     },
-    {
-      title: "Acciones",
-      render: (_, record) => (
-        <div className="flex gap-2">
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditing(record);
-              form.setFieldsValue(record);
-              setOpen(true);
-            }}
-          />
-          <Popconfirm title="¿Eliminar servidor?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </div>
-      ),
-    },
+    ...(canEdit
+      ? [
+        {
+          title: "Acciones",
+          render: (_: unknown, record: Servidor) => (
+            <div className="flex gap-2">
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setEditing(record);
+                  form.setFieldsValue(record);
+                  setOpen(true);
+                }}
+              />
+
+              <Popconfirm
+                title="¿Eliminar servidor?"
+                onConfirm={() => handleDelete(record.id)}
+              >
+                <Button size="small" icon={<DeleteOutlined />} danger />
+              </Popconfirm>
+            </div>
+          ),
+        },
+      ]
+      : []),
   ];
 
   return (
     <>
       <div className="flex justify-between mb-4">
         <h3 className="text-lg font-semibold">Servidores</h3>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setEditing(null);
-            form.resetFields();
-            setOpen(true);
-          }}
-        >
-          Nuevo servidor
-        </Button>
+
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditing(null);
+              form.resetFields();
+              setOpen(true);
+            }}
+          >
+            Nuevo servidor
+          </Button>
+        )}
       </div>
 
       <Table
@@ -157,77 +185,104 @@ const ServidoresTab: React.FC<Props> = ({ empresaId }) => {
         loading={loading}
         pagination={false}
         expandable={{
-          expandedRowRender: (record) => <UsuariosServidorTable servidorId={record.id} />,
+          expandedRowRender: (record) => (
+            <UsuariosServidorTable
+              servidorId={record.id}
+              canEdit={canEdit}
+            />
+          ),
         }}
       />
 
-      <Modal
-        title={
-          <span>
-            <DesktopOutlined style={{ marginRight: 8 }} />
-            {editing ? "Editar Servidor" : "Nuevo Servidor"}
-          </span>
-        }
-        open={open}
-        onCancel={() => {
-          setOpen(false);
-          setEditing(null);
-          form.resetFields();
-        }}
-        footer={[
-          <Button key="cancel" onClick={() => { setOpen(false); setEditing(null); form.resetFields(); }}>
-            Cancelar
-          </Button>,
-          <Button key="submit" type="primary" icon={<CheckCircleOutlined />} onClick={handleSubmit}>
-            {editing ? "Actualizar" : "Crear"}
-          </Button>,
-        ]}
-        width={600}
-      >
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="nombre"
-                label="Nombre del Servidor"
-                rules={[{ required: true, message: "Campo obligatorio" }]}
-              >
-                <Input prefix={<DesktopOutlined />} placeholder="Ej: Servidor Principal" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="nombreUsuario"
-                label="Nombre Usuario"
-                rules={[{ required: true, message: "Campo obligatorio" }]}
-              >
-                <Input prefix={<UserOutlined />} placeholder="Ej: admin" />
-              </Form.Item>
-            </Col>
-          </Row>
+      {canEdit && (
+        <Modal
+          title={
+            <span>
+              <DesktopOutlined style={{ marginRight: 8 }} />
+              {editing ? "Editar Servidor" : "Nuevo Servidor"}
+            </span>
+          }
+          open={open}
+          onCancel={() => {
+            setOpen(false);
+            setEditing(null);
+            form.resetFields();
+          }}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => {
+                setOpen(false);
+                setEditing(null);
+                form.resetFields();
+              }}
+            >
+              Cancelar
+            </Button>,
+            <Button
+              key="submit"
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={handleSubmit}
+            >
+              {editing ? "Actualizar" : "Crear"}
+            </Button>,
+          ]}
+          width={600}
+        >
+          <Form form={form} layout="vertical">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="nombre"
+                  label="Nombre del Servidor"
+                  rules={[{ required: true, message: "Campo obligatorio" }]}
+                >
+                  <Input
+                    prefix={<DesktopOutlined />}
+                    placeholder="Ej: Servidor Principal"
+                  />
+                </Form.Item>
+              </Col>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="contrasena"
-                label="Contraseña"
-                rules={[{ required: true, message: "Campo obligatorio" }]}
-              >
-                <Input placeholder="••••••••" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="ipExterna"
-                label="IP Externa"
-                rules={[{ required: true, message: "Campo obligatorio" }]}
-              >
-                <Input prefix={<GlobalOutlined />} placeholder="Ej: 192.168.1.100" />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
+              <Col span={12}>
+                <Form.Item
+                  name="nombreUsuario"
+                  label="Nombre Usuario"
+                  rules={[{ required: true, message: "Campo obligatorio" }]}
+                >
+                  <Input prefix={<UserOutlined />} placeholder="Ej: admin" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="contrasena"
+                  label="Contraseña"
+                  rules={[{ required: true, message: "Campo obligatorio" }]}
+                >
+                  <Input placeholder="••••••••" />
+                </Form.Item>
+              </Col>
+
+              <Col span={12}>
+                <Form.Item
+                  name="ipExterna"
+                  label="IP Externa"
+                  rules={[{ required: true, message: "Campo obligatorio" }]}
+                >
+                  <Input
+                    prefix={<GlobalOutlined />}
+                    placeholder="Ej: 192.168.1.100"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Form>
+        </Modal>
+      )}
     </>
   );
 };

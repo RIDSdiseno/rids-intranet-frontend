@@ -4,6 +4,7 @@
 
 /* ================= CHECKLIST ================= */
 
+//  ./modals-empresa/types.tsx
 export type ChecklistKey =
     | "levantamientoEquipos"
     | "inventarioSoftware"
@@ -63,6 +64,7 @@ export interface FichaEmpresa {
     creadaEn: string;
     actualizadaEn?: string;
     condicionesComerciales?: string | null;
+    canEdit?: boolean;
 }
 
 export interface FichaEmpresaCompleta {
@@ -234,6 +236,8 @@ export interface ChecklistTabProps {
     empresaId: number;
     checklist: Partial<ChecklistState> | null;
     onUpdated?: () => void;
+    canEdit?: boolean;
+
 }
 
 /* FichaTab */
@@ -256,6 +260,8 @@ export interface FichaTabProps {
     sucursales: Sucursal[];   // 👈 AGREGAR ESTO
 
     onUpdated?: () => void;
+
+    canEdit?: boolean;
 }
 
 /* EmpresaDetailsModal */
@@ -269,19 +275,21 @@ export interface EmpresaDetailsModalProps {
     equipos: EquipoLite[];
     visitas: Visita[];
     onUpdated: () => void;
+    canEdit?: boolean;
 }
 
 /* FichaEmpresaModal */
 export interface FichaEmpresaModalProps {
     open: boolean;
     onClose: () => void;
-    empresa: EmpresaLite | null;
-    ficha: FichaEmpresa | null;
-    checklist: Partial<ChecklistState> | null;
-    detalleEmpresa: DetalleEmpresa | null;
-    contactos?: ContactoEmpresa[];
-    loading: boolean;
+    loading?: boolean;
+    empresa: any | null;
+    ficha?: any | null;
+    checklist?: any | null;
+    detalleEmpresa?: any | null;
+    contactos?: any[];
     onUpdated?: () => void;
+    canEdit?: boolean;
 }
 
 /* =====================================================

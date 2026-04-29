@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/TableSkeletonRows.tsx
 import React from "react";
 
 type Props = {

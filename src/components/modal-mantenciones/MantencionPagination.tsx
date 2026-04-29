@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionPagination.tsx
 import React from "react";
 
 function clsx(...xs: Array<string | false | null | undefined>) {

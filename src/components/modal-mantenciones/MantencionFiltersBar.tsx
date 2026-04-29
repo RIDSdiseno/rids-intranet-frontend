@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionFiltersBar.tsx
 import React from "react";
 import type { FiltersResp, MantencionStatus } from "../../lib/mantencionesRemotasApi";
 
@@ -181,13 +182,15 @@ export default function MantencionFiltersBar({
                                     Recargar
                                 </button>
 
-                                <button
-                                    onClick={onOpenCreate}
-                                    type="button"
-                                    className="inline-flex items-center justify-center rounded-2xl px-3 py-2.5 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)] hover:brightness-110 active:scale-[0.98] transition"
-                                >
-                                    + Nueva
-                                </button>
+                                {!isCliente && (
+                                    <button
+                                        onClick={onOpenCreate}
+                                        type="button"
+                                        className="inline-flex items-center justify-center rounded-2xl px-3 py-2.5 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)] hover:brightness-110 active:scale-[0.98] transition"
+                                    >
+                                        + Nueva
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

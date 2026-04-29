@@ -1,3 +1,4 @@
+// ./../modals-empresa/tabs/ChecklistTab.tsx
 import React, { useEffect, useState } from "react";
 import {
     Card,
@@ -89,7 +90,7 @@ const CHECKLIST_SECTIONS = [
     }
 ];
 
-const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpdated }) => {
+const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpdated, canEdit = true }) => {
     const [state, setState] = useState<ChecklistState>(DEFAULT_CHECKLIST);
     const [saving, setSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -105,6 +106,10 @@ const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpd
     };
 
     const onSave = async () => {
+        if (!canEdit) {
+            message.warning("No tienes permisos para editar este checklist");
+            return;
+        }
         try {
             setSaving(true);
             await http.put(`/ficha-empresa/${empresaId}/checklist`, state);
@@ -139,6 +144,7 @@ const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpd
                         >
                             <Checkbox
                                 checked={isChecked}
+                                disabled={!canEdit}
                                 onChange={(e) => toggle(item.key, e.target.checked)}
                                 className={`w-full ${isChecked ? 'text-green-700' : 'text-gray-700'}`}
                             >
@@ -170,16 +176,18 @@ const ChecklistTab: React.FC<ChecklistTabProps> = ({ empresaId, checklist, onUpd
                     </Col>
                     <Col>
                         <Tooltip title={hasChanges ? "Guardar cambios realizados" : "No hay cambios para guardar"}>
-                            <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                loading={saving}
-                                onClick={onSave}
-                                size="large"
-                                disabled={!hasChanges}
-                            >
-                                Guardar checklist
-                            </Button>
+                            {canEdit && (
+                                <Button
+                                    type="primary"
+                                    icon={<SaveOutlined />}
+                                    loading={saving}
+                                    onClick={onSave}
+                                    size="large"
+                                    disabled={!hasChanges}
+                                >
+                                    Guardar checklist
+                                </Button>
+                            )}
                         </Tooltip>
                     </Col>
                 </Row>

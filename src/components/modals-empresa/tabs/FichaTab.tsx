@@ -1,3 +1,4 @@
+// ./../modals-empresa/tabs/FichaTab.tsx
 import React, { useEffect, useState } from "react";
 import {
     Card,
@@ -40,6 +41,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
     contactos,
     sucursales,
     onUpdated,
+    canEdit = true,
 }) => {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -62,6 +64,10 @@ const FichaTab: React.FC<FichaTabProps> = ({
     }
 
     const onSave = async () => {
+        if (!canEdit) {
+            message.warning("No tienes permisos para editar esta ficha");
+            return;
+        }
         try {
             const values = await form.validateFields();
             setSaving(true);
@@ -98,9 +104,11 @@ const FichaTab: React.FC<FichaTabProps> = ({
                 <Space>
                     {!editing ? (
                         <Tooltip title="Editar ficha de empresa">
-                            <Button type="primary" icon={<EditOutlined />} onClick={() => setEditing(true)}>
-                                Editar
-                            </Button>
+                            {canEdit && (
+                                <Button type="primary" onClick={() => setEditing(true)}>
+                                    Editar
+                                </Button>
+                            )}
                         </Tooltip>
                     ) : (
                         <div className="flex gap-2">

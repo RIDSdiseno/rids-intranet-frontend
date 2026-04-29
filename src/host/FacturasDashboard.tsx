@@ -93,9 +93,8 @@ const MetricCard: React.FC<{
       </div>
     </div>
     {tendencia && tendenciaValor && (
-      <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${
-        tendencia === "up" ? "text-emerald-600" : tendencia === "down" ? "text-red-500" : "text-slate-400"
-      }`}>
+      <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${tendencia === "up" ? "text-emerald-600" : tendencia === "down" ? "text-red-500" : "text-slate-400"
+        }`}>
         {tendencia === "up" ? <ArrowUpOutlined /> : tendencia === "down" ? <ArrowDownOutlined /> : null}
         {tendenciaValor}
       </div>
@@ -110,9 +109,9 @@ const BadgeEstado: React.FC<{ estado: string }> = ({ estado }) => {
   const color = COLORES_ESTADO[estado] ?? "#94a3b8";
   const bg =
     estado === "Confirmada" ? "bg-emerald-100 text-emerald-700" :
-    estado === "Pendiente" ? "bg-amber-100 text-amber-700" :
-    estado === "Anulada" || estado === "Rechazada" ? "bg-red-100 text-red-700" :
-    "bg-slate-100 text-slate-600";
+      estado === "Pendiente" ? "bg-amber-100 text-amber-700" :
+        estado === "Anulada" || estado === "Rechazada" ? "bg-red-100 text-red-700" :
+          "bg-slate-100 text-slate-600";
 
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${bg}`}>
@@ -260,11 +259,10 @@ const FacturasDashboard: React.FC = () => {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition ${
-                      activeTab === tab
-                        ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-sm"
-                        : "text-slate-500 hover:text-cyan-700"
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition ${activeTab === tab
+                      ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-cyan-700"
+                      }`}
                   >
                     {tab}
                   </button>
@@ -277,11 +275,10 @@ const FacturasDashboard: React.FC = () => {
                   <button
                     key={emp}
                     onClick={() => setEmpresa(emp)}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase transition ${
-                      empresa === emp
-                        ? "bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-sm"
-                        : "text-slate-500 hover:text-cyan-700"
-                    }`}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase transition ${empresa === emp
+                      ? "bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-cyan-700"
+                      }`}
                   >
                     {emp}
                   </button>
@@ -400,35 +397,81 @@ const FacturasDashboard: React.FC = () => {
 
             {/* Pie por estado */}
             <div className="rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-slate-700">Estado documentos</h2>
+              <h2 className="mb-4 text-sm font-semibold text-slate-700">
+                Estado documentos
+              </h2>
+
               {datosEstado.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
-                    <Pie data={datosEstado} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
+                    <Pie
+                      data={datosEstado}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      dataKey="value"
+                      label={(props: any) => {
+                        const name = String(props?.name ?? "");
+                        const percent = Number(props?.percent ?? 0);
+
+                        return `${name} ${(percent * 100).toFixed(0)}%`;
+                      }}
+                      labelLine={false}
+                    >
                       {datosEstado.map((_, i) => (
-                        <Cell key={i} fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]} />
+                        <Cell
+                          key={i}
+                          fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]}
+                        />
                       ))}
                     </Pie>
+
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex h-[220px] items-center justify-center text-sm text-slate-400">Sin datos</div>
+                <div className="flex h-[220px] items-center justify-center text-sm text-slate-400">
+                  Sin datos
+                </div>
               )}
             </div>
 
             {/* Barras top clientes */}
-            <div className="xl:col-span-3 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold text-slate-700">Top 5 clientes por monto</h2>
+            <div className="xl:col-span-2 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-sm font-semibold text-slate-700">
+                Top 5 clientes por monto
+              </h2>
+
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={top5Clientes} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
-                  <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={160} />
-                  <Tooltip formatter={((v: unknown) => typeof v === "number" ? formatCLP(v) : String(v ?? "")) as any} />
+
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => `$${(Number(v) / 1000000).toFixed(1)}M`}
+                  />
+
+                  <YAxis
+                    type="category"
+                    dataKey="nombre"
+                    tick={{ fontSize: 11 }}
+                    width={160}
+                  />
+
+                  <Tooltip
+                    formatter={(v: unknown) =>
+                      typeof v === "number" ? formatCLP(v) : String(v ?? "")
+                    }
+                  />
+
                   <Bar dataKey="total" radius={[0, 6, 6, 0]}>
                     {top5Clientes.map((_, i) => (
-                      <Cell key={i} fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]} />
+                      <Cell
+                        key={i}
+                        fill={COLORES_GRAFICO[i % COLORES_GRAFICO.length]}
+                      />
                     ))}
                   </Bar>
                 </BarChart>

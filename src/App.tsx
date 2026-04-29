@@ -167,13 +167,13 @@ export default function App() {
             <Route path="/equipos" element={<EquiposPage />} />
             <Route path="/visitas" element={<VisitasPage />} />
             <Route path="/reportes" element={<ReportesPage />} />
+            <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
 
             {/* Solo TECNICO y ADMIN */}
             <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
               <Route path="/home" element={<HomePage />} />
               <Route path="/tecnicos" element={<TecnicosPage />} />
               <Route path="/agenda" element={<AgendaPage />} />
-              <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
               <Route path="/Cotizaciones" element={<CotizacionesPage />} />
               <Route path="/clientes" element={<ClientesPage />} />

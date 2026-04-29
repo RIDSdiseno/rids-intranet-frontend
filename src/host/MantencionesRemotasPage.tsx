@@ -1,3 +1,4 @@
+// ./host/MantencionesRemotasPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   closeMantencionRemota,
@@ -26,7 +27,7 @@ type LoadState = "idle" | "loading" | "error";
 
 const TABS = [
   { key: "mantenciones", label: "Mantenciones" },
-  { key: "dashboard",    label: "Dashboard"    },
+  { key: "dashboard", label: "Dashboard" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -232,6 +233,10 @@ function normalizeSolicitantesPayload(raw: unknown): SolicitanteOpt[] {
 export default function MantencionesRemotasPage() {
   const user = useMemo(getUserFromToken, []);
   const isCliente = user.rol === "CLIENTE";
+  const canManageMantenciones = !isCliente;
+
+  const rol = String(user?.rol ?? "").toUpperCase();
+
 
   const [filters, setFilters] = useState<FiltersResp | null>(null);
 
@@ -287,8 +292,12 @@ export default function MantencionesRemotasPage() {
         page,
         pageSize,
         tecnicoId: tecnicoId === "" ? undefined : tecnicoId,
-        empresaId: isCliente ? undefined : empresaId === "" ? undefined : empresaId,
         status: status === "" ? undefined : status,
+        empresaId: isCliente
+          ? undefined
+          : empresaId === ""
+            ? undefined
+            : empresaId,
         month: month === "" ? undefined : month,
         year: year === "" ? undefined : year,
         q,
@@ -391,6 +400,7 @@ export default function MantencionesRemotasPage() {
   }, [upsertOpen, form.empresaId, solSearch, isCliente]);
 
   function openCreate() {
+    if (!canManageMantenciones) return;
     setEditing(null);
     const tecnicoAuto = user.tecnicoId ?? null;
     const base = defaultForm();
@@ -411,6 +421,7 @@ export default function MantencionesRemotasPage() {
   }
 
   function openEdit(row: MantencionRemota) {
+    if (!canManageMantenciones) return;
     setEditing(row);
     setForm({
       ...defaultForm(),
@@ -560,6 +571,7 @@ export default function MantencionesRemotasPage() {
   }
 
   async function onCloseMantencion(id: number) {
+    if (!canManageMantenciones) return;
     if (!confirm("¿Cerrar mantención y marcar como COMPLETADA?")) return;
     try {
       await closeMantencionRemota(id);
@@ -570,6 +582,7 @@ export default function MantencionesRemotasPage() {
   }
 
   async function onDeleteMantencion(id: number) {
+    if (!canManageMantenciones) return;
     if (!confirm("¿Eliminar mantención?")) return;
     try {
       await deleteMantencionRemota(id);
@@ -594,11 +607,10 @@ export default function MantencionesRemotasPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? "bg-white border border-gray-200 text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-white/60"
-              }`}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${activeTab === tab.key
+                ? "bg-white border border-gray-200 text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700 hover:bg-white/60"
+                }`}
             >
               {tab.label}
             </button>
@@ -644,6 +656,7 @@ export default function MantencionesRemotasPage() {
               onOpenEdit={openEdit}
               onCloseMantencion={(id) => void onCloseMantencion(id)}
               onDeleteMantencion={(id) => void onDeleteMantencion(id)}
+              canManage={canManageMantenciones}
             />
             <MantencionDesktopTable
               state={state}
@@ -660,10 +673,15 @@ export default function MantencionesRemotasPage() {
               onOpenEdit={openEdit}
               onCloseMantencion={(id) => void onCloseMantencion(id)}
               onDeleteMantencion={(id) => void onDeleteMantencion(id)}
+              canManage={canManageMantenciones}
             />
           </>
         ) : (
-          <MantencionesDashboardTab active={activeTab === "dashboard"} />
+          <MantencionesDashboardTab
+            active={activeTab === "dashboard"}
+            isCliente={isCliente}
+            clienteEmpresaId={user?.empresaId ?? null}
+          />
         )}
       </main>
 
@@ -695,6 +713,7 @@ export default function MantencionesRemotasPage() {
           closeDetails();
           openEdit(row);
         }}
+        canManage={canManageMantenciones}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+// src/components/modal-mantenciones/MantencionDetail.tsx
 import type { MantencionRemota, MantencionStatus } from "../../lib/mantencionesRemotasApi";
 
 function clsx(...xs: Array<string | false | null | undefined>) {
@@ -75,10 +76,11 @@ type Props = {
     details: MantencionRemota | null;
     onClose: () => void;
     onEdit: (row: MantencionRemota) => void;
+    canManage?: boolean;
 };
 
 export default function MantencionDetailsModal(props: Props) {
-    const { open, state, err, details, onClose, onEdit } = props;
+    const { open, state, err, details, onClose, onEdit, canManage = true } = props;
     if (!open) return null;
 
     return (
@@ -87,7 +89,7 @@ export default function MantencionDetailsModal(props: Props) {
             onClick={onClose}
         >
             <div
-               className="w-full max-w-3xl max-h-[94vh] overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-xl"
+                className="w-full max-w-3xl max-h-[94vh] overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex flex-col gap-3 border-b border-cyan-200 bg-gradient-to-r from-indigo-50 to-cyan-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -220,12 +222,15 @@ export default function MantencionDetailsModal(props: Props) {
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-2 justify-end">
-                                <button
-                                    onClick={() => onEdit(details)}
-                                    className="rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
-                                >
-                                    Editar
-                                </button>
+                                {canManage && (
+                                    <button
+                                        onClick={() => onEdit(details)}
+                                        className="rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                        Editar
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={onClose}
                                     className="rounded-2xl border border-cyan-200 bg-white px-4 py-2 text-sm text-cyan-800 hover:bg-cyan-50"
