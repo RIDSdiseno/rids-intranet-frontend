@@ -85,7 +85,7 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
 }
 
 // Acceso exclusivo por email — módulo Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl"];
+const COBRANZA_EMAILS = ["carenas@rids.cl","dbravo@rids.cl", "igonzalez@rids.cl"];
 
 function CobranzaRoute() {
   const email = getUserEmail();

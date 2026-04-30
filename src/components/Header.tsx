@@ -72,7 +72,7 @@ type StoredUser = {
 };
 
 // Usuarios con acceso exclusivo al módulo de Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl"];
+const COBRANZA_EMAILS = ["carenas@rids.cl","dbravo@rids.cl", "igonzalez@rids.cl"];
 
 const NAV: NavEntry[] = [
   {
