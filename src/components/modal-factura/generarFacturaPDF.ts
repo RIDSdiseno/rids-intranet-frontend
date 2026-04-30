@@ -103,6 +103,58 @@ function escapeHtml(value?: string | number | null) {
     .replaceAll("'", "&#039;");
 }
 
+function getNombreDTE(tipoDTE?: number, tipoDTEString?: string) {
+  if (tipoDTEString) return tipoDTEString.toUpperCase();
+
+  switch (tipoDTE) {
+    case 33:
+      return "FACTURA ELECTRÓNICA";
+    case 34:
+      return "FACTURA EXENTA ELECTRÓNICA";
+    case 39:
+      return "BOLETA ELECTRÓNICA";
+    case 41:
+      return "BOLETA EXENTA ELECTRÓNICA";
+    case 56:
+      return "NOTA DE DÉBITO ELECTRÓNICA";
+    case 61:
+      return "NOTA DE CRÉDITO ELECTRÓNICA";
+    default:
+      return `DTE ${tipoDTE ?? ""}`;
+  }
+}
+
+async function esperarImagenes(root: HTMLElement) {
+  const imagenes = Array.from(root.querySelectorAll("img"));
+
+  await Promise.all(
+    imagenes.map((img) => {
+      if (img.complete) return Promise.resolve();
+
+      return new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+    })
+  );
+}
+
+// Agregar esta función antes de generarFacturaPDF
+async function imageUrlToBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return ""; // Si falla, no muestra logo
+  }
+}
+
 export async function generarFacturaPDF(
   factura: FacturaRCV,
   empresa: EmpresaPDF
@@ -123,40 +175,52 @@ export async function generarFacturaPDF(
   const items = factura.items ?? [];
   const tieneItems = items.length > 0;
   const tituloDocumento = getTituloDocumento(factura);
-  const tipoDTELabel = getTipoDTEString(factura);
+
+  const tipoDTENumber =
+    factura.tipoDTE !== undefined && factura.tipoDTE !== null
+      ? Number(factura.tipoDTE)
+      : undefined;
+
+  const tipoDTELabel = getNombreDTE(
+    Number.isFinite(tipoDTENumber) ? tipoDTENumber : undefined,
+    factura.tipoDTEString
+  );
+
+  const logoBase64 = empresa.logo
+    ? await imageUrlToBase64(
+      empresa.logo.startsWith("http")
+        ? empresa.logo
+        : `${window.location.origin}${empresa.logo}`
+    )
+    : "";
+
+  const logoHtml = logoBase64
+    ? `<img src="${logoBase64}" class="pdf-logo empresa-logo" />`
+    : "";
 
   const detalleHtml = tieneItems
-    ? items
-      .map((item, index) => {
-        const precio = Number(item.precio ?? item.precioUnitario ?? 0);
-        const total = Number(item.montoItem ?? item.total ?? 0);
-        const cantidad = Number(item.cantidad ?? 1);
+    ? items.map((item, index) => {
+      const precio = Number(item.precio ?? item.precioUnitario ?? 0);
+      const total = Number(item.montoItem ?? item.total ?? 0);
+      const cantidad = Number(item.cantidad ?? 1);
 
-        return `
+      return `
             <tr>
-              <td style="padding:8px;text-align:center;">${escapeHtml(item.codigo || index + 1)}</td>
               <td style="padding:8px;text-align:left;">
                 <div style="font-weight:600;">${escapeHtml(item.nombre || "Ítem")}</div>
                 ${item.descripcion
-            ? `<div style="font-size:9px;color:#666;margin-top:3px;">${escapeHtml(item.descripcion)}</div>`
-            : ""
-          }
+          ? `<div style="font-size:9px;color:#666;margin-top:3px;">${escapeHtml(item.descripcion)}</div>`
+          : ""}
               </td>
-              <td style="padding:8px;text-align:center;">${escapeHtml(cantidad)}</td>
-              <td style="padding:8px;text-align:right;">${escapeHtml(formatCLP(precio))}</td>
               <td style="padding:8px;text-align:right;font-weight:bold;">${escapeHtml(formatCLP(total))}</td>
             </tr>
-          `;
-      })
-      .join("")
+        `;
+    }).join("")
     : `
-      <tr>
-        <td style="padding:10px;text-align:center;">—</td>
-        <td style="padding:10px;text-align:left;">Detalle de líneas no sincronizado</td>
-        <td style="padding:10px;text-align:center;">—</td>
-        <td style="padding:10px;text-align:right;">—</td>
-        <td style="padding:10px;text-align:right;font-weight:bold;">${escapeHtml(formatCLP(factura.montoTotal))}</td>
-      </tr>
+        <tr>
+            <td style="padding:10px;text-align:left;">Total General de la Factura</td>
+            <td style="padding:10px;text-align:right;font-weight:bold;">${escapeHtml(formatCLP(factura.montoTotal))}</td>
+        </tr>
     `;
 
   const montoExentoHtml =
@@ -190,18 +254,25 @@ export async function generarFacturaPDF(
   <meta charset="UTF-8" />
   <title>${escapeHtml(tituloDocumento)} ${escapeHtml(factura.folio)}</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px 20px 20px 20px;
-      color: #000;
-      background: #fff;
-    }
+    * {
+  box-sizing: border-box;
+}
 
-    .container {
-      width: 874px;
-      margin: 0 auto;
-      padding-bottom: 40px;
-    }
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #000;
+  background: #fff;
+}
+
+.container {
+  width: 794px;
+  min-height: 1123px;
+  margin: 0 auto;
+  padding: 42px 48px 46px 48px;
+  background: #fff;
+}
 
     .header {
       display: flex;
@@ -213,11 +284,12 @@ export async function generarFacturaPDF(
       margin-top: 25px;
     }
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
 
     .header-right {
       text-align: right;
@@ -251,22 +323,22 @@ export async function generarFacturaPDF(
     }
 
     .status-pill {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: bold;
-      background: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
-    }
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  border: 1px solid #111111;
+  font-size: 11px;
+  font-weight: bold;
+}
 
-    .info-section {
-      display: flex;
-      gap: 20px;
-      margin-top: 25px;
-    }
+   .info-section {
+  display: flex;
+  gap: 14px;
+  margin-top: 25px;
+}
 
     .info-box {
       flex: 1;
@@ -301,6 +373,12 @@ export async function generarFacturaPDF(
       margin-bottom: 20px;
     }
 
+    th,
+td {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
     th, td {
       border: 1px solid #d0d0d0;
       line-height: 1.2;
@@ -321,7 +399,7 @@ export async function generarFacturaPDF(
     }
 
     .totales-box {
-      width: 340px;
+      width: 300px;
       margin-left: auto;
       margin-top: 20px;
       border: 1px solid #d1d5db;
@@ -362,32 +440,89 @@ export async function generarFacturaPDF(
       color: #4b5563;
       text-align: right;
     }
+
+    .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.empresa-info {
+  flex: 1;
+}
+
+.empresa-logo,
+.pdf-logo {
+  height: 45px;
+  max-width: 120px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
+.sii-folio-box {
+  width: 235px;
+  min-height: 118px;
+  border: 3px solid #111827;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #dc2626;
+  text-align: center;
+  padding: 10px 12px;
+  font-weight: bold;
+}
+
+.sii-folio-rut {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.sii-folio-tipo {
+  font-size: 17px;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+
+.sii-folio-numero {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.sii-folio-sii {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="header-left">
-        <img src="${escapeHtml(empresa.logo)}" style="height:55px;" />
-        <div>
-          <h2 style="margin:0;font-size:20px;">${escapeHtml(empresa.nombre)}</h2>
-          <p style="margin:0;font-size:12px;color:#555;line-height:1.4;">
-            <b>RUT:</b> ${escapeHtml(empresa.rut)}<br>
-            ${escapeHtml(empresa.direccion)}<br>
-            ${escapeHtml(empresa.correo)} · ${escapeHtml(empresa.telefono)}
-          </p>
-        </div>
-      </div>
+     <div class="header-left">
+  ${logoHtml}
+  <div style="min-width: 0;">
+    <h2 style="margin:0;font-size:18px;white-space:nowrap;">${escapeHtml(empresa.nombre)}</h2>
+    <p style="margin:0;font-size:11px;color:#555;line-height:1.5;">
+      <b>RUT:</b> ${escapeHtml(empresa.rut)}<br>
+      ${escapeHtml(empresa.direccion)}<br>
+      ${escapeHtml(empresa.correo)} · ${escapeHtml(empresa.telefono)}
+    </p>
+  </div>
+</div>
 
       <div class="header-right">
         <p style="margin:0;font-size:11px;color:#4b5563;">Fecha impresión: ${escapeHtml(fechaActual)}</p>
         <p style="margin:2px 0 0 0;font-size:11px;color:#4b5563;">Fecha emisión: ${escapeHtml(formatFecha(factura.fechaEmision))}</p>
-
-        <div class="doc-box">
-          <div class="doc-rut">R.U.T.: ${escapeHtml(empresa.rut)}</div>
-          <div class="doc-title">${escapeHtml(tipoDTELabel.toUpperCase())}</div>
-          <div class="doc-folio">N° ${escapeHtml(factura.folio != null ? String(factura.folio) : "—")}</div>
-        </div>
+        <br>
+        <div class="sii-folio-box">
+  <div class="sii-folio-rut">R.U.T.: ${escapeHtml(empresa.rut)}</div>
+  <div class="sii-folio-tipo">${escapeHtml(tipoDTELabel)}</div>
+  <div class="sii-folio-numero">N° ${escapeHtml(factura.folio != null ? String(factura.folio) : "—")}</div>
+  <div class="sii-folio-sii">S.I.I.</div>
+</div>
 
         <div class="status-pill">${escapeHtml(factura.estado || "Sin estado")}</div>
       </div>
@@ -422,10 +557,7 @@ export async function generarFacturaPDF(
     <table>
       <thead>
         <tr>
-          <th style="width:12%;">Código</th>
           <th style="width:46%;">Descripción</th>
-          <th style="width:10%;">Cant.</th>
-          <th style="width:16%;">P. Unitario</th>
           <th style="width:16%;">Total</th>
         </tr>
       </thead>
@@ -470,10 +602,13 @@ export async function generarFacturaPDF(
   container.style.position = "fixed";
   container.style.left = "-9999px";
   container.style.top = "-9999px";
-  container.style.width = "874px";
+  container.style.width = "794px";
   container.style.backgroundColor = "#ffffff";
   container.innerHTML = html;
   document.body.appendChild(container);
+
+  // Esperar carga de imágenes antes de capturar
+  await esperarImagenes(container);
 
   const images = container.querySelectorAll("img");
   await Promise.all(
@@ -491,9 +626,15 @@ export async function generarFacturaPDF(
   );
 
   const canvas = await html2canvas(container, {
-    scale: 2,
+    scale: 3,
     useCORS: true,
+    allowTaint: true,
     backgroundColor: "#ffffff",
+    logging: false,
+    imageTimeout: 0,
+    width: container.scrollWidth,
+    height: container.scrollHeight,
+    windowWidth: container.scrollWidth,
   });
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
@@ -502,15 +643,28 @@ export async function generarFacturaPDF(
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
 
+  const pdfMargin = 6;
+  const printableWidth = pdfWidth - pdfMargin * 2;
+  const printableHeight = pageHeight - pdfMargin * 2;
+
   const imgProps = pdf.getImageProperties(imgData);
-  const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+  const pdfHeight = (imgProps.height * printableWidth) / imgProps.width;
 
   let position = 0;
 
   while (position < pdfHeight) {
     if (position > 0) pdf.addPage();
-    pdf.addImage(imgData, "JPEG", 0, -position, pdfWidth, pdfHeight);
-    position += pageHeight;
+
+    pdf.addImage(
+      imgData,
+      "JPEG",
+      pdfMargin,
+      pdfMargin - position,
+      printableWidth,
+      pdfHeight
+    );
+
+    position += printableHeight;
   }
 
   document.body.removeChild(container);
