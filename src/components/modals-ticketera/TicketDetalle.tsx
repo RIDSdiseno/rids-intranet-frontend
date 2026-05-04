@@ -187,6 +187,8 @@ function formatRelativeTime(date?: string | Date | null) {
     return new Date(date).toLocaleDateString("es-CL");
 }
 
+type TicketAttachment = NonNullable<TicketMessage["attachments"]>[number];
+
 function formatEmailBody(text: string | null) {
     if (!text) return "";
     return text
@@ -205,25 +207,53 @@ function resolveInlineImages(
         return html.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
     }
 
-    const inlineMap = new Map<string, number>();
-    attachments
-        .filter((a) => a.isInline && a.contentId)
-        .forEach((a) => {
-            inlineMap.set(a.contentId!, a.id);
-        });
+    const inlineAttachments = attachments.filter(
+        (a) => a.isInline && a.contentId
+    );
+
+    if (!inlineAttachments.length) {
+        return html.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
+    }
+
+    const normalizeCid = (value: string) =>
+        String(value)
+            .replace(/^cid:/i, "")
+            .replace(/^</, "")
+            .replace(/>$/, "")
+            .trim();
+
+    const inlineMap = new Map<string, TicketAttachment>();
+
+    inlineAttachments.forEach((att) => {
+        const cleanCid = normalizeCid(att.contentId || "");
+        if (!cleanCid) return;
+
+        inlineMap.set(cleanCid, att);
+        inlineMap.set(cleanCid.toLowerCase(), att);
+    });
 
     return html.replace(
         /<img[^>]+src=["']cid:([^"']+)["'][^>]*>/gi,
-        (_match, cid) => {
-            const cleanCid = cid.replace(/^</, "").replace(/>$/, "");
-            const attachmentId = inlineMap.get(cleanCid);
-            if (!attachmentId) return "";
-            const att = attachments.find((a) => a.id === attachmentId);
-            if (!att) return "";
-            return `<img src="${att.url.startsWith("http")
+        (match, cid) => {
+            const cleanCid = normalizeCid(cid);
+
+            const att =
+                inlineMap.get(cleanCid) ||
+                inlineMap.get(cleanCid.toLowerCase());
+
+            if (!att?.url) return "";
+
+            /*
+             * Caso esperado ahora:
+             * imágenes inline guardadas en Cloudinary.
+             */
+            const imageUrl = att.url.startsWith("http")
                 ? att.url
-                : `${API_URL.replace("/api", "")}${att.url}`
-                }" loading="lazy" style="max-width:100%;height:auto;display:block;border-radius:8px;" />`;
+                : `${API_URL}/helpdesk/tickets/attachments/${att.id}/inline`;
+
+            const alt = att.filename || "imagen";
+
+            return `<img src="${imageUrl}" alt="${alt}" loading="lazy" style="max-width:100%;height:auto;display:block;border-radius:8px;" />`;
         }
     );
 }
