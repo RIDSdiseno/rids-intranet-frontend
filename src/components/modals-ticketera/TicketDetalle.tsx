@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/TicketDetalle.tsx
 // Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -855,9 +856,9 @@ export default function TicketDetailPage() {
                             </div>
 
                             {showReplyPanel && (
-                                <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
+                                <div className="px-4 sm:px-6 pb-3 h-[min(430px,calc(100dvh-170px))] overflow-hidden">
                                     <Tabs
-                                        className="h-full"
+                                        className="h-full ticket-reply-tabs"
                                         items={[
                                             {
                                                 key: "reply",
@@ -867,7 +868,7 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-3">
+                                                    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
                                                         <div className="shrink-0">
                                                             <div className="flex justify-between items-center mb-1">
                                                                 <span className="text-xs text-gray-500">Para:</span>
@@ -894,9 +895,10 @@ export default function TicketDetailPage() {
                                                             />
 
                                                             {showCc && (
-                                                                <div className="mt-3">
-                                                                    <span className="text-xs text-gray-500">CC:</span>
+                                                                <div className="mt-1">
+                                                                    <span className="text-[11px] text-gray-500">CC:</span>
                                                                     <Select
+                                                                        size="small"
                                                                         mode="tags"
                                                                         showSearch
                                                                         placeholder="Agregar CC"
@@ -921,14 +923,16 @@ export default function TicketDetailPage() {
                                                                 placeholder="Escribe tu respuesta al cliente..."
                                                                 autoSize={false}
                                                                 style={{
-                                                                    height: "clamp(150px, 40vh, 400px)",
-                                                                    minHeight: "150px",
+                                                                    height: showCc
+                                                                        ? "clamp(70px, 16dvh, 130px)"
+                                                                        : "clamp(90px, 22dvh, 180px)",
+                                                                    minHeight: showCc ? "70px" : "90px",
                                                                     resize: "vertical",
                                                                 }}
                                                             />
                                                         </div>
 
-                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
+                                                        <div className="sticky bottom-0 z-30 shrink-0 border-t border-gray-200 bg-gray-50 pt-2 pb-2 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -973,7 +977,7 @@ export default function TicketDetailPage() {
                                                                 loading={sendingReply}
                                                                 onClick={() => responderTicket(false)}
                                                                 icon={<SendOutlined />}
-                                                                className="ml-auto"
+                                                                className="ml-auto shrink-0"
                                                             >
                                                                 Enviar respuesta
                                                             </Button>
@@ -989,7 +993,7 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-3">
+                                                    <div className="flex max-h-[calc(100vh-330px)] min-h-[320px] flex-col gap-3 overflow-hidden">
                                                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                                                             <Input.TextArea
                                                                 value={internalNoteText}
@@ -997,15 +1001,15 @@ export default function TicketDetailPage() {
                                                                 placeholder="Escribe una nota interna (no visible para el cliente)..."
                                                                 autoSize={false}
                                                                 style={{
-                                                                    height: "clamp(150px, 40vh, 400px)",
-                                                                    minHeight: "150px",
+                                                                    height: "clamp(90px, 22dvh, 400px)",
+                                                                    minHeight: "90px",
                                                                     resize: "vertical",
-                                                                    background: "#fffbeb", // fondo amarillo suave para distinguirla
+                                                                    background: "#fffbeb",
                                                                 }}
                                                             />
                                                         </div>
 
-                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
+                                                        <div className="sticky bottom-0 z-20 shrink-0 border-t border-gray-200 bg-gray-50 pt-3 pb-1 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -1044,7 +1048,7 @@ export default function TicketDetailPage() {
                                                                 loading={sendingReply}
                                                                 onClick={() => responderTicket(true)}  // ← true = interna
                                                                 icon={<EyeInvisibleOutlined />}
-                                                                className="ml-auto"
+                                                                className="ml-auto shrink-0"
                                                                 style={{ background: "#d97706" }} // color ámbar para distinguirla
                                                             >
                                                                 Guardar nota
@@ -1060,7 +1064,7 @@ export default function TicketDetailPage() {
                         </div>
                     </div>
 
-                    <aside className="min-h-0 overflow-y-auto bg-gray-50/80">
+                    <aside className="hidden xl:block min-h-0 overflow-y-auto bg-gray-50/80">
                         <div className="p-5 space-y-5">
                             <div className="rounded-2xl bg-white border border-gray-200 p-4">
                                 <div className="grid grid-cols-1 gap-y-4 text-sm">
@@ -1168,7 +1172,7 @@ export default function TicketDetailPage() {
                                 <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
                                     <div className="font-semibold text-sm text-gray-800 mb-3">SLA</div>
 
-                                    <div className="flex h-full min-h-0 flex-col gap-3">
+                                    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
                                                 <div className="text-xs text-gray-400 mb-0.5">SLA 1ª respuesta</div>

@@ -1177,24 +1177,25 @@ export default function TicketeraRids() {
                 {/* Filtros de búsqueda y segmentación de tickets por estado, prioridad, asignado y área, además de botones para filtrar por rangos de fecha predefinidos como hoy, últimos 7 días y este mes. También se incluye un campo de búsqueda para buscar por texto en el asunto, empresa, solicitante, email o ID del ticket. */}
                 <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex-1">
-                                <Input
-                                    placeholder="Buscar por asunto, contenido del ticket, empresa, solicitante, email o ID..."
+                        <div className="flex flex-col gap-3">
+                            <div className="w-full">
+                                <Input.Search
+                                    placeholder="Buscar por asunto, empresa, solicitante, email o ID..."
                                     prefix={<SearchOutlined />}
                                     value={searchText}
                                     onChange={(e) => setSearchText(e.target.value)}
-                                    onPressEnter={loadTickets}
+                                    onSearch={loadTickets}
+                                    allowClear
                                     size="large"
                                     className="rounded-xl"
                                 />
                             </div>
 
-                            <Space wrap>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
                                 <Select
                                     placeholder="Estado"
                                     allowClear
-                                    style={{ width: 140 }}
+                                    className="w-full"
                                     value={statusFilter}
                                     onChange={setStatusFilter}
                                     options={[
@@ -1204,10 +1205,11 @@ export default function TicketeraRids() {
                                         { value: "CLOSED", label: "Cerrado" },
                                     ]}
                                 />
+
                                 <Select
                                     placeholder="Prioridad"
                                     allowClear
-                                    style={{ width: 140 }}
+                                    className="w-full"
                                     value={priorityFilter}
                                     onChange={setPriorityFilter}
                                     options={[
@@ -1217,10 +1219,11 @@ export default function TicketeraRids() {
                                         { value: "URGENT", label: "Urgente" },
                                     ]}
                                 />
+
                                 <Select
                                     placeholder="Asignado a"
                                     allowClear
-                                    style={{ width: 180 }}
+                                    className="w-full"
                                     value={assigneeFilter}
                                     onChange={setAssigneeFilter}
                                     options={tecnicos.map((t) => ({
@@ -1228,14 +1231,16 @@ export default function TicketeraRids() {
                                         label: t.nombre,
                                     }))}
                                 />
+
                                 <Select
-                                    style={{ width: 170 }}
+                                    className="w-full"
                                     value={areaFilter}
                                     onChange={setAreaFilter}
                                     options={AREA_OPTIONS}
                                 />
+
                                 <Select
-                                    style={{ width: 190 }}
+                                    className="w-full"
                                     value={sortOrder}
                                     onChange={setSortOrder}
                                     options={[
@@ -1243,7 +1248,7 @@ export default function TicketeraRids() {
                                         { value: "old_first", label: "Más antiguos primero" },
                                     ]}
                                 />
-                            </Space>
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2">

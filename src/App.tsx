@@ -37,6 +37,8 @@ const LoginPage = lazy(() => import("./host/login"));
 const ForgotPasswordPage = lazy(() => import("./host/ForgotPassword"));
 const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 
+const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
+
 /* =========================
    Auth helpers
 ========================= */
@@ -61,7 +63,11 @@ function getUserRol(): string | null {
 function getUserEmail(): string | null {
   try {
     const raw = localStorage.getItem("user");
-    return raw ? (JSON.parse(raw)?.email ?? null) : null;
+    if (!raw) return null;
+
+    const email = JSON.parse(raw)?.email;
+
+    return email ? String(email).toLowerCase().trim() : null;
   } catch {
     return null;
   }
@@ -78,20 +84,49 @@ function ProtectedRoute() {
 
 function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rol = getUserRol();
+
   if (!rol || !allowedRoles.includes(rol)) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to={rol === "CLIENTE" ? "/empresas" : "/home"} replace />;
   }
+
   return <Outlet />;
 }
 
 // Acceso exclusivo por email — módulo Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl","dbravo@rids.cl", "igonzalez@rids.cl"];
+const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
+
+const USUARIOS_GESTION_TECNICOS_CLIENTES = [
+  "dbravo@rids.cl",
+  "carenas@rids.cl",
+  "igonzalez@rids.cl",
+  "rcalsin@rids.cl",
+  "mahumada@rids.cl",
+];
 
 function CobranzaRoute() {
   const email = getUserEmail();
-  if (!email || !COBRANZA_EMAILS.includes(email)) {
+  const rol = getUserRol();
+
+  const isCliente = rol === "CLIENTE";
+  const isEmailPermitido = !!email && COBRANZA_EMAILS.includes(email);
+
+  if (!isCliente && !isEmailPermitido) {
     return <Navigate to="/home" replace />;
   }
+
+  return <Outlet />;
+}
+
+function GestionTecnicosClientesRoute() {
+  const email = getUserEmail();
+
+  const autorizado =
+    !!email && USUARIOS_GESTION_TECNICOS_CLIENTES.includes(email);
+
+  if (!autorizado) {
+    return <Navigate to="/home" replace />;
+  }
+
   return <Outlet />;
 }
 
@@ -172,7 +207,6 @@ export default function App() {
             {/* Solo TECNICO y ADMIN */}
             <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
               <Route path="/home" element={<HomePage />} />
-              <Route path="/tecnicos" element={<TecnicosPage />} />
               <Route path="/agenda" element={<AgendaPage />} />
               <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
               <Route path="/Cotizaciones" element={<CotizacionesPage />} />
@@ -188,6 +222,14 @@ export default function App() {
                 <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
                 <Route path="tickets/:id" element={<TicketeraDetalle />} />
                 <Route path="email-templates" element={<HelpdeskConfigPage />} />
+              </Route>
+            </Route>
+
+            {/* Técnicos y Clientes Externos — solo emails permitidos */}
+            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
+              <Route element={<GestionTecnicosClientesRoute />}>
+                <Route path="/tecnicos" element={<TecnicosPage />} />
+                <Route path="/clientes-ext" element={<ClientesExtPage />} />
               </Route>
             </Route>
 

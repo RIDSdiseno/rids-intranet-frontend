@@ -17,6 +17,10 @@ type FacturaRCV = {
   tipoDTE?: string | number;
   tipoDTEString?: string;
   tipoVenta?: string;
+
+  empresaEmisora?: string;
+  rutEmpresaEmisora?: string;
+
   fechaEmision?: string;
   fechaRecepcion?: string;
   fechaAcuseRecibo?: string;

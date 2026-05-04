@@ -21,6 +21,8 @@ import {
   ReceiptText,
   Headset,
   FileSpreadsheet,
+  UserRoundCheck,
+  Handshake,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -44,6 +46,7 @@ const REPORTES_PATH = "/reportes";
 const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
 const COBRANZA_PATH = "/cobranza";
+const CLIENTES_EXT_PATH = "/clientes-ext";
 
 type NavItem = {
   label: string;
@@ -72,7 +75,15 @@ type StoredUser = {
 };
 
 // Usuarios con acceso exclusivo al módulo de Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl","dbravo@rids.cl", "igonzalez@rids.cl"];
+const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
+
+const USUARIOS_GESTION_TECNICOS_CLIENTES = [
+  "dbravo@rids.cl",
+  "carenas@rids.cl",
+  "igonzalez@rids.cl",
+  "rcalsin@rids.cl",
+  "mahumada@rids.cl",
+];
 
 const NAV: NavEntry[] = [
   {
@@ -86,6 +97,7 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "Técnicos y Visitas",
     items: [
+      { label: "Clientes Externos", to: CLIENTES_EXT_PATH, icon: <Handshake size={20} /> },
       { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
       { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
@@ -192,25 +204,67 @@ const Header = () => {
 
   const user = useMemo(() => safeParseUser(), []);
   const isCliente = user?.rol === "CLIENTE";
-  const canAccessCobranza = COBRANZA_EMAILS.includes(user?.email ?? "");
+
+  const userEmail = String(user?.email ?? "").toLowerCase().trim();
+
+  const canAccessCobranza = COBRANZA_EMAILS.includes(userEmail);
+
+  const canAccessGestionTecnicosClientes =
+    USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail);
 
   const filteredNav: NavEntry[] = useMemo(() => {
-    // Filtrar Cobranza según email permitido
-    const nav = NAV.filter((entry) => {
-      if (entry.type === "group" && entry.label === "Cobranza") {
-        return canAccessCobranza;
-      }
-      return true;
-    });
+    const nav = NAV
+      .map((entry): NavEntry | null => {
+        if (entry.type === "group" && entry.label === "Cobranza") {
+          return canAccessCobranza ? entry : null;
+        }
+
+        if (entry.type === "group" && entry.label === "Técnicos y Visitas") {
+          const items = entry.items.filter((item) => {
+            const esRutaRestringida =
+              item.to === CLIENTES_EXT_PATH || item.to === TECNICOS_PATH;
+
+            if (esRutaRestringida) {
+              return canAccessGestionTecnicosClientes;
+            }
+
+            return true;
+          });
+
+          return {
+            ...entry,
+            items,
+            match: items.map((item) => item.to),
+          };
+        }
+
+        return entry;
+      })
+      .filter((entry): entry is NavEntry => {
+        if (!entry) return false;
+
+        if (entry.type === "group") {
+          return entry.items.length > 0;
+        }
+
+        return true;
+      });
 
     if (!isCliente) return nav;
 
-    // CLIENTE solo ve su grupo reducido
     return [
       {
         type: "group" as const,
         label: "Mi Empresa",
-        match: [EMPRESAS_PATH, EQUIPOS_PATH, VISITAS_PATH, SOLICITANTES_PATH, REPORTES_PATH],
+        match: [
+          EMPRESAS_PATH,
+          EQUIPOS_PATH,
+          VISITAS_PATH,
+          SOLICITANTES_PATH,
+          MANTENCIONES_REMOTAS_PATH,
+          REPORTES_PATH,
+          COBRANZA_PATH,
+        ],
         items: [
           { label: "Mi Empresa", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
           { label: "Mis Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
@@ -218,10 +272,15 @@ const Header = () => {
           { label: "Listado de Usuarios", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
           { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
           { label: "Informes Mensuales", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
+          { label: "Facturas SII", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
         ],
       },
     ];
-  }, [isCliente, canAccessCobranza]);
+  }, [
+    isCliente,
+    canAccessCobranza,
+    canAccessGestionTecnicosClientes,
+  ]);
 
   const handleLogout = async () => {
     try {

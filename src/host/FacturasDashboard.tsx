@@ -3,7 +3,7 @@
 // Instalar: npm install recharts
 // Agregar ruta en tu router: /facturas
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -44,6 +44,9 @@ interface DocumentoRCV {
   folio: number;
   tipoDTE: number;
   tipoDTEString?: string;
+
+  empresaEmisora?: string;
+  rutEmpresaEmisora?: string;
 
   tipoVenta?: string;
   tipoCompra?: string;
@@ -87,6 +90,25 @@ interface ResultadoRCV {
 interface Toast {
   type: "success" | "error";
   message: string;
+}
+
+interface StoredUser {
+  id?: number;
+  nombre?: string;
+  email?: string;
+  rol?: string;
+  empresaId?: number | null;
+}
+
+function safeParseUser(): StoredUser | null {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+
+    return JSON.parse(raw) as StoredUser;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================
@@ -178,17 +200,37 @@ const EMPRESAS_PDF: Record<
     direccion: "La Concepción 65, Providencia, Santiago",
     correo: "contacto@econnet.cl",
     telefono: "+56 9 8807 6593",
-    logo: "/public/img/ecconetlogo.png",
+    logo: "/img/ecconetlogo.png",
   },
   rids: {
     nombre: "ASESORÍAS RIDS LTDA.",
     rut: "77.825.186-8",
     direccion: "Santiago, Chile",
     correo: "soporte@rids.cl",
-    telefono: "+56 9 XXXX XXXX",
-    logo: "/public/img/splash.png",
+    telefono: "+56 9 8823 1976",
+    logo: "/img/splash.png",
   },
 };
+
+function getEmpresaKeyFromRut(rut?: string | null): EmpresaKey | null {
+  if (!rut) return null;
+
+  const clean = rut.replace(/\./g, "").toLowerCase().trim();
+
+  if (clean === "76758352-4") return "econnet";
+  if (clean === "77825186-8") return "rids";
+
+  return null;
+}
+
+function getEmpresaKeyFromAlias(alias?: string | null): EmpresaKey | null {
+  const clean = String(alias ?? "").toLowerCase().trim();
+
+  if (clean === "rids") return "rids";
+  if (clean === "econnet") return "econnet";
+
+  return null;
+}
 
 const getNombreDocumento = (doc: DocumentoRCV, activeTab: TabRCV) => {
   if (activeTab === "ventas") {
@@ -204,6 +246,41 @@ const getRutDocumento = (doc: DocumentoRCV, activeTab: TabRCV) => {
   }
 
   return doc.rutProveedor ?? "";
+};
+
+const getEmisorDocumento = (doc: DocumentoRCV) => {
+  const emisor = doc.empresaEmisora?.toLowerCase();
+
+  if (emisor === "rids") return "RIDS";
+  if (emisor === "econnet") return "ECONNET";
+
+  return "—";
+};
+
+const BadgeEmisor: React.FC<{ emisor?: string }> = ({ emisor }) => {
+  const value = emisor?.toLowerCase();
+
+  if (value === "rids") {
+    return (
+      <span className="inline-flex rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+        RIDS
+      </span>
+    );
+  }
+
+  if (value === "econnet") {
+    return (
+      <span className="inline-flex rounded-full bg-cyan-100 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
+        ECONNET
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+      —
+    </span>
+  );
 };
 
 const getTipoDocumentoTexto = (doc: DocumentoRCV) => {
@@ -556,6 +633,8 @@ function documentoToFacturaPDF(doc: DocumentoRCV, activeTab: TabRCV) {
       tipoDTEString: doc.tipoDTEString,
       tipoVenta: doc.tipoVenta,
       fechaEmision: doc.fechaEmision,
+      empresaEmisora: doc.empresaEmisora,
+      rutEmpresaEmisora: doc.rutEmpresaEmisora,
       fechaRecepcion: doc.fechaRecepcion,
       fechaAcuseRecibo: doc.fechaAcuseRecibo,
       estado: doc.estado,
@@ -613,6 +692,9 @@ function documentoToFacturaPDF(doc: DocumentoRCV, activeTab: TabRCV) {
 const FacturasDashboard: React.FC = () => {
   const now = new Date();
 
+  const user = useMemo(() => safeParseUser(), []);
+  const isCliente = user?.rol === "CLIENTE";
+
   const [mes, setMes] = useState(
     String(now.getMonth() + 1).padStart(2, "0")
   );
@@ -630,6 +712,14 @@ const FacturasDashboard: React.FC = () => {
 
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  useEffect(() => {
+    if (isCliente && activeTab === "compras") {
+      setActiveTab("ventas");
+      setBusqueda("");
+      setFiltroEstado("");
+    }
+  }, [isCliente, activeTab]);
+
   const showError = (msg: string) => {
     setToast({ type: "error", message: msg });
     setTimeout(() => setToast(null), 5000);
@@ -640,7 +730,24 @@ const FacturasDashboard: React.FC = () => {
       setPdfLoading(true);
 
       const facturaPDF = documentoToFacturaPDF(doc, activeTab);
-      const empresaPDF = EMPRESAS_PDF[empresa];
+
+      const empresaKeyForPDF =
+        activeTab === "ventas"
+          ? getEmpresaKeyFromRut(doc.rutEmpresaEmisora) ??
+          getEmpresaKeyFromAlias(doc.empresaEmisora) ??
+          empresa
+          : empresa;
+
+      const empresaPDF = EMPRESAS_PDF[empresaKeyForPDF];
+
+      console.log("🧾 PDF empresa emisora:", {
+        folio: doc.folio,
+        activeTab,
+        empresaEmisora: doc.empresaEmisora,
+        rutEmpresaEmisora: doc.rutEmpresaEmisora,
+        empresaKeyForPDF,
+        empresaPDF,
+      });
 
       await generarFacturaPDF(facturaPDF, empresaPDF);
 
@@ -662,15 +769,31 @@ const FacturasDashboard: React.FC = () => {
       setLoading(true);
 
       try {
+        if (isCliente && activeTab === "compras") {
+          setActiveTab("ventas");
+          return;
+        }
+
         const BASE_URL =
           import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
-        const refreshParam = forceRefresh ? "&refresh=true" : "";
+        const params = new URLSearchParams({
+          mes,
+          ano,
+        });
+
+        if (!isCliente) {
+          params.set("empresa", empresa);
+        }
+
+        if (forceRefresh) {
+          params.set("refresh", "true");
+        }
 
         const endpoint =
           activeTab === "ventas"
-            ? `${BASE_URL}/facturas/ventas?mes=${mes}&ano=${ano}&empresa=${empresa}${refreshParam}`
-            : `${BASE_URL}/facturas/compras?mes=${mes}&ano=${ano}&empresa=${empresa}${refreshParam}`;
+            ? `${BASE_URL}/facturas/ventas?${params.toString()}`
+            : `${BASE_URL}/facturas/compras?${params.toString()}`;
 
         const token = localStorage.getItem("accessToken") ?? "";
 
@@ -683,6 +806,7 @@ const FacturasDashboard: React.FC = () => {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
+
           throw new Error(
             err?.error ?? err?.message ?? `Error ${res.status}`
           );
@@ -696,7 +820,7 @@ const FacturasDashboard: React.FC = () => {
         setLoading(false);
       }
     },
-    [mes, ano, activeTab, empresa]
+    [mes, ano, activeTab, empresa, isCliente]
   );
 
   useEffect(() => {
@@ -815,40 +939,53 @@ const FacturasDashboard: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-2">
               {/* Tabs */}
-              <div className="flex rounded-full border border-cyan-200 bg-cyan-50 p-1">
-                {(["ventas", "compras"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => {
-                      setActiveTab(tab);
-                      setBusqueda("");
-                      setFiltroEstado("");
-                    }}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition ${activeTab === tab
-                      ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-cyan-700"
-                      }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Tabs */}
+                <div className="flex rounded-full border border-cyan-200 bg-cyan-50 p-1">
+                  {(
+                    isCliente
+                      ? (["ventas"] as TabRCV[])
+                      : (["ventas", "compras"] as TabRCV[])
+                  ).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        setBusqueda("");
+                        setFiltroEstado("");
+                      }}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold capitalize transition ${activeTab === tab
+                        ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-sm"
+                        : "text-slate-500 hover:text-cyan-700"
+                        }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Empresa */}
-              <div className="flex rounded-full border border-cyan-200 bg-cyan-50 p-1">
-                {(["econnet", "rids"] as const).map((emp) => (
-                  <button
-                    key={emp}
-                    onClick={() => setEmpresa(emp)}
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase transition ${empresa === emp
-                      ? "bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-cyan-700"
-                      }`}
-                  >
-                    {emp}
-                  </button>
-                ))}
-              </div>
+              {!isCliente ? (
+                <div className="flex rounded-full border border-cyan-200 bg-cyan-50 p-1">
+                  {(["econnet", "rids"] as const).map((emp) => (
+                    <button
+                      key={emp}
+                      onClick={() => setEmpresa(emp)}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase transition ${empresa === emp
+                        ? "bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-sm"
+                        : "text-slate-500 hover:text-cyan-700"
+                        }`}
+                    >
+                      {emp}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+                  Mi empresa
+                </div>
+              )}
 
               {/* Mes */}
               <select
@@ -896,7 +1033,7 @@ const FacturasDashboard: React.FC = () => {
               </span>
 
               <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold uppercase text-indigo-700">
-                {empresa}
+                {isCliente ? "Mi empresa" : empresa}
               </span>
 
               <span className="ml-2 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold uppercase text-cyan-700">
@@ -1168,6 +1305,7 @@ const FacturasDashboard: React.FC = () => {
                         "Folio",
                         "Tipo DTE",
                         "Fecha Emisión",
+                        ...(activeTab === "ventas" ? ["Emisor"] : []),
                         entidadLabel,
                         "RUT",
                         "Neto",
@@ -1208,6 +1346,12 @@ const FacturasDashboard: React.FC = () => {
                               ).toLocaleDateString("es-CL")
                               : "—"}
                           </td>
+
+                          {activeTab === "ventas" && (
+                            <td className="px-4 py-3 text-center">
+                              <BadgeEmisor emisor={doc.empresaEmisora} />
+                            </td>
+                          )}
 
                           <td className="max-w-[200px] truncate px-4 py-3 text-left text-sm font-medium text-slate-800">
                             {nombre || "—"}
@@ -1292,6 +1436,12 @@ const FacturasDashboard: React.FC = () => {
                       <p className="mt-0.5 text-xs text-slate-500">
                         {rut || "—"}
                       </p>
+
+                      {activeTab === "ventas" && (
+                        <div className="mt-2">
+                          <BadgeEmisor emisor={doc.empresaEmisora} />
+                        </div>
+                      )}
 
                       <div className="mt-2 flex justify-between text-sm">
                         <span className="text-slate-500">
