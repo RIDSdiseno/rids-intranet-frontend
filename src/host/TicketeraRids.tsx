@@ -320,6 +320,8 @@ export default function TicketeraRids() {
         assigneeId: undefined as number | undefined,
     });
 
+    const [createFiles, setCreateFiles] = useState<File[]>([]);
+
     const ignoreNextSocketReload = useRef(false);
 
     // Funciones auxiliares
@@ -799,10 +801,26 @@ export default function TicketeraRids() {
         try {
             setCreatingTicket(true);
 
-            await api.post("/helpdesk/tickets", form);
+            const formData = new FormData();
+
+            if (form.empresaId) formData.append("empresaId", String(form.empresaId));
+            if (form.requesterId) formData.append("requesterId", String(form.requesterId));
+            if (form.fromEmail) formData.append("fromEmail", form.fromEmail);
+            if (form.assigneeId) formData.append("assigneeId", String(form.assigneeId));
+
+            formData.append("subject", form.subject);
+            formData.append("message", form.message || "");
+            formData.append("priority", form.priority || "NORMAL");
+
+            createFiles.forEach((file) => {
+                formData.append("attachments", file);
+            });
+
+            await api.post("/helpdesk/tickets", formData);
 
             message.success("Ticket creado correctamente");
             setDrawerCrear(false);
+
             setForm({
                 empresaId: undefined,
                 requesterId: undefined,
@@ -812,6 +830,8 @@ export default function TicketeraRids() {
                 priority: "NORMAL",
                 assigneeId: undefined,
             });
+
+            setCreateFiles([]);
 
             await loadTickets();
             await loadSla();
@@ -1033,6 +1053,8 @@ export default function TicketeraRids() {
                                         priority: "NORMAL",
                                         assigneeId: undefined,
                                     });
+
+                                    setCreateFiles([]);
                                     setDrawerCrear(true);
                                 }}
                                 size="large"
@@ -1519,8 +1541,11 @@ export default function TicketeraRids() {
                     solicitantes={solicitantes}
                     tecnicos={tecnicos}
                     creating={creatingTicket}
+                    files={createFiles}
+                    onFilesChange={setCreateFiles}
                     onClose={() => {
                         if (creatingTicket) return;
+                        setCreateFiles([]);
                         setDrawerCrear(false);
                     }}
                     onSubmit={crearTicket}

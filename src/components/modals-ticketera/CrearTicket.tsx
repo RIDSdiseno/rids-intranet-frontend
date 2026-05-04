@@ -1,4 +1,5 @@
-import { Drawer, Button, Input, Select, Row, Col } from "antd";
+import { useRef } from "react";
+import { Drawer, Button, Input, Select, Row, Col, Tag } from "antd";
 import { PaperClipOutlined } from "@ant-design/icons";
 
 interface Empresa { id_empresa: number; nombre: string; }
@@ -33,6 +34,8 @@ interface Props {
     onSubmit: () => void;
     onFormChange: (form: TicketForm) => void;
     onEmpresaChange: (empresaId: number) => void;
+    files: File[];
+    onFilesChange: React.Dispatch<React.SetStateAction<File[]>>;
 }
 
 const buildMensajeInicial = (tecnico?: { nombre?: string; cargo?: string; email?: string; telefono?: string }) => {
@@ -65,9 +68,20 @@ const buildMensajeInicial = (tecnico?: { nombre?: string; cargo?: string; email?
 };
 
 export function CrearTicketDrawer({
-    open, form, empresas, solicitantes, tecnicos, creating,
-    onClose, onSubmit, onFormChange, onEmpresaChange
+    open,
+    form,
+    empresas,
+    solicitantes,
+    tecnicos,
+    creating,
+    onClose,
+    onSubmit,
+    onFormChange,
+    onEmpresaChange,
+    files,
+    onFilesChange,
 }: Props) {
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     return (
         <Drawer
             title="Crear Nuevo Ticket"
@@ -197,13 +211,58 @@ export function CrearTicketDrawer({
                         onChange={(e) => onFormChange({ ...form, message: e.target.value })}
                         className="resize-none"
                     />
-                    <div className="flex justify-between items-center mt-2">
-                        <Button icon={<PaperClipOutlined />} size="small">
-                            Adjuntar archivo
-                        </Button>
-                        <span className="text-sm text-gray-500">
-                            {form.message.length}/5000 caracteres
-                        </span>
+                    <div className="mt-2">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            hidden
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                            onChange={(e) => {
+                                const selectedFiles = e.target.files;
+                                if (!selectedFiles?.length) return;
+
+                                onFilesChange((prev) => [
+                                    ...prev,
+                                    ...Array.from(selectedFiles),
+                                ]);
+
+                                e.target.value = "";
+                            }}
+                        />
+
+                        <div className="flex justify-between items-center">
+                            <Button
+                                icon={<PaperClipOutlined />}
+                                size="small"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={creating}
+                            >
+                                Adjuntar archivo
+                            </Button>
+
+                            <span className="text-sm text-gray-500">
+                                {form.message.length}/5000 caracteres
+                            </span>
+                        </div>
+
+                        {files.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {files.map((file, index) => (
+                                    <Tag
+                                        key={`${file.name}-${file.lastModified}-${index}`}
+                                        closable={!creating}
+                                        onClose={() => {
+                                            onFilesChange((prev) =>
+                                                prev.filter((_, i) => i !== index)
+                                            );
+                                        }}
+                                    >
+                                        {file.name}
+                                    </Tag>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
