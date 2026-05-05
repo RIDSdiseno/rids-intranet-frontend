@@ -379,7 +379,6 @@ export default function TicketDetailPage() {
 
     const [toEmails, setToEmails] = useState<string[]>([]);
     const [ccEmails, setCcEmails] = useState<string[]>([]);
-    const [showCc, setShowCc] = useState(false);
 
     const [contactos, setContactos] = useState<any[]>([]);
     const [loadingContactos, setLoadingContactos] = useState(false);
@@ -480,7 +479,6 @@ export default function TicketDetailPage() {
             );
 
             setCcEmails(nextCc);
-            setShowCc(nextCc.length > 0);
 
             setCcEmails(
                 uniqueEmails(
@@ -841,8 +839,8 @@ export default function TicketDetailPage() {
                             </div>
                         </div>
 
-                        <div className="shrink-0 bg-gray-50 border-t border-gray-200">
-                            <div className="flex items-center justify-between px-6 py-3">
+                        <div className="shrink-0 bg-gray-50 border-t border-gray-200 max-h-[calc(100dvh-190px)] overflow-hidden flex flex-col">
+                            <div className="shrink-0 flex items-center justify-between px-6 py-3">
                                 <div className="text-sm font-medium text-gray-700">
                                     Acciones del ticket
                                 </div>
@@ -856,9 +854,14 @@ export default function TicketDetailPage() {
                             </div>
 
                             {showReplyPanel && (
-                                <div className="px-4 sm:px-6 pb-3 h-[min(430px,calc(100dvh-170px))] overflow-hidden">
+                                <div
+                                    className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 pb-3"
+                                    style={{
+                                        height: "clamp(280px, calc(100dvh - 250px), 640px)",
+                                    }}
+                                >
                                     <Tabs
-                                        className="h-full ticket-reply-tabs"
+                                        className="min-h-full ticket-reply-tabs"
                                         items={[
                                             {
                                                 key: "reply",
@@ -868,15 +871,10 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+                                                    <div className="flex min-h-full flex-col gap-2">
                                                         <div className="shrink-0">
                                                             <div className="flex justify-between items-center mb-1">
                                                                 <span className="text-xs text-gray-500">Para:</span>
-                                                                {!showCc && (
-                                                                    <Button size="small" type="link" onClick={() => setShowCc(true)}>
-                                                                        + CC
-                                                                    </Button>
-                                                                )}
                                                             </div>
 
                                                             <Select
@@ -894,26 +892,24 @@ export default function TicketDetailPage() {
                                                                 style={{ width: "100%" }}
                                                             />
 
-                                                            {showCc && (
-                                                                <div className="mt-1">
-                                                                    <span className="text-[11px] text-gray-500">CC:</span>
-                                                                    <Select
-                                                                        size="small"
-                                                                        mode="tags"
-                                                                        showSearch
-                                                                        placeholder="Agregar CC"
-                                                                        value={ccEmails}
-                                                                        onChange={setCcEmails}
-                                                                        onSearch={debouncedSearchContactos}
-                                                                        loading={loadingContactos}
-                                                                        options={contactos.map((c) => ({
-                                                                            label: `${c.nombre} (${c.email})`,
-                                                                            value: c.email,
-                                                                        }))}
-                                                                        style={{ width: "100%" }}
-                                                                    />
-                                                                </div>
-                                                            )}
+                                                            <div className="mt-1">
+                                                                <span className="text-[11px] text-gray-500">CC:</span>
+                                                                <Select
+                                                                    size="small"
+                                                                    mode="tags"
+                                                                    showSearch
+                                                                    placeholder="Agregar CC"
+                                                                    value={ccEmails}
+                                                                    onChange={setCcEmails}
+                                                                    onSearch={debouncedSearchContactos}
+                                                                    loading={loadingContactos}
+                                                                    options={contactos.map((c) => ({
+                                                                        label: `${c.nombre} (${c.email})`,
+                                                                        value: c.email,
+                                                                    }))}
+                                                                    style={{ width: "100%" }}
+                                                                />
+                                                            </div>
                                                         </div>
 
                                                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -923,16 +919,19 @@ export default function TicketDetailPage() {
                                                                 placeholder="Escribe tu respuesta al cliente..."
                                                                 autoSize={false}
                                                                 style={{
-                                                                    height: showCc
-                                                                        ? "clamp(70px, 16dvh, 130px)"
-                                                                        : "clamp(90px, 22dvh, 180px)",
-                                                                    minHeight: showCc ? "70px" : "90px",
+                                                                    height: "clamp(120px, 26dvh, 340px)",
+                                                                    minHeight: "100px",
+                                                                    maxHeight: "55dvh",
                                                                     resize: "vertical",
+                                                                    overflowY: "auto",
                                                                 }}
                                                             />
+                                                            <div className="text-[11px] text-gray-400">
+                                                                Puedes arrastrar la esquina inferior derecha para ajustar el tamaño del área de respuesta.
+                                                            </div>
                                                         </div>
 
-                                                        <div className="sticky bottom-0 z-30 shrink-0 border-t border-gray-200 bg-gray-50 pt-2 pb-2 flex items-center gap-2 flex-wrap">
+                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-2 pb-2 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -982,6 +981,7 @@ export default function TicketDetailPage() {
                                                                 Enviar respuesta
                                                             </Button>
                                                         </div>
+                                                        <br />
                                                     </div>
                                                 ),
                                             },
@@ -993,17 +993,19 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex max-h-[calc(100vh-330px)] min-h-[320px] flex-col gap-3 overflow-hidden">
+                                                    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                                                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                                                             <Input.TextArea
                                                                 value={internalNoteText}
                                                                 onChange={(e) => setInternalNoteText(e.target.value)}
                                                                 placeholder="Escribe una nota interna (no visible para el cliente)..."
                                                                 autoSize={false}
+                                                                className="min-h-[120px] lg:min-h-[180px] xl:min-h-[260px] 2xl:min-h-[360px]"
                                                                 style={{
-                                                                    height: "clamp(90px, 22dvh, 400px)",
-                                                                    minHeight: "90px",
+                                                                    height: "clamp(120px, 34dvh, 360px)",
+                                                                    maxHeight: "42dvh",
                                                                     resize: "vertical",
+                                                                    overflowY: "auto",
                                                                     background: "#fffbeb",
                                                                 }}
                                                             />
