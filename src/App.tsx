@@ -20,6 +20,8 @@ const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const FacturasDashboardPage = lazy(() => import("./host/FacturasDashboard"));
+const ConciliacionPage = lazy(() => import("./host/Conciliacion"));
+const ConciliacionEcconetPage = lazy(() => import("./host/ConciliacionEcconet"));
 
 const HelpdeskLayout = lazy(() => import("../src/components/modals-ticketera/HelpdeskLayout"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));
@@ -124,6 +126,16 @@ function GestionTecnicosClientesRoute() {
     !!email && USUARIOS_GESTION_TECNICOS_CLIENTES.includes(email);
 
   if (!autorizado) {
+    return <Navigate to="/home" replace />;
+  }
+
+  return <Outlet />;
+}
+
+function ConciliacionOnlyRoute() {
+  const email = getUserEmail();
+
+  if (!email || email !== "carenas@rids.cl") {
     return <Navigate to="/home" replace />;
   }
 
@@ -235,6 +247,10 @@ export default function App() {
 
             {/* Cobranza — solo emails permitidos (independiente del rol) */}
             <Route element={<CobranzaRoute />}>
+              <Route element={<ConciliacionOnlyRoute />}>
+                  <Route path="/cobranza/conciliacion-rids" element={<ConciliacionPage />} />
+                  <Route path="/cobranza/conciliacion-ecconet" element={<ConciliacionEcconetPage />} />
+                </Route>
               <Route path="/facturas" element={<FacturasDashboardPage />} />
               <Route path="/cobranza" element={<FacturasDashboardPage />} />
             </Route>

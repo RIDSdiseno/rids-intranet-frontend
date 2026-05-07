@@ -208,6 +208,7 @@ const Header = () => {
   const userEmail = String(user?.email ?? "").toLowerCase().trim();
 
   const canAccessCobranza = COBRANZA_EMAILS.includes(userEmail);
+  const canSeeConciliacion = userEmail === "carenas@rids.cl";
 
   const canAccessGestionTecnicosClientes =
     USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail);
@@ -216,7 +217,22 @@ const Header = () => {
     const nav = NAV
       .map((entry): NavEntry | null => {
         if (entry.type === "group" && entry.label === "Cobranza") {
-          return canAccessCobranza ? entry : null;
+          if (!canAccessCobranza) return null;
+
+          const baseItems = entry.items ?? [];
+          const items = canSeeConciliacion
+            ? [
+                ...baseItems,
+                { label: "Conciliación RIDS", to: "/cobranza/conciliacion-rids", icon: <UserRoundCheck size={20} /> },
+                { label: "Conciliación ECCONET", to: "/cobranza/conciliacion-ecconet", icon: <Handshake size={20} /> },
+              ]
+            : baseItems;
+
+          return {
+            ...entry,
+            items,
+            match: items.map((i) => i.to),
+          } as NavGroup;
         }
 
         if (entry.type === "group" && entry.label === "Técnicos y Visitas") {
@@ -375,15 +391,14 @@ const Header = () => {
               <Link
                 key={entry.label}
                 to={entry.to}
-                className={`
-                  relative flex items-center gap-4 px-3 py-2.5 rounded-xl
+                className={
+                  `relative flex items-center gap-4 px-3 py-2.5 rounded-xl
                   transition-all duration-200 group
-                  ${isActivePath(pathname, entry.to)
-                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                    : "text-slate-700 hover:bg-slate-100"
-                  }
-                  ${sidebarCollapsed ? "justify-center" : ""}
-                `}
+                  ${pathname === entry.to
+                      ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                      : "text-slate-700 hover:bg-slate-100"
+                    } ${sidebarCollapsed ? "justify-center" : ""}`
+                }
                 title={sidebarCollapsed ? entry.label : undefined}
               >
                 <span className="shrink-0">{entry.icon}</span>
@@ -408,7 +423,7 @@ const Header = () => {
                     className={`
                       relative flex items-center gap-4 px-3 py-2.5 rounded-lg
                       transition-all duration-200 group
-                      ${isActivePath(pathname, it.to)
+                      ${pathname === it.to
                         ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
                         : "text-slate-600 hover:bg-slate-100"
                       }
