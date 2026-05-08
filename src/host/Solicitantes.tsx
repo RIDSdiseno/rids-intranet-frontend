@@ -83,12 +83,25 @@ type ListParams = {
   orderBy?: "empresa" | "nombre" | "id";
   orderDir?: "asc" | "desc";
 };
+
 type ListResponse = {
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
   items: SolicitanteRow[];
+};
+
+type CheckEmailResponse = {
+  exists: boolean;
+  message?: string | null;
+  solicitante?: {
+    id_solicitante: number;
+    nombre: string;
+    email: string | null;
+    empresaId?: number | null;
+    empresa?: Empresa | null;
+  } | null;
 };
 
 const prettyError = (e: unknown): string => {
@@ -148,6 +161,17 @@ async function apiGetSolicitante(id: number, includeMsDetails: boolean): Promise
   const { data } = await api.get<SolicitanteRow>(`/solicitantes/${id}`, {
     params: { includeMsDetails },
   });
+  return data;
+}
+
+async function apiCheckSolicitanteEmail(email: string, excludeId?: number) {
+  const { data } = await api.get<CheckEmailResponse>("/solicitantes/check-email", {
+    params: {
+      email,
+      ...(excludeId ? { excludeId } : {}),
+    },
+  });
+
   return data;
 }
 
@@ -402,6 +426,7 @@ export default function SolicitantesPage() {
   // crear/editar
   const [creating, setCreating] = useState(false);
   const [savingCreate, setSavingCreate] = useState(false);
+  const [checkingCreateEmail, setCheckingCreateEmail] = useState(false);
   const createForm = useUpsert();
   const [createErrors, setCreateErrors] = useState<Partial<Record<keyof UpsertState, string>>>({});
 
@@ -583,36 +608,98 @@ export default function SolicitantesPage() {
       ? r.msLicenses.map((l) => l.displayName || l.skuPartNumber).join("\n")
       : undefined;
 
+  const checkCreateEmailDuplicado = async (): Promise<string | null> => {
+    const cleanEmail = createForm.v.email?.trim().toLowerCase() || "";
+
+    setCreateErrors((prev) => ({ ...prev, email: undefined }));
+
+    if (!cleanEmail) return null;
+
+    if (!isEmail(cleanEmail)) {
+      const msg = "Email no tiene un formato válido.";
+      setCreateErrors((prev) => ({ ...prev, email: msg }));
+      return msg;
+    }
+
+    try {
+      setCheckingCreateEmail(true);
+
+      const data = await apiCheckSolicitanteEmail(cleanEmail);
+
+      if (data.exists) {
+        const msg =
+          data.message || "Ya existe un solicitante con ese correo electrónico.";
+
+        setCreateErrors((prev) => ({ ...prev, email: msg }));
+        return msg;
+      }
+
+      return null;
+    } catch (e) {
+      console.error("[Solicitantes.checkCreateEmailDuplicado]", e);
+      return null;
+    } finally {
+      setCheckingCreateEmail(false);
+    }
+  };
+
   // Crear / Editar
   const openCreate = () => {
     if (!canManage) return;
     setCreating(true);
     setCreateErrors({});
+    setCheckingCreateEmail(false);
     createForm.setV({ ...emptyUpsert, empresaId: empresaId ?? null });
   };
 
   const createInvalid = useMemo(() => {
-    return Object.keys(validateUpsert(createForm.v)).length > 0;
-  }, [createForm.v]);
+    return (
+      Object.keys(validateUpsert(createForm.v)).length > 0 ||
+      !!createErrors.email ||
+      checkingCreateEmail
+    );
+  }, [createForm.v, createErrors.email, checkingCreateEmail]);
 
   const saveCreate = async () => {
     const errs = validateUpsert(createForm.v);
     setCreateErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
+    const duplicateMsg = await checkCreateEmailDuplicado();
+
+    if (duplicateMsg) {
+      push({
+        kind: "error",
+        message: "Correo ya registrado",
+        detail: duplicateMsg,
+      });
+      return;
+    }
+
     try {
       setSavingCreate(true);
+
       await apiCreateSolicitante({
         nombre: createForm.v.nombre.trim(),
-        email: createForm.v.email ? createForm.v.email.trim() : null,
+        email: createForm.v.email ? createForm.v.email.trim().toLowerCase() : null,
         telefono: createForm.v.telefono ? createForm.v.telefono.trim() : null,
         empresaId: createForm.v.empresaId!,
       });
+
       setCreating(false);
-      push({ kind: "success", message: "¡Creado correctamente!", detail: "El solicitante se registró sin problemas." });
+      push({
+        kind: "success",
+        message: "¡Creado correctamente!",
+        detail: "El solicitante se registró sin problemas.",
+      });
+
       void reloadAll();
     } catch (e) {
-      push({ kind: "error", message: "No se pudo crear el solicitante", detail: prettyError(e) });
+      push({
+        kind: "error",
+        message: "No se pudo crear el solicitante",
+        detail: prettyError(e),
+      });
     } finally {
       setSavingCreate(false);
     }
@@ -1255,8 +1342,8 @@ export default function SolicitantesPage() {
         onClose={() => setCreating(false)}
         onOk={saveCreate}
         okText="Crear"
-        okDisabled={createInvalid}
-        loading={savingCreate}
+        okDisabled={createInvalid || checkingCreateEmail}
+        loading={savingCreate || checkingCreateEmail}
       >
         <label className="block text-sm">
           Nombre
@@ -1277,18 +1364,33 @@ export default function SolicitantesPage() {
         <label className="block text-sm">
           Email
           <input
+            type="email"
             className={clsx(
               "mt-1 w-full rounded-xl border px-3 py-2",
               createErrors.email ? "border-rose-300 focus:border-rose-400" : ""
             )}
             value={createForm.v.email ?? ""}
+            onBlur={() => {
+              void checkCreateEmailDuplicado();
+            }}
             onChange={(e) => {
               const v = { ...createForm.v, email: e.target.value || null };
               createForm.setV(v);
               setCreateErrors((prev) => ({ ...prev, email: undefined }));
             }}
           />
-          {createErrors.email && <div className="mt-1 text-xs text-rose-600">{createErrors.email}</div>}
+
+          {checkingCreateEmail && (
+            <div className="mt-1 text-xs text-cyan-600">
+              Validando correo...
+            </div>
+          )}
+
+          {createErrors.email && (
+            <div className="mt-1 text-xs text-rose-600">
+              {createErrors.email}
+            </div>
+          )}
         </label>
 
         <label className="block text-sm">
@@ -1302,7 +1404,7 @@ export default function SolicitantesPage() {
             }}
           />
         </label>
-        
+
         <label className="block text-sm">
           Empresa
           <select

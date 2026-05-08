@@ -74,9 +74,6 @@ type StoredUser = {
   rol?: string;
 };
 
-// Usuarios con acceso exclusivo al módulo de Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
-
 const USUARIOS_GESTION_TECNICOS_CLIENTES = [
   "dbravo@rids.cl",
   "carenas@rids.cl",
@@ -205,12 +202,14 @@ const Header = () => {
   const user = useMemo(() => safeParseUser(), []);
   const isCliente = user?.rol === "CLIENTE";
 
+  const userRole = String(user?.rol ?? "").toUpperCase().trim();
   const userEmail = String(user?.email ?? "").toLowerCase().trim();
 
-  const canAccessCobranza = COBRANZA_EMAILS.includes(userEmail);
+  const canAccessCobranza =
+    userRole === "ADMIN" || userRole === "VENTAS";
 
   const canAccessGestionTecnicosClientes =
-    USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail);
+    USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail)
 
   const filteredNav: NavEntry[] = useMemo(() => {
     const nav = NAV

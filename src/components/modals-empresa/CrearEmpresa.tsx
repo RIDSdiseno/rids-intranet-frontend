@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { http } from "../../service/http";
 
 interface Props {
   open: boolean;
@@ -9,7 +10,22 @@ interface Props {
   onCreated: () => void;
 }
 
-import { http } from "../../service/http";
+function parseDominios(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((d) => d.trim().toLowerCase())
+        .map((d) => d.replace(/^@+/, ""))
+        .map((d) => d.replace(/^https?:\/\//, ""))
+        .map((d) => d.replace(/^www\./, ""))
+        .map((d) => d.split("/")[0] ?? "")
+        .map((d) => d.split(":")[0] ?? "")
+        .map((d) => d.trim())
+        .filter((d) => d.length > 0)
+    )
+  );
+}
 
 const CrearEmpresaModal: React.FC<Props> = ({
   open,
@@ -17,6 +33,8 @@ const CrearEmpresaModal: React.FC<Props> = ({
   onCreated,
 }) => {
   const [nombre, setNombre] = useState("");
+  const [dominios, setDominios] = useState("");
+
   const [rut, setRut] = useState("");
   const [direccion, setDireccion] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -26,6 +44,15 @@ const CrearEmpresaModal: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
+
+  const resetForm = () => {
+    setNombre("");
+    setDominios("");
+    setRut("");
+    setDireccion("");
+    setTelefono("");
+    setEmail("");
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -38,7 +65,10 @@ const CrearEmpresaModal: React.FC<Props> = ({
     try {
       setLoading(true);
 
-      const body: any = { nombre };
+      const body: any = {
+        nombre: nombre.trim(),
+        dominios: parseDominios(dominios),
+      };
 
       if (rut && direccion && telefono && email) {
         body.rut = rut;
@@ -62,14 +92,6 @@ const CrearEmpresaModal: React.FC<Props> = ({
     }
   };
 
-  const resetForm = () => {
-    setNombre("");
-    setRut("");
-    setDireccion("");
-    setTelefono("");
-    setEmail("");
-  };
-
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <motion.div
@@ -82,13 +104,25 @@ const CrearEmpresaModal: React.FC<Props> = ({
         </h2>
 
         <div className="space-y-3">
-
           <input
             placeholder="Nombre de la empresa *"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             className="w-full border rounded-xl px-3 py-2"
           />
+
+          <div>
+            <input
+              placeholder="Dominios de correo. Ej: empresa.cl, otrodominio.cl"
+              value={dominios}
+              onChange={(e) => setDominios(e.target.value)}
+              className="w-full border rounded-xl px-3 py-2"
+            />
+
+            <p className="mt-1 text-xs text-slate-500">
+              Separa varios dominios con coma. No incluyas @.
+            </p>
+          </div>
 
           <hr />
 

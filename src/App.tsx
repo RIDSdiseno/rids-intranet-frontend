@@ -93,7 +93,7 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
 }
 
 // Acceso exclusivo por email — módulo Cobranza
-const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
+// const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
 
 const USUARIOS_GESTION_TECNICOS_CLIENTES = [
   "dbravo@rids.cl",
@@ -104,14 +104,12 @@ const USUARIOS_GESTION_TECNICOS_CLIENTES = [
 ];
 
 function CobranzaRoute() {
-  const email = getUserEmail();
   const rol = getUserRol();
 
-  const isCliente = rol === "CLIENTE";
-  const isEmailPermitido = !!email && COBRANZA_EMAILS.includes(email);
+  const autorizado = rol === "ADMIN" || rol === "VENTAS";
 
-  if (!isCliente && !isEmailPermitido) {
-    return <Navigate to="/home" replace />;
+  if (!autorizado) {
+    return <Navigate to={rol === "CLIENTE" ? "/empresas" : "/home"} replace />;
   }
 
   return <Outlet />;
@@ -132,7 +130,10 @@ function GestionTecnicosClientesRoute() {
 
 function getRootRedirect(): string {
   const rol = getUserRol();
+
   if (rol === "CLIENTE") return "/empresas";
+  if (rol === "VENTAS") return "/facturas";
+
   return "/home";
 }
 
@@ -205,7 +206,7 @@ export default function App() {
             <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
 
             {/* Solo TECNICO y ADMIN */}
-            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
+            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN", "VENTAS"]} />}>
               <Route path="/home" element={<HomePage />} />
               <Route path="/agenda" element={<AgendaPage />} />
               <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />

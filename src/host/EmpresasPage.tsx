@@ -52,6 +52,16 @@ interface Empresa extends EmpresaLite {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
+
+function asStringArrayOr(v: unknown, fallback: string[] = []): string[] {
+  if (!Array.isArray(v)) return fallback;
+
+  return v
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function isString(v: unknown): v is string { return typeof v === "string"; }
 function isNumber(v: unknown): v is number { return typeof v === "number" && Number.isFinite(v); }
 function isNullableString(v: unknown): v is string | null { return v === null || typeof v === "string"; }
@@ -91,9 +101,18 @@ function normalizeDetalleEmpresa(input: unknown): DetalleEmpresa | undefined {
 function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
   const id = asNumberOr(e.id_empresa, NaN);
+
+  const dominios = asStringArrayOr(e.dominios, []);
+
   return {
     id_empresa: Number.isFinite(id) ? id : -1,
     nombre: asStringOr(e.nombre, ""),
+    tieneSucursales: Boolean(e.tieneSucursales),
+    dominios,
+    dominioPrincipal: asNullableStringOr(
+      e.dominioPrincipal,
+      dominios[0] ?? null
+    ),
     detalleEmpresa: normalizeDetalleEmpresa(e.detalleEmpresa),
     estadisticas: normalizeEstadisticas(e.estadisticas),
   };
@@ -305,7 +324,15 @@ const EmpresasPage: React.FC = () => {
       setEmpresas(prev =>
         prev.map(e =>
           e.id_empresa === data.empresa.id_empresa
-            ? { ...e, nombre: data.empresa.nombre, detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa) }
+            ? {
+              ...e,
+              nombre: data.empresa.nombre,
+              dominios: Array.isArray(data.empresa.dominios) ? data.empresa.dominios : [],
+              dominioPrincipal: Array.isArray(data.empresa.dominios)
+                ? data.empresa.dominios[0] ?? null
+                : null,
+              detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa),
+            }
             : e
         )
       );
@@ -596,18 +623,61 @@ const EmpresasPage: React.FC = () => {
                   </div>
                 ) : (
                   filteredEmpresas.map((empresa, index) => (
-                    <motion.div key={empresa.id_empresa}
+                    <motion.div
+                      key={empresa.id_empresa}
                       className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all duration-300 group"
-                      initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors duration-300">
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                    >
+                      <div className="flex items-start space-x-4 min-w-0">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors duration-300 shrink-0">
                           <BuildOutlined className="text-blue-700" />
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">{empresa.nombre}</h3>
-                          <p className="text-sm text-slate-600">
-                            {empresa.estadisticas.totalSolicitantes} solicitantes • {empresa.estadisticas.totalEquipos} equipos
-                          </p>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">
+                              {empresa.nombre} 
+                            </h3>
+
+                            <span className="text-sm text-slate-500">
+                              • {empresa.estadisticas.totalSolicitantes} solicitantes •{" "}
+                              {empresa.estadisticas.totalEquipos} equipos
+                            </span>
+                          </div>
+
+                          <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                            <p>
+                              <span className="font-medium text-slate-600">RUT:</span>{" "}
+                              {empresa.detalleEmpresa?.rut || "Sin RUT registrado"}
+                            </p>
+
+                            <p>
+                              <span className="font-medium text-slate-600">
+                                Dirección:
+                              </span>{" "}
+                              {empresa.detalleEmpresa?.direccion ||
+                                "Sin dirección registrada"}
+                            </p>
+                          </div>
+
+                          {empresa.dominios?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {empresa.dominios.map((dominio) => (
+                                <span
+                                  key={dominio}
+                                  className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700 border border-cyan-100"
+                                >
+                                  {dominio}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-xs text-slate-400">
+                              Sin dominios registrados
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-4">

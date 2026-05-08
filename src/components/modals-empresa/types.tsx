@@ -56,8 +56,10 @@ export interface DetalleEmpresa {
 export interface EmpresaLite {
     id_empresa: number;
     nombre: string;
-    razonSocial?: string | null;
-    detalleEmpresa?: DetalleEmpresa;
+    tieneSucursales?: boolean;
+    dominios?: string[];
+    dominioPrincipal?: string | null;
+    detalleEmpresa?: DetalleEmpresa | null;
 }
 
 export interface FichaEmpresa {
@@ -246,6 +248,8 @@ export interface FichaTabProps {
         id_empresa: number;
         nombre: string;
         razonSocial?: string | null;
+        dominios?: string[];
+        dominioPrincipal?: string | null;
     };
 
     ficha: {

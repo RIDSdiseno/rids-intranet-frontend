@@ -802,19 +802,22 @@ const EquiposPage: React.FC = () => {
     empresaId: number,
     search?: string
   ): Promise<SolicitanteLite[]> {
+    const cleanSearch = search?.trim() || "";
 
     const res = await http.get("/solicitantes/by-empresa", {
       params: {
         empresaId,
-        q: search || undefined
-      }
+        q: cleanSearch || undefined,
+        orderBy: "nombre",
+        orderDir: "asc",
+      },
     });
 
     const data = res.data;
 
-    return data.items.map((it: { id: number; nombre: string }) => ({
+    return data.items.map((it: { id: number; nombre: string; email?: string | null }) => ({
       id_solicitante: it.id,
-      nombre: it.nombre,
+      nombre: it.email ? `${it.nombre} — ${it.email}` : it.nombre,
       empresa: { id_empresa: empresaId, nombre: "" },
     }));
   }
@@ -842,9 +845,9 @@ const EquiposPage: React.FC = () => {
   // Modifica el useEffect:
   useEffect(() => {
     if (!editOpen) return;
-    loadSolicitantesEdit(editEmpresaId, ""); // ← Pasa string vacío, no term
+    void loadSolicitantesEdit(editEmpresaId, solSearchEDeb);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editOpen, editEmpresaId]); // ← QUITA solSearchEDeb
+  }, [editOpen, editEmpresaId, solSearchEDeb]);
 
   // Iniciar edición: carga datos del equipo en el form y abre modal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
   const startEdit = (row: EquipoRow) => {
@@ -1750,7 +1753,8 @@ const EquiposPage: React.FC = () => {
                     const val = e.target.value ? Number(e.target.value) : null;
                     setEditEmpresaId(val);
                     setEditSolicitanteId(null);
-                    // Disparará loadSolicitantesEdit por efecto
+                    setSolSearchE("");
+                    setSolOptsE([]);
                   }}
                   className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                 >
@@ -1772,7 +1776,7 @@ const EquiposPage: React.FC = () => {
                   <input
                     value={solSearchE}
                     onChange={(e) => setSolSearchE(e.target.value)}
-                    placeholder="Buscar por nombre…"
+                    placeholder="Buscar por nombre, apellido, email o teléfono…"
                     className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                     disabled={editEmpresaId == null}
                   />
@@ -1787,17 +1791,11 @@ const EquiposPage: React.FC = () => {
                   disabled={editEmpresaId == null}
                 >
                   <option value="">{solLoadE ? "Cargando…" : "— Selecciona —"}</option>
-                  {solOptsE
-                    .filter((s) =>
-                      solSearchE.trim()
-                        ? s.nombre.toLowerCase().includes(solSearchE.trim().toLowerCase())
-                        : true
-                    )
-                    .map((s) => (
-                      <option key={s.id_solicitante} value={s.id_solicitante}>
-                        {s.nombre}{s.empresa?.nombre ? ` — ${s.empresa.nombre}` : ""}
-                      </option>
-                    ))}
+                  {solOptsE.map((s) => (
+                    <option key={s.id_solicitante} value={s.id_solicitante}>
+                      {s.nombre}
+                    </option>
+                  ))}
                 </select>
                 <div className="text-[11px] text-slate-500 mt-1">
                   Si el equipo cambió de empresa, primero selecciona la nueva empresa para listar sus solicitantes.
