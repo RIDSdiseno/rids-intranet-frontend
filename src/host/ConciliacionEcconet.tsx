@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BarChartOutlined } from "@ant-design/icons";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
-import { getConciliacionesByProvider, getAllConciliaciones, saveAllConciliaciones, resetSeed, updateConciliacion, saveOverride, applyOverrides } from "../lib/conciliacionCache";
+import { getConciliacionesByProvider, getAllConciliaciones, saveAllConciliaciones, resetSeed, updateConciliacion, saveOverride, applyOverrides, removeOverride } from "../lib/conciliacionCache";
 import type { ConciliacionRecord } from "../lib/conciliacionCache";
 
 const currency = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -9,8 +9,8 @@ const currency = new Intl.NumberFormat("es-CL", { style: "currency", currency: "
 export default function ConciliacionEcconet() {
   const [rows, setRows] = useState<ConciliacionRecord[]>([]);
   const now = new Date();
-  const [month, setMonth] = useState<number | "">(now.getMonth() + 1);
-  const [year, setYear] = useState<number | "">(now.getFullYear());
+  const [month, setMonth] = useState<number | string>(now.getMonth() + 1);
+  const [year, setYear] = useState<number | string>(now.getFullYear());
   const [showModal, setShowModal] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showUnconciliarConfirm, setShowUnconciliarConfirm] = useState(false);
@@ -18,6 +18,10 @@ export default function ConciliacionEcconet() {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [selectedPaymentType, setSelectedPaymentType] = useState<string>("");
+  const [editDueId, setEditDueId] = useState<string | null>(null);
+  const [editDueValue, setEditDueValue] = useState<string>("");
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderTargetId, setReminderTargetId] = useState<string | null>(null);
 
   const userEmail = useMemo(() => {
     try {
@@ -38,8 +42,8 @@ export default function ConciliacionEcconet() {
         const m = d.getMonth() + 1;
         const y = d.getFullYear();
 
-        if (month && month !== "" && Number(month) !== m) return false;
-        if (year && year !== "" && Number(year) !== y) return false;
+        if (month !== "" && Number(month) !== m) return false;
+        if (year !== "" && Number(year) !== y) return false;
         return true;
       } catch {
         return false;
@@ -70,6 +74,7 @@ export default function ConciliacionEcconet() {
               forma_pago: local?.forma_pago ?? r.forma_pago ?? null,
               responsable: local?.responsable ?? r.responsable ?? null,
               fecha_conciliacion: local?.fecha_conciliacion ?? r.fecha_conciliacion ?? null,
+              fecha_limite: local?.fecha_limite ?? r.fecha_limite ?? null,
             };
             return mergedRow;
           });
@@ -108,7 +113,7 @@ export default function ConciliacionEcconet() {
     void fetchAndReplace();
   }
 
-  async function fetchFacturasFromAPI(provider: "RIDS" | "ECCONET", m: number | "", y: number | "") {
+  async function fetchFacturasFromAPI(provider: "RIDS" | "ECCONET", m: number | string, y: number | string) {
     const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
     const mesStr = String(m).padStart(2, "0");
     const anoStr = String(y);
@@ -237,6 +242,16 @@ export default function ConciliacionEcconet() {
     setShowUnconciliarConfirm(false);
   }
 
+  function openReminder(id: string) {
+    setReminderTargetId(id);
+    setShowReminderModal(true);
+  }
+
+  function closeReminder() {
+    setReminderTargetId(null);
+    setShowReminderModal(false);
+  }
+
   function confirmUnconciliar() {
     if (!confirmTargetId) return;
     handleDesconciliar(confirmTargetId);
@@ -254,19 +269,29 @@ export default function ConciliacionEcconet() {
   const CustomPieTooltip: React.FC<{ active?: boolean; payload?: any; rows: ConciliacionRecord[] }> = ({ active, payload, rows }) => {
     if (!active || !payload || !Array.isArray(payload) || payload.length === 0) return null;
 
-    const item = payload[0];
-    const name = String(item?.name ?? "");
     const conciliadas = rows.filter((r) => r.estado_conciliacion === "CONCILIADA").length;
-    const pendientes = rows.length - conciliadas;
+    const vencidas = rows.filter((r) => r.estado_conciliacion !== "CONCILIADA" && r.fecha_limite && new Date(r.fecha_limite) < new Date()).length;
+    const pendientes = rows.filter((r) => r.estado_conciliacion !== "CONCILIADA" && (!r.fecha_limite || new Date(r.fecha_limite) >= new Date())).length;
+    const item = payload[0];
+    const name = String(item?.name ?? "").toLowerCase();
 
-    const isPendiente = name.toLowerCase().includes("pendiente");
+    let primaryNumber = conciliadas;
+    let primaryLabel = "Conciliadas";
+    let colorClass = "text-green-700";
 
-    const primaryNumber = isPendiente ? pendientes : conciliadas;
-    const primaryLabel = isPendiente ? "Pendientes" : "Conciliadas";
+    if (name.includes("pendiente")) {
+      primaryNumber = pendientes;
+      primaryLabel = "Pendientes";
+      colorClass = "text-yellow-700";
+    } else if (name.includes("vencida")) {
+      primaryNumber = vencidas;
+      primaryLabel = "Vencidas";
+      colorClass = "text-red-700";
+    }
 
     return (
       <div
-        className={`rounded-md px-3 py-2 text-center ${isPendiente ? "text-slate-700" : "text-cyan-700"}`}
+        className={`rounded-md px-3 py-2 text-center ${colorClass}`}
         style={{ backgroundColor: "#ffffff", boxShadow: "0 6px 18px rgba(2,6,23,0.08)", border: "1px solid rgba(2,6,23,0.06)", zIndex: 9999 }}
       >
         <div className="text-sm font-semibold">{primaryNumber}</div>
@@ -377,31 +402,31 @@ export default function ConciliacionEcconet() {
 
         <section className="mt-4 grid gap-4 lg:grid-cols-3">
           <div className="col-span-2 rounded-2xl border border-cyan-100 bg-white px-4 py-4 shadow-sm">
-            <div className="text-sm text-slate-600">Conciliaciones por día</div>
-            <div className="mt-4 h-40 flex items-center justify-center text-slate-400">[Gráfico placeholder]</div>
-          </div>
-
-          <div className="rounded-2xl border border-cyan-100 bg-white px-4 py-4 shadow-sm">
-            <div className="text-sm text-slate-600">Estado documentos</div>
-            <div className="mt-2 flex items-center justify-center">
+            <div className="text-sm text-slate-600">Desglose de Facturas</div>
+            <div className="mt-4 flex items-center justify-center">
               {rows.length === 0 ? (
                 <div className="mt-6 flex items-center justify-center text-sm text-slate-400">Sin datos</div>
               ) : (
-                <div className="relative h-40 w-40">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="relative w-full max-w-md">
+                  <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
                       <Pie
-                        data={[{ name: "Conciliada", value: rows.filter(r => r.estado_conciliacion === 'CONCILIADA').length }, { name: "Pendiente", value: rows.filter(r => r.estado_conciliacion !== 'CONCILIADA').length }]}
-                        innerRadius={48}
-                        outerRadius={72}
+                        data={[
+                          { name: "Conciliada", value: rows.filter(r => r.estado_conciliacion === 'CONCILIADA').length },
+                          { name: "Pendiente", value: rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && (!r.fecha_limite || new Date(r.fecha_limite) >= new Date())).length },
+                          { name: "Vencida", value: rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && r.fecha_limite && new Date(r.fecha_limite) < new Date()).length }
+                        ]}
+                        innerRadius={60}
+                        outerRadius={90}
                         dataKey="value"
                         startAngle={90}
                         endAngle={-270}
                         paddingAngle={2}
                         labelLine={false}
                       >
-                        <Cell key="c1" fill="#06b6d4" />
-                        <Cell key="c2" fill="#e6f6f9" />
+                        <Cell key="c1" fill="#10B981" />
+                        <Cell key="c2" fill="#F59E0B" />
+                        <Cell key="c3" fill="#EF4444" />
                       </Pie>
                       <Tooltip
                         content={<CustomPieTooltip rows={rows} />}
@@ -411,13 +436,36 @@ export default function ConciliacionEcconet() {
                     </PieChart>
                   </ResponsiveContainer>
 
-                  {/* Center label */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <div className="text-sm font-medium text-cyan-700">{Math.round((rows.filter(r => r.estado_conciliacion === 'CONCILIADA').length / Math.max(1, rows.length)) * 100)}%</div>
-                    <div className="text-xs text-slate-500">Confirmada</div>
+                    <div className="mt-4 flex items-center justify-around">
+                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#10B981]" /> <div className="text-sm">Conciliadas ({rows.filter(r => r.estado_conciliacion === 'CONCILIADA').length})</div></div>
+                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#F59E0B]" /> <div className="text-sm">Pendientes ({rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && (!r.fecha_limite || new Date(r.fecha_limite) >= new Date())).length})</div></div>
+                    <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#EF4444]" /> <div className="text-sm">Vencidas ({rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && r.fecha_limite && new Date(r.fecha_limite) < new Date()).length})</div></div>
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-cyan-100 bg-white px-4 py-4 shadow-sm">
+            <div className="text-sm text-slate-600">Resumen</div>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-center">
+                <div className="text-sm font-semibold text-green-700">Pagadas (Conciliadas)</div>
+                <div className="mt-2 text-xl font-bold text-green-800">{currency.format(rows.filter(r => r.estado_conciliacion === 'CONCILIADA').reduce((s, r) => s + (r.total ?? 0), 0))}</div>
+                <div className="text-xs text-green-600">Total conciliado</div>
+              </div>
+
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-4 text-center">
+                <div className="text-sm font-semibold text-yellow-700">Por Pagar (Pendientes)</div>
+                <div className="mt-2 text-xl font-bold text-yellow-800">{currency.format(rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && (!r.fecha_limite || new Date(r.fecha_limite) >= new Date())).reduce((s, r) => s + (r.total ?? 0), 0))}</div>
+                <div className="text-xs text-yellow-600">Pendientes</div>
+              </div>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-center">
+                <div className="text-sm font-semibold text-red-700">Vencidas</div>
+                <div className="mt-2 text-xl font-bold text-red-800">{currency.format(rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && r.fecha_limite && new Date(r.fecha_limite) < new Date()).reduce((s, r) => s + (r.total ?? 0), 0))}</div>
+                <div className="text-xs text-red-600">Fecha límite expiró</div>
+              </div>
             </div>
           </div>
         </section>
@@ -437,6 +485,7 @@ export default function ConciliacionEcconet() {
                   <th className="px-3 py-2">Total</th>
                   <th className="px-3 py-2">Estado RCV</th>
                   <th className="px-3 py-2">Estado conciliación</th>
+                  <th className="px-3 py-2">Fecha límite</th>
                   <th className="px-3 py-2">Forma de pago</th>
                   <th className="px-3 py-2">Responsable</th>
                   <th className="px-3 py-2">Fecha conciliación</th>
@@ -455,35 +504,88 @@ export default function ConciliacionEcconet() {
                     {/* Neto e IVA removidos para pantalla de Conciliación */}
                     <td className="px-3 py-3 text-sm font-semibold text-slate-900">{currency.format(r.total ?? 0)}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.estado_rcv}</td>
-                    <td className="px-3 py-3 text-sm text-slate-600">{r.estado_conciliacion}</td>
+                    <td className="px-3 py-3 text-sm">
+                      {(() => {
+                        let text = 'Por Conciliar';
+                        let badgeClass = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+                        if (r.estado_conciliacion === 'CONCILIADA') {
+                          text = 'Pagada (Conciliada)';
+                          badgeClass = 'bg-green-50 text-green-700 border-green-200';
+                        } else if (r.fecha_limite) {
+                          try {
+                            const due = new Date(r.fecha_limite);
+                            const today = new Date();
+                            if (today > due) {
+                              text = 'Vencida';
+                              badgeClass = 'bg-red-50 text-red-700 border-red-200';
+                            }
+                          } catch {}
+                        }
+
+                        return (
+                          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass}`}>
+                            {text}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-slate-600">
+                      {r.fecha_limite ? (
+                        <div className="flex items-center gap-2">
+                          <div>{r.fecha_limite}</div>
+                          <button onClick={() => { setEditDueId(r.id); setEditDueValue(r.fecha_limite ?? new Date().toISOString().slice(0,10)); }} className="text-xs text-cyan-600">Editar</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setEditDueId(r.id); setEditDueValue(new Date().toISOString().slice(0,10)); }} className="text-xs text-slate-500">Agregar</button>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.forma_pago ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.responsable ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.fecha_conciliacion ? new Date(r.fecha_conciliacion).toLocaleString() : "-"}</td>
                         <td className="px-3 py-3 text-sm">
-                          {r.estado_conciliacion === 'CONCILIADA' ? (
-                                <div className="flex items-center gap-2">
-                                  <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
-                                  <div className="relative">
-                                    <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
-                                    {menuOpenId === r.id && (
-                                      <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
+                          <div className="flex items-center gap-2">
+                            {r.estado_conciliacion === 'CONCILIADA' ? (
+                              <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
+                            ) : (
+                              <button
+                                onClick={() => handleConciliar(r.id)}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>
+                                Conciliar
+                              </button>
+                            )}
+
+                            <div className="relative">
+                              <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
+                              {menuOpenId === r.id && (
+                                <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg">
+                                  {r.estado_conciliacion === 'CONCILIADA' && (
+                                    <button
+                                      onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                                    >
+                                      Desconciliar
+                                    </button>
+                                  )}
+
+                                  {r.estado_conciliacion !== 'CONCILIADA' && (() => {
+                                    let isVencida = false;
+                                    try { isVencida = !!(r.fecha_limite && new Date(r.fecha_limite) < new Date()); } catch {}
+                                    if (!isVencida) {
+                                      return (
                                         <button
-                                          onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
+                                          onClick={() => { openReminder(r.id); closeMenu(); }}
                                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
                                         >
-                                          Desconciliar
+                                          Recordatorio
                                         </button>
-                                      </div>
-                                    )}
-                                  </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
-                          ) : (
-                            <button
-                              onClick={() => handleConciliar(r.id)}
-                              className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>
-                              Conciliar
-                            </button>
-                          )}
+                              )}
+                            </div>
+                          </div>
                         </td>
                   </tr>
                 ))}
@@ -569,6 +671,32 @@ export default function ConciliacionEcconet() {
                 >
                   Sí
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showReminderModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-xs rounded-lg bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-bold">Recordatorio</h3>
+              <p className="mt-2 text-sm text-slate-600">Esta función está en desarrollo; se está trabajando en ello.</p>
+
+              <div className="mt-4 flex justify-end">
+                <button onClick={closeReminder} className="rounded-full border border-slate-200 bg-white px-4 py-1 text-sm font-semibold text-slate-700">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {editDueId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-bold">Editar fecha límite</h3>
+              <div className="mt-4">
+                <input type="date" value={editDueValue} onChange={(e) => setEditDueValue(e.target.value)} className="w-full rounded-md border px-3 py-2" />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button onClick={() => { setEditDueId(null); setEditDueValue(''); }} className="rounded-full border border-slate-200 bg-white px-4 py-1 text-sm">Cancelar</button>
+                <button onClick={() => { if (editDueId) { updateConciliacion(editDueId, { fecha_limite: editDueValue }); try { saveOverride(editDueId, { fecha_limite: editDueValue }); } catch {} setRows(applyFilters(getConciliacionesByProvider('ECCONET'))); } setEditDueId(null); setEditDueValue(''); }} className="rounded-full bg-cyan-600 px-4 py-1 text-sm text-white">Guardar</button>
               </div>
             </div>
           </div>
