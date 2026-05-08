@@ -13,6 +13,9 @@ export default function Conciliacion() {
   const [year, setYear] = useState<number | "">(now.getFullYear());
   const [showModal, setShowModal] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showUnconciliarConfirm, setShowUnconciliarConfirm] = useState(false);
+  const [confirmTargetId, setConfirmTargetId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [selectedPaymentType, setSelectedPaymentType] = useState<string>("");
 
@@ -235,6 +238,30 @@ export default function Conciliacion() {
     }
   }
 
+  function openUnconciliarConfirm(id: string) {
+    setConfirmTargetId(id);
+    setShowUnconciliarConfirm(true);
+  }
+
+  function closeUnconciliarConfirm() {
+    setConfirmTargetId(null);
+    setShowUnconciliarConfirm(false);
+  }
+
+  function confirmUnconciliar() {
+    if (!confirmTargetId) return;
+    handleDesconciliar(confirmTargetId);
+    closeUnconciliarConfirm();
+  }
+
+  function toggleMenu(id: string) {
+    setMenuOpenId((cur) => (cur === id ? null : id));
+  }
+
+  function closeMenu() {
+    setMenuOpenId(null);
+  }
+
   const CustomPieTooltip: React.FC<{ active?: boolean; payload?: any; rows: ConciliacionRecord[] }> = ({ active, payload, rows }) => {
     if (!active || !payload || !Array.isArray(payload) || payload.length === 0) return null;
 
@@ -444,9 +471,21 @@ export default function Conciliacion() {
                     <td className="px-3 py-3 text-sm text-slate-600">{r.fecha_conciliacion ? new Date(r.fecha_conciliacion).toLocaleString() : "-"}</td>
                     <td className="px-3 py-3 text-sm">
                       {r.estado_conciliacion === 'CONCILIADA' ? (
-                        <div className="flex gap-2">
-                          <button onClick={() => handleDesconciliar(r.id)} className="rounded-full px-3 py-1 text-xs font-semibold bg-red-500 text-white hover:opacity-90">Desconciliar</button>
+                        <div className="flex items-center gap-2">
                           <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
+                          <div className="relative">
+                            <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
+                            {menuOpenId === r.id && (
+                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
+                                <button
+                                  onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                                >
+                                  Desconciliar
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <button
@@ -521,6 +560,29 @@ export default function Conciliacion() {
               </div>
             </div>
           )}
+        {showUnconciliarConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-xs rounded-lg bg-white p-6 shadow-lg">
+              <h3 className="text-lg font-bold">Desconciliar factura</h3>
+              <p className="mt-2 text-sm text-slate-600">¿Está seguro de que quiere Desconciliar esta factura?</p>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={closeUnconciliarConfirm}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1 text-sm font-semibold text-slate-700"
+                >
+                  No
+                </button>
+                <button
+                  onClick={confirmUnconciliar}
+                  className="rounded-full bg-red-500 px-4 py-1 text-sm font-semibold text-white"
+                >
+                  Sí
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     );
