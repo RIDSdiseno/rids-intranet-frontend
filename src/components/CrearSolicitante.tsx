@@ -24,6 +24,20 @@ type CreatedSolicitante = {
   empresa?: { id_empresa: number; nombre: string };
 };
 
+type CheckEmailResponse = {
+  exists: boolean;
+  message?: string | null;
+  solicitante?: {
+    id_solicitante: number;
+    nombre: string;
+    email: string | null;
+    empresa?: {
+      id_empresa: number;
+      nombre: string;
+    } | null;
+  } | null;
+};
+
 type CrearSolicitanteProps = {
   onSuccess?: (created: CreatedSolicitante) => void;
   onCancel?: () => void;
@@ -130,6 +144,9 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [emailDuplicateError, setEmailDuplicateError] = useState<string | null>(null);
+
   // búsqueda mejorada + dropdown propio
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState(search);
@@ -218,20 +235,86 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
 
   /* ===== Validaciones por campo ===== */
   const [touched, setTouched] = useState<{ nombre?: boolean; email?: boolean; empresa?: boolean }>({});
+
   const nombreError =
     touched.nombre && !nombre.trim() ? "El nombre es obligatorio." : null;
+
   const empresaError =
     touched.empresa && !empresaId ? "Debes seleccionar una empresa." : null;
-  const emailError =
+
+  const emailFormatError =
     touched.email && email.trim() && !emailValid(email.trim())
       ? "El correo no tiene un formato válido."
       : null;
 
+  const emailError = emailFormatError || emailDuplicateError;
+
+  const checkEmailDuplicado = async (): Promise<string | null> => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    setEmailDuplicateError(null);
+
+    if (!cleanEmail) return null;
+
+    if (!emailValid(cleanEmail)) {
+      return null;
+    }
+
+    try {
+      setCheckingEmail(true);
+
+      const url = new URL(`${API_URL}/solicitantes/check-email`);
+      url.searchParams.set("email", cleanEmail);
+
+      const r = await fetch(url.toString(), {
+        headers: tokenHeader(),
+      });
+
+      let j: CheckEmailResponse | { error?: string } | null = null;
+
+      try {
+        j = await r.json();
+      } catch {
+        j = null;
+      }
+
+      if (!r.ok) {
+        const msg = getApiErrorMessage(j, r.status);
+        throw new Error(msg);
+      }
+
+      const data = j as CheckEmailResponse;
+
+      if (data.exists) {
+        const msg =
+          data.message || "Ya existe un solicitante con ese correo electrónico.";
+
+        setEmailDuplicateError(msg);
+        return msg;
+      }
+
+      setEmailDuplicateError(null);
+      return null;
+    } catch (err) {
+      console.error("[CrearSolicitante.checkEmailDuplicado]", err);
+      return null;
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
   const validarGlobal = (): string | null => {
     if (!nombre.trim()) return "El nombre es obligatorio.";
     if (!empresaId) return "Debes seleccionar una empresa.";
-    if (email.trim() && !emailValid(email.trim()))
+
+    if (email.trim() && !emailValid(email.trim())) {
       return "El correo no tiene un formato válido.";
+    }
+
+    if (emailDuplicateError) {
+      return emailDuplicateError;
+    }
+
     return null;
   };
 
@@ -248,11 +331,21 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
       return;
     }
 
+    if (email.trim()) {
+      const duplicateMsg = await checkEmailDuplicado();
+
+      if (duplicateMsg) {
+        setError(duplicateMsg);
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
+
       const body = {
         nombre: nombre.trim(),
-        email: email.trim() ? email.trim() : null,
+        email: email.trim() ? email.trim().toLowerCase() : null,
         telefono: telefono.trim() ? telefono.trim() : null,
         empresaId: Number(empresaId),
       };
@@ -569,16 +662,27 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
               type="email"
               placeholder="usuario@correo.cl"
               value={email}
-              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
+              onBlur={() => {
+                setTouched((t) => ({ ...t, email: true }));
+                void checkEmailDuplicado();
+              }}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setEmailDuplicateError(null);
+                setError(null);
+              }}
+              disabled={submitting || checkingEmail}
               className={`
-                w-full px-3 py-2.5 rounded-2xl border text-sm bg-white
-                ${emailError ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400/40" : "border-cyan-200 focus:border-cyan-400 focus:ring-cyan-500/30"}
-                text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 transition
-              `}
+    w-full px-3 py-2.5 rounded-2xl border text-sm bg-white
+    ${emailError ? "border-rose-300 focus:border-rose-400 focus:ring-rose-400/40" : "border-cyan-200 focus:border-cyan-400 focus:ring-cyan-500/30"}
+    text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 transition
+  `}
             />
-            {emailError ? (
+            {checkingEmail ? (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-600">
+                <LoadingOutlined className="animate-spin" />
+              </span>
+            ) : emailError ? (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-rose-500">
                 <ExclamationCircleOutlined />
               </span>
@@ -588,6 +692,12 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
               </span>
             ) : null}
           </div>
+          {checkingEmail && (
+            <p className="mt-1 text-xs text-cyan-600">
+              Validando correo...
+            </p>
+          )}
+
           {emailError && (
             <p className="mt-1 text-xs text-rose-600">{emailError}</p>
           )}
@@ -624,7 +734,7 @@ const CrearSolicitante: React.FC<CrearSolicitanteProps> = ({
           )}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || checkingEmail || !!emailDuplicateError}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl
                        bg-gradient-to-br from-cyan-600 to-indigo-600 hover:brightness-110 text-white
                        shadow-[0_10px_24px_-10px_rgba(14,165,233,0.45)] disabled:opacity-60 transition"

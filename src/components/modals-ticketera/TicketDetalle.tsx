@@ -9,6 +9,7 @@ import {
     Button,
     Input,
     message,
+    Modal
 } from "antd";
 import {
     UserOutlined,
@@ -188,8 +189,6 @@ function formatRelativeTime(date?: string | Date | null) {
     return new Date(date).toLocaleDateString("es-CL");
 }
 
-type TicketAttachment = NonNullable<TicketMessage["attachments"]>[number];
-
 function formatEmailBody(text: string | null) {
     if (!text) return "";
     return text
@@ -208,53 +207,25 @@ function resolveInlineImages(
         return html.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
     }
 
-    const inlineAttachments = attachments.filter(
-        (a) => a.isInline && a.contentId
-    );
-
-    if (!inlineAttachments.length) {
-        return html.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
-    }
-
-    const normalizeCid = (value: string) =>
-        String(value)
-            .replace(/^cid:/i, "")
-            .replace(/^</, "")
-            .replace(/>$/, "")
-            .trim();
-
-    const inlineMap = new Map<string, TicketAttachment>();
-
-    inlineAttachments.forEach((att) => {
-        const cleanCid = normalizeCid(att.contentId || "");
-        if (!cleanCid) return;
-
-        inlineMap.set(cleanCid, att);
-        inlineMap.set(cleanCid.toLowerCase(), att);
-    });
+    const inlineMap = new Map<string, number>();
+    attachments
+        .filter((a) => a.isInline && a.contentId)
+        .forEach((a) => {
+            inlineMap.set(a.contentId!, a.id);
+        });
 
     return html.replace(
         /<img[^>]+src=["']cid:([^"']+)["'][^>]*>/gi,
-        (match, cid) => {
-            const cleanCid = normalizeCid(cid);
-
-            const att =
-                inlineMap.get(cleanCid) ||
-                inlineMap.get(cleanCid.toLowerCase());
-
-            if (!att?.url) return "";
-
-            /*
-             * Caso esperado ahora:
-             * imágenes inline guardadas en Cloudinary.
-             */
-            const imageUrl = att.url.startsWith("http")
+        (_match, cid) => {
+            const cleanCid = cid.replace(/^</, "").replace(/>$/, "");
+            const attachmentId = inlineMap.get(cleanCid);
+            if (!attachmentId) return "";
+            const att = attachments.find((a) => a.id === attachmentId);
+            if (!att) return "";
+            return `<img src="${att.url.startsWith("http")
                 ? att.url
-                : `${API_URL}/helpdesk/tickets/attachments/${att.id}/inline`;
-
-            const alt = att.filename || "imagen";
-
-            return `<img src="${imageUrl}" alt="${alt}" loading="lazy" style="max-width:100%;height:auto;display:block;border-radius:8px;" />`;
+                : `${API_URL.replace("/api", "")}${att.url}`
+                }" loading="lazy" style="max-width:100%;height:auto;display:block;border-radius:8px;" />`;
         }
     );
 }
@@ -379,6 +350,7 @@ export default function TicketDetailPage() {
 
     const [toEmails, setToEmails] = useState<string[]>([]);
     const [ccEmails, setCcEmails] = useState<string[]>([]);
+    const [showCc, setShowCc] = useState(false);
 
     const [contactos, setContactos] = useState<any[]>([]);
     const [loadingContactos, setLoadingContactos] = useState(false);
@@ -390,6 +362,13 @@ export default function TicketDetailPage() {
 
     const [showReplyPanel, setShowReplyPanel] = useState(false);
 
+    const [permissionModal, setPermissionModal] = useState<{
+        open: boolean;
+        message: string;
+    }>({
+        open: false,
+        message: "",
+    });
 
     const debounce = (fn: any, delay: number) => {
         let timer: any;
@@ -479,6 +458,7 @@ export default function TicketDetailPage() {
             );
 
             setCcEmails(nextCc);
+            setShowCc(nextCc.length > 0);
 
             setCcEmails(
                 uniqueEmails(
@@ -509,6 +489,7 @@ export default function TicketDetailPage() {
 
         try {
             await api.patch(`/helpdesk/tickets/${ticketDetalle.id}`, payload);
+
             message.success("Ticket actualizado");
 
             if (payload.status === "CLOSED") {
@@ -518,7 +499,31 @@ export default function TicketDetailPage() {
 
             await loadTicket();
         } catch (error: any) {
-            message.error(error?.response?.data?.message || "No se pudo actualizar el ticket");
+            console.error("❌ Error actualizando ticket:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+                payload,
+            });
+
+            const backendMessage =
+                error?.response?.data?.message ||
+                error?.message ||
+                "No se pudo actualizar el ticket";
+
+            if (error?.response?.status === 403) {
+                console.log("🟡 Mostrando modal permiso denegado");
+
+                setPermissionModal({
+                    open: true,
+                    message: backendMessage,
+                });
+
+                return;
+            }
+
+            message.error(backendMessage);
+            await loadTicket();
         }
     };
 
@@ -608,6 +613,30 @@ export default function TicketDetailPage() {
     // Funciones auxiliares para formatear fechas, resolver imágenes en correos, y determinar autores de mensajes, para mostrar el detalle del ticket de forma enriquecida y amigable para el usuario.
     return (
         <div className="min-h-screen bg-gray-50">
+            <Modal
+                open={permissionModal.open}
+                title="Permiso denegado"
+                okText="Entendido"
+                cancelButtonProps={{ style: { display: "none" } }}
+                centered
+                zIndex={9999}
+                onOk={async () => {
+                    setPermissionModal({
+                        open: false,
+                        message: "",
+                    });
+
+                    await loadTicket();
+                }}
+                onCancel={() => {
+                    setPermissionModal({
+                        open: false,
+                        message: "",
+                    });
+                }}
+            >
+                <p>{permissionModal.message}</p>
+            </Modal>
             <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
                 <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-7 py-4">
                     <div className="flex items-center justify-between gap-4 mb-3">
@@ -839,8 +868,8 @@ export default function TicketDetailPage() {
                             </div>
                         </div>
 
-                        <div className="shrink-0 bg-gray-50 border-t border-gray-200 max-h-[calc(100dvh-190px)] overflow-hidden flex flex-col">
-                            <div className="shrink-0 flex items-center justify-between px-6 py-3">
+                        <div className="shrink-0 bg-gray-50 border-t border-gray-200">
+                            <div className="flex items-center justify-between px-6 py-3">
                                 <div className="text-sm font-medium text-gray-700">
                                     Acciones del ticket
                                 </div>
@@ -854,14 +883,9 @@ export default function TicketDetailPage() {
                             </div>
 
                             {showReplyPanel && (
-                                <div
-                                    className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 pb-3"
-                                    style={{
-                                        height: "clamp(280px, calc(100dvh - 250px), 640px)",
-                                    }}
-                                >
+                                <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
                                     <Tabs
-                                        className="min-h-full ticket-reply-tabs"
+                                        className="h-full"
                                         items={[
                                             {
                                                 key: "reply",
@@ -871,10 +895,15 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex min-h-full flex-col gap-2">
+                                                    <div className="flex h-full min-h-0 flex-col gap-3">
                                                         <div className="shrink-0">
                                                             <div className="flex justify-between items-center mb-1">
                                                                 <span className="text-xs text-gray-500">Para:</span>
+                                                                {!showCc && (
+                                                                    <Button size="small" type="link" onClick={() => setShowCc(true)}>
+                                                                        + CC
+                                                                    </Button>
+                                                                )}
                                                             </div>
 
                                                             <Select
@@ -892,24 +921,25 @@ export default function TicketDetailPage() {
                                                                 style={{ width: "100%" }}
                                                             />
 
-                                                            <div className="mt-1">
-                                                                <span className="text-[11px] text-gray-500">CC:</span>
-                                                                <Select
-                                                                    size="small"
-                                                                    mode="tags"
-                                                                    showSearch
-                                                                    placeholder="Agregar CC"
-                                                                    value={ccEmails}
-                                                                    onChange={setCcEmails}
-                                                                    onSearch={debouncedSearchContactos}
-                                                                    loading={loadingContactos}
-                                                                    options={contactos.map((c) => ({
-                                                                        label: `${c.nombre} (${c.email})`,
-                                                                        value: c.email,
-                                                                    }))}
-                                                                    style={{ width: "100%" }}
-                                                                />
-                                                            </div>
+                                                            {showCc && (
+                                                                <div className="mt-3">
+                                                                    <span className="text-xs text-gray-500">CC:</span>
+                                                                    <Select
+                                                                        mode="tags"
+                                                                        showSearch
+                                                                        placeholder="Agregar CC"
+                                                                        value={ccEmails}
+                                                                        onChange={setCcEmails}
+                                                                        onSearch={debouncedSearchContactos}
+                                                                        loading={loadingContactos}
+                                                                        options={contactos.map((c) => ({
+                                                                            label: `${c.nombre} (${c.email})`,
+                                                                            value: c.email,
+                                                                        }))}
+                                                                        style={{ width: "100%" }}
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -919,19 +949,14 @@ export default function TicketDetailPage() {
                                                                 placeholder="Escribe tu respuesta al cliente..."
                                                                 autoSize={false}
                                                                 style={{
-                                                                    height: "clamp(120px, 26dvh, 340px)",
-                                                                    minHeight: "100px",
-                                                                    maxHeight: "55dvh",
+                                                                    height: "clamp(150px, 40vh, 400px)",
+                                                                    minHeight: "150px",
                                                                     resize: "vertical",
-                                                                    overflowY: "auto",
                                                                 }}
                                                             />
-                                                            <div className="text-[11px] text-gray-400">
-                                                                Puedes arrastrar la esquina inferior derecha para ajustar el tamaño del área de respuesta.
-                                                            </div>
                                                         </div>
 
-                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-2 pb-2 flex items-center gap-2 flex-wrap">
+                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -976,12 +1001,11 @@ export default function TicketDetailPage() {
                                                                 loading={sendingReply}
                                                                 onClick={() => responderTicket(false)}
                                                                 icon={<SendOutlined />}
-                                                                className="ml-auto shrink-0"
+                                                                className="ml-auto"
                                                             >
                                                                 Enviar respuesta
                                                             </Button>
                                                         </div>
-                                                        <br />
                                                     </div>
                                                 ),
                                             },
@@ -993,25 +1017,23 @@ export default function TicketDetailPage() {
                                                     </span>
                                                 ),
                                                 children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+                                                    <div className="flex h-full min-h-0 flex-col gap-3">
                                                         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                                                             <Input.TextArea
                                                                 value={internalNoteText}
                                                                 onChange={(e) => setInternalNoteText(e.target.value)}
                                                                 placeholder="Escribe una nota interna (no visible para el cliente)..."
                                                                 autoSize={false}
-                                                                className="min-h-[120px] lg:min-h-[180px] xl:min-h-[260px] 2xl:min-h-[360px]"
                                                                 style={{
-                                                                    height: "clamp(120px, 34dvh, 360px)",
-                                                                    maxHeight: "42dvh",
+                                                                    height: "clamp(150px, 40vh, 400px)",
+                                                                    minHeight: "150px",
                                                                     resize: "vertical",
-                                                                    overflowY: "auto",
-                                                                    background: "#fffbeb",
+                                                                    background: "#fffbeb", // fondo amarillo suave para distinguirla
                                                                 }}
                                                             />
                                                         </div>
 
-                                                        <div className="sticky bottom-0 z-20 shrink-0 border-t border-gray-200 bg-gray-50 pt-3 pb-1 flex items-center gap-2 flex-wrap">
+                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
                                                             <input
                                                                 ref={replyFileInputRef}
                                                                 type="file"
@@ -1050,7 +1072,7 @@ export default function TicketDetailPage() {
                                                                 loading={sendingReply}
                                                                 onClick={() => responderTicket(true)}  // ← true = interna
                                                                 icon={<EyeInvisibleOutlined />}
-                                                                className="ml-auto shrink-0"
+                                                                className="ml-auto"
                                                                 style={{ background: "#d97706" }} // color ámbar para distinguirla
                                                             >
                                                                 Guardar nota
@@ -1066,7 +1088,7 @@ export default function TicketDetailPage() {
                         </div>
                     </div>
 
-                    <aside className="hidden xl:block min-h-0 overflow-y-auto bg-gray-50/80">
+                    <aside className="min-h-0 overflow-y-auto bg-gray-50/80">
                         <div className="p-5 space-y-5">
                             <div className="rounded-2xl bg-white border border-gray-200 p-4">
                                 <div className="grid grid-cols-1 gap-y-4 text-sm">
@@ -1174,7 +1196,7 @@ export default function TicketDetailPage() {
                                 <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
                                     <div className="font-semibold text-sm text-gray-800 mb-3">SLA</div>
 
-                                    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+                                    <div className="flex h-full min-h-0 flex-col gap-3">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
                                                 <div className="text-xs text-gray-400 mb-0.5">SLA 1ª respuesta</div>

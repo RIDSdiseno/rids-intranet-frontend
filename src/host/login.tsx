@@ -1,11 +1,14 @@
+// src/host/login.tsx
 import React, { useState } from "react";
 import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken } from "../api/api";
-import {  loginRequest, msalInstance, pca } from "../auth/microsoftConfig";
+import { loginRequest, msalInstance, pca } from "../auth/microsoftConfig";
 
 /* =========== Tipos de API =========== */
+type UserRole = "ADMIN" | "TECNICO" | "CLIENTE" | "VENTAS" | string;
+
 type LoginResponse = {
   accessToken: string;
   refreshToken: string;
@@ -13,7 +16,7 @@ type LoginResponse = {
     id_tecnico: number;
     nombre: string;
     email: string;
-    rol: "ADMIN" | "CLIENTE" | string;
+    rol: UserRole;
     empresaId: number | null;
   };
 };
@@ -45,26 +48,26 @@ const LoginRids: React.FC = () => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
   };
-const loginMicrosoft = async () => {
-  if (loading) return;
+  const loginMicrosoft = async () => {
+    if (loading) return;
 
-  setLoading(true);
+    setLoading(true);
     try {
       await msalInstance.initialize();
-      
+
       const loginResponse = await pca.loginPopup(loginRequest);
 
       const idToken = loginResponse.idToken;
 
       const { data } = await api.post("/auth/microsoft", {
-      idToken
-    });
+        idToken
+      });
       setAccessToken(data.accessToken);
 
       localStorage.setItem("user", JSON.stringify(data.tecnico));
 
-      navigate("/home", {replace: true });
-    } catch (error){
+      navigate("/home", { replace: true });
+    } catch (error) {
 
       console.error("Microsoft login error", error);
 
@@ -78,7 +81,7 @@ const loginMicrosoft = async () => {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
 
     // Validaciones front
     if (!form.usuario || !form.password) {
@@ -304,10 +307,10 @@ const loginMicrosoft = async () => {
               </div>
             </form>
             <div className="mt-4">
-  <button
-    type="button"
-    onClick={loginMicrosoft}
-    className="
+              <button
+                type="button"
+                onClick={loginMicrosoft}
+                className="
       w-full
       flex items-center justify-center gap-2
       rounded-xl
@@ -316,10 +319,10 @@ const loginMicrosoft = async () => {
       text-sm font-medium
       hover:bg-slate-100
     "
-  >
-    Iniciar sesión con Microsoft
-  </button>
-</div>
+              >
+                Iniciar sesión con Microsoft
+              </button>
+            </div>
 
             <div className="mt-8 sm:mt-10 h-0.5 w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
             <div className="mt-4 sm:mt-6 text-center text-[10px] sm:text-xs text-slate-500">

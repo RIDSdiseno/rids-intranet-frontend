@@ -1,3 +1,4 @@
+// src/host/TecnicosPage.tsx
 import React, { useEffect, useState, useCallback } from "react";
 import { EditOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useAuth } from "../components/hooks/useAuth";
@@ -242,6 +243,7 @@ const TecnicosPage: React.FC = () => {
               <option value="ADMIN">Admin</option>
               <option value="TECNICO">Técnico</option>
               <option value="CLIENTE">Cliente</option>
+              <option value="VENTAS">Ventas</option>
             </select>
 
             {/* Estado */}
@@ -310,8 +312,8 @@ const TecnicosPage: React.FC = () => {
 
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${t.status
-                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                              : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
                             }`}
                         >
                           {t.status ? "Activo" : "Inactivo"}
@@ -404,8 +406,8 @@ const TecnicosPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${t.status
-                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                              : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
                             }`}
                         >
                           {t.status ? "Activo" : "Inactivo"}
@@ -443,7 +445,7 @@ const TecnicosPage: React.FC = () => {
       </div>
 
       {/* Paginador */}
-     <div className="flex flex-col gap-3 border-t border-cyan-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-cyan-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm text-slate-600">
           Página <strong>{page}</strong> de <strong>{totalPages}</strong> —{" "}
           {tecnicosFiltrados.length} técnicos
@@ -549,6 +551,7 @@ const TecnicosPage: React.FC = () => {
                   <option value="TECNICO">TECNICO</option>
                   <option value="ADMIN">ADMIN</option>
                   <option value="CLIENTE">CLIENTE</option>
+                  <option value="VENTAS">VENTAS</option>
                 </select>
               </div>
 
@@ -629,6 +632,7 @@ const TecnicosPage: React.FC = () => {
                   <option value="TECNICO">TECNICO</option>
                   <option value="ADMIN">ADMIN</option>
                   <option value="CLIENTE">CLIENTE</option>
+                  <option value="VENTAS">VENTAS</option>
                 </select>
               </div>
 

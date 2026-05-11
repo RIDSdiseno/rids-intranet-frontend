@@ -1,3 +1,4 @@
+// src/host/TicketeraRids.tsx
 // Este archivo contiene el componente principal de la ticketera, con la lista de tickets, filtros, resumen y acciones masivas.
 import { useEffect, useRef, useMemo, useState } from "react";
 import {
@@ -221,6 +222,8 @@ function SlaCard({
 export default function TicketeraRids() {
     const navigate = useNavigate();
 
+    const [notificationApi, notificationContextHolder] = notification.useNotification();
+
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Estados principales
@@ -298,6 +301,8 @@ export default function TicketeraRids() {
 
     const [creatingTicket, setCreatingTicket] = useState(false);
 
+    const [createFiles, setCreateFiles] = useState<File[]>([]);
+
     const [showResumen, setShowResumen] = useState(() => {
         const saved = localStorage.getItem("helpdesk_show_resumen");
         return saved !== null ? saved === "true" : true;
@@ -319,8 +324,6 @@ export default function TicketeraRids() {
         priority: "NORMAL",
         assigneeId: undefined as number | undefined,
     });
-
-    const [createFiles, setCreateFiles] = useState<File[]>([]);
 
     const ignoreNextSocketReload = useRef(false);
 
@@ -820,6 +823,7 @@ export default function TicketeraRids() {
 
             message.success("Ticket creado correctamente");
             setDrawerCrear(false);
+            setCreateFiles([]);
 
             setForm({
                 empresaId: undefined,
@@ -830,8 +834,6 @@ export default function TicketeraRids() {
                 priority: "NORMAL",
                 assigneeId: undefined,
             });
-
-            setCreateFiles([]);
 
             await loadTickets();
             await loadSla();
@@ -847,6 +849,7 @@ export default function TicketeraRids() {
         setDeleteModalOpen(true);
     };
 
+    // función confirmar la eliminación de un ticket.
     const confirmDelete = async () => {
         if (!ticketToDelete) return;
         try {
@@ -868,6 +871,7 @@ export default function TicketeraRids() {
         }
     };
 
+    // Función para cerrar múltiples tickets seleccionados a la vez.
     const bulkClose = async () => {
         if (!selectedTickets.length) return;
         try {
@@ -881,6 +885,55 @@ export default function TicketeraRids() {
             setSelectedTickets([]);
         } catch {
             message.error("Error al cerrar tickets");
+        }
+    };
+
+    const bulkPending = async () => {
+        if (!selectedTickets.length) return;
+
+        try {
+            await api.patch("/helpdesk/tickets/bulk", {
+                ticketIds: selectedTickets,
+                status: "PENDING",
+            });
+
+            message.success("Tickets marcados como pendientes correctamente");
+
+            setTickets((prev) =>
+                prev.map((ticket) =>
+                    selectedTickets.includes(ticket.id)
+                        ? { ...ticket, status: "PENDING" }
+                        : ticket
+                )
+            );
+
+            setSelectedTickets([]);
+
+            await loadTickets();
+            await loadSla();
+        } catch (error: any) {
+            message.error(
+                error?.response?.data?.message ||
+                "Error al marcar tickets como pendientes"
+            );
+        }
+    };
+
+    const handlePendingTicket = async (ticketId: number) => {
+        try {
+            await api.patch(`/helpdesk/tickets/${ticketId}`, {
+                status: "PENDING",
+            });
+
+            message.success("Ticket marcado como pendiente");
+
+            await loadTickets();
+            await loadSla();
+        } catch (error: any) {
+            message.error(
+                error?.response?.data?.message ||
+                "No se pudo marcar el ticket como pendiente"
+            );
         }
     };
 
@@ -923,13 +976,36 @@ export default function TicketeraRids() {
                 ticketIds: selectedTickets,
                 assigneeId: selectedTechnicianId,
             });
+
             message.success("Tickets asignados correctamente");
             setSelectedTickets([]);
             setBulkAssignModalOpen(false);
             setSelectedTechnicianId(null);
             await loadTickets();
-        } catch {
-            message.error("Error al asignar tickets");
+        } catch (error: any) {
+            console.error("❌ Error asignación masiva:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const backendMessage =
+                error?.response?.data?.message ||
+                error?.message ||
+                "Error al asignar tickets";
+
+            if (error?.response?.status === 403) {
+                notificationApi.warning({
+                    message: "Permiso denegado",
+                    description: backendMessage,
+                    placement: "topRight",
+                    duration: 5,
+                });
+
+                return;
+            }
+
+            message.error(backendMessage);
         }
     };
 
@@ -1023,13 +1099,38 @@ export default function TicketeraRids() {
 
             message.success("Técnico asignado correctamente");
         } catch (error: any) {
-            message.error(error?.response?.data?.message || "No se pudo asignar el técnico");
+            console.error("❌ Error asignando técnico:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const backendMessage =
+                error?.response?.data?.message ||
+                error?.message ||
+                "No se pudo asignar el técnico";
+
+            if (error?.response?.status === 403) {
+                notificationApi.warning({
+                    message: "Permiso denegado",
+                    description: backendMessage,
+                    placement: "topRight",
+                    duration: 5,
+                });
+
+                await loadTickets();
+                return;
+            }
+
+            message.error(backendMessage);
+            await loadTickets();
         }
     };
 
     // Renderizamos el componente principal con el resumen de SLA, los filtros, la lista de tickets y las acciones disponibles. Utilizamos componentes de Ant Design para la interfaz y aplicamos estilos personalizados para mejorar la apariencia.
     return (
         <div className="min-h-screen bg-gray-50">
+            {notificationContextHolder}
             <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4">
                 <div className="mb-5 space-y-2">
                     <div className="flex justify-between items-center mb-4">
@@ -1177,25 +1278,24 @@ export default function TicketeraRids() {
                 {/* Filtros de búsqueda y segmentación de tickets por estado, prioridad, asignado y área, además de botones para filtrar por rangos de fecha predefinidos como hoy, últimos 7 días y este mes. También se incluye un campo de búsqueda para buscar por texto en el asunto, empresa, solicitante, email o ID del ticket. */}
                 <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                     <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-3">
-                            <div className="w-full">
-                                <Input.Search
-                                    placeholder="Buscar por asunto, empresa, solicitante, email o ID..."
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <Input
+                                    placeholder="Buscar por asunto, contenido del ticket, empresa, solicitante, email o ID..."
                                     prefix={<SearchOutlined />}
                                     value={searchText}
                                     onChange={(e) => setSearchText(e.target.value)}
-                                    onSearch={loadTickets}
-                                    allowClear
+                                    onPressEnter={loadTickets}
                                     size="large"
                                     className="rounded-xl"
                                 />
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                            <Space wrap>
                                 <Select
                                     placeholder="Estado"
                                     allowClear
-                                    className="w-full"
+                                    style={{ width: 140 }}
                                     value={statusFilter}
                                     onChange={setStatusFilter}
                                     options={[
@@ -1205,11 +1305,10 @@ export default function TicketeraRids() {
                                         { value: "CLOSED", label: "Cerrado" },
                                     ]}
                                 />
-
                                 <Select
                                     placeholder="Prioridad"
                                     allowClear
-                                    className="w-full"
+                                    style={{ width: 140 }}
                                     value={priorityFilter}
                                     onChange={setPriorityFilter}
                                     options={[
@@ -1219,11 +1318,10 @@ export default function TicketeraRids() {
                                         { value: "URGENT", label: "Urgente" },
                                     ]}
                                 />
-
                                 <Select
                                     placeholder="Asignado a"
                                     allowClear
-                                    className="w-full"
+                                    style={{ width: 180 }}
                                     value={assigneeFilter}
                                     onChange={setAssigneeFilter}
                                     options={tecnicos.map((t) => ({
@@ -1231,16 +1329,14 @@ export default function TicketeraRids() {
                                         label: t.nombre,
                                     }))}
                                 />
-
                                 <Select
-                                    className="w-full"
+                                    style={{ width: 170 }}
                                     value={areaFilter}
                                     onChange={setAreaFilter}
                                     options={AREA_OPTIONS}
                                 />
-
                                 <Select
-                                    className="w-full"
+                                    style={{ width: 190 }}
                                     value={sortOrder}
                                     onChange={setSortOrder}
                                     options={[
@@ -1248,7 +1344,7 @@ export default function TicketeraRids() {
                                         { value: "old_first", label: "Más antiguos primero" },
                                     ]}
                                 />
-                            </div>
+                            </Space>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -1336,8 +1432,16 @@ export default function TicketeraRids() {
 
                             <Space wrap>
                                 <Button onClick={bulkAssign}>Asignar</Button>
+
+                                <Button onClick={bulkPending}>
+                                    Marcar pendiente
+                                </Button>
+
                                 <Button onClick={bulkMerge}>Fusionar</Button>
-                                <Button danger onClick={bulkClose}>Cerrar</Button>
+
+                                <Button danger onClick={bulkClose}>
+                                    Cerrar
+                                </Button>
                             </Space>
                         </div>
                     </Card>
@@ -1372,9 +1476,20 @@ export default function TicketeraRids() {
 
                                 const menuItems: MenuProps["items"] = [
                                     {
+                                        key: "pending",
+                                        label: <span className="text-amber-600">Marcar como pendiente</span>,
+                                        icon: <ClockCircleOutlined style={{ color: "#d97706" }} />,
+                                        disabled: ticket.status === "PENDING",
+                                        onClick: ({ domEvent }) => {
+                                            domEvent.stopPropagation();
+                                            handlePendingTicket(ticket.id);
+                                        },
+                                    },
+                                    {
                                         key: "close",
                                         label: <span className="text-orange-500">Cerrar ticket</span>,
                                         icon: <CheckCircleOutlined style={{ color: "#f97316" }} />,
+                                        disabled: ticket.status === "CLOSED",
                                         onClick: ({ domEvent }) => {
                                             domEvent.stopPropagation();
                                             handleCloseTicket(ticket.id);

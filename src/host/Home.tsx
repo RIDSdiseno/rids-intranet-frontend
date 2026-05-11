@@ -188,7 +188,8 @@ type HomeSectionKey =
   | "statsCards"
   | "visitasTecnico"
   | "topTecnicosTickets"
-  | "worstTecnicosTickets";
+  | "worstTecnicosTickets"
+  | "rankingTecnicosTickets";
 
 type HomeSectionsVisibility = Record<HomeSectionKey, boolean>;
 
@@ -197,6 +198,7 @@ const DEFAULT_HOME_SECTIONS: HomeSectionsVisibility = {
   visitasTecnico: true,
   topTecnicosTickets: true,
   worstTecnicosTickets: true,
+  rankingTecnicosTickets: true,
 };
 
 const HOME_SECTIONS_LABELS: Record<HomeSectionKey, string> = {
@@ -204,6 +206,7 @@ const HOME_SECTIONS_LABELS: Record<HomeSectionKey, string> = {
   visitasTecnico: "Gráfico visitas por técnico",
   topTecnicosTickets: "Top técnicos tickets",
   worstTecnicosTickets: "Menor cierre tickets",
+  rankingTecnicosTickets: "Ranking completo tickets",
 };
 
 function isRefreshableStat(s: Stat): s is RefreshableStat {
@@ -688,6 +691,22 @@ const Home: FC = () => {
       .slice(0, 5);
   }, [tecnicosMetrics]);
 
+  const rankingTecnicosHelpdesk = useMemo(() => {
+    return [...tecnicosMetrics]
+      .sort((a, b) => {
+        const diff =
+          Number(b.closedTickets || 0) - Number(a.closedTickets || 0);
+
+        if (diff !== 0) return diff;
+
+        return a.nombre.localeCompare(b.nombre, "es");
+      })
+      .map((item, index) => ({
+        ...item,
+        posicion: index + 1,
+      }));
+  }, [tecnicosMetrics]);
+
   const ticketsCerradosMes = useMemo(() => {
     return tecnicosMetrics.reduce(
       (acc, t) => acc + Number(t.closedTickets || 0),
@@ -919,8 +938,8 @@ const Home: FC = () => {
                     key={section}
                     onClick={() => toggleSection(section)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${active
-                        ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                        : "border-slate-200 bg-slate-50 text-slate-400"
+                      ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                      : "border-slate-200 bg-slate-50 text-slate-400"
                       }`}
                   >
                     {active ? "✓" : "○"} {HOME_SECTIONS_LABELS[section]}
@@ -1303,6 +1322,108 @@ const Home: FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+        {visibleSections.rankingTecnicosTickets && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="rounded-2xl border border-cyan-100 bg-white p-4 sm:p-5 shadow-sm"
+          >
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-800">
+                  Ranking completo de tickets cerrados
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Todos los técnicos ordenados por tickets cerrados durante el mes actual.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fetchTecnicosMetrics()}
+                disabled={loadingTecnicosMetrics}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 py-2 text-xs font-medium text-cyan-700 hover:bg-cyan-50 disabled:opacity-50"
+              >
+                {loadingTecnicosMetrics ? (
+                  <>
+                    <LoadingOutlined /> Cargando…
+                  </>
+                ) : (
+                  <>
+                    <ReloadOutlined /> Actualizar
+                  </>
+                )}
+              </button>
+            </div>
+
+            {errorTecnicosMetrics && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {errorTecnicosMetrics}
+              </div>
+            )}
+
+            {!loadingTecnicosMetrics &&
+              !errorTecnicosMetrics &&
+              rankingTecnicosHelpdesk.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+                  No hay tickets cerrados este mes.
+                </div>
+              )}
+
+            {rankingTecnicosHelpdesk.length > 0 && (
+              <div className="max-h-[520px] overflow-y-auto rounded-xl border border-slate-100">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-50">
+                    <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+                      <th className="px-3 py-2">#</th>
+                      <th className="px-3 py-2">Técnico</th>
+                      <th className="px-3 py-2 text-right">Cerrados</th>
+                      <th className="px-3 py-2 text-right">SLA cierre</th>
+                      <th className="px-3 py-2 text-right">Prom. cierre</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {rankingTecnicosHelpdesk.map((t) => (
+                      <tr
+                        key={t.tecnicoId}
+                        className="border-b border-slate-100 last:border-0 hover:bg-cyan-50/40"
+                      >
+                        <td className="px-3 py-3 font-bold text-slate-700">
+                          #{t.posicion}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <div className="font-semibold text-slate-900">
+                            {t.nombre}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {t.email || "Sin email"}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3 text-right">
+                          <span className="inline-flex min-w-10 justify-center rounded-full bg-cyan-50 px-3 py-1 text-sm font-bold text-cyan-700">
+                            {formatNumber(t.closedTickets)}
+                          </span>
+                        </td>
+
+                        <td className="px-3 py-3 text-right font-semibold text-slate-700">
+                          {t.resolution?.compliance ?? 0}%
+                        </td>
+
+                        <td className="px-3 py-3 text-right text-slate-700">
+                          {formatMinutes(t.avgResolutionMinutes)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </motion.div>

@@ -34,6 +34,26 @@ import { http } from "../../../service/http"; // ajusta ruta
 
 const { Text } = Typography;
 
+function parseDominios(value: unknown): string[] {
+    if (value === undefined || value === null) return [];
+
+    const raw = Array.isArray(value)
+        ? value
+        : String(value).split(",");
+
+    const dominios = raw
+        .map((d) => String(d).trim().toLowerCase())
+        .map((d) => d.replace(/^@+/, ""))
+        .map((d) => d.replace(/^https?:\/\//, ""))
+        .map((d) => d.replace(/^www\./, ""))
+        .map((d) => d.split("/")[0] ?? "")
+        .map((d) => d.split(":")[0] ?? "")
+        .map((d) => d.trim())
+        .filter((d): d is string => d.length > 0);
+
+    return Array.from(new Set(dominios));
+}
+
 const FichaTab: React.FC<FichaTabProps> = ({
     empresa,
     ficha,
@@ -51,6 +71,9 @@ const FichaTab: React.FC<FichaTabProps> = ({
         if (!ficha) return;
         form.setFieldsValue({
             razonSocial: empresa.razonSocial,
+            dominios: Array.isArray(empresa.dominios)
+                ? empresa.dominios.join(", ")
+                : "",
             rut: detalleEmpresa?.rut,
             direccion: detalleEmpresa?.direccion ?? "",
             direcciones: Array.isArray(detalleEmpresa?.direcciones) ? detalleEmpresa.direcciones : [],
@@ -71,6 +94,11 @@ const FichaTab: React.FC<FichaTabProps> = ({
         try {
             const values = await form.validateFields();
             setSaving(true);
+
+            await http.put(`/empresas/${empresa.id_empresa}`, {
+                nombre: empresa.nombre,
+                dominios: parseDominios(values.dominios),
+            });
 
             await http.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
                 razonSocial: values.razonSocial,
@@ -140,6 +168,25 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 <span className="text-sm font-medium text-gray-600">RUT</span>
                             </div>
                             <p className="text-base font-semibold">{detalleEmpresa?.rut || "—"}</p>
+                        </div>
+
+                        <div className="p-4 bg-gray-50 rounded md:col-span-2">
+                            <div className="flex items-center mb-2">
+                                <MailOutlined className="text-gray-400 mr-2" />
+                                <span className="text-sm font-medium text-gray-600">Dominios de correo</span>
+                            </div>
+
+                            {Array.isArray(empresa.dominios) && empresa.dominios.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {empresa.dominios.map((dominio) => (
+                                        <Tag color="cyan" key={dominio}>
+                                            {dominio}
+                                        </Tag>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-base font-semibold">—</p>
+                            )}
                         </div>
 
                         <div className="p-4 bg-gray-50 rounded md:col-span-2">
@@ -276,6 +323,23 @@ const FichaTab: React.FC<FichaTabProps> = ({
                         <Col span={24} md={12}>
                             <Form.Item label={<span className="font-medium"><IdcardOutlined className="mr-2" />RUT</span>} name="rut">
                                 <Input placeholder="RUT de la empresa" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={24}>
+                            <Form.Item
+                                label={
+                                    <span className="font-medium">
+                                        <MailOutlined className="mr-2" />
+                                        Dominios de correo
+                                    </span>
+                                }
+                                name="dominios"
+                                tooltip="Separa varios dominios con coma. Ej: pini.cl, fiordoconsultores.cl"
+                            >
+                                <Input.TextArea
+                                    rows={2}
+                                    placeholder="Ej: pini.cl, fiordoconsultores.cl"
+                                />
                             </Form.Item>
                         </Col>
                         <Col span={24}>
