@@ -14,6 +14,7 @@ export type ConciliacionRecord = {
   total?: number;
   estado_rcv?: string;
   estado_conciliacion?: string;
+  fecha_limite?: string | null;
   forma_pago?: string | null;
   responsable?: string | null;
   fecha_conciliacion?: string | null;
@@ -38,6 +39,7 @@ function seedData(): ConciliacionRecord[] {
       total: 183260,
       estado_rcv: "PENDIENTE",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: "2026-05-11",
       forma_pago: null,
       // responsable and fecha_conciliacion intentionally omitted for RIDS test cleanup
     },
@@ -55,6 +57,7 @@ function seedData(): ConciliacionRecord[] {
       total: 142800,
       estado_rcv: "CONFIRMADO",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: null,
       forma_pago: null,
       // no responsable/fecha_conciliacion for RIDS
     },
@@ -72,6 +75,7 @@ function seedData(): ConciliacionRecord[] {
       total: 535500,
       estado_rcv: "PENDIENTE",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: "2026-05-20",
       forma_pago: null,
     },
     {
@@ -88,6 +92,7 @@ function seedData(): ConciliacionRecord[] {
       total: 116620,
       estado_rcv: "CONFIRMADO",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: null,
       forma_pago: null,
     },
     {
@@ -104,6 +109,7 @@ function seedData(): ConciliacionRecord[] {
       total: 336770,
       estado_rcv: "PENDIENTE",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: "2026-06-11",
       forma_pago: null,
       // responsable and fecha_conciliacion intentionally omitted for RIDS test cleanup
     },
@@ -121,6 +127,7 @@ function seedData(): ConciliacionRecord[] {
       total: 146608,
       estado_rcv: "CONFIRMADO",
       estado_conciliacion: "NO_CONCILIADA",
+      fecha_limite: null,
       forma_pago: null,
       responsable: null,
       fecha_conciliacion: null,
