@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BarChartOutlined } from "@ant-design/icons";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
-<<<<<<< HEAD
 import {
   getConciliacionesByProvider,
   getAllConciliaciones,
@@ -12,9 +11,6 @@ import {
   applyOverrides,
   removeOverride,
 } from "../lib/conciliacionCache";
-=======
-import { getConciliacionesByProvider, getAllConciliaciones, saveAllConciliaciones, resetSeed, updateConciliacion, saveOverride, applyOverrides, removeOverride } from "../lib/conciliacionCache";
->>>>>>> 636e398ab36935bc325cd55071abae0cecc90d4d
 import type { ConciliacionRecord } from "../lib/conciliacionCache";
 
 const currency = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -61,7 +57,6 @@ export default function ConciliacionEcconet() {
     return data.filter((r) => {
       if (!r.fecha_emision) return false;
 
-<<<<<<< HEAD
       const d = new Date(r.fecha_emision);
 
       if (Number.isNaN(d.getTime())) return false;
@@ -73,14 +68,6 @@ export default function ConciliacionEcconet() {
       if (yearNumber && yearNumber !== y) return false;
 
       return true;
-=======
-        if (month !== "" && Number(month) !== m) return false;
-        if (year !== "" && Number(year) !== y) return false;
-        return true;
-      } catch {
-        return false;
-      }
->>>>>>> 636e398ab36935bc325cd55071abae0cecc90d4d
     });
   }
 
@@ -125,38 +112,68 @@ export default function ConciliacionEcconet() {
     async function fetchAndReplace() {
       if (month && year) {
         try {
-          const remote = await fetchFacturasFromAPI("ECCONET", month, year);
+          const monthNumber = Number(month);
+          const yearNumber = Number(year);
+
+          if (!Number.isFinite(monthNumber) || !Number.isFinite(yearNumber)) {
+            alert("Mes o año inválido");
+            return;
+          }
+
+          const remote = await fetchFacturasFromAPI(
+            "ECCONET",
+            monthNumber,
+            yearNumber
+          );
+
           // normalize remote rows and preserve any local conciliacion data if present
           const localByKey = new Map<string, ConciliacionRecord>();
-          all.filter(a => a.provider === "ECCONET").forEach(a => {
-            const key = getConciliacionKey(a);
-            localByKey.set(key, a);
-          });
+
+          all
+            .filter((a) => a.provider === "ECCONET")
+            .forEach((a) => {
+              const key = getConciliacionKey(a);
+              localByKey.set(key, a);
+            });
 
           const normalizedRemote = remote.map((r) => {
             const key = getConciliacionKey(r);
             const local = localByKey.get(key);
+
             const mergedRow: ConciliacionRecord = {
               ...r,
-              estado_conciliacion: local?.estado_conciliacion ?? r.estado_conciliacion ?? "NO_CONCILIADA",
+              estado_conciliacion:
+                local?.estado_conciliacion ??
+                r.estado_conciliacion ??
+                "NO_CONCILIADA",
               forma_pago: local?.forma_pago ?? r.forma_pago ?? null,
               responsable: local?.responsable ?? r.responsable ?? null,
-              fecha_conciliacion: local?.fecha_conciliacion ?? r.fecha_conciliacion ?? null,
+              fecha_conciliacion:
+                local?.fecha_conciliacion ?? r.fecha_conciliacion ?? null,
               fecha_limite: local?.fecha_limite ?? r.fecha_limite ?? null,
             };
+
             return mergedRow;
           });
 
-          let merged = [...all.filter((x) => x.provider !== "ECCONET"), ...normalizedRemote];
+          let merged = [
+            ...all.filter((x) => x.provider !== "ECCONET"),
+            ...normalizedRemote,
+          ];
+
           merged = applyOverrides(merged);
           saveAllConciliaciones(merged);
           setRows(applyFilters(merged.filter((r) => r.provider === "ECCONET")));
           return;
         } catch (e: any) {
-          const msg = `No se pudieron traer facturas desde el backend: ${e?.message ?? e}`;
-          // eslint-disable-next-line no-console
+          const msg = `No se pudieron traer facturas desde el backend: ${e?.message ?? e
+            }`;
+
           console.error(msg, e);
-          try { alert(msg); } catch { }
+
+          try {
+            alert(msg);
+          } catch { }
         }
       }
 
@@ -171,6 +188,7 @@ export default function ConciliacionEcconet() {
             fecha_conciliacion: r.fecha_conciliacion ?? null,
           } as ConciliacionRecord;
         }
+
         return r;
       });
 
@@ -181,15 +199,11 @@ export default function ConciliacionEcconet() {
     void fetchAndReplace();
   }
 
-<<<<<<< HEAD
   async function fetchFacturasFromAPI(
     provider: "RIDS" | "ECCONET",
     m: number | "",
     y: number | ""
   ) {
-=======
-  async function fetchFacturasFromAPI(provider: "RIDS" | "ECCONET", m: number | string, y: number | string) {
->>>>>>> 636e398ab36935bc325cd55071abae0cecc90d4d
     const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
     const mesStr = String(m).padStart(2, "0");
@@ -542,7 +556,7 @@ export default function ConciliacionEcconet() {
                     </PieChart>
                   </ResponsiveContainer>
 
-                    <div className="mt-4 flex items-center justify-around">
+                  <div className="mt-4 flex items-center justify-around">
                     <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#10B981]" /> <div className="text-sm">Conciliadas ({rows.filter(r => r.estado_conciliacion === 'CONCILIADA').length})</div></div>
                     <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#F59E0B]" /> <div className="text-sm">Pendientes ({rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && (!r.fecha_limite || new Date(r.fecha_limite) >= new Date())).length})</div></div>
                     <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#EF4444]" /> <div className="text-sm">Vencidas ({rows.filter(r => r.estado_conciliacion !== 'CONCILIADA' && r.fecha_limite && new Date(r.fecha_limite) < new Date()).length})</div></div>
@@ -625,7 +639,7 @@ export default function ConciliacionEcconet() {
                               text = 'Vencida';
                               badgeClass = 'bg-red-50 text-red-700 border-red-200';
                             }
-                          } catch {}
+                          } catch { }
                         }
 
                         return (
@@ -639,16 +653,15 @@ export default function ConciliacionEcconet() {
                       {r.fecha_limite ? (
                         <div className="flex items-center gap-2">
                           <div>{r.fecha_limite}</div>
-                          <button onClick={() => { setEditDueId(r.id); setEditDueValue(r.fecha_limite ?? new Date().toISOString().slice(0,10)); }} className="text-xs text-cyan-600">Editar</button>
+                          <button onClick={() => { setEditDueId(r.id); setEditDueValue(r.fecha_limite ?? new Date().toISOString().slice(0, 10)); }} className="text-xs text-cyan-600">Editar</button>
                         </div>
                       ) : (
-                        <button onClick={() => { setEditDueId(r.id); setEditDueValue(new Date().toISOString().slice(0,10)); }} className="text-xs text-slate-500">Agregar</button>
+                        <button onClick={() => { setEditDueId(r.id); setEditDueValue(new Date().toISOString().slice(0, 10)); }} className="text-xs text-slate-500">Agregar</button>
                       )}
                     </td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.forma_pago ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.responsable ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.fecha_conciliacion ? new Date(r.fecha_conciliacion).toLocaleString() : "-"}</td>
-<<<<<<< HEAD
                     <td className="px-3 py-3 text-sm">
                       {r.estado_conciliacion === 'CONCILIADA' ? (
                         <div className="flex items-center gap-2">
@@ -675,53 +688,6 @@ export default function ConciliacionEcconet() {
                         </button>
                       )}
                     </td>
-=======
-                        <td className="px-3 py-3 text-sm">
-                          <div className="flex items-center gap-2">
-                            {r.estado_conciliacion === 'CONCILIADA' ? (
-                              <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
-                            ) : (
-                              <button
-                                onClick={() => handleConciliar(r.id)}
-                                className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>
-                                Conciliar
-                              </button>
-                            )}
-
-                            <div className="relative">
-                              <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
-                              {menuOpenId === r.id && (
-                                <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg">
-                                  {r.estado_conciliacion === 'CONCILIADA' && (
-                                    <button
-                                      onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
-                                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                                    >
-                                      Desconciliar
-                                    </button>
-                                  )}
-
-                                  {r.estado_conciliacion !== 'CONCILIADA' && (() => {
-                                    let isVencida = false;
-                                    try { isVencida = !!(r.fecha_limite && new Date(r.fecha_limite) < new Date()); } catch {}
-                                    if (!isVencida) {
-                                      return (
-                                        <button
-                                          onClick={() => { openReminder(r.id); closeMenu(); }}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                                        >
-                                          Recordatorio
-                                        </button>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
->>>>>>> 636e398ab36935bc325cd55071abae0cecc90d4d
                   </tr>
                 ))}
               </tbody>
@@ -831,7 +797,7 @@ export default function ConciliacionEcconet() {
               </div>
               <div className="mt-4 flex justify-end gap-2">
                 <button onClick={() => { setEditDueId(null); setEditDueValue(''); }} className="rounded-full border border-slate-200 bg-white px-4 py-1 text-sm">Cancelar</button>
-                <button onClick={() => { if (editDueId) { updateConciliacion(editDueId, { fecha_limite: editDueValue }); try { saveOverride(editDueId, { fecha_limite: editDueValue }); } catch {} setRows(applyFilters(getConciliacionesByProvider('ECCONET'))); } setEditDueId(null); setEditDueValue(''); }} className="rounded-full bg-cyan-600 px-4 py-1 text-sm text-white">Guardar</button>
+                <button onClick={() => { if (editDueId) { updateConciliacion(editDueId, { fecha_limite: editDueValue }); try { saveOverride(editDueId, { fecha_limite: editDueValue }); } catch { } setRows(applyFilters(getConciliacionesByProvider('ECCONET'))); } setEditDueId(null); setEditDueValue(''); }} className="rounded-full bg-cyan-600 px-4 py-1 text-sm text-white">Guardar</button>
               </div>
             </div>
           </div>
