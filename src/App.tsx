@@ -41,6 +41,8 @@ const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
+const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
+
 /* =========================
    Auth helpers
 ========================= */
@@ -86,9 +88,15 @@ function ProtectedRoute() {
 
 function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rol = getUserRol();
+  const rolNormalizado = String(rol ?? "").toUpperCase().trim();
 
-  if (!rol || !allowedRoles.includes(rol)) {
-    return <Navigate to={rol === "CLIENTE" ? "/empresas" : "/home"} replace />;
+  if (!rolNormalizado || !allowedRoles.includes(rolNormalizado)) {
+    return (
+      <Navigate
+        to={rolNormalizado === "CLIENTE" ? "/home" : "/home"}
+        replace
+      />
+    );
   }
 
   return <Outlet />;
@@ -97,26 +105,16 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
 // Acceso exclusivo por email — módulo Cobranza
 // const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
 
+/*
 const USUARIOS_GESTION_TECNICOS_CLIENTES = [
   "dbravo@rids.cl",
   "carenas@rids.cl",
   "igonzalez@rids.cl",
   "rcalsin@rids.cl",
   "mahumada@rids.cl",
-];
+]; */
 
-function CobranzaRoute() {
-  const rol = getUserRol();
-
-  const autorizado = rol === "ADMIN" || rol === "VENTAS";
-
-  if (!autorizado) {
-    return <Navigate to={rol === "CLIENTE" ? "/empresas" : "/home"} replace />;
-  }
-
-  return <Outlet />;
-}
-
+/*
 function GestionTecnicosClientesRoute() {
   const email = getUserEmail();
 
@@ -128,23 +126,14 @@ function GestionTecnicosClientesRoute() {
   }
 
   return <Outlet />;
-}
-
-function ConciliacionOnlyRoute() {
-  const email = getUserEmail();
-
-  if (!email || email !== "carenas@rids.cl") {
-    return <Navigate to="/home" replace />;
-  }
-
-  return <Outlet />;
-}
+} */
 
 function getRootRedirect(): string {
-  const rol = getUserRol();
+  const rol = String(getUserRol() ?? "").toUpperCase().trim();
 
-  if (rol === "CLIENTE") return "/empresas";
-  if (rol === "VENTAS") return "/facturas";
+  if (rol === "CLIENTE") return "/facturas-baseapi";
+  if (rol === "ADMINISTRACION") return "/facturas-baseapi";
+  if (rol === "VENTAS") return "/facturas-baseapi";
 
   return "/home";
 }
@@ -207,7 +196,11 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
 
-            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO","VENTAS"]} />}>
+              <Route path="/home" element={<HomePage />} />
+            </Route>
+
+            <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
 
             {/* Accesibles por TODOS los roles */}
             <Route path="/empresas" element={<EmpresasPage />} />
@@ -216,44 +209,48 @@ export default function App() {
             <Route path="/visitas" element={<VisitasPage />} />
             <Route path="/reportes" element={<ReportesPage />} />
             <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
-
-            {/* Solo TECNICO y ADMIN */}
-            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN", "VENTAS"]} />}>
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/agenda" element={<AgendaPage />} />
-              <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
-              <Route path="/Cotizaciones" element={<CotizacionesPage />} />
-              <Route path="/clientes" element={<ClientesPage />} />
-              <Route path="/productos" element={<ProductosPage />} />
-              <Route path="/documentos" element={<DocumentosPage />} />
-              <Route path="/tickets" element={<TicketsPage />} />
-
-              {/* Helpdesk completo solo para TECNICO/ADMIN */}
-              <Route path="/helpdesk" element={<HelpdeskLayout />}>
-                <Route index element={<TicketeraRids />} />
-                <Route path="dashboard" element={<DashboardTecnicosdPage />} />
-                <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
-                <Route path="tickets/:id" element={<TicketeraDetalle />} />
-                <Route path="email-templates" element={<HelpdeskConfigPage />} />
-              </Route>
+            <Route path="/agenda" element={<AgendaPage />} />
+            <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+            <Route path="/Cotizaciones" element={<CotizacionesPage />} />
+            <Route path="/clientes" element={<ClientesPage />} />
+            <Route path="/productos" element={<ProductosPage />} />
+            <Route path="/documentos" element={<DocumentosPage />} />
+            <Route path="/tickets" element={<TicketsPage />} />
+            <Route path="/helpdesk" element={<HelpdeskLayout />}>
+              <Route index element={<TicketeraRids />} />
+              <Route path="dashboard" element={<DashboardTecnicosdPage />} />
+              <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
+              <Route path="tickets/:id" element={<TicketeraDetalle />} />
+              <Route path="email-templates" element={<HelpdeskConfigPage />} />
             </Route>
 
-            {/* Técnicos y Clientes Externos — solo emails permitidos */}
-            <Route element={<RoleRoute allowedRoles={["TECNICO", "ADMIN"]} />}>
-              <Route element={<GestionTecnicosClientesRoute />}>
-                <Route path="/tecnicos" element={<TecnicosPage />} />
-                <Route path="/clientes-ext" element={<ClientesExtPage />} />
-              </Route>
+            {/* Clientes Externos */}
+            <Route
+              element={
+                <RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />
+              }
+            >
+              <Route path="/clientes-ext" element={<ClientesExtPage />} />
+            </Route>
+
+            {/* Técnicos */}
+            <Route
+              element={
+                <RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS"]} />
+              }
+            >
+              <Route path="/tecnicos" element={<TecnicosPage />} />
             </Route>
 
             {/* Cobranza — solo emails permitidos (independiente del rol) */}
-            <Route element={<CobranzaRoute />}>
-              <Route element={<ConciliacionOnlyRoute />}>
-                  <Route path="/cobranza/conciliacion-rids" element={<ConciliacionPage />} />
-                  <Route path="/cobranza/conciliacion-ecconet" element={<ConciliacionEcconetPage />} />
-                </Route>
+            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
+              {/*}
+              <Route path="/cobranza/conciliacion-rids" element={<ConciliacionPage />} />
+              <Route path="/cobranza/conciliacion-ecconet" element={<ConciliacionEcconetPage />} />
               <Route path="/facturas" element={<FacturasDashboardPage />} />
               <Route path="/cobranza" element={<FacturasDashboardPage />} />
+              */}
+              <Route path="/facturas-baseapi" element={<FacturasBaseapiPage />} />
             </Route>
 
           </Route>

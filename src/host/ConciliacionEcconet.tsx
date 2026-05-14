@@ -1,7 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BarChartOutlined } from "@ant-design/icons";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
-import { getConciliacionesByProvider, getAllConciliaciones, saveAllConciliaciones, resetSeed, updateConciliacion, saveOverride, applyOverrides } from "../lib/conciliacionCache";
+import {
+  getConciliacionesByProvider,
+  getAllConciliaciones,
+  saveAllConciliaciones,
+  resetSeed,
+  updateConciliacion,
+  saveOverride,
+  applyOverrides,
+  removeOverride,
+} from "../lib/conciliacionCache";
 import type { ConciliacionRecord } from "../lib/conciliacionCache";
 
 const currency = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -29,22 +38,68 @@ export default function ConciliacionEcconet() {
   }, []);
 
   function applyFilters(data: ConciliacionRecord[]) {
-    if (!month && !year) return data;
+    const monthNumber =
+      month === "" || month === null || month === undefined
+        ? null
+        : Number(month);
+
+    const yearNumber =
+      year === "" || year === null || year === undefined
+        ? null
+        : Number(year);
+
+    if (!monthNumber && !yearNumber) return data;
 
     return data.filter((r) => {
       if (!r.fecha_emision) return false;
-      try {
-        const d = new Date(r.fecha_emision);
-        const m = d.getMonth() + 1;
-        const y = d.getFullYear();
 
-        if (month && month !== "" && Number(month) !== m) return false;
-        if (year && year !== "" && Number(year) !== y) return false;
-        return true;
-      } catch {
-        return false;
-      }
+      const d = new Date(r.fecha_emision);
+
+      if (Number.isNaN(d.getTime())) return false;
+
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+
+      if (monthNumber && monthNumber !== m) return false;
+      if (yearNumber && yearNumber !== y) return false;
+
+      return true;
     });
+  }
+
+  function toNumberRcv(value: any): number {
+    if (value === null || value === undefined || value === "") return 0;
+
+    if (typeof value === "number") return value;
+
+    const clean = String(value)
+      .replace(/\$/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .trim();
+
+    const number = Number(clean);
+
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function normalizarFechaRcv(value: any): string {
+    if (!value) return "";
+
+    const raw = String(value).trim();
+
+    // DD/MM/YYYY o DD/MM/YYYY HH:mm:ss
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
+      const [day, month, year] = raw.slice(0, 10).split("/");
+      return `${year}-${month}-${day}`;
+    }
+
+    // YYYY-MM-DD o ISO
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      return raw.slice(0, 10);
+    }
+
+    return raw;
   }
 
   function reload() {
@@ -57,12 +112,12 @@ export default function ConciliacionEcconet() {
           // normalize remote rows and preserve any local conciliacion data if present
           const localByKey = new Map<string, ConciliacionRecord>();
           all.filter(a => a.provider === "ECCONET").forEach(a => {
-            const key = a.folio != null ? `${a.provider}-${String(a.folio)}` : a.id;
+            const key = getConciliacionKey(a);
             localByKey.set(key, a);
           });
 
           const normalizedRemote = remote.map((r) => {
-            const key = r.folio != null ? `${r.provider}-${String(r.folio)}` : r.id;
+            const key = getConciliacionKey(r);
             const local = localByKey.get(key);
             const mergedRow: ConciliacionRecord = {
               ...r,
@@ -74,16 +129,16 @@ export default function ConciliacionEcconet() {
             return mergedRow;
           });
 
-            let merged = [...all.filter((x) => x.provider !== "ECCONET"), ...normalizedRemote];
-            merged = applyOverrides(merged);
-            saveAllConciliaciones(merged);
-            setRows(applyFilters(merged.filter((r) => r.provider === "ECCONET")));
+          let merged = [...all.filter((x) => x.provider !== "ECCONET"), ...normalizedRemote];
+          merged = applyOverrides(merged);
+          saveAllConciliaciones(merged);
+          setRows(applyFilters(merged.filter((r) => r.provider === "ECCONET")));
           return;
         } catch (e: any) {
           const msg = `No se pudieron traer facturas desde el backend: ${e?.message ?? e}`;
           // eslint-disable-next-line no-console
           console.error(msg, e);
-          try { alert(msg); } catch {}
+          try { alert(msg); } catch { }
         }
       }
 
@@ -108,18 +163,27 @@ export default function ConciliacionEcconet() {
     void fetchAndReplace();
   }
 
-  async function fetchFacturasFromAPI(provider: "RIDS" | "ECCONET", m: number | "", y: number | "") {
+  async function fetchFacturasFromAPI(
+    provider: "RIDS" | "ECCONET",
+    m: number | "",
+    y: number | ""
+  ) {
     const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+
     const mesStr = String(m).padStart(2, "0");
     const anoStr = String(y);
 
     const empresaParam = provider === "RIDS" ? "rids" : "econnet";
 
-    const params = new URLSearchParams({ mes: mesStr, ano: anoStr, empresa: empresaParam });
+    const params = new URLSearchParams({
+      mes: mesStr,
+      ano: anoStr,
+      empresa: empresaParam,
+    });
 
     const token = localStorage.getItem("accessToken") ?? "";
 
-    const endpoint = `${BASE_URL}/facturas/ventas?${params.toString()}`;
+    const endpoint = `${BASE_URL}/baseapi/rcv/ventas?${params.toString()}`;
 
     const res = await fetch(endpoint, {
       headers: {
@@ -134,27 +198,44 @@ export default function ConciliacionEcconet() {
     }
 
     const json = await res.json();
-    const data = json?.data ?? json;
-    const docs = data?.ventas ?? data?.detalleVentas ?? data ?? [];
 
-    const mapped: ConciliacionRecord[] = (Array.isArray(docs) ? docs : []).map((doc: any) => ({
-      id: `${provider}-${doc.folio}-${doc.fechaEmision ?? doc.fecha_emision ?? ''}`,
-      provider,
-      empresa: provider === "RIDS" ? "RIDS" : (doc.empresaEmisora ?? doc.empresa ?? provider),
-      fecha_emision: doc.fechaEmision ?? doc.fecha_emision,
-      tipo_dte: String(doc.tipoDTE ?? doc.tipo_dte ?? ""),
-      folio: doc.folio,
-      cliente: doc.razonSocialReceptor ?? doc.cliente ?? doc.razonSocialProveedor ?? "",
-      rut_cliente: doc.rutReceptor ?? doc.rut_cliente ?? doc.rutProveedor ?? "",
-      neto: Number(doc.montoNeto ?? doc.monto_neto ?? doc.neto ?? 0),
-      iva: Number(doc.montoIVA ?? doc.monto_iva ?? doc.iva ?? 0),
-      total: Number(doc.montoTotal ?? doc.monto_total ?? doc.total ?? 0),
-      estado_rcv: doc.estado ?? "",
-      estado_conciliacion: "NO_CONCILIADA",
-      forma_pago: null,
-      responsable: null,
-      fecha_conciliacion: null,
-    }));
+    const docs =
+      json?.data?.data?.datos ??
+      json?.data?.datos ??
+      json?.datos ??
+      [];
+
+    const mapped: ConciliacionRecord[] = (Array.isArray(docs) ? docs : []).map((doc: any) => {
+      const folio = doc["Folio"] ?? doc.folio ?? "";
+      const tipoDte = doc["Tipo Doc"] ?? doc.tipoDoc ?? doc.tipoDTE ?? "";
+      const fecha = doc["Fecha Docto"] ?? doc.fechaDocto ?? doc.fechaEmision ?? "";
+      const rut = doc["Rut cliente"] ?? doc["RUT Cliente"] ?? doc.rutCliente ?? doc.rutReceptor ?? "";
+      const cliente =
+        doc["Razon Social"] ??
+        doc["Razón Social"] ??
+        doc.razonSocial ??
+        doc.razonSocialReceptor ??
+        "";
+
+      return {
+        id: `${provider}-${tipoDte}-${folio}-${rut}`,
+        provider,
+        empresa: provider === "RIDS" ? "RIDS" : "ECCONET",
+        fecha_emision: normalizarFechaRcv(fecha),
+        tipo_dte: String(tipoDte),
+        folio,
+        cliente,
+        rut_cliente: rut,
+        neto: toNumberRcv(doc["Monto Neto"] ?? doc.montoNeto ?? 0),
+        iva: toNumberRcv(doc["Monto IVA"] ?? doc["Monto Iva"] ?? doc.montoIva ?? doc.montoIVA ?? 0),
+        total: toNumberRcv(doc["Monto total"] ?? doc["Monto Total"] ?? doc.montoTotal ?? 0),
+        estado_rcv: doc.estado ?? doc.Estado ?? "",
+        estado_conciliacion: "NO_CONCILIADA",
+        forma_pago: null,
+        responsable: null,
+        fecha_conciliacion: null,
+      };
+    });
 
     return mapped;
   }
@@ -194,17 +275,26 @@ export default function ConciliacionEcconet() {
         throw new Error("Registro no encontrado para actualizar");
       }
 
-      try { saveOverride(selectedId, patch); } catch {}
+      try { saveOverride(selectedId, patch); } catch { }
 
       setRows(applyFilters(getConciliacionesByProvider("ECCONET")));
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("Error al confirmar conciliación ECCONET", e);
-      try { alert("No se pudo confirmar la conciliación"); } catch {}
+      try { alert("No se pudo confirmar la conciliación"); } catch { }
     }
 
     setShowModal(false);
     setSelectedId(null);
+  }
+
+  function getConciliacionKey(r: Partial<ConciliacionRecord>) {
+    return [
+      r.provider ?? "",
+      r.tipo_dte ?? "",
+      r.folio ?? "",
+      r.rut_cliente ?? "",
+    ].join("-");
   }
 
   function handleDesconciliar(id: string) {
@@ -218,12 +308,11 @@ export default function ConciliacionEcconet() {
 
       const res = updateConciliacion(id, patch);
       if (!res) throw new Error("Registro no encontrado para desconciliar");
-      try { removeOverride(id); } catch {}
       setRows(applyFilters(getConciliacionesByProvider("ECCONET")));
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("Error al desconciliar ECCONET", e);
-      try { alert("No se pudo revertir la conciliación"); } catch {}
+      try { alert("No se pudo revertir la conciliación"); } catch { }
     }
   }
 
@@ -459,32 +548,32 @@ export default function ConciliacionEcconet() {
                     <td className="px-3 py-3 text-sm text-slate-600">{r.forma_pago ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.responsable ?? "-"}</td>
                     <td className="px-3 py-3 text-sm text-slate-600">{r.fecha_conciliacion ? new Date(r.fecha_conciliacion).toLocaleString() : "-"}</td>
-                        <td className="px-3 py-3 text-sm">
-                          {r.estado_conciliacion === 'CONCILIADA' ? (
-                                <div className="flex items-center gap-2">
-                                  <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
-                                  <div className="relative">
-                                    <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
-                                    {menuOpenId === r.id && (
-                                      <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
-                                        <button
-                                          onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                                        >
-                                          Desconciliar
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                          ) : (
-                            <button
-                              onClick={() => handleConciliar(r.id)}
-                              className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>
-                              Conciliar
-                            </button>
-                          )}
-                        </td>
+                    <td className="px-3 py-3 text-sm">
+                      {r.estado_conciliacion === 'CONCILIADA' ? (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleConciliar(r.id)} className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>Editar</button>
+                          <div className="relative">
+                            <button onClick={() => toggleMenu(r.id)} title="Más opciones" className="rounded-full px-2 py-1 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50">⋯</button>
+                            {menuOpenId === r.id && (
+                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
+                                <button
+                                  onClick={() => { openUnconciliarConfirm(r.id); closeMenu(); }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                                >
+                                  Desconciliar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleConciliar(r.id)}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold bg-cyan-600 text-white hover:opacity-90`}>
+                          Conciliar
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

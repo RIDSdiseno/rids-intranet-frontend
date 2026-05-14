@@ -1,3 +1,4 @@
+// src/host/ClientesExt.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Button,
@@ -19,24 +20,7 @@ import {
     StopOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
-
-const api = axios.create({
-    baseURL: API_URL,
-    withCredentials: true,
-});
-
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("accessToken");
-
-    if (token) {
-        config.headers = config.headers ?? {};
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-});
+import { api } from "../api/api";
 
 type EmpresaOption = {
     id_empresa: number;

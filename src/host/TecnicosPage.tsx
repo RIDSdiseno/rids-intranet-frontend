@@ -13,9 +13,11 @@ type Tecnico = {
   rol: string;
 };
 
+const ROLES_VISIBLES_TECNICOS = ["ADMINISTRACION", "ADMIN", "TECNICO", "VENTAS"];
+
 // Componente principal
 const TecnicosPage: React.FC = () => {
-  const { isAdmin } = useAuth();
+  const { isAdminLike } = useAuth();
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,11 +47,17 @@ const TecnicosPage: React.FC = () => {
   // Para controlar el estado de eliminación
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const PAGE_SIZE = 10;
+  const pageSize = 10;
   const [page, setPage] = useState(1);
 
   // Filtrar técnicos según búsqueda, rol y estado
   const tecnicosFiltrados = tecnicos.filter((t) => {
+    const rol = String(t.rol ?? "").toUpperCase().trim();
+
+    const esRolVisible = ROLES_VISIBLES_TECNICOS.includes(rol);
+
+    if (!esRolVisible) return false;
+
     const texto = busqueda.toLowerCase();
 
     const matchNombre =
@@ -57,7 +65,7 @@ const TecnicosPage: React.FC = () => {
       (t.email?.toLowerCase() || "").includes(texto);
 
     const matchRol = filtroRol
-      ? t.rol?.toUpperCase().trim() === filtroRol.toUpperCase().trim()
+      ? rol === filtroRol.toUpperCase().trim()
       : true;
 
     const statusBool = Boolean(t.status);
@@ -72,10 +80,14 @@ const TecnicosPage: React.FC = () => {
     return matchNombre && matchRol && matchStatus;
   });
 
-  const totalPages = Math.max(1, Math.ceil(tecnicosFiltrados.length / PAGE_SIZE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(tecnicosFiltrados.length / pageSize)
+  );
+
   const tecnicosPaginados = tecnicosFiltrados.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
+    (page - 1) * pageSize,
+    page * pageSize
   );
 
   // Función para cargar técnicos
@@ -205,7 +217,7 @@ const TecnicosPage: React.FC = () => {
                 <ReloadOutlined /> Recargar
               </button>
 
-              {isAdmin && (
+              {isAdminLike && (
                 <button
                   onClick={() => setCreando(true)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 sm:w-auto sm:py-1.5"
@@ -240,9 +252,9 @@ const TecnicosPage: React.FC = () => {
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm sm:w-auto"
             >
               <option value="">Rol</option>
+              <option value="ADMINISTRACION">Administración</option>
               <option value="ADMIN">Admin</option>
               <option value="TECNICO">Técnico</option>
-              <option value="CLIENTE">Cliente</option>
               <option value="VENTAS">Ventas</option>
             </select>
 
@@ -327,7 +339,7 @@ const TecnicosPage: React.FC = () => {
                         <span className="text-xs text-slate-500">ID: {t.id_tecnico}</span>
                       </div>
 
-                      {isAdmin && (
+                      {isAdminLike && (
                         <div className="mt-4 flex flex-col gap-2">
                           <button
                             onClick={() => onClickEdit(t)}
@@ -366,7 +378,7 @@ const TecnicosPage: React.FC = () => {
                       Rol
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">Estado</th>
-                    {isAdmin && (
+                    {isAdminLike && (
                       <th className="px-4 py-3 text-left font-semibold">Acciones</th>
                     )}
                   </tr>
@@ -376,7 +388,7 @@ const TecnicosPage: React.FC = () => {
                   {tecnicosFiltrados.length === 0 && (
                     <tr>
                       <td
-                        colSpan={isAdmin ? 6 : 5}
+                        colSpan={isAdminLike ? 6 : 5}
                         className="px-4 py-8 text-center text-slate-500"
                       >
                         {tecnicos.length === 0
@@ -414,7 +426,7 @@ const TecnicosPage: React.FC = () => {
                         </span>
                       </td>
 
-                      {isAdmin && (
+                      {isAdminLike && (
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <button
@@ -548,9 +560,9 @@ const TecnicosPage: React.FC = () => {
                   onChange={(e) => setNewRol(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                 >
-                  <option value="TECNICO">TECNICO</option>
+                  <option value="ADMINISTRACION">ADMINISTRACION</option>
                   <option value="ADMIN">ADMIN</option>
-                  <option value="CLIENTE">CLIENTE</option>
+                  <option value="TECNICO">TECNICO</option>
                   <option value="VENTAS">VENTAS</option>
                 </select>
               </div>
@@ -629,9 +641,10 @@ const TecnicosPage: React.FC = () => {
                   onChange={(e) => setFormRol(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
                 >
-                  <option value="TECNICO">TECNICO</option>
+                  <option value="ADMINISTRACION">ADMINISTRACION</option>
                   <option value="ADMIN">ADMIN</option>
-                  <option value="CLIENTE">CLIENTE</option>
+                  <option value="TECNICO">TECNICO</option>
+
                   <option value="VENTAS">VENTAS</option>
                 </select>
               </div>

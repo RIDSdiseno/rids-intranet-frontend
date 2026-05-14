@@ -1,3 +1,4 @@
+// src/components/modal-factura/generarFactura.ts
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 

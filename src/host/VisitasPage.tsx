@@ -510,6 +510,7 @@ const VisitasPage: React.FC = () => {
       console.error("Error cargando filtros:", err);
     }
   }, []);
+
   // Función para cargar la lista de visitas según filtros y paginación, con manejo de concurrencia y cancelación
   const fetchList = useCallback(async (signal?: AbortSignal) => {
     const seq = ++reqSeqRef.current;
@@ -579,6 +580,8 @@ const VisitasPage: React.FC = () => {
   };
 
   const { user, isCliente, isAdmin } = useAuth();
+
+  const canCreateVisita = !isCliente;
 
   // Si el usuario es cliente, preseleccionar su empresa y no permitir cambiarla
   useEffect(() => {
@@ -916,27 +919,25 @@ const VisitasPage: React.FC = () => {
                     </button>
 
                     {/* Nueva visita */}
-                    <button
-                      onClick={() => {
-                        if (isCliente) return;
-                        setOpenCreate(true);
-                      }}
-                      disabled={isCliente}
-                      type="button"
-                      className="
-                    inline-flex items-center justify-center gap-2
-                    rounded-2xl px-3 py-2.5 text-sm font-medium text-white
-                    bg-gradient-to-tr from-emerald-600 to-cyan-600
-                    shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
-                    hover:brightness-110 active:scale-[0.98]
-                    transition duration-200 w-full min-w-[120px]
-                    focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                  "
-                      title="Nueva visita"
-                    >
-                      <span className="sm:hidden">+</span>
-                      <span className="hidden sm:inline">+ Nueva</span>
-                    </button>
+                    {canCreateVisita && (
+                      <button
+                        onClick={() => setOpenCreate(true)}
+                        type="button"
+                        className="
+      inline-flex items-center justify-center gap-2
+      rounded-2xl px-3 py-2.5 text-sm font-medium text-white
+      bg-gradient-to-tr from-emerald-600 to-cyan-600
+      shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)]
+      hover:brightness-110 active:scale-[0.98]
+      transition duration-200 w-full min-w-[120px]
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white
+    "
+                        title="Nueva visita"
+                      >
+                        <span className="sm:hidden">+</span>
+                        <span className="hidden sm:inline">+ Nueva</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1174,13 +1175,18 @@ const VisitasPage: React.FC = () => {
       {/* Modales */}
       <VisitaDetailModal open={openDetail} onClose={() => setOpenDetail(false)} visita={selected} />
 
-      <CreateVisitaModal
-        open={openCreate}
-        onClose={() => setOpenCreate(false)}
-        onCreated={() => { setOpenCreate(false); refreshNow(); }}
-        tecnicos={tecnicos}
-        empresas={empresas}
-      />
+      {canCreateVisita && (
+        <CreateVisitaModal
+          open={openCreate}
+          onClose={() => setOpenCreate(false)}
+          onCreated={() => {
+            setOpenCreate(false);
+            refreshNow();
+          }}
+          tecnicos={tecnicos}
+          empresas={empresas}
+        />
+      )}
 
       <CreateVisitaModal
         open={openEdit}
