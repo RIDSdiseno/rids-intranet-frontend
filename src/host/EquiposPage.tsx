@@ -132,6 +132,22 @@ type EquipoHistorialItem = {
 
 type ApiHistorial = { total: number; items: EquipoHistorialItem[] };
 
+type TecnicoOpt = {
+  id_tecnico: number;
+  nombre: string;
+  email?: string | null;
+};
+
+type TecnicoApiRow = {
+  id_tecnico?: number | string | null;
+  id?: number | string | null;
+  value?: number | string | null;
+  nombre?: string | null;
+  name?: string | null;
+  email?: string | null;
+  rol?: string | null;
+};
+
 function actorName(actor: ActorLite | null | undefined) {
   if (!actor) return "Sistema";
   if (typeof actor === "string") return actor;
@@ -260,6 +276,32 @@ function getErrorMessage(err: unknown): string {
   } catch {
     return String(err);
   }
+}
+
+function getApiErrorData(err: unknown): any {
+  return (err as any)?.response?.data ?? null;
+}
+
+function getApiErrorMessage(err: unknown): string {
+  const data = getApiErrorData(err);
+
+  return (
+    data?.message ||
+    data?.error ||
+    (err instanceof Error ? err.message : "") ||
+    "Ocurrió un error inesperado"
+  );
+}
+
+function isSerialDuplicadoError(err: unknown): boolean {
+  const data = getApiErrorData(err);
+  const msg = getApiErrorMessage(err).toLowerCase();
+
+  return (
+    data?.code === "SERIAL_DUPLICADO" ||
+    data?.field === "serial" ||
+    msg.includes("serial") && (msg.includes("existe") || msg.includes("duplic"))
+  );
 }
 
 function styleWorksheet(
@@ -411,6 +453,15 @@ const EquiposPage: React.FC = () => {
   const [updatedFrom, setUpdatedFrom] = useState<string>("");
   const [updatedTo, setUpdatedTo] = useState<string>("");
 
+  // filtro tecnico
+  const [tecnicoOptions, setTecnicoOptions] = useState<TecnicoOpt[]>([]);
+  const [tecnicoFilterId, setTecnicoFilterId] = useState<number | null>(null);
+  const [auditFrom, setAuditFrom] = useState<string>("");
+  const [auditTo, setAuditTo] = useState<string>("");
+  const [auditAction, setAuditAction] = useState<"ALL" | "CREATE" | "UPDATE">("ALL");
+  const [tecLoading, setTecLoading] = useState(false);
+  const [tecError, setTecError] = useState<string | null>(null);
+
   const [empLoading, setEmpLoading] = useState(false);
   const [empError, setEmpError] = useState<string | null>(null);
 
@@ -510,8 +561,13 @@ const EquiposPage: React.FC = () => {
           updatedFrom: updatedFrom || undefined,
           updatedTo: updatedTo || undefined,
 
-          _ts: Date.now()
-        }
+          auditTecnicoId: tecnicoFilterId || undefined,
+          auditFrom: auditFrom || undefined,
+          auditTo: auditTo || undefined,
+          auditAction: auditAction !== "ALL" ? auditAction : undefined,
+
+          _ts: Date.now(),
+        },
       });
 
       setData(res.data);
@@ -618,13 +674,81 @@ const EquiposPage: React.FC = () => {
     }
   }
 
+  // Fetch de tecnicos
+  async function fetchTecnicoOptions(signal?: AbortSignal) {
+    try {
+      setTecLoading(true);
+      setTecError(null);
+
+      const res = await http.get("/tecnicos/select", { signal });
+      const raw = res.data;
+
+      const list: TecnicoApiRow[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.items)
+            ? raw.items
+            : [];
+
+      const opts: TecnicoOpt[] = list
+        .filter((t: TecnicoApiRow) => {
+          const rol = String(t.rol ?? "").toUpperCase().trim();
+          return ["ADMIN", "TECNICO", "ADMINISTRACION", "VENTAS"].includes(rol);
+        })
+        .map((t: TecnicoApiRow): TecnicoOpt => ({
+          id_tecnico: Number(t.id_tecnico ?? t.id ?? t.value),
+          nombre: String(t.nombre ?? t.name ?? t.email ?? "Sin nombre"),
+          email: t.email ?? null,
+        }))
+        .filter((t: TecnicoOpt) => Number.isFinite(t.id_tecnico))
+        .sort((a: TecnicoOpt, b: TecnicoOpt) =>
+          a.nombre.localeCompare(b.nombre, "es")
+        );
+
+      setTecnicoOptions(opts);
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+
+      if (code === "ERR_CANCELED" || (err as Error).name === "AbortError") {
+        return;
+      }
+
+      setTecError((err as Error)?.message || "Error al cargar técnicos");
+      setTecnicoOptions([]);
+    } finally {
+      setTecLoading(false);
+    }
+  }
+
   /* ======== Effects ======== */
   useEffect(() => {
     const c = new AbortController();
     fetchList(c.signal);
     return () => c.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, qDebounced, empresaFilterId, marcaFilter, createdFrom, createdTo, updatedFrom, updatedTo]);
+  }, [
+    page,
+    pageSize,
+    qDebounced,
+    empresaFilterId,
+    marcaFilter,
+    createdFrom,
+    createdTo,
+    updatedFrom,
+    updatedTo,
+    tecnicoFilterId,
+    auditFrom,
+    auditTo,
+    auditAction,
+  ]);
+
+  useEffect(() => {
+    const c = new AbortController();
+    fetchTecnicoOptions(c.signal);
+    return () => c.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const c = new AbortController();
@@ -645,6 +769,11 @@ const EquiposPage: React.FC = () => {
     setCreatedTo("");
     setUpdatedFrom("");
     setUpdatedTo("");
+
+    setTecnicoFilterId(null);
+    setAuditFrom("");
+    setAuditTo("");
+    setAuditAction("ALL");
 
     setPage(1);
   };
@@ -703,6 +832,9 @@ const EquiposPage: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editRow, setEditRow] = useState<EquipoRow | null>(null);
+
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editFieldError, setEditFieldError] = useState<keyof EquipoForm | null>(null);
 
   /* ================== VER (VISTA PREVIA) ================== */
   const [viewOpen, setViewOpen] = useState(false);
@@ -885,6 +1017,8 @@ const EquiposPage: React.FC = () => {
     setEditSolicitanteId(row.idSolicitante ?? null);
     setSolSearchE("");
     setEditOpen(true);
+    setEditError(null);
+    setEditFieldError(null);
 
   };
 
@@ -893,6 +1027,8 @@ const EquiposPage: React.FC = () => {
     setEditOpen(false);
     setEditRow(null);
     setEditAdicionales([]);
+    setEditError(null);
+    setEditFieldError(null);
   };
 
   const saveEdit = async () => {
@@ -925,8 +1061,17 @@ const EquiposPage: React.FC = () => {
 
     try {
       setEditSaving(true);
+
+      const hoy = dayjs().format("YYYY-MM-DD");
+
+      setEditForm((prev) => ({
+        ...prev,
+        revisado: hoy,
+      }));
+
       await http.patch(`/equipos/${editRow.id_equipo}`, {
         ...editForm,
+        revisado: hoy,
         idSolicitante: editSolicitanteId,
         empresaId: editEmpresaId,
         adicionales: editAdicionales
@@ -944,7 +1089,15 @@ const EquiposPage: React.FC = () => {
       setEditRow(null);
       setEditAdicionales([]);
     } catch (err: unknown) {
-      alert(getErrorMessage(err) || "No se pudo actualizar el equipo");
+      const msg = getApiErrorMessage(err);
+
+      if (isSerialDuplicadoError(err)) {
+        setEditFieldError("serial");
+        setEditError(msg || "Ya existe un equipo registrado con ese serial.");
+        return;
+      }
+
+      setEditError(msg || "No se pudo actualizar el equipo");
     } finally {
       setEditSaving(false);
     }
@@ -1232,6 +1385,102 @@ const EquiposPage: React.FC = () => {
                 </div>
 
               </div>
+              <div className="md:col-span-12 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+                <div className="flex flex-col gap-1 mb-3">
+                  <div className="text-sm font-semibold text-slate-800">
+                    Actividad por técnico
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Filtra equipos que fueron creados o editados por un técnico en una fecha determinada.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Técnico</span>
+                    <select
+                      value={tecnicoFilterId ?? ""}
+                      onChange={(e) => {
+                        setTecnicoFilterId(e.target.value ? Number(e.target.value) : null);
+                        setPage(1);
+                      }}
+                      disabled={tecLoading}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      <option value="">
+                        {tecLoading ? "Cargando técnicos..." : "Todos los técnicos"}
+                      </option>
+
+                      {tecnicoOptions.map((t) => (
+                        <option key={t.id_tecnico} value={t.id_tecnico}>
+                          {t.nombre}
+                          {t.email ? ` — ${t.email}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    {tecError && (
+                      <div className="mt-1 text-xs text-rose-600">{tecError}</div>
+                    )}
+                  </label>
+
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Acción</span>
+                    <select
+                      value={auditAction}
+                      onChange={(e) => {
+                        setAuditAction(e.target.value as "ALL" | "CREATE" | "UPDATE");
+                        setPage(1);
+                      }}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      <option value="ALL">Todos</option>
+                      <option value="CREATE">Solo creados</option>
+                      <option value="UPDATE">Solo editados</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Rango actividad</span>
+                    <RangePicker
+                      value={[
+                        auditFrom ? dayjs(auditFrom) : null,
+                        auditTo ? dayjs(auditTo) : null,
+                      ]}
+                      onChange={(dates) => {
+                        setAuditFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                        setAuditTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                        setPage(1);
+                      }}
+                      format="DD/MM/YYYY"
+                      className="w-full"
+                      allowClear
+                      placeholder={["Desde", "Hasta"]}
+                      presets={[
+                        {
+                          label: "Hoy",
+                          value: [dayjs().startOf("day"), dayjs().endOf("day")],
+                        },
+                        {
+                          label: "Últimos 7 días",
+                          value: [dayjs().subtract(6, "day").startOf("day"), dayjs().endOf("day")],
+                        },
+                        {
+                          label: "Este mes",
+                          value: [dayjs().startOf("month"), dayjs().endOf("month")],
+                        },
+                        {
+                          label: "Mes anterior",
+                          value: [
+                            dayjs().subtract(1, "month").startOf("month"),
+                            dayjs().subtract(1, "month").endOf("month"),
+                          ],
+                        },
+                      ]}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Chips filtros activos */}
@@ -1265,6 +1514,49 @@ const EquiposPage: React.FC = () => {
                     className="hover:text-indigo-700 shrink-0"
                     aria-label="Quitar filtro de marca"
                     title="Quitar filtro de marca"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+              {tecnicoFilterId && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Técnico:</span>
+                  <strong className="truncate">
+                    {tecnicoOptions.find((t) => t.id_tecnico === tecnicoFilterId)?.nombre ?? tecnicoFilterId}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setTecnicoFilterId(null);
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-700 shrink-0"
+                    aria-label="Quitar filtro de técnico"
+                    title="Quitar filtro de técnico"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+
+              {(auditFrom || auditTo) && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Actividad:</span>
+                  <strong className="truncate">
+                    {auditFrom ? dayjs(auditFrom).format("DD/MM/YYYY") : "Inicio"} -{" "}
+                    {auditTo ? dayjs(auditTo).format("DD/MM/YYYY") : "Hoy"}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setAuditFrom("");
+                      setAuditTo("");
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-700 shrink-0"
+                    aria-label="Quitar filtro de actividad"
+                    title="Quitar filtro de actividad"
+                    type="button"
                   >
                     <CloseCircleFilled />
                   </button>
@@ -1734,11 +2026,24 @@ const EquiposPage: React.FC = () => {
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
             <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Editar equipo #{editRow?.id_equipo}</h3>
-              <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Editar equipo #{editRow?.id_equipo}
+              </h3>
+              <button
+                onClick={cancelEdit}
+                className="text-slate-500 hover:text-slate-700"
+                aria-label="Cerrar"
+              >
                 ✕
               </button>
             </div>
+
+            {editError && (
+              <div className="mx-5 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="font-semibold">No se pudo guardar el equipo</div>
+                <div>{editError}</div>
+              </div>
+            )}
 
             {/* Empresa -> Solicitante */}
             <div className="px-5 pt-4 grid grid-cols-1 gap-3">
@@ -1834,9 +2139,14 @@ const EquiposPage: React.FC = () => {
                     <input
                       required
                       value={editForm[f.key]}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }))
-                      }
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }));
+
+                        if (editFieldError === f.key) {
+                          setEditFieldError(null);
+                          setEditError(null);
+                        }
+                      }}
                       onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
                         const v = e.target.value.trim();
                         const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
@@ -1846,10 +2156,17 @@ const EquiposPage: React.FC = () => {
                       }}
                       placeholder={f.label}
                       className={clsx(
-                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900",
-                        "border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                        editFieldError === f.key
+                          ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                          : "border-cyan-200 focus:ring-cyan-500/30"
                       )}
                     />
+                    {editFieldError === f.key && editError && (
+                      <div className="mt-1 text-xs font-medium text-rose-600">
+                        {editError}
+                      </div>
+                    )}
                   </label>
                 ));
               })()}

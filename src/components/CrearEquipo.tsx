@@ -484,7 +484,13 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
         if (axiosData?.errors?.length > 0) {
           const primerError = axiosData.errors[0];
-          message.error(primerError.error || "Error al crear el equipo");
+
+          setSubmitError(
+            primerError?.serial
+              ? `Serial duplicado: ${primerError.serial} ya está registrado en el sistema`
+              : primerError?.error || "Error al crear el equipo"
+          );
+
           return;
         }
 
