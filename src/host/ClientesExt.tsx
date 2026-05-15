@@ -79,6 +79,11 @@ const Clientes: React.FC = () => {
 
     const [form] = Form.useForm<ClienteFormValues>();
 
+    const [pagination, setPagination] = useState({
+        current: 1,
+        pageSize: 10,
+    });
+
     const filteredClientes = useMemo(() => {
         const q = search.trim().toLowerCase();
 
@@ -316,7 +321,13 @@ const Clientes: React.FC = () => {
                     allowClear
                     placeholder="Buscar por nombre, email o empresa"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPagination((prev) => ({
+                            ...prev,
+                            current: 1,
+                        }));
+                    }}
                     style={{ maxWidth: 420 }}
                 />
             </div>
@@ -328,8 +339,24 @@ const Clientes: React.FC = () => {
                     dataSource={filteredClientes}
                     loading={loading}
                     pagination={{
-                        pageSize: 10,
+                        current: pagination.current,
+                        pageSize: pagination.pageSize,
                         showSizeChanger: true,
+                        pageSizeOptions: ["5", "10", "20", "50", "100"],
+                        showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} de ${total} clientes`,
+                        onChange: (page, pageSize) => {
+                            setPagination({
+                                current: page,
+                                pageSize,
+                            });
+                        },
+                        onShowSizeChange: (_current, size) => {
+                            setPagination({
+                                current: 1,
+                                pageSize: size,
+                            });
+                        },
                     }}
                 />
             </div>

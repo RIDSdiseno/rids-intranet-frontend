@@ -63,8 +63,13 @@ type EmpresaDashboardData = {
 
   kpis: {
     totalSolicitantes: number;
+    totalSolicitantesActivos?: number;
     totalEquipos: number;
+
     visitasMes: number;
+    visitasPresencialesMes: number;
+    diasConVisitasMes: number;
+
     mantencionesRemotasMes: number;
     totalMinutosSoporte: number;
     horasSoporte: number;
@@ -83,6 +88,11 @@ type EmpresaDashboardData = {
 
     visitasPorTecnico: Array<{
       tecnico: string;
+      total: number;
+    }>;
+
+    visitasPorDia: Array<{
+      dia: string;
       total: number;
     }>;
 
@@ -605,20 +615,20 @@ const EmpresasPage: React.FC = () => {
           change: "Dispositivos asociados a tu empresa",
         },
         {
-          name: "Visitas del Mes",
+          name: "Días con visitas",
           value:
             empresaDashboardLoading || refreshing ? (
               <span className="inline-flex items-center gap-2">
                 <LoadingOutlined /> Cargando…
               </span>
             ) : (
-              formatNumber(empresaDashboard?.kpis.visitasMes ?? 0)
+              formatNumber(empresaDashboard?.kpis.diasConVisitasMes ?? 0)
             ),
           icon: <PieChartOutlined className="text-cyan-700 text-xl" />,
-          change: `${mesDashboard}/${anoDashboard}`,
+          change: `${empresaDashboard?.kpis.visitasPresencialesMes ?? 0} visitas presenciales en ${mesDashboard}/${anoDashboard}`,
         },
         {
-          name: "Horas Soporte Mes",
+          name: "Horas de Soporte en el Mes filtrado",
           value:
             empresaDashboardLoading || refreshing ? (
               <span className="inline-flex items-center gap-2">
@@ -819,6 +829,54 @@ const EmpresasPage: React.FC = () => {
                   )}
                 </div>
               )}
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
+                {computedStats.map((stat, idx) => (
+                  <motion.div
+                    key={stat.name}
+                    className="bg-white rounded-xl shadow-md p-5 border border-slate-100 relative overflow-hidden"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: idx * 0.1 }}
+                    whileHover={{
+                      scale: 1.03,
+                      boxShadow: "0 12px 24px rgba(0,0,0,.12)",
+                    }}
+                  >
+                    <div className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-100/40 blur-2xl" />
+
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-slate-600 font-medium">
+                          {stat.name}
+                        </div>
+
+                        <div className="mt-3 text-3xl font-bold text-slate-800">
+                          {stat.value}
+                        </div>
+
+                        <div className="text-sm text-slate-500 mt-1">
+                          {stat.change}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {stat.icon}
+
+                        {isRefreshableStat(stat) && (
+                          <button
+                            onClick={stat.onRefresh}
+                            className="ml-1 rounded-lg border border-blue-200 text-blue-700 px-2 py-1 text-xs hover:bg-blue-50"
+                            title="Actualizar"
+                            type="button"
+                          >
+                            <ReloadOutlined />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
               {isCliente ? (
                 <>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -1022,27 +1080,51 @@ const EmpresasPage: React.FC = () => {
                 </>
               )}
 
-              <div className="grid grid-cols-1 gap-6 mb-8">
-                <motion.div className="bg-white rounded-xl shadow-md p-6 border border-slate-100" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.45 }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-slate-800">
-                      <span className="inline-flex items-center gap-2"><PieChartOutlined className="text-purple-700" />Distribución por Tamaño</span>
+              {isCliente && (
+                <div className="grid grid-cols-1 gap-6 mb-8">
+                  <motion.div
+                    className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.45 }}
+                  >
+                    <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <PieChartOutlined className="text-cyan-700" />
+                      Registro de cantidad de Mantenciones en Visita por día del mes
                     </h2>
-                  </div>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={distribucionTamanioEmpresas} cx="50%" cy="50%" labelLine={false} label={renderPieLabel} outerRadius={80} fill="#8884d8" dataKey="value">
-                          {distribucionTamanioEmpresas.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={(props) => <CustomPieTooltip {...props} />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </motion.div>
-              </div>
+
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={empresaDashboard?.charts.visitasPorDia ?? []}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+
+                          <XAxis
+                            dataKey="dia"
+                            tick={{ fontSize: 12, fill: "#374151" }}
+                            interval={0}
+                            height={60}
+                            angle={-45}
+                            textAnchor="end"
+                          />
+
+                          <YAxis allowDecimals={false} tick={{ fill: "#374151" }} />
+
+                          <Tooltip content={(props) => <CustomBarTooltip {...props} />} />
+
+                          <Bar dataKey="total">
+                            {(empresaDashboard?.charts.visitasPorDia ?? []).map((_, index) => (
+                              <Cell
+                                key={`visitas-dia-${index}`}
+                                fill={DARK_PALETTE[(index + 6) % DARK_PALETTE.length]}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
             </>
           )}
 

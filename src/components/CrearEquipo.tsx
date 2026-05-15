@@ -70,6 +70,7 @@ export type EquipoDTO = {
   ram: string;
   disco: string;
   propiedad: string;
+  estado: EstadoEquipo;
   idSolicitante: number;
   solicitante: SolicitanteDTO | null;
 };
@@ -106,6 +107,8 @@ type CreateEquipoPayload = {
   ram: string;
   disco: string;
   propiedad: string;
+
+  estado: EstadoEquipo;
 
   // 🔥 DETALLE
   macWifi?: string;
@@ -156,6 +159,15 @@ type CreateEquipoResponse = {
     error: string;
   }>;
 };
+
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_TALLER";
+
+const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
+  { value: "ACTIVO", label: "Activo" },
+  { value: "EN_STOCK", label: "En stock" },
+  { value: "DADO_DE_BAJA", label: "Dado de baja" },
+  { value: "EN_TALLER", label: "En taller" },
+];
 
 /* =================== Branding =================== */
 const THEMES = {
@@ -414,6 +426,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         ram: `${Number(values.ramGb)}GB`,
         disco: values.disco.trim(),
         propiedad: values.propiedad.trim(),
+
+        estado: values.estado ?? "ACTIVO",
 
         // 🔥 detalle
         macWifi: values.macWifi,
@@ -978,6 +992,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                       { label: "Equipo Personal", value: "Equipo Personal" }, // 👈 AQUÍ
                     ]}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  name="estado"
+                  label="Estado del equipo"
+                  initialValue="ACTIVO"
+                  rules={[{ required: true, message: "Selecciona el estado del equipo" }]}
+                >
+                  <Select
+                    options={ESTADO_EQUIPO_OPTIONS}
+                    placeholder="Selecciona estado"
                   />
                 </Form.Item>
               </motion.div>

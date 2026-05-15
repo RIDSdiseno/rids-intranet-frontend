@@ -78,6 +78,7 @@ type EquipoRow = {
   passwordPersonal?: string | null;
 
   adicionales?: EquipoAdicional[];
+  estado?: EstadoEquipo | null;
 };
 
 type ApiList<T> = {
@@ -148,6 +149,37 @@ type TecnicoApiRow = {
   rol?: string | null;
 };
 
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_TALLER";
+
+const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
+  { value: "ACTIVO", label: "Activo" },
+  { value: "EN_STOCK", label: "En stock" },
+  { value: "DADO_DE_BAJA", label: "Dado de baja" },
+  { value: "EN_TALLER", label: "En taller" },
+];
+
+function getEstadoEquipoLabel(value?: string | null) {
+  return (
+    ESTADO_EQUIPO_OPTIONS.find((opt) => opt.value === value)?.label ??
+    "Activo"
+  );
+}
+
+function getEstadoEquipoClass(value?: string | null) {
+  switch (value) {
+    case "ACTIVO":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "EN_STOCK":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "EN_TALLER":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    case "DADO_DE_BAJA":
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+}
+
 function actorName(actor: ActorLite | null | undefined) {
   if (!actor) return "Sistema";
   if (typeof actor === "string") return actor;
@@ -167,6 +199,7 @@ const fieldLabels: Record<string, string> = {
   ram: "RAM",
   disco: "Disco",
   propiedad: "Propiedad",
+  estado: "Estado",
   empresaId: "Empresa",
   idSolicitante: "Solicitante",
   macWifi: "MAC WiFi",
@@ -472,6 +505,7 @@ const EquiposPage: React.FC = () => {
 
   // Marca (clic en tag)
   const [marcaFilter, setMarcaFilter] = useState<string>("");
+  const [estadoFilter, setEstadoFilter] = useState<EstadoEquipo | "">("");
 
   // Datos / paginación
   const [page, setPage] = useState(1);
@@ -565,6 +599,8 @@ const EquiposPage: React.FC = () => {
           auditFrom: auditFrom || undefined,
           auditTo: auditTo || undefined,
           auditAction: auditAction !== "ALL" ? auditAction : undefined,
+
+          estado: estadoFilter || undefined,
 
           _ts: Date.now(),
         },
@@ -741,6 +777,7 @@ const EquiposPage: React.FC = () => {
     auditFrom,
     auditTo,
     auditAction,
+    estadoFilter,
   ]);
 
   useEffect(() => {
@@ -774,6 +811,8 @@ const EquiposPage: React.FC = () => {
     setAuditFrom("");
     setAuditTo("");
     setAuditAction("ALL");
+
+    setEstadoFilter("");
 
     setPage(1);
   };
@@ -888,6 +927,8 @@ const EquiposPage: React.FC = () => {
     usuarioPersonal: string;
     passwordPersonal: string;
 
+    estado: EstadoEquipo;
+
   };
 
   const [editForm, setEditForm] = useState<EquipoForm>({
@@ -898,6 +939,7 @@ const EquiposPage: React.FC = () => {
     ram: "",
     disco: "",
     propiedad: "",
+    estado: "ACTIVO",
 
     macWifi: "",
     redEthernet: "",
@@ -993,6 +1035,7 @@ const EquiposPage: React.FC = () => {
       ram: row.ram || "",
       disco: row.disco || "",
       propiedad: row.propiedad || "",
+      estado: (row.estado ?? "ACTIVO") as EstadoEquipo,
 
       macWifi: row.macWifi || "",
       redEthernet: row.redEthernet || "",
@@ -1122,6 +1165,7 @@ const EquiposPage: React.FC = () => {
     { key: "serial", label: "Serial", className: "min-w-[120px]" },
     { key: "marca", label: "Marca", className: "min-w-[100px]" },
     { key: "modelo", label: "Modelo", className: "min-w-[120px]" },
+    { key: "estado", label: "Estado", className: "min-w-[120px]" },
     { key: "solicitante", label: "Solicitante", className: "min-w-[120px]" },
     { key: "empresa", label: "Empresa", className: "min-w-[100px]" },
     { key: "createdAt", label: "Fecha ingreso", className: "min-w-[110px]" },
@@ -1306,6 +1350,28 @@ const EquiposPage: React.FC = () => {
                         <ChevronDownIcon className="w-5 h-5 text-slate-400" />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Estado del equipo
+                    </label>
+
+                    <select
+                      value={estadoFilter}
+                      onChange={(e) => {
+                        setEstadoFilter(e.target.value as EstadoEquipo | "");
+                        setPage(1);
+                      }}
+                      className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-200"
+                    >
+                      <option value="">Todos los estados</option>
+                      {ESTADO_EQUIPO_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                 </div>
@@ -1519,6 +1585,27 @@ const EquiposPage: React.FC = () => {
                   </button>
                 </span>
               )}
+
+              {estadoFilter && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 text-blue-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Estado:</span>
+                  <strong className="truncate">
+                    {getEstadoEquipoLabel(estadoFilter)}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setEstadoFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-blue-700 shrink-0"
+                    aria-label="Quitar filtro de estado"
+                    title="Quitar filtro de estado"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
               {tecnicoFilterId && (
                 <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
                   <span className="shrink-0">Técnico:</span>
@@ -1636,6 +1723,14 @@ const EquiposPage: React.FC = () => {
                 </header>
 
                 <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={clsx(
+                      "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+                      getEstadoEquipoClass(e.estado)
+                    )}
+                  >
+                    {getEstadoEquipoLabel(e.estado)}
+                  </span>
                   {e.solicitante ? (
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
                       <LaptopOutlined className="opacity-80" /> {e.solicitante}
@@ -1821,6 +1916,16 @@ const EquiposPage: React.FC = () => {
                               )}
                             </td>
                             <td className="px-4 py-3">{e.modelo || <span className="text-slate-400">—</span>}</td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={clsx(
+                                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                                  getEstadoEquipoClass(e.estado)
+                                )}
+                              >
+                                {getEstadoEquipoLabel(e.estado)}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                               {e.solicitante ? (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
@@ -2171,6 +2276,29 @@ const EquiposPage: React.FC = () => {
                 ));
               })()}
 
+              <label className="text-sm">
+                <span className="block text-slate-700 mb-1">
+                  Estado del equipo <span className="text-rose-500">*</span>
+                </span>
+
+                <select
+                  value={editForm.estado}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      estado: e.target.value as EstadoEquipo,
+                    }))
+                  }
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                >
+                  {ESTADO_EQUIPO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <div className="sm:col-span-2 text-[11px] text-slate-500 mt-1">
                 Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
               </div>
@@ -2471,6 +2599,17 @@ const EquiposPage: React.FC = () => {
                   <div><strong>Serial:</strong> {toUC(viewRow.serial)}</div>
                   <div><strong>Marca:</strong> {viewRow.marca}</div>
                   <div><strong>Modelo:</strong> {viewRow.modelo}</div>
+                  <div>
+                    <strong>Estado:</strong>{" "}
+                    <span
+                      className={clsx(
+                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                        getEstadoEquipoClass(viewRow.estado)
+                      )}
+                    >
+                      {getEstadoEquipoLabel(viewRow.estado)}
+                    </span>
+                  </div>
                   <div><strong>CPU:</strong> {viewRow.procesador}</div>
                   <div><strong>RAM:</strong> {viewRow.ram}</div>
                   <div><strong>Disco:</strong> {viewRow.disco}</div>

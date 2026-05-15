@@ -37,6 +37,7 @@ type AccountType = "google" | "microsoft" | "local" | null;
 export type SolicitanteRow = {
   id_solicitante: number;
   nombre: string;
+  rut: string | null;
   email: string | null;
   telefono: string | null;
   empresaId: number | null;
@@ -104,6 +105,29 @@ type CheckEmailResponse = {
   } | null;
 };
 
+function cleanRut(value: string) {
+  return value
+    .replace(/\./g, "")
+    .replace(/-/g, "")
+    .replace(/\s/g, "")
+    .toUpperCase();
+}
+
+function formatRut(value: string) {
+  const clean = cleanRut(value);
+
+  if (!clean) return "";
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  if (!cuerpo) return dv;
+
+  const cuerpoConPuntos = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  return `${cuerpoConPuntos}-${dv}`;
+}
+
 const prettyError = (e: unknown): string => {
   const ax = e as AxiosError<{ error?: string }>;
   return ax?.response?.data?.error || ax.message || "Error inesperado";
@@ -128,6 +152,7 @@ async function apiMetrics(params: { q?: string; empresaId?: number | null }) {
 
 async function apiCreateSolicitante(payload: {
   nombre: string;
+  rut?: string | null;
   email?: string | null;
   telefono?: string | null;
   empresaId: number;
@@ -138,7 +163,13 @@ async function apiCreateSolicitante(payload: {
 
 async function apiUpdateSolicitante(
   id: number,
-  payload: Partial<{ nombre: string; email: string | null; telefono: string | null; empresaId: number }>
+  payload: Partial<{
+    nombre: string;
+    rut: string | null;
+    email: string | null;
+    telefono: string | null;
+    empresaId: number;
+  }>
 ) {
   const { data } = await api.patch<SolicitanteRow>(`/solicitantes/${id}`, payload);
   return data;
@@ -358,12 +389,15 @@ const TWModal: React.FC<TWModalProps> = ({
 // ========= Estado de upsert =========
 type UpsertState = {
   nombre: string;
+  rut: string | null;
   email: string | null;
   telefono: string | null;
   empresaId: number | null;
 };
+
 const emptyUpsert: UpsertState = {
   nombre: "",
+  rut: null,
   email: null,
   telefono: null,
   empresaId: null,
@@ -376,11 +410,18 @@ function useUpsert(initial?: Partial<UpsertState>) {
 
 // ========= Validaciones =========
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+const isRut = (s: string) => {
+  const clean = cleanRut(s);
+  return /^\d{7,8}[0-9K]$/.test(clean);
+};
 const validateUpsert = (v: UpsertState) => {
   const errors: Partial<Record<keyof UpsertState, string>> = {};
   if (!v.nombre || v.nombre.trim().length < 2) errors.nombre = "Ingresa un nombre válido (mínimo 2 caracteres).";
   if (v.email && v.email.trim().length > 0 && !isEmail(v.email)) errors.email = "Email no tiene un formato válido.";
   if (!v.empresaId) errors.empresaId = "Selecciona una empresa.";
+  if (v.rut && v.rut.trim().length > 0 && !isRut(v.rut)) {
+    errors.rut = "RUT no tiene un formato válido.";
+  }
   return errors;
 };
 
@@ -681,6 +722,7 @@ export default function SolicitantesPage() {
 
       await apiCreateSolicitante({
         nombre: createForm.v.nombre.trim(),
+        rut: createForm.v.rut ? createForm.v.rut.trim() : null,
         email: createForm.v.email ? createForm.v.email.trim().toLowerCase() : null,
         telefono: createForm.v.telefono ? createForm.v.telefono.trim() : null,
         empresaId: createForm.v.empresaId!,
@@ -712,6 +754,7 @@ export default function SolicitantesPage() {
     setEditErrors({});
     editForm.setV({
       nombre: row.nombre,
+      rut: row.rut ?? null,
       email: row.email ?? null,
       telefono: row.telefono ?? null,
       empresaId: row.empresaId,
@@ -732,6 +775,7 @@ export default function SolicitantesPage() {
       setSavingEdit(true);
       await apiUpdateSolicitante(editing.id_solicitante, {
         nombre: editForm.v.nombre.trim(),
+        rut: editForm.v.rut ? editForm.v.rut.trim() : null,
         email: editForm.v.email ? editForm.v.email.trim() : null,
         telefono: editForm.v.telefono ? editForm.v.telefono.trim() : null,
         empresaId: editForm.v.empresaId!,
@@ -849,6 +893,7 @@ export default function SolicitantesPage() {
         const mapped: SolicitanteForDetail = {
           id_solicitante: row.id_solicitante,
           nombre: row.nombre,
+          rut: row.rut ?? null,
           empresaId: row.empresaId,
           empresa: row.empresa,
           equipos: equiposMapped,
@@ -1171,6 +1216,7 @@ export default function SolicitantesPage() {
                 <tr>
                   <th className="px-4 py-3 w-16 text-left font-semibold">ID</th>
                   <th className="px-4 py-3 text-left font-semibold">Nombre</th>
+                  <th className="px-4 py-3 text-left">RUT</th>
                   <th className="px-4 py-3 text-left font-semibold">Empresa</th>
                   <th className="px-4 py-3 text-center font-semibold">Equipos</th>
                   <th className="px-4 py-3 text-left font-semibold">Cuenta</th>
@@ -1185,6 +1231,10 @@ export default function SolicitantesPage() {
                       <tr key={`skt-${i}`} className="border-t border-cyan-100 animate-pulse">
                         <td className="px-4 py-3">
                           <div className="h-4 w-10 bg-cyan-50 rounded" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-4 w-40 bg-cyan-50 rounded" />
+                          <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
                         </td>
                         <td className="px-4 py-3">
                           <div className="h-4 w-40 bg-cyan-50 rounded" />
@@ -1239,6 +1289,15 @@ export default function SolicitantesPage() {
                           </button>
                           <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
                           <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.rut ? (
+                            <span className="font-medium text-slate-700">
+                              {r.rut}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           {r.empresa?.nombre ? (
@@ -1361,6 +1420,28 @@ export default function SolicitantesPage() {
           />
           {createErrors.nombre && <div className="mt-1 text-xs text-rose-600">{createErrors.nombre}</div>}
         </label>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">RUT</span>
+
+          <input
+            value={createForm.v.rut ?? ""}
+            onChange={(e) =>
+              createForm.setV((p) => ({
+                ...p,
+                rut: formatRut(e.target.value),
+              }))
+            }
+            placeholder="Ej: 12.345.678-9"
+            maxLength={12}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+          />
+
+          {createErrors.rut && (
+            <div className="mt-1 text-xs text-rose-600">
+              {createErrors.rut}
+            </div>
+          )}
+        </label>
         <label className="block text-sm">
           Email
           <input
@@ -1455,6 +1536,29 @@ export default function SolicitantesPage() {
             }}
           />
           {editErrors.nombre && <div className="mt-1 text-xs text-rose-600">{editErrors.nombre}</div>}
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">RUT</span>
+
+          <input
+            value={editForm.v.rut ?? ""}
+            onChange={(e) =>
+              editForm.setV((p) => ({
+                ...p,
+                rut: formatRut(e.target.value),
+              }))
+            }
+            placeholder="Ej: 12.345.678-9"
+            maxLength={12}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+          />
+
+          {editErrors.rut && (
+            <div className="mt-1 text-xs text-rose-600">
+              {editErrors.rut}
+            </div>
+          )}
         </label>
 
         <label className="block text-sm">
