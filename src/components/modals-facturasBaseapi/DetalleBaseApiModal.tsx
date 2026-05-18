@@ -13,6 +13,7 @@ import {
     getValue,
     getXmlBase64FromDteResponse,
     parseDteXml,
+    toNumberDte,
 } from "./utils";
 
 import { generarPdfDocumentoSeleccionado } from "./pdfDocumento";
@@ -43,6 +44,9 @@ const DetalleBaseApiModal: React.FC<{
     detalleDte: any | null;
     detalleLoading: boolean;
     detalleError: string;
+    pdfPreparando?: boolean;
+    pdfPreparadoUrl?: string | null;
+    pdfPreparadoNombre?: string;
 }> = ({
     documento,
     activeTab,
@@ -54,7 +58,11 @@ const DetalleBaseApiModal: React.FC<{
     detalleDte,
     detalleLoading,
     detalleError,
+    pdfPreparando = false,
+    pdfPreparadoUrl = null,
+    pdfPreparadoNombre = "",
 }) => {
+
         if (!documento) return null;
 
         const nombre = activeTab === "ventas"
@@ -99,10 +107,10 @@ const DetalleBaseApiModal: React.FC<{
                     codigo: item.codigo ?? "",
                     nombre: item.nombre ?? "—",
                     descripcion: item.descripcion ?? "",
-                    cantidad: item.cantidad ?? "",
+                    cantidad: toNumberDte(item.cantidad ?? 0),
                     unidad: item.unidadMedida ?? "",
-                    precio: item.precioUnitario ?? 0,
-                    monto: item.montoItem ?? 0,
+                    precio: toNumberDte(item.precioUnitario ?? 0),
+                    monto: toNumberDte(item.montoItem ?? 0),
                 }));
 
         const camposPrincipales = [
@@ -215,17 +223,35 @@ const DetalleBaseApiModal: React.FC<{
 
                                     <button
                                         type="button"
-                                        onClick={handleGenerarPdf}
-                                        disabled={detalleLoading || pdfLoading}
+                                        onClick={async () => {
+                                            if (pdfPreparadoUrl) {
+                                                const a = document.createElement("a");
+                                                a.href = pdfPreparadoUrl;
+                                                a.download = pdfPreparadoNombre || "documento-rcv.pdf";
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                a.remove();
+                                                return;
+                                            }
+
+                                            await handleGenerarPdf();
+                                        }}
+                                        disabled={detalleLoading || pdfLoading || pdfPreparando}
                                         className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        {pdfLoading ? (
+                                        {pdfLoading || pdfPreparando ? (
                                             <LoadingOutlined className="animate-spin" />
                                         ) : (
                                             <FilePdfOutlined />
                                         )}
 
-                                        {pdfLoading ? "Generando PDF..." : "Generar PDF"}
+                                        {pdfPreparando
+                                            ? "Preparando PDF..."
+                                            : pdfPreparadoUrl
+                                                ? "Descargar PDF"
+                                                : pdfLoading
+                                                    ? "Generando PDF..."
+                                                    : "Generar PDF"}
                                     </button>
 
                                     <button
@@ -277,6 +303,43 @@ const DetalleBaseApiModal: React.FC<{
                                 </div>
                             ))}
                         </div>
+
+                        {activeTab === "ventas" && (
+                            <div className="mt-4 rounded-2xl border border-cyan-200 bg-white p-3 text-sm shadow-sm">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="font-bold text-slate-800">
+                                            DTE / PDF automático
+                                        </p>
+
+                                        <p className="text-xs text-slate-500">
+                                            Al abrir el detalle se consulta el DTE, se cargan los ítems y se prepara el PDF.
+                                        </p>
+                                    </div>
+
+                                    <span
+                                        className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${detalleLoading || pdfPreparando
+                                                ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                                                : detalleDte && pdfPreparadoUrl
+                                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                                                    : detalleDte
+                                                        ? "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200"
+                                                        : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                                            }`}
+                                    >
+                                        {detalleLoading
+                                            ? "Cargando DTE..."
+                                            : pdfPreparando
+                                                ? "Preparando PDF..."
+                                                : detalleDte && pdfPreparadoUrl
+                                                    ? "DTE y PDF listos"
+                                                    : detalleDte
+                                                        ? "DTE cargado"
+                                                        : "Pendiente"}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Datos principales */}
                         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">

@@ -1,4 +1,4 @@
-// ModalEditarEntidad.tsx
+// src/components/modals-gestioo/ModalEditarEntidad.tsx
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -12,6 +12,30 @@ interface ModalEditarEntidadProps {
 }
 
 import { http } from "../../service/http";
+
+const normalizeRutInput = (value: string): string => {
+    const clean = value
+        .replace(/[^0-9kK]/g, "")
+        .toUpperCase();
+
+    if (clean.length <= 1) return clean;
+
+    const cuerpo = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+
+    return `${cuerpo}-${dv}`;
+};
+
+const formatRutInput = (value: string): string => {
+    const normalized = normalizeRutInput(value);
+
+    if (!normalized.includes("-")) return normalized;
+
+    const [cuerpo, dv] = normalized.split("-");
+    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${cuerpoFormateado}-${dv}`;
+};
 
 export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
     entidadId,
@@ -81,9 +105,11 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
 
         setLoading(true);
         try {
+            const rutPayload = rut ? normalizeRutInput(rut) : null;
+
             await http.put(`/entidades/${entidadId}`, {
-                nombre,
-                rut: rut || null,
+                nombre: nombre.trim(),
+                rut: rutPayload,
                 correo: correo || null,
                 telefono: telefono || null,
                 direccion: direccion || null,
@@ -169,7 +195,15 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
 
                     <div className="space-y-4">
                         <Input label="Nombre *" value={nombre} onChange={setNombre} />
-                        <Input label="RUT" value={rut} onChange={setRut} />
+                        <Input
+                            label="RUT"
+                            value={rut}
+                            placeholder="Ej: 77.861.122-8"
+                            onChange={(value) => {
+                                setRut(formatRutInput(value));
+                                setErrorMsg(null);
+                            }}
+                        />
                         <Input label="Correo" value={correo} onChange={setCorreo} />
                         <Input label="Teléfono" value={telefono} onChange={setTelefono} />
                         <Input
@@ -182,6 +216,9 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
                             <label className="block text-sm font-semibold mb-1">
                                 Origen
                             </label>
+                            <p className="text-xs text-slate-500 mb-2">
+                                El origen es solo informativo. La entidad es única por RUT.
+                            </p>
                             <select
                                 value={origen}
                                 onChange={(e) =>
@@ -227,20 +264,23 @@ export const ModalEditarEntidad: React.FC<ModalEditarEntidadProps> = ({
     );
 };
 
-// 🔹 Input reutilizable local
+// Input reutilizable local
 const Input = ({
     label,
     value,
     onChange,
+    placeholder,
 }: {
     label: string;
     value: string;
     onChange: (v: string) => void;
+    placeholder?: string;
 }) => (
     <div>
         <label className="block text-sm font-semibold mb-1">{label}</label>
         <input
             value={value}
+            placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
             className="w-full border rounded-xl px-3 py-2"
         />

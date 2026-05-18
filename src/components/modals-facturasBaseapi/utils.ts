@@ -1,3 +1,4 @@
+// src/components/modals-facturasBaseapi
 import type { EmpresaKey, EmpresaPDFConfig, TabRCV } from "./types";
 
 export const MESES = [
@@ -25,11 +26,63 @@ export const EMPRESAS_PDF: Record<EmpresaKey, EmpresaPDFConfig> = {
 };
 
 export function formatCLP(valor: any) {
-    const limpio = String(valor ?? "0").replace(/\./g, "").replace(",", ".");
-    const numero = Number(limpio);
+    const numero = toCurrencyNumber(valor);
+
     return new Intl.NumberFormat("es-CL", {
-        style: "currency", currency: "CLP", maximumFractionDigits: 0,
+        style: "currency",
+        currency: "CLP",
+        maximumFractionDigits: 0,
     }).format(Number.isFinite(numero) ? numero : 0);
+}
+
+function toCurrencyNumber(value: any): number {
+    if (value === null || value === undefined || value === "") return 0;
+
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    const raw = String(value)
+        .replace(/\$/g, "")
+        .trim();
+
+    if (!raw) return 0;
+
+    const hasDot = raw.includes(".");
+    const hasComma = raw.includes(",");
+
+    // Formato chileno: 1.234.567,89
+    if (hasDot && hasComma) {
+        const clean = raw.replace(/\./g, "").replace(",", ".");
+        const number = Number(clean);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    // Formato XML DTE: 5995.00 / 12666.00 / 14015.00
+    if (hasDot && !hasComma) {
+        const parts = raw.split(".");
+        const lastPart = parts[parts.length - 1];
+
+        // Si el último bloque tiene 1 o 2 dígitos, lo tratamos como decimal
+        if (lastPart.length <= 2) {
+            const number = Number(raw);
+            return Number.isFinite(number) ? number : 0;
+        }
+
+        // Si es 239.966, lo tratamos como miles
+        const clean = raw.replace(/\./g, "");
+        const number = Number(clean);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    // Formato decimal con coma: 5995,00
+    if (hasComma && !hasDot) {
+        const number = Number(raw.replace(",", "."));
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    const number = Number(raw);
+    return Number.isFinite(number) ? number : 0;
 }
 
 export function formatFechaVista(value?: any) {
@@ -114,6 +167,45 @@ export function toNumberCL(value: any) {
     const raw = String(value ?? "0").replace(/\./g, "").replace(",", ".");
     const num = Number(raw);
     return Number.isFinite(num) ? num : 0;
+}
+
+export function toNumberDte(value: any) {
+    if (value === null || value === undefined || value === "") return 0;
+
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    const raw = String(value).trim();
+
+    if (!raw) return 0;
+
+    const hasDot = raw.includes(".");
+    const hasComma = raw.includes(",");
+
+    // XML DTE normalmente viene así:
+    // 5995.00
+    // 12666.00
+    // 14015.00
+    if (hasDot && !hasComma) {
+        const number = Number(raw);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    // Si viniera en formato chileno decimal
+    if (hasComma && hasDot) {
+        const clean = raw.replace(/\./g, "").replace(",", ".");
+        const number = Number(clean);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    if (hasComma && !hasDot) {
+        const number = Number(raw.replace(",", "."));
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    const number = Number(raw);
+    return Number.isFinite(number) ? number : 0;
 }
 
 export function getBaseApiPayload(json: any) {
@@ -359,10 +451,10 @@ export function parseDteXml(xmlString: string) {
                 codigo: cdgItem ? getFirstTextByLocalName(cdgItem, "VlrCodigo") : "",
                 nombre: getDirectTextByLocalName(detalle, "NmbItem"),
                 descripcion: getDirectTextByLocalName(detalle, "DscItem"),
-                cantidad: getDirectTextByLocalName(detalle, "QtyItem"),
+                cantidad: toNumberDte(getDirectTextByLocalName(detalle, "QtyItem")),
                 unidad: getDirectTextByLocalName(detalle, "UnmdItem"),
-                precio: getDirectTextByLocalName(detalle, "PrcItem"),
-                monto: getDirectTextByLocalName(detalle, "MontoItem"),
+                precio: toNumberDte(getDirectTextByLocalName(detalle, "PrcItem")),
+                monto: toNumberDte(getDirectTextByLocalName(detalle, "MontoItem")),
             };
         });
 
@@ -450,10 +542,10 @@ export function getItemsVisualesParaPdf(detalleDte: any): any[] {
             codigo: item.codigo || "",
             nombre: item.nombre || "Ítem",
             descripcion: item.descripcion || "",
-            cantidad: item.cantidad || "",
+            cantidad: toNumberDte(item.cantidad),
             unidad: item.unidad || "",
-            precio: item.precio || 0,
-            monto: item.monto || 0,
+            precio: toNumberDte(item.precio),
+            monto: toNumberDte(item.monto),
         }));
     }
 
@@ -496,11 +588,12 @@ export function getItemsVisualesParaPdf(detalleDte: any): any[] {
             item.dscItem ??
             "",
 
-        cantidad:
+        cantidad: toNumberDte(
             item.cantidad ??
             item.QtyItem ??
             item.qtyItem ??
-            "",
+            0
+        ),
 
         unidad:
             item.unidad ??
@@ -509,18 +602,20 @@ export function getItemsVisualesParaPdf(detalleDte: any): any[] {
             item.unmdItem ??
             "",
 
-        precio:
+        precio: toNumberDte(
             item.precio ??
             item.precioUnitario ??
             item.PrcItem ??
             item.prcItem ??
-            0,
+            0
+        ),
 
-        monto:
+        monto: toNumberDte(
             item.monto ??
             item.montoItem ??
             item.MontoItem ??
             item.monto_item ??
-            0,
+            0
+        ),
     }));
 }

@@ -91,12 +91,8 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rolNormalizado = String(rol ?? "").toUpperCase().trim();
 
   if (!rolNormalizado || !allowedRoles.includes(rolNormalizado)) {
-    return (
-      <Navigate
-        to={rolNormalizado === "CLIENTE" ? "/home" : "/home"}
-        replace
-      />
-    );
+    const fallback = rolNormalizado === "CLIENTE" ? "/helpdesk" : "/home";
+    return <Navigate to={fallback} replace />;
   }
 
   return <Outlet />;
@@ -165,91 +161,64 @@ export default function App() {
       <Routes>
 
         {/* ===== RUTAS PÚBLICAS ===== */}
-        <Route
-          path="/login"
-          element={
-            <Suspense fallback={<div>Cargando...</div>}>
-              <LoginPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/forgot-password"
-          element={
-            <Suspense fallback={<div>Cargando...</div>}>
-              <ForgotPasswordPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/reset-password"
-          element={
-            <Suspense fallback={<div>Cargando...</div>}>
-              <ResetPasswordPage />
-            </Suspense>
-          }
-        />
+        <Route path="/login" element={<Suspense fallback={<div>Cargando...</div>}><LoginPage /></Suspense>} />
+        <Route path="/forgot-password" element={<Suspense fallback={<div>Cargando...</div>}><ForgotPasswordPage /></Suspense>} />
+        <Route path="/reset-password" element={<Suspense fallback={<div>Cargando...</div>}><ResetPasswordPage /></Suspense>} />
 
         <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
 
-        {/* ===== RUTAS PROTEGIDAS (requieren login) ===== */}
+        {/* ===== RUTAS PROTEGIDAS ===== */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
 
-            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO","VENTAS"]} />}>
+            {/* ── Solo roles internos ──────────────────────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS"]} />}>
               <Route path="/home" element={<HomePage />} />
+              <Route path="/agenda" element={<AgendaPage />} />
+              <Route path="/documentos" element={<DocumentosPage />} />
+              <Route path="/tickets" element={<TicketsPage />} />
+              <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/productos" element={<ProductosPage />} />
             </Route>
 
-            <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
-
-            {/* Accesibles por TODOS los roles */}
-            <Route path="/empresas" element={<EmpresasPage />} />
-            <Route path="/solicitantes" element={<SolicitantesPage />} />
-            <Route path="/equipos" element={<EquiposPage />} />
-            <Route path="/visitas" element={<VisitasPage />} />
-            <Route path="/reportes" element={<ReportesPage />} />
-            <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
-            <Route path="/agenda" element={<AgendaPage />} />
-            <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
-            <Route path="/Cotizaciones" element={<CotizacionesPage />} />
-            <Route path="/clientes" element={<ClientesPage />} />
-            <Route path="/productos" element={<ProductosPage />} />
-            <Route path="/documentos" element={<DocumentosPage />} />
-            <Route path="/tickets" element={<TicketsPage />} />
-            <Route path="/helpdesk" element={<HelpdeskLayout />}>
-              <Route index element={<TicketeraRids />} />
-              <Route path="dashboard" element={<DashboardTecnicosdPage />} />
-              <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
-              <Route path="tickets/:id" element={<TicketeraDetalle />} />
-              <Route path="email-templates" element={<HelpdeskConfigPage />} />
-            </Route>
-
-            {/* Clientes Externos */}
-            <Route
-              element={
-                <RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />
-              }
-            >
+            {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
               <Route path="/clientes-ext" element={<ClientesExtPage />} />
             </Route>
 
-            {/* Técnicos */}
-            <Route
-              element={
-                <RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS"]} />
-              }
-            >
+            {/* ── Internos + CLIENTE (backend filtra por empresa) ─────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
+              <Route path="/empresas" element={<EmpresasPage />} />
+              <Route path="/equipos" element={<EquiposPage />} />
+              <Route path="/solicitantes" element={<SolicitantesPage />} />
+              <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
+              <Route path="/visitas" element={<VisitasPage />} />
+              <Route path="/reportes" element={<ReportesPage />} />
+              <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+              <Route path="/Cotizaciones" element={<CotizacionesPage />} />
+            </Route>
+
+            {/* ── Técnicos ─────────────────────────────────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS"]} />}>
               <Route path="/tecnicos" element={<TecnicosPage />} />
             </Route>
 
-            {/* Cobranza — solo emails permitidos (independiente del rol) */}
+            {/* ── Helpdesk — todos + CLIENTE ───────────────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
+              <Route path="/helpdesk" element={<HelpdeskLayout />}>
+                <Route index element={<TicketeraRids />} />
+                <Route path="tickets/:id" element={<TicketeraDetalle />} />
+                {/* Dashboard y config solo para internos */}
+                <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS"]} />}>
+                  <Route path="dashboard" element={<DashboardTecnicosdPage />} />
+                  <Route path="tickets-dashboard" element={<TicketsDashboardPage />} />
+                  <Route path="email-templates" element={<HelpdeskConfigPage />} />
+                </Route>
+              </Route>
+            </Route>
+
+            {/* ── Facturas ─────────────────────────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
-              {/*}
-              <Route path="/cobranza/conciliacion-rids" element={<ConciliacionPage />} />
-              <Route path="/cobranza/conciliacion-ecconet" element={<ConciliacionEcconetPage />} />
-              <Route path="/facturas" element={<FacturasDashboardPage />} />
-              <Route path="/cobranza" element={<FacturasDashboardPage />} />
-              */}
               <Route path="/facturas-baseapi" element={<FacturasBaseapiPage />} />
             </Route>
 

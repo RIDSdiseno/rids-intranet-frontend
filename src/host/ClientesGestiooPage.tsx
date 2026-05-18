@@ -1,3 +1,4 @@
+// src/host/ClientesGestiooPage.tsx
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
     Building2,
@@ -422,6 +423,7 @@ const Modal: React.FC<ModalProps> = React.memo(
 const ClientesPage: React.FC = () => {
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [query, setQuery] = useState("");
+    const [origenFiltro, setOrigenFiltro] = useState<"TODOS" | "RIDS" | "ECONNET" | "OTRO">("TODOS");
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [notification, setNotification] = useState<
@@ -479,8 +481,16 @@ const ClientesPage: React.FC = () => {
     =============================== */
     const loadClientes = useCallback(async () => {
         setIsLoading(true);
+
         try {
-            const res = await http.get("/entidades");
+            const params: Record<string, string> = {};
+
+            if (origenFiltro !== "TODOS") {
+                params.origen = origenFiltro;
+            }
+
+            const res = await http.get("/entidades", { params });
+
             const lista = Array.isArray(res.data)
                 ? res.data
                 : Array.isArray(res.data?.data)
@@ -497,6 +507,7 @@ const ClientesPage: React.FC = () => {
             }));
 
             setClientes(formateados);
+            setPagina(1);
         } catch (err) {
             console.error("❌ Error cargando clientes", err);
             showNotification("error", "Error al cargar los clientes");
@@ -504,7 +515,7 @@ const ClientesPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [showNotification]);
+    }, [showNotification, origenFiltro]);
 
     useEffect(() => {
         loadClientes();
@@ -519,12 +530,27 @@ const ClientesPage: React.FC = () => {
     );
 
     const filtrados = useMemo(() => {
-        return clientes.filter(
-            (c) =>
-                c.nombre.toLowerCase().includes(query.toLowerCase()) ||
-                c.rut?.toLowerCase().includes(query.toLowerCase()) ||
-                c.correo?.toLowerCase().includes(query.toLowerCase())
-        );
+        const q = query.trim().toLowerCase();
+
+        if (!q) return clientes;
+
+        return clientes.filter((c) => {
+            const nombre = String(c.nombre ?? "").toLowerCase();
+            const rut = String(c.rut ?? "").toLowerCase();
+            const correo = String(c.correo ?? "").toLowerCase();
+            const telefono = String(c.telefono ?? "").toLowerCase();
+            const direccion = String(c.direccion ?? "").toLowerCase();
+            const origen = String(c.origen ?? "").toLowerCase();
+
+            return (
+                nombre.includes(q) ||
+                rut.includes(q) ||
+                correo.includes(q) ||
+                telefono.includes(q) ||
+                direccion.includes(q) ||
+                origen.includes(q)
+            );
+        });
     }, [clientes, query]);
 
     const totalPaginas = Math.ceil(filtrados.length / itemsPorPagina);
@@ -642,9 +668,15 @@ const ClientesPage: React.FC = () => {
             resetForm();
             showNotification("success", "Cliente creado exitosamente");
             loadClientes();
-        } catch (err) {
+        } catch (err: any) {
             console.error("❌ Error creando cliente", err);
-            showNotification("error", "Error al crear el cliente");
+
+            const message =
+                err?.response?.data?.error ||
+                err?.response?.data?.message ||
+                "Error al crear el cliente";
+
+            showNotification("error", message);
         } finally {
             setIsSaving(false);
         }
@@ -696,9 +728,15 @@ const ClientesPage: React.FC = () => {
             resetForm();
             showNotification("success", "Cliente actualizado exitosamente");
             loadClientes();
-        } catch (err) {
+        } catch (err: any) {
             console.error("❌ Error actualizando cliente", err);
-            showNotification("error", "Error al actualizar el cliente");
+
+            const message =
+                err?.response?.data?.error ||
+                err?.response?.data?.message ||
+                "Error al actualizar el cliente";
+
+            showNotification("error", message);
         } finally {
             setIsSaving(false);
         }
@@ -774,7 +812,8 @@ const ClientesPage: React.FC = () => {
 
                             <div className="flex items-center gap-4 mt-4">
                                 <div className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium border border-cyan-100">
-                                    <span className="font-bold">{clientes.length}</span> cliente{clientes.length !== 1 ? "s" : ""} registrado{clientes.length !== 1 ? "s" : ""}
+                                    <span className="font-bold">{clientes.length}</span>{" "}
+                                    cliente{clientes.length !== 1 ? "s" : ""} cargado{clientes.length !== 1 ? "s" : ""}
                                 </div>
                                 <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-100">
                                     {filtrados.length} visibles
@@ -799,24 +838,47 @@ const ClientesPage: React.FC = () => {
                     </div>
 
                     {/* BUSCADOR */}
-                    <div className="relative max-w-2xl mb-8">
-                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-2xl blur-xl"></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4 mb-8">
                         <div className="relative">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Buscar clientes por nombre, RUT o correo electrónico..."
-                                className="w-full pl-12 pr-4 py-3.5 ..."
-                                value={inputValue}                        // ← inmediato
+                            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-2xl blur-xl"></div>
+
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+
+                                <input
+                                    type="text"
+                                    placeholder="Buscar clientes por nombre, RUT, correo, teléfono, dirección u origen..."
+                                    className="w-full pl-12 pr-4 py-3.5 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-cyan-100 focus:border-cyan-400 outline-none bg-white"
+                                    value={inputValue}
+                                    onChange={(e) => {
+                                        setInputValue(e.target.value);
+                                        debouncedSearch(e.target.value);
+                                        setPagina(1);
+                                    }}
+                                />
+
+                                <div className="hidden sm:block absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
+                                    {inputValue ? `${filtrados.length} resultados` : "Escribe para buscar"}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative">
+                            <select
+                                value={origenFiltro}
                                 onChange={(e) => {
-                                    setInputValue(e.target.value);          // ← actualiza visual sin delay
-                                    debouncedSearch(e.target.value);        // ← filtra con debounce
+                                    setOrigenFiltro(e.target.value as "TODOS" | "RIDS" | "ECONNET" | "OTRO");
                                     setPagina(1);
                                 }}
-                            />
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                                {inputValue ? `${filtrados.length} resultados` : "Escribe para buscar"}
-                            </div>
+                                className="w-full px-4 py-3.5 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-cyan-100 focus:border-cyan-400 outline-none bg-white cursor-pointer appearance-none"
+                            >
+                                <option value="TODOS">Todos los orígenes</option>
+                                <option value="RIDS">RIDS</option>
+                                <option value="ECONNET">ECONNET</option>
+                                <option value="OTRO">Otro</option>
+                            </select>
+
+                            <ChevronRight className="absolute right-4 top-1/2 transform -translate-y-1/2 rotate-90 text-gray-400 w-4 h-4 pointer-events-none" />
                         </div>
                     </div>
 

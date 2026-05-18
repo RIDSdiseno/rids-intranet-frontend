@@ -1,9 +1,11 @@
+// src/components/modals-facturasBaseapi/pdfDocumento.tsx
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 import type { EmpresaKey, TabRCV } from "./types";
 
-import {getDocumentoDte, 
+import {
+    getDocumentoDte,
     getItemsFromDteResponse,
     getXmlBase64FromDteResponse,
     decodeBase64Utf8,
@@ -34,7 +36,14 @@ export async function generarPdfDocumentoSeleccionado(params: {
     empresa: EmpresaKey;
     mes: string;
     ano: string;
-}) {
+    autoDownload?: boolean;
+}): Promise<{
+    blob: Blob;
+    url: string;
+    fileName: string;
+}> {
+    const autoDownload = params.autoDownload ?? true;
+
     const { documento, detalleDte, activeTab, empresa, mes, ano } = params;
 
     const empresaPdf = EMPRESAS_PDF[empresa];
@@ -65,6 +74,8 @@ export async function generarPdfDocumentoSeleccionado(params: {
     const tipoDTEString = dteDocumento?.tipo_dte_nombre ?? "";
     const tipoDTELabel = getNombreDtePDF(tipoDTE, tipoDTEString);
     const tituloResumen = getTituloResumenPDF(tipoDTE);
+
+    const nombreArchivo = `documento-${empresa}-${activeTab}-${tipoDTE}-${folio}-${ano}-${mes}.pdf`;
 
     const nombre =
         activeTab === "ventas"
@@ -531,11 +542,9 @@ export async function generarPdfDocumentoSeleccionado(params: {
 </div>
     </div>
 
-    <h2 class="section-title">Resumen del documento</h2>
+   <h2 class="section-title">Resumen del documento</h2>
 
-    <table>
-        <thead>
-            <table>
+<table>
     <thead>
         <tr>
             <th style="width:8%;">#</th>
@@ -643,7 +652,18 @@ export async function generarPdfDocumentoSeleccionado(params: {
             sourceY += printableHeight;
         }
 
-        pdf.save(getNombreArchivoPDF(empresa, tipoDTE, folio));
+        const blob = pdf.output("blob");
+        const url = URL.createObjectURL(blob);
+
+        if (autoDownload) {
+            pdf.save(nombreArchivo);
+        }
+
+        return {
+            blob,
+            url,
+            fileName: nombreArchivo,
+        };
     } finally {
         if (container.parentNode) {
             container.parentNode.removeChild(container);

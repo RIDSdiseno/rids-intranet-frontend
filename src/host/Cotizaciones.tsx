@@ -61,6 +61,10 @@ import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquip
 
 import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
 
+import { useAuth } from "../components/hooks/useAuth"
+
+const { isCliente } = useAuth();
+
 // Definición de tipos específicos para esta vista
 type EstadoDTE =
     | "EMITIDO"
@@ -468,7 +472,10 @@ const Cotizaciones: React.FC = () => {
     useEffect(() => {
         fetchCotizaciones(1);
         fetchEntidades();
-        fetchTecnicos();
+        // Solo cargar técnicos para roles internos — CLIENTE no necesita este dato
+        if (!isCliente) {
+            fetchTecnicos();
+        }
     }, []);
 
     useEffect(() => {
@@ -1827,57 +1834,60 @@ const Cotizaciones: React.FC = () => {
             >
                 <PrinterOutlined />
             </button>
-
-            <button
-                onClick={() => {
-                    setShowViewModal(false);
-                    openEditModal(c);
-                }}
-                className={mobile ? "rounded-xl border border-green-200 p-2 text-green-600 hover:bg-green-50" : "text-green-600 hover:text-green-800"}
-                title="Editar"
-            >
-                <EditOutlined />
-            </button>
-
-            <button
-                onClick={() => duplicarCotizacion(c)}
-                className={mobile ? "rounded-xl border border-purple-200 p-2 text-purple-600 hover:bg-purple-50" : "text-sm text-purple-600 hover:text-purple-800"}
-                title="Duplicar cotización"
-            >
-                <CopyOutlined />
-            </button>
-
-            {c.estado === EstadoCotizacionGestioo.APROBADA &&
-                (!c.facturas || c.facturas.length === 0) && (
+            {!isCliente && (
+                <>
                     <button
-                        onClick={async () => {
-                            if (!window.confirm("¿Desea emitir factura electrónica?")) return;
-
-                            try {
-                                await apiFetch(`/cotizaciones/${c.id}/emitir-sii`, {
-                                    method: "POST",
-                                });
-
-                                await fetchCotizaciones(page);
-                                showSuccess("Factura emitida correctamente");
-                            } catch (error) {
-                                handleApiError(error, "Error al emitir factura");
-                            }
+                        onClick={() => {
+                            setShowViewModal(false);
+                            openEditModal(c);
                         }}
-                        className={mobile ? "rounded-xl border border-cyan-200 p-2 text-cyan-700 hover:bg-cyan-50" : "text-sm text-purple-600 hover:text-purple-800"}
-                        title="Emitir Factura"
+                        className={mobile ? "rounded-xl border border-green-200 p-2 text-green-600 hover:bg-green-50" : "text-green-600 hover:text-green-800"}
+                        title="Editar"
                     >
-                        <FileTextOutlined />
+                        <EditOutlined />
                     </button>
-                )}
 
-            <button
-                onClick={() => handleDelete(c.id)}
-                className={mobile ? "rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50" : "text-sm text-red-600 hover:text-red-800"}
-                title="Eliminar"
-            >
-                <DeleteOutlined />
-            </button>
+                    <button
+                        onClick={() => duplicarCotizacion(c)}
+                        className={mobile ? "rounded-xl border border-purple-200 p-2 text-purple-600 hover:bg-purple-50" : "text-sm text-purple-600 hover:text-purple-800"}
+                        title="Duplicar cotización"
+                    >
+                        <CopyOutlined />
+                    </button>
+
+                    {c.estado === EstadoCotizacionGestioo.APROBADA &&
+                        (!c.facturas || c.facturas.length === 0) && (
+                            <button
+                                onClick={async () => {
+                                    if (!window.confirm("¿Desea emitir factura electrónica?")) return;
+
+                                    try {
+                                        await apiFetch(`/cotizaciones/${c.id}/emitir-sii`, {
+                                            method: "POST",
+                                        });
+
+                                        await fetchCotizaciones(page);
+                                        showSuccess("Factura emitida correctamente");
+                                    } catch (error) {
+                                        handleApiError(error, "Error al emitir factura");
+                                    }
+                                }}
+                                className={mobile ? "rounded-xl border border-cyan-200 p-2 text-cyan-700 hover:bg-cyan-50" : "text-sm text-purple-600 hover:text-purple-800"}
+                                title="Emitir Factura"
+                            >
+                                <FileTextOutlined />
+                            </button>
+                        )}
+
+                    <button
+                        onClick={() => handleDelete(c.id)}
+                        className={mobile ? "rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50" : "text-sm text-red-600 hover:text-red-800"}
+                        title="Eliminar"
+                    >
+                        <DeleteOutlined />
+                    </button>
+                </>
+            )}
         </div>
     );
 
@@ -1912,18 +1922,19 @@ const Cotizaciones: React.FC = () => {
                                 <ReloadOutlined className="text-xs" />
                                 <span>Recargar</span>
                             </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    resetForm();
-                                    setShowCreateModal(true);
-                                }}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
-                            >
-                                <PlusOutlined className="text-base" />
-                                Crear
-                            </button>
+                            {!isCliente && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetForm();
+                                        setShowCreateModal(true);
+                                    }}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
+                                >
+                                    <PlusOutlined className="text-base" />
+                                    Crear
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -2069,12 +2080,14 @@ const Cotizaciones: React.FC = () => {
                                                         c.tasaCambio ?? 1
                                                     )}
                                                 </div>
-                                                <div>
-                                                    <b>Factura:</b>{" "}
-                                                    <span className="inline-block align-middle">
-                                                        {renderFacturaContent(c)}
-                                                    </span>
-                                                </div>
+                                                {!isCliente && (
+                                                    <div>
+                                                        <b>Factura:</b>{" "}
+                                                        <span className="inline-block align-middle">
+                                                            {renderFacturaContent(c)}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="mt-4">
@@ -2106,9 +2119,11 @@ const Cotizaciones: React.FC = () => {
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                             Cliente
                                         </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Factura
-                                        </th>
+                                        {!isCliente && (
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Factura
+                                            </th>
+                                        )}
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
                                             Total
                                         </th>
@@ -2140,10 +2155,11 @@ const Cotizaciones: React.FC = () => {
                                             <td className="px-4 py-3 text-center text-sm text-slate-700">
                                                 {c.entidad?.nombre || "---"}
                                             </td>
-
-                                            <td className="px-4 py-3 text-center text-sm">
-                                                {renderFacturaContent(c)}
-                                            </td>
+                                            {!isCliente && (
+                                                <td className="px-4 py-3 text-center text-sm">
+                                                    {renderFacturaContent(c)}
+                                                </td>
+                                            )}
 
                                             <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
                                                 {formatearPrecio(
@@ -2275,74 +2291,74 @@ const Cotizaciones: React.FC = () => {
                 }}
                 pdfURL={pdfURL}
             />
-
-            <CreateCotizacionModal
-                show={showCreateModal}
-                onClose={() => {
-                    setShowCreateModal(false);
-                    resetForm();
-                }}
-                formData={formData}
-                setFormData={setFormData}
-                items={items}
-                setItems={setItems}
-                entidades={entidades}
-                filtroOrigen={filtroOrigen}
-                setFiltroOrigen={setFiltroOrigen}
-                onCargarProductos={cargarProductos}
-                onCargarServicios={cargarServicios}
-                onAddItem={handleAddItem}
-                onUpdateItem={handleUpdateItem}
-                onRemoveItem={handleRemoveItem}
-                onCrearCotizacion={handleCreateCotizacion}
-                onCrearEmpresa={() => setShowNewEmpresaModal(true)}
-                onCrearProducto={() => {
-                    setShowNewProductoModal(true);
-                    document.body.classList.add("modal-nested-open");
-                }}
-                onCrearPersona={() => setShowNewEntidadModal(true)}
-                onEditarPersona={(entidad) => {
-                    setEntidadParaEditar(entidad);
-                    setNombre(entidad.nombre);
-                    setRut(entidad.rut ?? "");
-                    setCorreo(entidad.correo ?? "");
-                    setTelefono(entidad.telefono ?? "");
-                    setDireccion(entidad.direccion ?? "");
-                    setShowEditEntidadModal(true);
-                }}
-                onEditarProducto={abrirEditarProductoDesdeCotizacion}
-                onEditarServicio={editarItem}
-                onCrearServicio={() => { setShowCreateServicioModal(true); }}
-                totales={totales}
-                apiLoading={apiLoading}
-                onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, false)}
-                onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, false)}
-                onVincularEquipo={handleVincularEquipoAItem}
-            />
-
-            <EditCotizacionModal
-                show={showEditModal}
-                cotizacion={selectedCotizacion}
-                onGenerarPDF={(cotizacionActualizada) => {
-                    setSelectedCotizacion(cotizacionActualizada);
-                    setShowGenerarPDFModal(true);
-                }}
-                onClose={() => setShowEditModal(false)}
-                onUpdate={handleUpdateCotizacion}
-                onCargarProductos={cargarProductos}
-                onCargarServicios={cargarServicios}
-                onUpdateCotizacion={setSelectedCotizacion}
-                apiLoading={apiLoading}
-                onCrearProducto={() => {
-                    setShowNewProductoModal(true);
-                    document.body.classList.add("modal-nested-open");
-                }}
-                onEditarProducto={abrirEditarItem}
-                onItemChange={handleItemChange}
-                onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
-                onVincularEquipo={handleVincularEquipoAItem}
-                onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
-            />
+            {!isCliente && (
+                <CreateCotizacionModal
+                    show={showCreateModal}
+                    onClose={() => {
+                        setShowCreateModal(false);
+                        resetForm();
+                    }}
+                    formData={formData}
+                    setFormData={setFormData}
+                    items={items}
+                    setItems={setItems}
+                    entidades={entidades}
+                    filtroOrigen={filtroOrigen}
+                    setFiltroOrigen={setFiltroOrigen}
+                    onCargarProductos={cargarProductos}
+                    onCargarServicios={cargarServicios}
+                    onAddItem={handleAddItem}
+                    onUpdateItem={handleUpdateItem}
+                    onRemoveItem={handleRemoveItem}
+                    onCrearCotizacion={handleCreateCotizacion}
+                    onCrearEmpresa={() => setShowNewEmpresaModal(true)}
+                    onCrearProducto={() => {
+                        setShowNewProductoModal(true);
+                        document.body.classList.add("modal-nested-open");
+                    }}
+                    onCrearPersona={() => setShowNewEntidadModal(true)}
+                    onEditarPersona={(entidad) => {
+                        setEntidadParaEditar(entidad);
+                        setNombre(entidad.nombre);
+                        setRut(entidad.rut ?? "");
+                        setCorreo(entidad.correo ?? "");
+                        setTelefono(entidad.telefono ?? "");
+                        setDireccion(entidad.direccion ?? "");
+                        setShowEditEntidadModal(true);
+                    }}
+                    onEditarProducto={abrirEditarProductoDesdeCotizacion}
+                    onEditarServicio={editarItem}
+                    onCrearServicio={() => { setShowCreateServicioModal(true); }}
+                    totales={totales}
+                    apiLoading={apiLoading}
+                    onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, false)}
+                    onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, false)}
+                    onVincularEquipo={handleVincularEquipoAItem}
+                />)}
+            {!isCliente && (
+                <EditCotizacionModal
+                    show={showEditModal}
+                    cotizacion={selectedCotizacion}
+                    onGenerarPDF={(cotizacionActualizada) => {
+                        setSelectedCotizacion(cotizacionActualizada);
+                        setShowGenerarPDFModal(true);
+                    }}
+                    onClose={() => setShowEditModal(false)}
+                    onUpdate={handleUpdateCotizacion}
+                    onCargarProductos={cargarProductos}
+                    onCargarServicios={cargarServicios}
+                    onUpdateCotizacion={setSelectedCotizacion}
+                    apiLoading={apiLoading}
+                    onCrearProducto={() => {
+                        setShowNewProductoModal(true);
+                        document.body.classList.add("modal-nested-open");
+                    }}
+                    onEditarProducto={abrirEditarItem}
+                    onItemChange={handleItemChange}
+                    onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
+                    onVincularEquipo={handleVincularEquipoAItem}
+                    onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
+                />)}
 
             <SelectProductoModal
                 show={showSelectorProducto}

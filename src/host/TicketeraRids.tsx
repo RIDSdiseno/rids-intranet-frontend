@@ -46,6 +46,9 @@ import { BulkAssignModal } from "../components/modals-ticketera/BulkAssign";
 import { BulkMergeModal } from "../components/modals-ticketera/BulkMerge";
 import { CrearTicketDrawer } from "../components/modals-ticketera/CrearTicket";
 
+import { useAuth } from "../components/hooks/useAuth";
+const { isCliente } = useAuth();
+
 // Tipos y utilidades
 type TicketSla = {
     targets?: { firstResponseMinutes: number; resolutionMinutes: number };
@@ -486,12 +489,17 @@ export default function TicketeraRids() {
             params.append("page", page.toString());
             params.append("pageSize", pageSize.toString());
 
+            // El servidor filtra por empresa automáticamente para CLIENTE.
+            // No enviamos filtros internos que el backend ignoraría de todos modos.
             if (statusFilter) params.append("status", statusFilter);
-            if (priorityFilter) params.append("priority", priorityFilter);
-            if (assigneeFilter) params.append("assigneeId", assigneeFilter.toString());
 
-            const selectedArea = areaFilter === "TODAS" ? undefined : areaFilter;
-            if (selectedArea) params.append("area", selectedArea);
+            if (!isCliente) {
+                if (priorityFilter) params.append("priority", priorityFilter);
+                if (assigneeFilter) params.append("assigneeId", assigneeFilter.toString());
+                const selectedArea = areaFilter === "TODAS" ? undefined : areaFilter;
+                if (selectedArea) params.append("area", selectedArea);
+            }
+
             if (searchText) params.append("search", searchText);
             if (dateRange) {
                 params.append("from", dateRange[0]);
@@ -1135,47 +1143,51 @@ export default function TicketeraRids() {
                 <div className="mb-5 space-y-2">
                     <div className="flex justify-between items-center mb-4">
 
-                        <Button onClick={() => setShowResumen(v => !v)}>
-                            {showResumen ? "Ocultar resumen" : "Mostrar resumen"}
-                        </Button>
+                        {!isCliente && (
+                            <Button onClick={() => setShowResumen(v => !v)}>
+                                {showResumen ? "Ocultar resumen" : "Mostrar resumen"}
+                            </Button>
+                        )}
 
                         <Space>
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                disabled={creatingTicket}
-                                onClick={() => {
-                                    setForm({
-                                        empresaId: undefined,
-                                        requesterId: undefined,
-                                        subject: "",
-                                        message: buildMensajeInicial(),
-                                        fromEmail: "",
-                                        priority: "NORMAL",
-                                        assigneeId: undefined,
-                                    });
-
-                                    setCreateFiles([]);
-                                    setDrawerCrear(true);
-                                }}
-                                size="large"
-                            >
-                                Nuevo Ticket
-                            </Button>
+                            {/* Solo roles internos pueden crear tickets desde el panel */}
+                            {!isCliente && (
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    disabled={creatingTicket}
+                                    onClick={() => {
+                                        setForm({
+                                            empresaId: undefined,
+                                            requesterId: undefined,
+                                            subject: "",
+                                            message: buildMensajeInicial(),
+                                            fromEmail: "",
+                                            priority: "NORMAL",
+                                            assigneeId: undefined,
+                                        });
+                                        setCreateFiles([]);
+                                        setDrawerCrear(true);
+                                    }}
+                                    size="large"
+                                >
+                                    Nuevo Ticket
+                                </Button>
+                            )}
 
                             <Button icon={<ReloadOutlined />} onClick={() => { loadTickets(); loadSla(); }} />
 
-                            <Dropdown menu={{ items: configMenuItems }} trigger={["click"]}>
-                                <Button
-                                    icon={<SettingOutlined />}
-                                    title="Configuración"
-                                />
-                            </Dropdown>
+                            {/* Configuración solo para internos */}
+                            {!isCliente && (
+                                <Dropdown menu={{ items: configMenuItems }} trigger={["click"]}>
+                                    <Button icon={<SettingOutlined />} title="Configuración" />
+                                </Dropdown>
+                            )}
                         </Space>
                     </div>
 
                     {/* Resumen de SLA con tarjetas o etiquetas según la preferencia del usuario, mostrando el total de tickets, abiertos, cerrados, urgentes y el cumplimiento de los SLA de primera respuesta y resolución. Se utilizan colores e íconos para facilitar la visualización del estado de los tickets y el rendimiento del equipo. */}
-                    {showResumen ? (
+                    {!isCliente && showResumen && (
                         <Row gutter={[16, 16]} className="mb-6">
                             <Col span={6}>
                                 <Card size="small" className="border-l-4 border-l-blue-500">
@@ -1257,7 +1269,7 @@ export default function TicketeraRids() {
                                 />
                             </Col>
                         </Row>
-                    ) : (
+                    )} {!isCliente && !showResumen && (
                         <div className="mb-4 flex flex-wrap gap-2">
                             <Tag color="blue">Total: {Object.values(statusCounts).reduce((a, b) => a + b, 0)}</Tag>
                             <Tag color="orange">Abiertos: {getTicketCount("OPEN")}</Tag>
@@ -1281,7 +1293,7 @@ export default function TicketeraRids() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1">
                                 <Input
-                                    placeholder="Buscar por asunto, contenido del ticket, empresa, solicitante, email o ID..."
+                                    placeholder="Buscar por asunto, empresa, solicitante o ID..."
                                     prefix={<SearchOutlined />}
                                     value={searchText}
                                     onChange={(e) => setSearchText(e.target.value)}
@@ -1292,6 +1304,7 @@ export default function TicketeraRids() {
                             </div>
 
                             <Space wrap>
+                                {/* Estado — visible para todos */}
                                 <Select
                                     placeholder="Estado"
                                     allowClear
@@ -1305,73 +1318,60 @@ export default function TicketeraRids() {
                                         { value: "CLOSED", label: "Cerrado" },
                                     ]}
                                 />
-                                <Select
-                                    placeholder="Prioridad"
-                                    allowClear
-                                    style={{ width: 140 }}
-                                    value={priorityFilter}
-                                    onChange={setPriorityFilter}
-                                    options={[
-                                        { value: "LOW", label: "Baja" },
-                                        { value: "NORMAL", label: "Media" },
-                                        { value: "HIGH", label: "Alta" },
-                                        { value: "URGENT", label: "Urgente" },
-                                    ]}
-                                />
-                                <Select
-                                    placeholder="Asignado a"
-                                    allowClear
-                                    style={{ width: 180 }}
-                                    value={assigneeFilter}
-                                    onChange={setAssigneeFilter}
-                                    options={tecnicos.map((t) => ({
-                                        value: t.id_tecnico,
-                                        label: t.nombre,
-                                    }))}
-                                />
-                                <Select
-                                    style={{ width: 170 }}
-                                    value={areaFilter}
-                                    onChange={setAreaFilter}
-                                    options={AREA_OPTIONS}
-                                />
-                                <Select
-                                    style={{ width: 190 }}
-                                    value={sortOrder}
-                                    onChange={setSortOrder}
-                                    options={[
-                                        { value: "recent_first", label: "Más recientes primero" },
-                                        { value: "old_first", label: "Más antiguos primero" },
-                                    ]}
-                                />
+
+                                {/* Filtros solo para roles internos */}
+                                {!isCliente && (
+                                    <>
+                                        <Select
+                                            placeholder="Prioridad"
+                                            allowClear
+                                            style={{ width: 140 }}
+                                            value={priorityFilter}
+                                            onChange={setPriorityFilter}
+                                            options={[
+                                                { value: "LOW", label: "Baja" },
+                                                { value: "NORMAL", label: "Media" },
+                                                { value: "HIGH", label: "Alta" },
+                                                { value: "URGENT", label: "Urgente" },
+                                            ]}
+                                        />
+                                        <Select
+                                            placeholder="Asignado a"
+                                            allowClear
+                                            style={{ width: 180 }}
+                                            value={assigneeFilter}
+                                            onChange={setAssigneeFilter}
+                                            options={tecnicos.map((t) => ({
+                                                value: t.id_tecnico,
+                                                label: t.nombre,
+                                            }))}
+                                        />
+                                        <Select
+                                            style={{ width: 170 }}
+                                            value={areaFilter}
+                                            onChange={setAreaFilter}
+                                            options={AREA_OPTIONS}
+                                        />
+                                        <Select
+                                            style={{ width: 190 }}
+                                            value={sortOrder}
+                                            onChange={setSortOrder}
+                                            options={[
+                                                { value: "recent_first", label: "Más recientes primero" },
+                                                { value: "old_first", label: "Más antiguos primero" },
+                                            ]}
+                                        />
+                                    </>
+                                )}
                             </Space>
                         </div>
 
+                        {/* Rangos de fecha — visibles para todos */}
                         <div className="flex flex-wrap gap-2">
-                            <Button type={activeRange === "today" ? "primary" : "default"} onClick={setToday}>
-                                Hoy
-                            </Button>
-                            <Button
-                                type={activeRange === "last-7" ? "primary" : "default"}
-                                onClick={() => setLastDays(7)}
-                            >
-                                Últimos 7 días
-                            </Button>
-                            <Button
-                                type={activeRange === "last-30" ? "primary" : "default"}
-                                onClick={() => setLastDays(30)}
-                            >
-                                Este mes
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setDateRange(null);
-                                    setActiveRange(null);
-                                    setPage(1);
-                                }}
-                            >
-                                Limpiar rango
-                            </Button>
+                            <Button type={activeRange === "today" ? "primary" : "default"} onClick={setToday}>Hoy</Button>
+                            <Button type={activeRange === "last-7" ? "primary" : "default"} onClick={() => setLastDays(7)}>Últimos 7 días</Button>
+                            <Button type={activeRange === "last-30" ? "primary" : "default"} onClick={() => setLastDays(30)}>Este mes</Button>
+                            <Button onClick={() => { setDateRange(null); setActiveRange(null); setPage(1); }}>Limpiar rango</Button>
                         </div>
                     </div>
                 </Card>
@@ -1423,7 +1423,7 @@ export default function TicketeraRids() {
                     )}
                 </div>
 
-                {selectedTickets.length > 0 && (
+                {!isCliente && selectedTickets.length > 0 && (
                     <Card className="mb-4 rounded-3xl border-0 shadow-sm">
                         <div className="flex justify-between items-center gap-4 flex-wrap">
                             <div className="font-medium">
@@ -1448,17 +1448,20 @@ export default function TicketeraRids() {
                 )}
 
                 <Card>
-                    <div className="mb-4 flex items-center gap-3">
-                        <input
-                            type="checkbox"
-                            checked={
-                                filteredTickets.length > 0 &&
-                                filteredTickets.every((t) => selectedTickets.includes(t.id))
-                            }
-                            onChange={(e) => toggleSelectAllVisible(e.target.checked)}
-                        />
-                        <span className="text-sm text-gray-500">Seleccionar visibles</span>
-                    </div>
+                    {/* Checkbox selección múltiple — solo internos */}
+                    {!isCliente && (
+                        <div className="mb-4 flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                checked={
+                                    filteredTickets.length > 0 &&
+                                    filteredTickets.every((t) => selectedTickets.includes(t.id))
+                                }
+                                onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+                            />
+                            <span className="text-sm text-gray-500">Seleccionar visibles</span>
+                        </div>
+                    )}
 
                     {loading ? (
                         <div className="py-16 flex justify-center">
@@ -1474,7 +1477,7 @@ export default function TicketeraRids() {
                                 const activityMeta = getTicketActivityMeta(ticket);
                                 const activityText = getTicketActivityText(ticket);
 
-                                const menuItems: MenuProps["items"] = [
+                                const menuItems: MenuProps["items"] = isCliente ? [] : [
                                     {
                                         key: "pending",
                                         label: <span className="text-amber-600">Marcar como pendiente</span>,
@@ -1513,14 +1516,16 @@ export default function TicketeraRids() {
                                         className="rounded-2xl border border-gray-200 bg-white px-5 py-5 hover:shadow-sm transition"
                                     >
                                         <div className="flex items-start gap-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedTickets.includes(ticket.id)}
-                                                onChange={(e) =>
-                                                    toggleSelectTicket(ticket.id, e.target.checked)
-                                                }
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
+                                            {!isCliente && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTickets.includes(ticket.id)}
+                                                    onChange={(e) =>
+                                                        toggleSelectTicket(ticket.id, e.target.checked)
+                                                    }
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                            )}
 
                                             <div className="flex-1 min-w-0">
                                                 <div
@@ -1579,27 +1584,39 @@ export default function TicketeraRids() {
                                                         </div>
 
                                                         <div className="flex items-center gap-2 shrink-0">
-                                                            <Select
-                                                                size="small"
-                                                                allowClear
-                                                                placeholder="Sin asignar"
-                                                                value={ticket.assignee?.id_tecnico}
-                                                                style={{ width: 170 }}
-                                                                options={tecnicos.map((t) => ({
-                                                                    value: t.id_tecnico,
-                                                                    label: t.nombre,
-                                                                }))}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                onChange={(value) => assignTicketInline(ticket.id, value)}
-                                                            />
 
-                                                            <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
-                                                                <Button
-                                                                    type="text"
-                                                                    icon={<MoreOutlined />}
+                                                            {!isCliente ? (
+                                                                <Select
+                                                                    size="small"
+                                                                    allowClear
+                                                                    placeholder="Sin asignar"
+                                                                    value={ticket.assignee?.id_tecnico}
+                                                                    style={{ width: 170 }}
+                                                                    options={tecnicos.map((t) => ({
+                                                                        value: t.id_tecnico,
+                                                                        label: t.nombre,
+                                                                    }))}
                                                                     onClick={(e) => e.stopPropagation()}
+                                                                    onChange={(value) => assignTicketInline(ticket.id, value)}
                                                                 />
-                                                            </Dropdown>
+                                                            ) : (
+                                                                // Cliente solo ve el nombre del asignado como texto
+                                                                ticket.assignee && (
+                                                                    <span className="text-sm text-slate-500 px-2">
+                                                                        {ticket.assignee.nombre}
+                                                                    </span>
+                                                                )
+                                                            )}
+
+                                                            {!isCliente && (
+                                                                <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
+                                                                    <Button
+                                                                        type="text"
+                                                                        icon={<MoreOutlined />}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    />
+                                                                </Dropdown>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>

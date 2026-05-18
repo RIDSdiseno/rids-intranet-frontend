@@ -1,4 +1,4 @@
-// ModalNuevaEntidad.tsx
+// src/components/modals-gestioo/ModalNuevaEntidad.tsx
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -13,6 +13,30 @@ export interface ModalNuevaEntidadProps {
 }
 
 import { http } from "../../service/http";
+
+const normalizeRutInput = (value: string): string => {
+    const clean = value
+        .replace(/[^0-9kK]/g, "")
+        .toUpperCase();
+
+    if (clean.length <= 1) return clean;
+
+    const cuerpo = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+
+    return `${cuerpo}-${dv}`;
+};
+
+const formatRutInput = (value: string): string => {
+    const normalized = normalizeRutInput(value);
+
+    if (!normalized.includes("-")) return normalized;
+
+    const [cuerpo, dv] = normalized.split("-");
+    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${cuerpoFormateado}-${dv}`;
+};
 
 export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
     tipoEntidad,
@@ -54,9 +78,11 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
         // Guardar nueva entidad
         setLoading(true);
         try {
+            const rutPayload = rut ? normalizeRutInput(rut) : null;
+
             const { data } = await http.post("/entidades", {
                 nombre,
-                rut: rut || null,
+                rut: rutPayload,
                 correo: correo || null,
                 telefono: telefono || null,
                 direccion: direccion || null,
@@ -64,7 +90,8 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                 origen: tipoEntidad === "EMPRESA" ? origen : undefined,
             });
 
-            onSaved(data.id ?? data.id_entidad);
+            const nuevaEntidad = data.data ?? data;
+            onSaved(nuevaEntidad.id);
             onClose();
         } catch (err: any) {
             console.error(err);
@@ -124,8 +151,12 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                             </label>
                             <input
                                 value={rut}
-                                onChange={(e) => setRut(e.target.value)}
+                                onChange={(e) => {
+                                    setRut(formatRutInput(e.target.value));
+                                    setErrorMsg(null);
+                                }}
                                 className="w-full border border-slate-300 rounded-xl px-3 py-2"
+                                placeholder="Ej: 77.861.122-8"
                             />
                         </div>
 
@@ -156,6 +187,9 @@ export const ModalNuevaEntidad: React.FC<ModalNuevaEntidadProps> = ({
                                 <label className="block text-sm font-medium text-slate-600 mb-1">
                                     Origen
                                 </label>
+                                <p className="text-xs text-slate-500 mb-2">
+                                    El origen solo indica desde dónde fue creada o importada la entidad. No crea listados separados.
+                                </p>
                                 <select
                                     value={origen}
                                     onChange={(e) => setOrigen(e.target.value as OrigenGestioo)}

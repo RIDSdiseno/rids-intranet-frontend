@@ -10,6 +10,7 @@ import {
     ReloadOutlined,
     BarChartOutlined,
     DatabaseOutlined,
+    CloudSyncOutlined
 } from "@ant-design/icons";
 
 import {
@@ -24,6 +25,8 @@ import {
     formatFechaVista
 } from "../components/modals-facturasBaseapi/utils";
 
+import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
+
 import RcvConciliacionPanel from "../components/modals-facturasBaseapi/RcvConciliacionPanel";
 
 import DetalleBaseApiModal from "../components/modals-facturasBaseapi/DetalleBaseApiModal";
@@ -31,6 +34,14 @@ import DashboardCharts from "../components/modals-facturasBaseapi/DashboardChart
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
 
 // ─── Componente principal ────────────────────────────────────────────────────
+
+function esPeriodoActual(mes: string, ano: string) {
+    const hoy = new Date();
+    const mesActual = String(hoy.getMonth() + 1).padStart(2, "0");
+    const anoActual = String(hoy.getFullYear());
+
+    return mes === mesActual && ano === anoActual;
+}
 
 const FacturasBaseapi: React.FC = () => {
     const now = new Date();
@@ -52,6 +63,10 @@ const FacturasBaseapi: React.FC = () => {
     const [detalleDte, setDetalleDte] = useState<any | null>(null);
     const [detalleLoading, setDetalleLoading] = useState(false);
     const [detalleError, setDetalleError] = useState("");
+
+    const [pdfPreparando, setPdfPreparando] = useState(false);
+    const [pdfPreparadoUrl, setPdfPreparadoUrl] = useState<string | null>(null);
+    const [pdfPreparadoNombre, setPdfPreparadoNombre] = useState("");
 
     // Dashboard desde el backend
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -92,7 +107,7 @@ const FacturasBaseapi: React.FC = () => {
     };
 
     // ── Fetch documentos (tab Documentos) ────────────────────────────────────
-    const fetchDatos = useCallback(async () => {
+    const fetchDatos = useCallback(async (forceRefresh = false) => {
         setLoading(true);
         setRespuesta(null);
         setDocumentoSeleccionado(null);
@@ -100,23 +115,42 @@ const FacturasBaseapi: React.FC = () => {
         setDetalleError("");
 
         try {
-            if (isCliente && activeTab === "compras") { setActiveTab("ventas"); return; }
+            if (isCliente && activeTab === "compras") {
+                setActiveTab("ventas");
+                return;
+            }
 
             const params = new URLSearchParams({ mes, ano });
-            if (!isCliente) params.set("empresa", empresa);
 
-            const endpoint = activeTab === "ventas"
-                ? `${BASE_URL}/baseapi/rcv/ventas?${params}`
-                : `${BASE_URL}/baseapi/rcv/compras?${params}`;
+            if (!isCliente) {
+                params.set("empresa", empresa);
+            }
+
+            if (forceRefresh) {
+                params.set("forceRefresh", "true");
+            }
+
+            const endpoint =
+                activeTab === "ventas"
+                    ? `${BASE_URL}/baseapi/rcv/ventas?${params.toString()}`
+                    : `${BASE_URL}/baseapi/rcv/compras?${params.toString()}`;
 
             const res = await fetch(endpoint, { headers: getAuthHeaders() });
+
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
             }
+
             const json = await res.json();
+
             setRespuesta(json);
-            showSuccess("Datos BaseAPI cargados correctamente");
+
+            showSuccess(
+                forceRefresh
+                    ? "Datos actualizados desde BaseAPI"
+                    : "Datos cargados desde cache si estaba disponible"
+            );
         } catch (err: any) {
             showError(err?.message ?? "Error al consultar BaseAPI");
         } finally {
@@ -196,17 +230,33 @@ const FacturasBaseapi: React.FC = () => {
             );
 
             return json;
-        } catch (err: any) {
-            setDetalleError(err?.message ?? "Error consultando detalle DTE");
+        } catch (error: any) {
+            const message = error?.message ?? "No se pudo consultar el DTE";
+            setDetalleError(message);
+            showError(message);
+            return null;
         } finally {
             setDetalleLoading(false);
         }
     };
 
+    const limpiarPdfPreparado = useCallback(() => {
+        setPdfPreparando(false);
+        setPdfPreparadoNombre("");
+
+        setPdfPreparadoUrl((prev) => {
+            if (prev) {
+                URL.revokeObjectURL(prev);
+            }
+
+            return null;
+        });
+    }, []);
+
     // ── Trigger inicial y ante cambios de filtros ─────────────────────────────
     useEffect(() => {
-        fetchDatos();
-        fetchDashboard();
+        void fetchDatos(false);
+        void fetchDashboard();
     }, [fetchDatos, fetchDashboard]);
 
     const documentos = useMemo(() => getDocumentos(respuesta), [respuesta]);
@@ -238,10 +288,69 @@ const FacturasBaseapi: React.FC = () => {
     const tipoLabel = activeTab === "ventas" ? "Ventas" : "Compras";
     const isBusy = loading || dashboardLoading;
 
-    const handleActualizar = () => {
-        fetchDatos();
-        fetchDashboard();
+    const handleActualizar = async () => {
+        const forceRefresh = esPeriodoActual(mes, ano);
+
+        await fetchDatos(forceRefresh);
+        await fetchDashboard();
     };
+
+    const handleConsultarSii = async () => {
+        await fetchDatos(true);
+        await fetchDashboard();
+    };
+
+    const handleSeleccionarDocumento = useCallback((doc: any) => {
+        setDocumentoSeleccionado(doc);
+        setDetalleDte(null);
+        setDetalleError("");
+        limpiarPdfPreparado();
+
+        if (activeTab !== "ventas") {
+            return;
+        }
+
+        void (async () => {
+            const detalle = await fetchDetalleDte(doc, false);
+
+            if (!detalle) return;
+
+            setPdfPreparando(true);
+
+            try {
+                const pdfResult = await generarPdfDocumentoSeleccionado({
+                    documento: doc,
+                    detalleDte: detalle,
+                    activeTab,
+                    empresa,
+                    mes,
+                    ano,
+                    autoDownload: false,
+                });
+
+                setPdfPreparadoUrl((prev) => {
+                    if (prev) {
+                        URL.revokeObjectURL(prev);
+                    }
+
+                    return pdfResult.url;
+                });
+
+                setPdfPreparadoNombre(pdfResult.fileName);
+            } catch (error) {
+                console.error("Error preparando PDF automático", error);
+            } finally {
+                setPdfPreparando(false);
+            }
+        })();
+    }, [
+        activeTab,
+        empresa,
+        mes,
+        ano,
+        fetchDetalleDte,
+        limpiarPdfPreparado,
+    ]);
 
     return (
         <div className="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 lg:px-6">
@@ -285,19 +394,37 @@ const FacturasBaseapi: React.FC = () => {
                                     <p className="mt-1 text-sm font-black text-slate-900">{periodoLabel}</p>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={handleActualizar}
-                                    disabled={isBusy}
-                                    title="Actualizar"
-                                    aria-label="Actualizar datos"
-                                    className="col-span-2 flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-1 sm:w-11 sm:px-0"
-                                >
-                                    <ReloadOutlined className={isBusy ? "animate-spin text-lg" : "text-lg"} />
-                                    <span className="sm:hidden">
-                                        {isBusy ? "Actualizando..." : "Actualizar"}
-                                    </span>
-                                </button>
+                                <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:items-center">
+                                    <button
+                                        type="button"
+                                        onClick={handleActualizar}
+                                        disabled={isBusy}
+                                        title="Actualizar vista"
+                                        aria-label="Actualizar vista"
+                                        className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-11 sm:px-0"
+                                    >
+                                        <ReloadOutlined className={isBusy ? "animate-spin text-lg" : "text-lg"} />
+
+                                        <span className="sm:hidden">
+                                            Actualizar
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleConsultarSii}
+                                        disabled={isBusy}
+                                        title="Consultar SII / BaseAPI"
+                                        aria-label="Consultar SII / BaseAPI"
+                                        className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-600 px-4 text-sm font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                                    >
+                                        <CloudSyncOutlined className={isBusy ? "animate-pulse text-lg" : "text-lg"} />
+
+                                        <span>
+                                            {isBusy ? "Consultando..." : "Consultar SII"}
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -427,14 +554,26 @@ const FacturasBaseapi: React.FC = () => {
                             />
                         </div>
 
-                        <div className="flex items-end">
+                        <div className="flex items-end gap-2">
                             <button
+                                type="button"
                                 onClick={handleActualizar}
                                 disabled={isBusy}
-                                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-600 px-4 text-sm font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                title="Mes actual: consulta BaseAPI. Meses anteriores: usa cache."
                             >
                                 <ReloadOutlined className={isBusy ? "animate-spin" : ""} />
                                 {isBusy ? "Consultando..." : "Consultar"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleConsultarSii}
+                                disabled={isBusy}
+                                title="Forzar actualización desde SII/BaseAPI"
+                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-600 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <CloudSyncOutlined className={isBusy ? "animate-pulse" : ""} />
                             </button>
                         </div>
                     </div>
@@ -508,11 +647,7 @@ const FacturasBaseapi: React.FC = () => {
                             activeTab={activeTab}
                             busqueda={busqueda}
                             onBusquedaChange={setBusqueda}
-                            onSelectDocumento={(doc) => {
-                                setDocumentoSeleccionado(doc);
-                                setDetalleDte(null);
-                                setDetalleError("");
-                            }}
+                            onSelectDocumento={handleSeleccionarDocumento}
                         />
 
                         {resumenPorTipo.length > 0 && (
@@ -557,11 +692,15 @@ const FacturasBaseapi: React.FC = () => {
                                 setDocumentoSeleccionado(null);
                                 setDetalleDte(null);
                                 setDetalleError("");
+                                limpiarPdfPreparado();
                             }}
                             onConsultarDte={fetchDetalleDte}
                             detalleDte={detalleDte}
                             detalleLoading={detalleLoading}
                             detalleError={detalleError}
+                            pdfPreparando={pdfPreparando}
+                            pdfPreparadoUrl={pdfPreparadoUrl}
+                            pdfPreparadoNombre={pdfPreparadoNombre}
                         />
                     </>
                 )}

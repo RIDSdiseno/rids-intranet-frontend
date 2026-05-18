@@ -579,7 +579,7 @@ const VisitasPage: React.FC = () => {
     setPage(1);
   };
 
-  const { user, isCliente, isAdmin } = useAuth();
+  const { user, isCliente, isAdminLike } = useAuth();
 
   const canCreateVisita = !isCliente;
 
@@ -823,7 +823,7 @@ const VisitasPage: React.FC = () => {
                 </div>
 
                 {/* Filtro empresa */}
-                {isAdmin && (
+                {isAdminLike && (
                   <div className="md:col-span-3">
                     <select
                       value={empresaId}
@@ -1000,7 +1000,7 @@ const VisitasPage: React.FC = () => {
                     >
                       Detalle
                     </button>
-                    {isAdmin && (
+                    {isAdminLike && (
                       <button
                         onClick={() => onClickEdit(v)}
                         className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
@@ -1008,7 +1008,7 @@ const VisitasPage: React.FC = () => {
                         <EditOutlined />Editar
                       </button>
                     )}
-                    {isAdmin && (
+                    {isAdminLike && (
                       <button
                         onClick={() => onClickDelete(v)}
                         disabled={isDeleting}
@@ -1075,7 +1075,7 @@ const VisitasPage: React.FC = () => {
                             >
                               Detalle
                             </button>
-                            {isAdmin && (
+                            {isAdminLike && (
                               <button
                                 onClick={() => onClickEdit(v)}
                                 className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
@@ -1083,7 +1083,7 @@ const VisitasPage: React.FC = () => {
                                 <EditOutlined /> Editar
                               </button>
                             )}
-                            {isAdmin && (
+                            {isAdminLike && (
                               <button
                                 onClick={() => onClickDelete(v)}
                                 disabled={isDeleting}

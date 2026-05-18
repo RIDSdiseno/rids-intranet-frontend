@@ -66,6 +66,8 @@ export type EquipoDTO = {
   serial: string;
   marca: string;
   modelo: string;
+  anioPc?: number | null;
+  anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
   procesador: string;
   ram: string;
   disco: string;
@@ -78,6 +80,8 @@ export type EquipoDTO = {
 type SolicitanteLite = {
   id_solicitante: number;
   nombre: string;
+  email?: string | null;
+  rut?: string | null;
   empresa?: { id_empresa: number; nombre: string } | null;
 };
 
@@ -89,6 +93,8 @@ type ListSolicitantesResponse = {
   items: Array<{
     id_solicitante: number;
     nombre: string;
+    email?: string | null;
+    rut?: string | null;
     empresaId: number | null;
     empresa: { id_empresa: number; nombre: string } | null;
   }>;
@@ -103,6 +109,7 @@ type CreateEquipoPayload = {
   serial: string;
   marca: string;
   modelo: string;
+  anioPc?: number | null;
   procesador: string;
   ram: string;
   disco: string;
@@ -225,9 +232,16 @@ async function fetchSolicitantesByEmpresa(
   if (search?.trim()) params.set("q", search.trim());
 
   const res = await http.get(`/solicitantes/by-empresa?${params.toString()}`);
-  return res.data.items.map((it: { id: number; nombre: string }) => ({
+  return res.data.items.map((it: {
+    id: number;
+    nombre: string;
+    email?: string | null;
+    rut?: string | null;
+  }) => ({
     id_solicitante: it.id,
     nombre: it.nombre,
+    email: it.email ?? null,
+    rut: it.rut ?? null,
     empresa: null,
   }));
 }
@@ -267,6 +281,22 @@ async function postEquipo(payload: CreateEquipoPayload): Promise<CreateEquipoRes
 function getModelosPorMarca(marca: string): readonly string[] {
   const key = marca.toUpperCase() as keyof typeof MODELOS_POR_MARCA;
   return MODELOS_POR_MARCA[key] ?? [];
+}
+
+function formatRut(value?: string | null) {
+  if (!value) return "Sin RUT";
+
+  const clean = String(value)
+    .replace(/[^0-9kK]/g, "")
+    .toUpperCase();
+
+  if (!clean) return "Sin RUT";
+  if (clean.length <= 1) return clean;
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
 }
 
 const ADICIONAL_TIPOS = [
@@ -342,6 +372,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         setSolOpts(items.map(it => ({
           id_solicitante: it.id_solicitante,
           nombre: it.nombre,
+          email: it.email ?? null,
+          rut: it.rut ?? null,
           empresa: it.empresa,
         })));
       }
@@ -456,6 +488,10 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             serialAdicional: a.serialAdicional?.trim() || null,
           })),
       };
+
+      if (values.anioPc !== undefined && values.anioPc !== null && values.anioPc !== "") {
+        payload.anioPc = Number(values.anioPc);
+      }
 
       const resp = await postEquipo(payload);
 
@@ -761,10 +797,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                         const filtered = empresaId
                           ? solOpts.filter((s) => s.empresa?.id_empresa === empresaId)
                           : [];
-                        const opts = filtered.map((s) => ({
-                          label: s.empresa?.nombre ? `${s.nombre} — ${s.empresa.nombre}` : s.nombre,
-                          value: s.id_solicitante,
-                        }));
+                        const opts = filtered.map((s) => {
+                          const rutTexto = s.rut ? `RUT: ${formatRut(s.rut)}` : "Sin RUT";
+                          const emailTexto = s.email ? ` — ${s.email}` : "";
+                          const empresaTexto = s.empresa?.nombre ? ` — ${s.empresa.nombre}` : "";
+
+                          return {
+                            label: `${s.nombre} — ${rutTexto}${emailTexto}${empresaTexto}`,
+                            value: s.id_solicitante,
+                          };
+                        });
                         return [{ label: "— Sin solicitante —", value: undefined }, ...opts];
                       }, [solOpts, empresaId]) as { label: string; value: number | null }[]
                     }
@@ -914,6 +956,52 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   </Form.Item>
                 </motion.div>
               ))}
+
+              <motion.div
+                animate={shakeField === "anioPc" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("anioPc") ? "ring-2 ring-red-300/70" : ""
+                  } transition-all`}
+              >
+                <Form.Item
+                  name="anioPc"
+                  label="Año PC"
+                  tooltip="Si lo dejas vacío, el sistema intentará calcularlo automáticamente desde el número de serie."
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (value === undefined || value === null || value === "") {
+                          return Promise.resolve();
+                        }
+
+                        const anio = Number(value);
+                        const anioActual = new Date().getFullYear();
+
+                        if (!Number.isInteger(anio)) {
+                          return Promise.reject(
+                            new Error("El año debe ser un número entero")
+                          );
+                        }
+
+                        if (anio < 2000 || anio > anioActual + 1) {
+                          return Promise.reject(
+                            new Error(`El año debe estar entre 2000 y ${anioActual + 1}`)
+                          );
+                        }
+
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: "100%" }}
+                    min={2000}
+                    max={new Date().getFullYear() + 1}
+                    placeholder="Automático si lo dejas vacío"
+                  />
+                </Form.Item>
+              </motion.div>
 
               <motion.div
                 animate={shakeField === "ramGb" ? shakeKeyframes : { x: 0 }}

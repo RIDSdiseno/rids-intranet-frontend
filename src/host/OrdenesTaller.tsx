@@ -30,6 +30,7 @@ import type {
     EquipoGestioo,
     DetalleTrabajoGestioo,
     Tecnico,
+    EstadoEquipo,
 } from "../components/modals-gestioo/types";
 
 // TYPES
@@ -38,6 +39,8 @@ import {
     normalizeEstado,
     TipoEquipo,
     TipoEquipoLabel,
+    EstadoEquipoLabel,
+    EstadoEquipoColor,
 } from "../components/modals-gestioo/types";
 
 // PDF
@@ -53,9 +56,11 @@ import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrde
 
 import { http } from "../service/http";
 
+import { useAuth } from "../components/hooks/useAuth"
+
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
-    a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : a === "reparacion" ? "REPARACION" : "SALIDA";
+    a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : "SALIDA";
 
 const prioridadToApi = (p: Prioridad) => (p === "baja" ? "BAJA" : p === "alta" ? "ALTA" : "NORMAL");
 
@@ -63,8 +68,6 @@ const estadoToApi = (e: string) => {
     switch (e) {
         case "pendiente":
             return "PENDIENTE";
-        case "en progreso":
-            return "EN_PROCESO";
         case "completada":
             return "FINALIZADO";
         case "cancelada":
@@ -72,6 +75,24 @@ const estadoToApi = (e: string) => {
         default:
             return "PENDIENTE";
     }
+};
+
+const estadoEquipoDefaultPorArea = (area: Area): EstadoEquipo => {
+    if (area === "salida") return "ACTIVO";
+    return "EN_TALLER";
+};
+
+const obtenerEstadoEquipoSeleccionado = (
+    equipoId: string,
+    equipos: EquipoGestioo[]
+): EstadoEquipo | "" => {
+    if (!equipoId) return "";
+
+    const equipo = equipos.find(
+        (eq) => String(eq.id_equipo) === String(equipoId)
+    );
+
+    return equipo?.estado ?? "";
 };
 
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
@@ -103,6 +124,8 @@ const toDateTimeLocal = (date: string | Date) => {
 
 // Componente principal
 const OrdenesTaller: React.FC = () => {
+
+    const { isCliente } = useAuth();
 
     // Función para duplicar orden a SALIDA
     const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
@@ -177,10 +200,11 @@ const OrdenesTaller: React.FC = () => {
         origenEntidad: "",
         entidadId: "",
         equipoId: "",
+        estadoEquipo: "",
         incluyeCargador: false,
     });
 
-    const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "en progreso" | "completada" | "cancelada">("todas");
+    const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "completada" | "cancelada">("todas");
     const [areaFiltro, setAreaFiltro] = useState<"todas" | Area>("todas");
     const [origenFiltro, setOrigenFiltro] = useState<"todas" | OrigenGestioo>("todas");
     const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
@@ -218,7 +242,7 @@ const OrdenesTaller: React.FC = () => {
         fetchSelectData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    
+
     // Cargar equipos con normalización de tipo para evitar problemas en el select
     useEffect(() => {
         const cargarEquipos = async () => {
@@ -293,6 +317,7 @@ const OrdenesTaller: React.FC = () => {
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
                 entidadId: Number(formData.entidadId),
                 equipoId: Number(formData.equipoId),
+                estadoEquipo: formData.estadoEquipo || null,
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
                 incluyeCargador: formData.incluyeCargador,
             };
@@ -346,6 +371,7 @@ const OrdenesTaller: React.FC = () => {
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
             equipoId: String(o.equipo?.id_equipo ?? ""),
+            estadoEquipo: o.equipo?.estado ?? estadoEquipoDefaultPorArea(normalizeArea(o.area) as Area),
 
             tecnicoId: o.tecnico?.id_tecnico ? String(o.tecnico.id_tecnico) : "",
             incluyeCargador: o.incluyeCargador ?? false,
@@ -386,6 +412,7 @@ const OrdenesTaller: React.FC = () => {
                     : undefined,
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
+                estadoEquipo: formData.estadoEquipo || estadoEquipoDefaultPorArea(formData.area),
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
                 incluyeCargador: formData.incluyeCargador,
             };
@@ -494,7 +521,6 @@ const OrdenesTaller: React.FC = () => {
         const base = {
             todas: ordenes.length,
             pendiente: 0,
-            "en progreso": 0,
             completada: 0,
             cancelada: 0,
         };
@@ -514,7 +540,6 @@ const OrdenesTaller: React.FC = () => {
             todas: ordenes.length,
             entrada: 0,
             domicilio: 0,
-            reparacion: 0,
             salida: 0,
         };
 
@@ -580,7 +605,7 @@ const OrdenesTaller: React.FC = () => {
             });
         }
     }; */}
-    
+
     // incluye múltiples filtros, acciones y modales. Se han aplicado estilos modernos con Tailwind CSS para lograr una apariencia limpia y profesional, y se han añadido animaciones suaves para mejorar la experiencia del usuario. La tabla de órdenes es completamente responsive y permite un scroll horizontal en pantallas pequeñas sin perder la estructura ni la usabilidad. Además, se han implementado contadores dinámicos en los filtros para mostrar la cantidad de órdenes en cada categoría, lo que facilita la navegación y el análisis rápido de la información.
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -605,28 +630,31 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Acciones principales */}
                         <div className="flex flex-wrap gap-3">
-                            <button
-                                onClick={() => {
-                                    setFormData({
-                                        tipoTrabajo: "",
-                                        descripcion: "",
-                                        prioridad: "normal",
-                                        estado: "pendiente",
-                                        notas: "",
-                                        area: "entrada",
-                                        fecha: getDateTimeLocalCL(),
-                                        tipoEntidad: "EMPRESA",
-                                        origenEntidad: "",
-                                        entidadId: "",
-                                        equipoId: "",
-                                        incluyeCargador: false,
-                                    });
-                                    setModalOpen(true);
-                                }}
-                                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 hover:brightness-110 transition shadow"
-                            >
-                                <PlusOutlined /> Nueva Orden
-                            </button>
+                            {!isCliente && (
+                                <button
+                                    onClick={() => {
+                                        setFormData({
+                                            tipoTrabajo: "",
+                                            descripcion: "",
+                                            prioridad: "normal",
+                                            estado: "pendiente",
+                                            notas: "",
+                                            area: "entrada",
+                                            fecha: getDateTimeLocalCL(),
+                                            tipoEntidad: "EMPRESA",
+                                            origenEntidad: "",
+                                            entidadId: "",
+                                            equipoId: "",
+                                            estadoEquipo: "",
+                                            incluyeCargador: false,
+                                        });
+                                        setModalOpen(true);
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 hover:brightness-110 transition shadow"
+                                >
+                                    <PlusOutlined /> Nueva Orden
+                                </button>
+                            )}
 
                             <button
                                 onClick={fetchOrdenes}
@@ -651,7 +679,7 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Estado */}
                         <div className="flex flex-wrap gap-2">
-                            {(["todas", "pendiente", "en progreso", "completada", "cancelada"] as const).map(
+                            {(["todas", "pendiente", "completada", "cancelada"] as const).map(
                                 (estado) => (
                                     <button
                                         key={estado}
@@ -682,7 +710,7 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Área */}
                         <div className="flex flex-wrap gap-2">
-                            {(["todas", "entrada", "domicilio", "reparacion", "salida"] as const).map(
+                            {(["todas", "entrada", "domicilio", "salida"] as const).map(
                                 (area) => (
                                     <button
                                         key={area}
@@ -712,48 +740,52 @@ const OrdenesTaller: React.FC = () => {
                         </div>
 
                         {/* Empresas*/}
-                        <div className="min-w-[250px]">
-                            <Select
-                                showSearch
-                                placeholder="Filtrar por empresa"
-                                value={empresaFiltro}
-                                onChange={(value) => setEmpresaFiltro(value)}
-                                style={{ width: 250 }}
-                                optionFilterProp="label"
-                                size="middle"
-                                className="custom-empresa-select"
-                                options={[
-                                    { value: "todas", label: "Todas las empresas" },
-                                    ...Array.from(
-                                        new Set(
-                                            ordenes
-                                                .map((o) => o.entidad?.nombre)
-                                                .filter(Boolean)
-                                        )
-                                    ).map((e) => ({
-                                        value: e,
-                                        label: e,
-                                    })),
-                                ]}
-                            />
-                        </div>
-                        
-                        {/* Técnicos */}
-                        <div className="min-w-[220px]">
-                            <Select
-                                placeholder="Todos los técnicos"
-                                value={tecnicoFiltro}
-                                onChange={(value) => setTecnicoFiltro(value)}
-                                style={{ width: 220 }}
-                                options={[
-                                    { value: "todos", label: "Todos los técnicos" },
-                                    ...tecnicos.map((t) => ({
-                                        value: t.id_tecnico,
-                                        label: t.nombre,
-                                    })),
-                                ]}
-                            />
-                        </div>
+                        {!isCliente && (
+                            <>
+                                <div className="min-w-[250px]">
+                                    <Select
+                                        showSearch
+                                        placeholder="Filtrar por empresa"
+                                        value={empresaFiltro}
+                                        onChange={(value) => setEmpresaFiltro(value)}
+                                        style={{ width: 250 }}
+                                        optionFilterProp="label"
+                                        size="middle"
+                                        className="custom-empresa-select"
+                                        options={[
+                                            { value: "todas", label: "Todas las empresas" },
+                                            ...Array.from(
+                                                new Set(
+                                                    ordenes
+                                                        .map((o) => o.entidad?.nombre)
+                                                        .filter(Boolean)
+                                                )
+                                            ).map((e) => ({
+                                                value: e,
+                                                label: e,
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+
+                                {/* Técnicos */}
+                                <div className="min-w-[220px]">
+                                    <Select
+                                        placeholder="Todos los técnicos"
+                                        value={tecnicoFiltro}
+                                        onChange={(value) => setTecnicoFiltro(value)}
+                                        style={{ width: 220 }}
+                                        options={[
+                                            { value: "todos", label: "Todos los técnicos" },
+                                            ...tecnicos.map((t) => ({
+                                                value: t.id_tecnico,
+                                                label: t.nombre,
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -764,7 +796,7 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Estado equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" :
@@ -835,11 +867,9 @@ const OrdenesTaller: React.FC = () => {
                                                     <span
                                                         className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${normalizeEstado(o.estado) === "completada"
                                                             ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                            : normalizeEstado(o.estado) === "en progreso"
-                                                                ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                                : normalizeEstado(o.estado) === "cancelada"
-                                                                    ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                                    : "bg-amber-50 text-amber-700 ring-amber-200"
+                                                            : normalizeEstado(o.estado) === "cancelada"
+                                                                ? "bg-rose-50 text-rose-700 ring-rose-200"
+                                                                : "bg-amber-50 text-amber-700 ring-amber-200"
                                                             }`}
                                                     >
                                                         {normalizeEstado(o.estado)}
@@ -853,9 +883,7 @@ const OrdenesTaller: React.FC = () => {
                                                             ? "bg-sky-50 text-sky-700 ring-sky-200"
                                                             : o.area === "DOMICILIO"
                                                                 ? "bg-amber-50 text-amber-700 ring-amber-200"
-                                                                : o.area === "REPARACION"
-                                                                    ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                                                                    : "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                                : "bg-emerald-50 text-emerald-700 ring-emerald-200"
                                                             }`}
                                                     >
                                                         {normalizeArea(o.area)}
@@ -867,6 +895,20 @@ const OrdenesTaller: React.FC = () => {
                                                     {o.equipo
                                                         ? `${o.equipo.marca} ${o.equipo.modelo}`
                                                         : "—"}
+                                                </td>
+
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.equipo?.estado ? (
+                                                        <span
+                                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${EstadoEquipoColor[o.equipo.estado] ??
+                                                                "bg-slate-50 text-slate-700 ring-slate-200"
+                                                                }`}
+                                                        >
+                                                            {EstadoEquipoLabel[o.equipo.estado] ?? o.equipo.estado}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic">Sin estado</span>
+                                                    )}
                                                 </td>
 
                                                 {/* Empresa */}
@@ -947,24 +989,28 @@ const OrdenesTaller: React.FC = () => {
                                                         >
                                                             <EyeOutlined />
                                                         </button>
+                                                        {!isCliente && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => openEditModal(o)}
+                                                                    className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50"
+                                                                    title="Editar orden"
+                                                                >
+                                                                    <EditOutlined />
+                                                                </button>
 
-                                                        <button
-                                                            onClick={() => openEditModal(o)}
-                                                            className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50"
-                                                            title="Editar orden"
-                                                        >
-                                                            <EditOutlined />
-                                                        </button>
-
-                                                        {o.area !== "SALIDA" && (
-                                                            <button
-                                                                onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
-                                                                className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
-                                                                title="Generar orden de salida"
-                                                            >
-                                                                <SwapOutlined />
-                                                            </button>
+                                                                {o.area !== "SALIDA" && (
+                                                                    <button
+                                                                        onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
+                                                                        className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
+                                                                        title="Generar orden de salida"
+                                                                    >
+                                                                        <SwapOutlined />
+                                                                    </button>
+                                                                )}
+                                                            </>
                                                         )}
+
 
                                                         <button
                                                             onClick={() => {
@@ -995,13 +1041,18 @@ const OrdenesTaller: React.FC = () => {
                                                             </button>
                                                         )} */}
 
-                                                        <button
-                                                            onClick={() => handleDelete(o.id)}
-                                                            className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50"
-                                                            title="Eliminar orden"
-                                                        >
-                                                            <DeleteOutlined />
-                                                        </button>
+                                                        {!isCliente && (
+                                                            <>
+
+                                                                <button
+                                                                    onClick={() => handleDelete(o.id)}
+                                                                    className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50"
+                                                                    title="Eliminar orden"
+                                                                >
+                                                                    <DeleteOutlined />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1027,7 +1078,7 @@ const OrdenesTaller: React.FC = () => {
             )}
 
             {/* ===== Modal Crear ===== */}
-            {modalOpen && (
+            {!isCliente && modalOpen && (
                 <ModalOrden
                     key="create-modal"
                     title="Nueva Orden de Trabajo"
@@ -1051,7 +1102,7 @@ const OrdenesTaller: React.FC = () => {
             )}
 
             {/* ===== Modal Editar ===== */}
-            {editOpen && selectedOrden && (
+            {!isCliente && editOpen && selectedOrden && (
                 <ModalOrden
                     key={`edit-modal-${selectedOrden.id}`}
                     title={`Editar Orden #${selectedOrden.id}`}

@@ -1,11 +1,32 @@
-
+// src/components/modals-gestioo/types.tsx
 /* =========================
    Tipos / Enums FRONT
 ========================= */
 
 export type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+export type OrigenGestiooFiltro = OrigenGestioo | "TODOS";
 export type Prioridad = "baja" | "normal" | "alta";
-export type Area = "entrada" | "domicilio" | "reparacion" | "salida";
+export type Area = "entrada" | "domicilio" | "salida";
+
+export type EstadoEquipo =
+    | "ACTIVO"
+    | "EN_STOCK"
+    | "EN_TALLER"
+    | "DADO_DE_BAJA";
+
+export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
+    ACTIVO: "Activo",
+    EN_STOCK: "En stock",
+    EN_TALLER: "En TALLER",
+    DADO_DE_BAJA: "Dado de baja",
+};
+
+export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
+    ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    EN_STOCK: "bg-sky-50 text-sky-700 ring-sky-200",
+    EN_TALLER: "bg-amber-50 text-amber-700 ring-amber-200",
+    DADO_DE_BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
+};
 
 export const TipoEquipo = {
     GENERICO: "GENERICO",
@@ -68,15 +89,16 @@ export interface OrdenFormData {
     tipoTrabajo: string;
     descripcion: string;
     prioridad: Prioridad;
-    estado: "pendiente" | "en progreso" | "completada" | "cancelada";
+    estado: "pendiente" | "completada" | "cancelada";
     notas: string;
     area: Area;
     fecha: string;
     fechaIngreso?: string;
     tipoEntidad: "EMPRESA" | "PERSONA";
-    origenEntidad: OrigenGestioo | "";
+    origenEntidad: OrigenGestiooFiltro | "";
     entidadId: string;
     equipoId: string;
+    estadoEquipo?: EstadoEquipo | "";
 
     tecnicoId?: string;
     incluyeCargador: boolean;
@@ -107,6 +129,7 @@ export interface EquipoGestioo {
     modelo: string;
     serial: string | null;
     tipo: TipoEquipoValue;
+    estado?: EstadoEquipo | null;
 
     // 🔹 Campos técnicos
     procesador?: string | null;
@@ -323,8 +346,6 @@ export const normalizeEstado = (estado?: string) => {
     switch (estado) {
         case "PENDIENTE":
             return "pendiente";
-        case "EN_PROCESO":
-            return "en progreso";
         case "COMPLETADA":
         case "FINALIZADO":
             return "completada";
