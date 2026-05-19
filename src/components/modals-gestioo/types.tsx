@@ -11,20 +11,20 @@ export type Area = "entrada" | "domicilio" | "salida";
 export type EstadoEquipo =
     | "ACTIVO"
     | "EN_STOCK"
-    | "EN_TALLER"
+    | "EN_RIDS"
     | "DADO_DE_BAJA";
 
 export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
     ACTIVO: "Activo",
     EN_STOCK: "En stock",
-    EN_TALLER: "En TALLER",
+    EN_RIDS: "En RIDS",
     DADO_DE_BAJA: "Dado de baja",
 };
 
 export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
     ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     EN_STOCK: "bg-sky-50 text-sky-700 ring-sky-200",
-    EN_TALLER: "bg-amber-50 text-amber-700 ring-amber-200",
+    EN_RIDS: "bg-amber-50 text-amber-700 ring-amber-200",
     DADO_DE_BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 

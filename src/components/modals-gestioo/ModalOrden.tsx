@@ -646,7 +646,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 </option>
                                                 <option value="ACTIVO">{EstadoEquipoLabel.ACTIVO}</option>
                                                 <option value="EN_STOCK">{EstadoEquipoLabel.EN_STOCK}</option>
-                                                <option value="EN_TALLER">{EstadoEquipoLabel.EN_TALLER}</option>
+                                                <option value="EN_RIDS">{EstadoEquipoLabel.EN_RIDS}</option>
                                                 <option value="DADO_DE_BAJA">{EstadoEquipoLabel.DADO_DE_BAJA}</option>
                                             </select>
 
@@ -654,7 +654,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 <p className="text-xs text-slate-500 mt-1">
                                                     {formData.area === "salida"
                                                         ? "Para una salida, normalmente el equipo vuelve a quedar Activo."
-                                                        : "Para una entrada o trabajo en RIDS, normalmente queda En TALLER."}
+                                                        : "Para una entrada o trabajo, normalmente queda En RIDS."}
                                                 </p>
                                             )}
                                         </div>

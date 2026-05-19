@@ -167,13 +167,13 @@ type CreateEquipoResponse = {
   }>;
 };
 
-type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_TALLER";
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS";
 
 const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "ACTIVO", label: "Activo" },
   { value: "EN_STOCK", label: "En stock" },
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
-  { value: "EN_TALLER", label: "En taller" },
+  { value: "EN_RIDS", label: "En RIDS" },
 ];
 
 /* =================== Branding =================== */

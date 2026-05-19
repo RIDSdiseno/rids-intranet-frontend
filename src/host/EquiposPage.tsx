@@ -161,13 +161,13 @@ type TecnicoApiRow = {
   rol?: string | null;
 };
 
-type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_TALLER";
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS";
 
 const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "ACTIVO", label: "Activo" },
   { value: "EN_STOCK", label: "En stock" },
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
-  { value: "EN_TALLER", label: "En taller" },
+  { value: "EN_RIDS", label: "En RIDS" },
 ];
 
 function getEstadoEquipoLabel(value?: string | null) {
@@ -183,7 +183,7 @@ function getEstadoEquipoClass(value?: string | null) {
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
     case "EN_STOCK":
       return "bg-blue-50 text-blue-700 border-blue-200";
-    case "EN_TALLER":
+    case "EN_RIDS":
       return "bg-amber-50 text-amber-700 border-amber-200";
     case "DADO_DE_BAJA":
       return "bg-rose-50 text-rose-700 border-rose-200";

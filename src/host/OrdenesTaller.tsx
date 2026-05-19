@@ -79,7 +79,7 @@ const estadoToApi = (e: string) => {
 
 const estadoEquipoDefaultPorArea = (area: Area): EstadoEquipo => {
     if (area === "salida") return "ACTIVO";
-    return "EN_TALLER";
+    return "EN_RIDS";
 };
 
 const obtenerEstadoEquipoSeleccionado = (
