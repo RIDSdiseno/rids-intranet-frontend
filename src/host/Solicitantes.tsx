@@ -21,6 +21,8 @@ import SyncGoogleModal from "../components/SyncGoogleModal";
 import { useAuth } from "../components/hooks/useAuth";
 import { http as api } from "../service/http";
 
+import SolicitantesDashboardTab from "../components/modals-solicitantes/SolicitantesDashboardTab";
+
 // ========= Tipos locales =========
 export type Empresa = { id_empresa: number; nombre: string, dominios?: string[]; };
 export type Equipo = {
@@ -76,6 +78,8 @@ type SyncResponse = {
   [key: string]: unknown;
 };
 
+type EstadoSolicitanteFiltro = "activos" | "inactivos" | "todos";
+
 type ListParams = {
   page?: number;
   pageSize?: number;
@@ -83,6 +87,7 @@ type ListParams = {
   empresaId?: number | null;
   orderBy?: "empresa" | "nombre" | "id";
   orderDir?: "asc" | "desc";
+  estado?: EstadoSolicitanteFiltro;
 };
 
 type ListResponse = {
@@ -142,8 +147,19 @@ async function apiListSolicitantes(params: ListParams, signal?: AbortSignal): Pr
   return data;
 }
 
-async function apiMetrics(params: { q?: string; empresaId?: number | null }) {
-  const { data } = await api.get<{ solicitantes: number; empresas: number; equipos: number }>(
+type MetricsResponse = {
+  solicitantes: number;
+  empresas: number;
+  equipos: number;
+  inactivos?: number;
+};
+
+async function apiMetrics(params: {
+  q?: string;
+  empresaId?: number | null;
+  estado?: EstadoSolicitanteFiltro;
+}) {
+  const { data } = await api.get<MetricsResponse>(
     "/solicitantes/metrics",
     { params: { ...params, empresaId: params.empresaId ?? undefined } }
   );
@@ -433,6 +449,10 @@ import type { SolicitanteForDetail } from "../components/SolicitanteDetailModal"
 export default function SolicitantesPage() {
   const { toasts, push, dismiss } = useToasts();
 
+  const [activeTab, setActiveTab] = useState<
+    "listado" | "dashboard" | "inactivos"
+  >("listado");
+
   // filtros (empresaId aquí SOLO filtra la lista)
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -451,6 +471,11 @@ export default function SolicitantesPage() {
   const [orderBy, setOrderBy] = useState<"empresa" | "nombre" | "id">("empresa");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
 
+  const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
+
+  const estadoListado: EstadoSolicitanteFiltro =
+    activeTab === "inactivos" ? "inactivos" : "activos";
+
   // debounce búsqueda
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300);
@@ -461,8 +486,7 @@ export default function SolicitantesPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [list, setList] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [metrics, setMetrics] =
-    useState<{ solicitantes: number; empresas: number; equipos: number } | null>(null);
+  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
 
   // crear/editar
   const [creating, setCreating] = useState(false);
@@ -602,7 +626,15 @@ export default function SolicitantesPage() {
     const controller = new AbortController();
     try {
       const data = await apiListSolicitantes(
-        { page, pageSize, q: debouncedQ || undefined, empresaId, orderBy, orderDir },
+        {
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          empresaId,
+          orderBy,
+          orderDir,
+          estado: estadoListado,
+        },
         controller.signal
       );
       setList(data);
@@ -613,11 +645,15 @@ export default function SolicitantesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedQ, empresaId, orderBy, orderDir, push]);
+  }, [page, pageSize, debouncedQ, empresaId, orderBy, orderDir, estadoListado, push]);
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const m = await apiMetrics({ q: debouncedQ || undefined, empresaId });
+      const m = await apiMetrics({
+        q: debouncedQ || undefined,
+        empresaId,
+        estado: estadoListado,
+      });
       setMetrics(m);
     } catch (e: any) {
 
@@ -629,7 +665,7 @@ export default function SolicitantesPage() {
         detail: prettyError(e),
       });
     }
-  }, [debouncedQ, empresaId, push]);
+  }, [debouncedQ, empresaId, estadoListado, push]);
 
   useEffect(() => {
     void fetchList();
@@ -638,6 +674,10 @@ export default function SolicitantesPage() {
   useEffect(() => {
     void fetchMetrics();
   }, [fetchMetrics]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
 
   const reloadAll = async () => {
     await Promise.all([fetchList(), fetchMetrics()]);
@@ -736,6 +776,7 @@ export default function SolicitantesPage() {
       });
 
       void reloadAll();
+      setDashboardRefreshTrigger(Date.now());
     } catch (e) {
       push({
         kind: "error",
@@ -797,6 +838,7 @@ export default function SolicitantesPage() {
       await apiDeleteSolicitante(row.id_solicitante, { fallback: "sa" });
       push({ kind: "success", message: "Eliminado correctamente", detail: `"${row.nombre}" fue eliminado.` });
       void reloadAll();
+      setDashboardRefreshTrigger(Date.now());
     } catch (e) {
       push({ kind: "error", message: "No se pudo eliminar", detail: prettyError(e) });
     }
@@ -1090,309 +1132,392 @@ export default function SolicitantesPage() {
         </motion.div>
       </div>
 
-      {/* Métricas */}
+      {/* Dashboard Tab */}
       <div className="px-3 sm:px-4 md:px-6 lg:px-8 mt-4 max-w-7xl mx-auto w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05, duration: 0.2 }}
-          className="grid grid-cols-1 gap-3 md:grid-cols-3"
-        >
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">Solicitantes</div>
-            <div className="mt-1 text-2xl font-semibold">{metrics?.solicitantes ?? 0}</div>
-          </div>
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">Empresas</div>
-            <div className="mt-1 text-2xl font-semibold">{metrics?.empresas ?? 0}</div>
-          </div>
-          <div className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="text-sm text-gray-500">Equipos</div>
-            <div className="mt-1 text-2xl font-semibold">{metrics?.equipos ?? 0}</div>
-          </div>
-        </motion.div>
+        <div className="flex items-center gap-2 rounded-2xl border border-cyan-200 bg-white/80 p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setActiveTab("listado")}
+            className={clsx(
+              "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+              activeTab === "listado"
+                ? "bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-cyan-50"
+            )}
+          >
+            Listado
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("dashboard")}
+            className={clsx(
+              "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+              activeTab === "dashboard"
+                ? "bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-cyan-50"
+            )}
+          >
+            Dashboard
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("inactivos")}
+            className={clsx(
+              "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+              activeTab === "inactivos"
+                ? "bg-gradient-to-r from-cyan-600 to-indigo-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-cyan-50"
+            )}
+          >
+            Inactivos
+          </button>
+        </div>
       </div>
 
-      {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
-      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 mt-4 max-w-7xl mx-auto w-full">
-        {/* Cards (mobile) */}
-        <section className="md:hidden space-y-3" aria-live="polite" aria-busy={loading ? "true" : "false"}>
-          {loading && (
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
-                  <div className="h-4 w-28 bg-cyan-50 rounded mb-2" />
-                  <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
-                  <div className="h-3 w-1/2 bg-cyan-50 rounded" />
+      {/* Métricas */}
+      {(activeTab === "listado" || activeTab === "inactivos") && (
+        <>
+          <div className="px-3 sm:px-4 md:px-6 lg:px-8 mt-4 max-w-7xl mx-auto w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05, duration: 0.2 }}
+              className="grid grid-cols-1 gap-3 md:grid-cols-4"
+            >
+              <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="text-sm text-gray-500">
+                  {activeTab === "inactivos" ? "Solicitantes inactivos" : "Solicitantes activos"}
                 </div>
-              ))}
-            </div>
-          )}
-          <AnimatePresence>
-            {!loading && (list?.items?.length ?? 0) === 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
-                className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center"
-              >
-                Sin resultados.
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <AnimatePresence>
-            {!loading &&
-              list?.items?.map((r) => {
-                const empresaNombre = r.empresa?.nombre ?? "—";
-                return (
-                  <motion.article
-                    key={r.id_solicitante}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
+                <div className="mt-1 text-2xl font-semibold">{metrics?.solicitantes ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="text-sm text-gray-500">Empresas</div>
+                <div className="mt-1 text-2xl font-semibold">{metrics?.empresas ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="text-sm text-gray-500">Equipos</div>
+                <div className="mt-1 text-2xl font-semibold">{metrics?.equipos ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="text-sm text-gray-500">Inactivos actuales</div>
+                <div className="mt-1 text-2xl font-semibold text-rose-600">
+                  {metrics?.inactivos ?? 0}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Lista responsiva: Cards (mobile) / Tabla (md+) */}
+          <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 mt-4 max-w-7xl mx-auto w-full">
+            {/* Cards (mobile) */}
+            <section className="md:hidden space-y-3" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+              {loading && (
+                <div className="space-y-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={`skc-${i}`} className="rounded-2xl border border-cyan-200 bg-white p-4 animate-pulse">
+                      <div className="h-4 w-28 bg-cyan-50 rounded mb-2" />
+                      <div className="h-3 w-3/4 bg-cyan-50 rounded mb-2" />
+                      <div className="h-3 w-1/2 bg-cyan-50 rounded" />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <AnimatePresence>
+                {!loading && (list?.items?.length ?? 0) === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md"
+                    exit={{ opacity: 0, y: 6 }}
+                    className="rounded-2xl border border-cyan-200 bg-white text-slate-600 p-4 text-center"
                   >
-                    <header className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs text-slate-500">#{r.id_solicitante}</div>
-                        <button className="text-base font-semibold text-cyan-700 hover:underline" onClick={() => setDetailId(r.id_solicitante)} title="Ver detalle">
-                          {r.nombre}
-                        </button>
-                        <p className="text-xs text-slate-600 mt-0.5">{empresaNombre}</p>
-                      </div>
-                      <AccountBadge type={r.accountType} />
-                    </header>
-
-                    <p className="text-sm text-slate-700 mt-2">
-                      <span className="text-slate-500">Email:</span> {r.email ?? "—"}
-                    </p>
-
-                    <p className="text-sm text-slate-700 mt-1">
-                      <span className="text-slate-500">Teléfono:</span> {r.telefono ?? "—"}
-                    </p>
-
-                    <div className="mt-3 flex items-center gap-2">
-                      <BadgeCount count={r.equipos?.length ?? 0} />
-                      <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <button
-                        onClick={() => setDetailId(r.id_solicitante)}
-                        className="col-span-1 rounded-xl border border-cyan-200 bg-white/90 text-cyan-800 px-2 py-2 text-sm hover:bg-cyan-50"
-                        aria-label={`Ver detalle de ${r.nombre}`}
-                      >
-                        Detalle
-                      </button>
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 text-emerald-700 px-2 py-2 text-sm hover:bg-emerald-50"
-                        aria-label={`Editar solicitante ${r.nombre}`}
-                      >
-                        <EditOutlined />
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => void removeRow(r)}
-                        className="col-span-1 inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 text-rose-700 px-2 py-2 text-sm hover:bg-rose-50"
-                        aria-label={`Eliminar solicitante ${r.nombre}`}
-                      >
-                        <DeleteOutlined />
-                        Eliminar
-                      </button>
-                    </div>
-                  </motion.article>
-                );
-              })}
-          </AnimatePresence>
-        </section>
-
-        {/* Tabla (desktop) */}
-        <section className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden" aria-live="polite" aria-busy={loading ? "true" : "false"}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-3 w-16 text-left font-semibold">ID</th>
-                  <th className="px-4 py-3 text-left font-semibold">Nombre</th>
-                  <th className="px-4 py-3 text-left">RUT</th>
-                  <th className="px-4 py-3 text-left font-semibold">Empresa</th>
-                  <th className="px-4 py-3 text-center font-semibold">Equipos</th>
-                  <th className="px-4 py-3 text-left font-semibold">Cuenta</th>
-                  <th className="px-4 py-3 text-left font-semibold">Licencias MS</th>
-                  <th className="px-4 py-3 w-56 text-left font-semibold">Acciones</th>
-                </tr>
-              </thead>
-              <AnimatePresence initial={false}>
-                <tbody className="text-slate-800">
-                  {loading &&
-                    Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={`skt-${i}`} className="border-t border-cyan-100 animate-pulse">
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-10 bg-cyan-50 rounded" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-40 bg-cyan-50 rounded" />
-                          <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-40 bg-cyan-50 rounded" />
-                          <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-28 bg-cyan-50 rounded" />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="h-4 w-10 bg-cyan-50 rounded inline-block" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-20 bg-cyan-50 rounded" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-4 w-24 bg-cyan-50 rounded" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-8 w-40 bg-cyan-50 rounded" />
-                        </td>
-                      </tr>
-                    ))}
-
-                  {!loading && (list?.items?.length ?? 0) === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-slate-600">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                          Sin resultados
-                        </motion.div>
-                      </td>
-                    </tr>
-                  )}
-
-                  {!loading &&
-                    list?.items?.map((r) => (
-                      <motion.tr
+                    Sin resultados.
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {!loading &&
+                  list?.items?.map((r) => {
+                    const empresaNombre = r.empresa?.nombre ?? "—";
+                    return (
+                      <motion.article
                         key={r.id_solicitante}
-                        initial={{ opacity: 0, y: 6 }}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                        exit={{ opacity: 0, y: -8 }}
+                        className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md"
                       >
-                        <td className="px-4 py-3">{r.id_solicitante}</td>
-                        <td className="px-4 py-3">
+                        <header className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs text-slate-500">#{r.id_solicitante}</div>
+                            <button className="text-base font-semibold text-cyan-700 hover:underline" onClick={() => setDetailId(r.id_solicitante)} title="Ver detalle">
+                              {r.nombre}
+                            </button>
+                            <p className="text-xs text-slate-600 mt-0.5">{empresaNombre}</p>
+                          </div>
+                          <AccountBadge type={r.accountType} />
+                        </header>
+
+                        <p className="text-sm text-slate-700 mt-2">
+                          <span className="text-slate-500">Email:</span> {r.email ?? "—"}
+                        </p>
+
+                        <p className="text-sm text-slate-700 mt-1">
+                          <span className="text-slate-500">Teléfono:</span> {r.telefono ?? "—"}
+                        </p>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <BadgeCount count={r.equipos?.length ?? 0} />
+                          <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
+                        </div>
+
+                        <div className="flex gap-2">
                           <button
-                            className="text-left text-cyan-700 hover:underline"
+                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
                             onClick={() => setDetailId(r.id_solicitante)}
-                            title="Ver detalle"
                             aria-label={`Ver detalle de ${r.nombre}`}
                           >
-                            {r.nombre}
+                            Detalle
                           </button>
-                          <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
-                          <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.rut ? (
-                            <span className="font-medium text-slate-700">
-                              {r.rut}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.empresa?.nombre ? (
-                            <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
-                              {r.empresa.nombre}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <BadgeCount count={r.equipos?.length ?? 0} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <AccountBadge type={r.accountType} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
-                              onClick={() => openEdit(r)}
-                              aria-label={`Editar solicitante ${r.nombre}`}
-                            >
-                              <EditOutlined /> Editar
-                            </button>
-                            <button
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
-                              onClick={() => void removeRow(r)}
-                              aria-label={`Eliminar solicitante ${r.nombre}`}
-                            >
-                              <DeleteOutlined /> Eliminar
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                </tbody>
-              </AnimatePresence>
-            </table>
-          </div>
 
-          {/* Paginación */}
-          <div className="flex items-center justify-between border-t px-4 py-3 bg-slate-50 text-sm">
-            <div>
-              {list
-                ? `${(list.page - 1) * list.pageSize + 1}-${Math.min(
-                  list.page * list.pageSize,
-                  list.total
-                )} de ${list.total}`
-                : "0-0 de 0"}
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-                className="rounded-lg border px-2 py-1"
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                aria-label="Tamaño de página"
-              >
-                {[10, 20, 50, 100].map((s) => (
-                  <option key={s} value={s}>
-                    {s}/pág
-                  </option>
-                ))}
-              </select>
-              <button
-                className="rounded-lg border px-3 py-1 disabled:opacity-50"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                aria-label="Página anterior"
-                title="Página anterior"
-              >
-                ←
-              </button>
-              <div>
-                Página {list?.page ?? page} / {list?.totalPages ?? 1}
+                          {activeTab === "listado" && (
+                            <>
+                              <button
+                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                                onClick={() => openEdit(r)}
+                                aria-label={`Editar solicitante ${r.nombre}`}
+                              >
+                                <EditOutlined /> Editar
+                              </button>
+
+                              <button
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                                onClick={() => void removeRow(r)}
+                                aria-label={`Eliminar solicitante ${r.nombre}`}
+                              >
+                                <DeleteOutlined /> Eliminar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </motion.article>
+                    );
+                  })}
+              </AnimatePresence>
+            </section>
+
+            {/* Tabla (desktop) */}
+            <section className="hidden md:block rounded-3xl border border-cyan-200 bg-white overflow-hidden" aria-live="polite" aria-busy={loading ? "true" : "false"}>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 w-16 text-left font-semibold">ID</th>
+                      <th className="px-4 py-3 text-left font-semibold">Nombre</th>
+                      <th className="px-4 py-3 text-left">RUT</th>
+                      <th className="px-4 py-3 text-left font-semibold">Empresa</th>
+                      <th className="px-4 py-3 text-center font-semibold">Equipos</th>
+                      <th className="px-4 py-3 text-left font-semibold">Cuenta</th>
+                      <th className="px-4 py-3 text-left font-semibold">Licencias MS</th>
+                      <th className="px-4 py-3 w-56 text-left font-semibold">Acciones</th>
+                    </tr>
+                  </thead>
+                  <AnimatePresence initial={false}>
+                    <tbody className="text-slate-800">
+                      {loading &&
+                        Array.from({ length: 6 }).map((_, i) => (
+                          <tr key={`skt-${i}`} className="border-t border-cyan-100 animate-pulse">
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-10 bg-cyan-50 rounded" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-40 bg-cyan-50 rounded" />
+                              <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-40 bg-cyan-50 rounded" />
+                              <div className="h-3 w-28 bg-cyan-50 rounded mt-2" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-28 bg-cyan-50 rounded" />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="h-4 w-10 bg-cyan-50 rounded inline-block" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-20 bg-cyan-50 rounded" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-4 w-24 bg-cyan-50 rounded" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="h-8 w-40 bg-cyan-50 rounded" />
+                            </td>
+                          </tr>
+                        ))}
+
+                      {!loading && (list?.items?.length ?? 0) === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-10 text-center text-slate-600">
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                              Sin resultados
+                            </motion.div>
+                          </td>
+                        </tr>
+                      )}
+
+                      {!loading &&
+                        list?.items?.map((r) => (
+                          <motion.tr
+                            key={r.id_solicitante}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                          >
+                            <td className="px-4 py-3">{r.id_solicitante}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                className="text-left text-cyan-700 hover:underline"
+                                onClick={() => setDetailId(r.id_solicitante)}
+                                title="Ver detalle"
+                                aria-label={`Ver detalle de ${r.nombre}`}
+                              >
+                                {r.nombre}
+                              </button>
+                              <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
+                              <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {r.rut ? (
+                                <span className="font-medium text-slate-700">
+                                  {r.rut}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {r.empresa?.nombre ? (
+                                <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
+                                  {r.empresa.nombre}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <BadgeCount count={r.equipos?.length ?? 0} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <AccountBadge type={r.accountType} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-2">
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
+                                  onClick={() => setDetailId(r.id_solicitante)}
+                                  aria-label={`Ver detalle de ${r.nombre}`}
+                                >
+                                  Detalle
+                                </button>
+
+                                {activeTab === "listado" && (
+                                  <>
+                                    <button
+                                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                                      onClick={() => openEdit(r)}
+                                      aria-label={`Editar solicitante ${r.nombre}`}
+                                    >
+                                      <EditOutlined /> Editar
+                                    </button>
+
+                                    <button
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                                      onClick={() => void removeRow(r)}
+                                      aria-label={`Eliminar solicitante ${r.nombre}`}
+                                    >
+                                      <DeleteOutlined /> Eliminar
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                    </tbody>
+                  </AnimatePresence>
+                </table>
               </div>
-              <button
-                className="rounded-lg border px-3 py-1 disabled:opacity-50"
-                disabled={!list || page >= list.totalPages}
-                onClick={() => setPage((p) => (list ? Math.min(list.totalPages, p + 1) : p))}
-                aria-label="Página siguiente"
-                title="Página siguiente"
-              >
-                →
-              </button>
-            </div>
-          </div>
-        </section>
-      </main>
+
+              {/* Paginación */}
+              <div className="flex items-center justify-between border-t px-4 py-3 bg-slate-50 text-sm">
+                <div>
+                  {list
+                    ? `${(list.page - 1) * list.pageSize + 1}-${Math.min(
+                      list.page * list.pageSize,
+                      list.total
+                    )} de ${list.total}`
+                    : "0-0 de 0"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="rounded-lg border px-2 py-1"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    aria-label="Tamaño de página"
+                  >
+                    {[10, 20, 50, 100].map((s) => (
+                      <option key={s} value={s}>
+                        {s}/pág
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="rounded-lg border px-3 py-1 disabled:opacity-50"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    aria-label="Página anterior"
+                    title="Página anterior"
+                  >
+                    ←
+                  </button>
+                  <div>
+                    Página {list?.page ?? page} / {list?.totalPages ?? 1}
+                  </div>
+                  <button
+                    className="rounded-lg border px-3 py-1 disabled:opacity-50"
+                    disabled={!list || page >= list.totalPages}
+                    onClick={() => setPage((p) => (list ? Math.min(list.totalPages, p + 1) : p))}
+                    aria-label="Página siguiente"
+                    title="Página siguiente"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+            </section>
+          </main>
+        </>
+      )}
+
+      {/*Tab Activa de Dashboard*/}
+      {activeTab === "dashboard" && (
+        <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 mt-4 max-w-7xl mx-auto w-full">
+          <SolicitantesDashboardTab
+            empresaId={empresaId ?? null}
+            refreshTrigger={dashboardRefreshTrigger}
+          />
+        </main>
+      )}
 
       {/* Modal Crear */}
       <TWModal
