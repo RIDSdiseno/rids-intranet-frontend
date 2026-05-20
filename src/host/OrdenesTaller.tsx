@@ -248,7 +248,7 @@ const OrdenesTaller: React.FC = () => {
         const cargarEquipos = async () => {
             try {
                 const { data } = await http.get("/equipos", {
-                    params: { pageSize: 700 }
+                    params: { pageSize: 1000 }
                 });
 
                 const list = Array.isArray(data) ? data : data.items ?? [];
@@ -1155,7 +1155,7 @@ const OrdenesTaller: React.FC = () => {
                     onSaved={async (nuevoId) => {
                         try {
                             const { data } = await http.get("/equipos", {
-                                params: { pageSize: 700 }
+                                params: { pageSize: 1000 }
                             });
                             const list = Array.isArray(data) ? data : data.items ?? [];
 
@@ -1193,7 +1193,7 @@ const OrdenesTaller: React.FC = () => {
 
                         const cargarEquipos = async () => {
                             const { data } = await http.get("/equipos", {
-                                params: { pageSize: 700 }
+                                params: { pageSize: 1000 }
                             });
                             const list = Array.isArray(data) ? data : data.items ?? [];
                             const normalized = (list as any[]).map((e) => ({
