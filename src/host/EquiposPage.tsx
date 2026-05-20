@@ -1264,7 +1264,6 @@ const EquiposPage: React.FC = () => {
     { key: "serial", label: "Serial", className: "min-w-[120px]" },
     { key: "marca", label: "Marca", className: "min-w-[100px]" },
     { key: "modelo", label: "Modelo", className: "min-w-[120px]" },
-    { key: "anioPc", label: "Año PC", className: "min-w-[110px]" },
     { key: "estado", label: "Estado", className: "min-w-[120px]" },
     { key: "solicitante", label: "Solicitante", className: "min-w-[120px]" },
     { key: "solicitanteRut", label: "RUT Solicitante", className: "min-w-[140px]" },
@@ -1283,7 +1282,7 @@ const EquiposPage: React.FC = () => {
       </div>
 
       {/* Hero / Toolbar */}
-      <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+      <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
           {/* Capa decorativa: no intercepta clics */}
           <div className="absolute inset-0 opacity-60 pointer-events-none bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
@@ -1807,7 +1806,7 @@ const EquiposPage: React.FC = () => {
       </div>
 
       {/* Contenido */}
-      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+      <main className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
         {/* Cards (mobile) */}
         <section
           className="md:hidden space-y-3 mt-4"
@@ -2071,26 +2070,6 @@ const EquiposPage: React.FC = () => {
                               )}
                             </td>
                             <td className="px-4 py-3">{e.modelo || <span className="text-slate-400">—</span>}</td>
-                            <td className="px-4 py-3">
-                              {e.anioPc ? (
-                                <span
-                                  title={getAnioPcOrigenLabel(e.anioPcOrigen)}
-                                  className={clsx(
-                                    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                                    getAnioPcClass(e.anioPcOrigen)
-                                  )}
-                                >
-                                  {e.anioPc}
-                                </span>
-                              ) : (
-                                <span
-                                  title="No determinado"
-                                  className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-500"
-                                >
-                                  N/D
-                                </span>
-                              )}
-                            </td>
                             <td className="px-4 py-3">
                               <span
                                 className={clsx(
@@ -2819,22 +2798,6 @@ const EquiposPage: React.FC = () => {
                   <div><strong>Serial:</strong> {toUC(viewRow.serial)}</div>
                   <div><strong>Marca:</strong> {viewRow.marca}</div>
                   <div><strong>Modelo:</strong> {viewRow.modelo}</div>
-                  <div>
-                    <strong>Año PC:</strong>{" "}
-                    {viewRow.anioPc ? (
-                      <span
-                        title={getAnioPcOrigenLabel(viewRow.anioPcOrigen)}
-                        className={clsx(
-                          "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                          getAnioPcClass(viewRow.anioPcOrigen)
-                        )}
-                      >
-                        {viewRow.anioPc}
-                      </span>
-                    ) : (
-                      "N/D"
-                    )}
-                  </div>
                   <div>
                     <strong>Estado:</strong>{" "}
                     <span

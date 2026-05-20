@@ -897,7 +897,7 @@ export default function TicketDetailPage() {
                                     </div>
 
                                     {showReplyPanel && (
-                                        <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
+                                        <div className="px-6 pb-4 h-[min(720px,65vh)] min-h-[420px] overflow-hidden">
                                             <Tabs
                                                 className="h-full"
                                                 items={[
@@ -909,7 +909,7 @@ export default function TicketDetailPage() {
                                                             </span>
                                                         ),
                                                         children: (
-                                                            <div className="flex h-full min-h-0 flex-col gap-3">
+                                                            <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                                                                 <div className="shrink-0">
                                                                     <div className="flex justify-between items-center mb-1">
                                                                         <span className="text-xs text-gray-500">Para:</span>
@@ -956,16 +956,16 @@ export default function TicketDetailPage() {
                                                                     )}
                                                                 </div>
 
-                                                                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                                                <div className="min-h-0 flex-1 overflow-hidden pr-1">
                                                                     <Input.TextArea
                                                                         value={replyText}
                                                                         onChange={(e) => setReplyText(e.target.value)}
                                                                         placeholder="Escribe tu respuesta al cliente..."
                                                                         autoSize={false}
                                                                         style={{
-                                                                            height: "clamp(150px, 40vh, 400px)",
+                                                                            height: "100%",
                                                                             minHeight: "150px",
-                                                                            resize: "vertical",
+                                                                            resize: "none",
                                                                         }}
                                                                     />
                                                                 </div>

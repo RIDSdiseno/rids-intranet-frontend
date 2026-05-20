@@ -617,7 +617,7 @@ const OrdenesTaller: React.FC = () => {
             </div>
 
             {/* Contenido principal */}
-            <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
+            <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
                 <div className="rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
