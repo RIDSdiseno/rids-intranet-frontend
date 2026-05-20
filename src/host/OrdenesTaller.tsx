@@ -15,6 +15,7 @@ import {
     SwapOutlined,
     FileTextOutlined
 } from "@ant-design/icons";
+import { MailOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
 import { Select } from "antd";
@@ -53,10 +54,14 @@ import { ModalNuevaEntidad } from "../components/modals-gestioo/ModalNuevaEntida
 import { ModalOrden } from "../components/modals-gestioo/ModalOrden";
 import { ModalEditarEntidad } from "../components/modals-gestioo/ModalEditarEntidad";
 import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrden";
+import SendOrdenModal from "../components/modals-gestioo/SendOrdenModal";
 
 import { http } from "../service/http";
 
 import { useAuth } from "../components/hooks/useAuth"
+
+// send modal state
+// (estado para abrir modal de envío de orden)
 
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
@@ -173,6 +178,9 @@ const OrdenesTaller: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewOrden, setPreviewOrden] = useState<DetalleTrabajoGestioo | null>(null);
+
+    const [showSendModal, setShowSendModal] = useState(false);
+    const [sendOrdenSelected, setSendOrdenSelected] = useState<DetalleTrabajoGestioo | null>(null);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
@@ -1030,6 +1038,17 @@ const OrdenesTaller: React.FC = () => {
                                                         >
                                                             <PrinterOutlined />
                                                         </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                // abrir modal de envío
+                                                                setSendOrdenSelected(o);
+                                                                setShowSendModal(true);
+                                                            }}
+                                                            className="rounded-lg border border-cyan-200 text-cyan-700 p-2 hover:bg-cyan-50"
+                                                            title="Enviar orden por correo"
+                                                        >
+                                                            <MailOutlined />
+                                                        </button>
                                                         {/*
                                                         {o.area !== "SALIDA" && (
                                                             <button
@@ -1074,6 +1093,14 @@ const OrdenesTaller: React.FC = () => {
                         setPreviewOrden(null);
                     }}
                     onPrint={() => handlePrint(previewOrden)}
+                />
+            )}
+
+            {showSendModal && (
+                <SendOrdenModal
+                    show={showSendModal}
+                    onClose={() => { setShowSendModal(false); setSendOrdenSelected(null); }}
+                    orden={sendOrdenSelected}
                 />
             )}
 

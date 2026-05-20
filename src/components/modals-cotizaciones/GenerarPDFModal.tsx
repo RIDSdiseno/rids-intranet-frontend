@@ -32,9 +32,16 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
             const pdf = await generarPDF(cotizacion, previewMode, mostrarTotales);
 
             if (previewMode && pdf && onPreviewPDF) {
-                const blob = pdf.output('blob');
-                const url = URL.createObjectURL(blob);
-                onPreviewPDF(url);
+                // Prefer data: URI to avoid blob URL fetch issues in the caller
+                try {
+                    const dataUrl = pdf.output('datauristring');
+                    onPreviewPDF(dataUrl);
+                } catch (e) {
+                    // fallback to blob URL
+                    const blob = pdf.output('blob');
+                    const url = URL.createObjectURL(blob);
+                    onPreviewPDF(url);
+                }
                 onClose();
             } else if (pdf && !previewMode) {
                 const codigo = `COT-${String(cotizacion.id).padStart(6, "0")}`;
@@ -603,3 +610,4 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 };
 
 export default GenerarPDFModal;
+export { generarPDF };
