@@ -42,11 +42,12 @@ const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
 const ORDENESTALLER = "/OrdenesTaller";
 const COTIZACIONES = "/Cotizaciones";
+const MAILER_PATH = "/rids/mailer";
 const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 //const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
-// COBRANZA_PATH = "/cobranza";
+const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas-baseapi";
 const CLIENTES_EXT_PATH = "/clientes-ext";
 
@@ -110,18 +111,20 @@ const NAV: NavEntry[] = [
     items: [
       { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
       { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
-      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
+          { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
+          { label: "Mailer", to: MAILER_PATH, icon: <FileText size={20} /> },
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, HELPDESK_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
     label: "ECONNET",
     items: [
       { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
+      { label: "Cotizaciones Enviadas", to: `${COTIZACIONES}/enviadas`, icon: <FileText size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
       // Facturas SII removido de aquí — ahora solo en Cobranza (acceso restringido)
@@ -134,13 +137,15 @@ const NAV: NavEntry[] = [
     items: [{ label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> }],
     match: [REPORTES_PATH],
   },
+  
   {
     type: "group",
     label: "Facturas",
     items: [
       { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
+      { label: "Cobranza", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
     ],
-    match: [FACTURAS_BASEAPI_PATH],
+    match: [FACTURAS_BASEAPI_PATH, COBRANZA_PATH],
   },
   /*
   {
