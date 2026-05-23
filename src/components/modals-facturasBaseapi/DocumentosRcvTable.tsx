@@ -21,6 +21,7 @@ type Props = {
     busqueda: string;
     onBusquedaChange: (value: string) => void;
     onSelectDocumento: (doc: any) => void;
+    renderRowActions?: (doc: any) => React.ReactNode;
 };
 
 function getEstadoRcv(doc: any) {
@@ -62,13 +63,26 @@ function getEstadoStyles(estado: string) {
 function EstadoBadge({ estado }: { estado: string }) {
     const styles = getEstadoStyles(estado);
 
+    function normalizeEstadoLabel(s: string) {
+        if (!s) return "Pendiente";
+        const up = String(s).toUpperCase();
+        if (up.includes("PENDIENTE")) return "Pendiente";
+        if (up.includes("RECLAMADO")) return "Reclamado";
+        if (up.includes("ACUSADO")) return "Acusado";
+        // Fallback: capitalizar la primera letra
+        const raw = String(s).trim();
+        return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+    }
+
+    const label = normalizeEstadoLabel(estado);
+
     return (
         <span
             className={`inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${styles.className}`}
             title={estado}
         >
             {styles.icon}
-            <span className="truncate">{estado}</span>
+            <span className="truncate">{label}</span>
         </span>
     );
 }
@@ -81,6 +95,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
     busqueda,
     onBusquedaChange,
     onSelectDocumento,
+    renderRowActions,
 }) => {
     return (
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
@@ -231,6 +246,11 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         <EyeOutlined />
                                         Ver detalle
                                     </p>
+                                    {renderRowActions && (
+                                        <div className="mt-2">
+                                            {renderRowActions(doc)}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </button>
@@ -267,6 +287,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
                             <th className="w-[8%] px-4 py-3 text-right">Neto</th>
                             <th className="w-[8%] px-4 py-3 text-right">IVA</th>
                             <th className="w-[8%] px-4 py-3 text-right">Total</th>
+                            {renderRowActions && <th className="w-[10%] px-4 py-3 text-center">Acciones</th>}
                         </tr>
                     </thead>
 
@@ -368,6 +389,9 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                             getValue(doc, ["Monto total", "Monto Total", "montoTotal"], 0)
                                         )}
                                     </td>
+                                    {renderRowActions && (
+                                        <td className="px-4 py-3 text-center">{renderRowActions(doc)}</td>
+                                    )}
                                 </tr>
                             );
                         })}

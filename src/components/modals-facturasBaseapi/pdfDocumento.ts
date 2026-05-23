@@ -37,6 +37,7 @@ export async function generarPdfDocumentoSeleccionado(params: {
     mes: string;
     ano: string;
     autoDownload?: boolean;
+    observacion?: string | null;
 }): Promise<{
     blob: Blob;
     url: string;
@@ -229,10 +230,8 @@ export async function generarPdfDocumentoSeleccionado(params: {
             </tr>
         `;
 
-    const observacion =
-        itemsVisuales.length > 0
-            ? "Documento generado con información del RCV y detalle de ítems del DTE."
-            : "Este PDF muestra la información general del documento. El detalle de productos o servicios aún no está sincronizado.";
+    // Observación por defecto: vacía. Puede ser provista por quien genera el PDF (por ejemplo, el modal Recordatorio).
+    const observacion = params.observacion ?? "";
 
     const fechaImpresion = new Date().toLocaleString("es-CL", {
         day: "2-digit",

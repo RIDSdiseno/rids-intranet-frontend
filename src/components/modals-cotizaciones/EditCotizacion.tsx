@@ -45,6 +45,7 @@ interface EditCotizacionModalProps {
     onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;  // NUEVO
     onVincularEquipo?: (itemId: number, equipoId: number | null) => void;  // NUEVO
     onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
+    onGuardarYEnviar?: () => void;
 }
 
 // Configuración de estados para mostrar en el badge
@@ -64,6 +65,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     onAbrirCrearEquipo,
     onVincularEquipo,
     onAbrirSeleccionEquipo,
+    onGuardarYEnviar,
 }) => {
 
     // ==========================
@@ -1290,6 +1292,26 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </>
                                 )}
                             </button>
+
+                                {onGuardarYEnviar && (
+                                    <button
+                                        type="button"
+                                        onClick={onGuardarYEnviar}
+                                        disabled={itemsLocal.length === 0 || apiLoading}
+                                        className="px-8 py-3.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                                    >
+                                        {apiLoading ? (
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                <span>Procesando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>Guardar y Enviar</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                         </div>
                     </div>
                 </div>

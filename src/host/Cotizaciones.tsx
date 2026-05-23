@@ -11,8 +11,10 @@ import {
     CloseCircleOutlined,
     FileTextOutlined,
     PrinterOutlined,
+    MailOutlined,
     CopyOutlined,
 } from "@ant-design/icons";
+import { Modal } from 'antd';
 import { motion } from "framer-motion";
 import { useApi } from "../components/modals-cotizaciones/UseApi";
 import {
@@ -29,6 +31,9 @@ import {
     GenerarPDFModal,
     NewServicioModal
 } from "../components/modals-cotizaciones";
+import { generarPDF } from "../components/modals-cotizaciones/GenerarPDFModal";
+import { http } from '../service/http';
+import SendCotizacionModal from "../components/modals-cotizaciones/SendCotizacionModal";
 import type {
     CotizacionGestioo,
     EntidadGestioo,
@@ -41,6 +46,7 @@ import type {
     Toast,
     CotizacionItemGestioo
 } from "../components/modals-cotizaciones/types";
+import { notification } from 'antd';
 import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
@@ -303,6 +309,23 @@ const Cotizaciones: React.FC = () => {
     const showError = (msg: string) => {
         setToast({ type: "error", message: msg });
     };
+
+        function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
+                const nombre = cot.entidad?.nombre || '';
+                return `
+                <div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+                    <div style="background:#0891b2;padding:20px;border-radius:8px 8px 0 0;text-align:center;color:#fff;">
+                        <img src="/img/splash.png" alt="RIDS" style="height:46px;display:block;margin:0 auto 6px;" />
+                        <div style="font-size:16px;margin-top:4px;opacity:0.95">Cotización</div>
+                    </div>
+                    <div style="background:#fff;border:1px solid #e6eef0;padding:22px;border-top:0;border-radius:0 0 8px 8px;max-width:760px;margin:0 auto;">
+                        <p style="margin:0 0 12px;font-size:14px;">Estimado/a ${nombre},</p>
+                        <p style="margin:0 0 16px;font-size:14px;">Adjuntamos la cotización solicitada (ID: ${cot.id}).</p>
+                        <p style="margin:0 0 16px;font-size:14px;">En el archivo PDF adjuntado, encontrará el detalle, que podrá revisar antes de su confirmación o corrección.</p>
+                        <p>Saludos cordiales,<br/>Equipo RIDS</p>
+                    </div>
+                </div>`;
+        }
 
     const fetchTecnicos = async () => {
         try {
@@ -836,6 +859,223 @@ const Cotizaciones: React.FC = () => {
 
         } catch (error) {
             handleApiError(error, "Error al crear cotización");
+        }
+    };
+
+    // Crear y enviar: crea la cotización y genera el PDF + envía por correo sin abrir modal
+    const handleCreateAndSendCotizacion = async () => {
+        if (!formData.entidadId) {
+            handleApiError(null, "Debe seleccionar una entidad");
+            return;
+        }
+
+        if (items.length === 0) {
+            handleApiError(null, "Debe agregar al menos un item en alguna sección");
+            return;
+        }
+
+        try {
+            // reuse creation logic (file upload if needed)
+            let imagenUrl = null;
+
+            if (formData.imagenFile) {
+                const formDataToSend = new FormData();
+                formDataToSend.append("imagen", formData.imagenFile);
+
+                const uploadResp = await apiFetch("/upload-imagenes/upload", {
+                    method: "POST",
+                    body: formDataToSend
+                });
+
+                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+            }
+
+            const itemsParaEnviar = items.map((item: any) => {
+                const tasa = Number(formData.tasaCambio || 1);
+
+                const precioCLP =
+                    formData.moneda === "USD"
+                        ? Math.round(Number(item.precio || 0) * tasa)
+                        : Number(item.precio || 0);
+
+                const precioCostoCLP =
+                    item.precioCosto != null
+                        ? formData.moneda === "USD"
+                            ? Math.round(Number(item.precioCosto) * tasa)
+                            : Number(item.precioCosto)
+                        : null;
+
+                return {
+                    tipo: item.tipo,
+                    nombre: item.nombre,
+                    descripcion: item.descripcion,
+                    cantidad: item.cantidad,
+                    precio: precioCLP,
+                    precioOriginalCLP: precioCLP,
+                    precioCosto: precioCostoCLP,
+                    porcentaje: item.porcentaje || null,
+                    tieneIVA: item.tieneIVA || false,
+                    tieneDescuento: item.tieneDescuento || false,
+                    sku: item.sku || null,
+                    porcGanancia: item.porcGanancia || null,
+                    seccionId: item.seccionId,
+                    imagen: item.imagen || null,
+                    equipoId: item.equipoId ?? null,
+                };
+            });
+
+            const totales = calcularTotales(itemsParaEnviar);
+
+            const cotizacionData = {
+                tipo: TipoCotizacionGestioo.CLIENTE,
+                estado: EstadoCotizacionGestioo.BORRADOR,
+                entidadId: Number(formData.entidadId),
+                subtotal: totales.subtotal,
+                descuentos: totales.descuentos,
+                iva: totales.iva,
+                total: totales.total,
+                moneda: formData.moneda,
+                tasaCambio: formData.moneda === "USD"
+                    ? Number(formData.tasaCambio || 1)
+                    : 1,
+                items: itemsParaEnviar,
+                comentariosCotizacion: formData.comentariosCotizacion?.trim() || null,
+                secciones: formData.secciones,
+                personaResponsable: formData.personaResponsable || null,
+                imagen: imagenUrl
+            };
+
+            const data = await apiFetch("/cotizaciones", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cotizacionData)
+            });
+
+            const created = data.data;
+            setCotizaciones(prev => [created, ...prev]);
+            setShowCreateModal(false);
+            resetForm();
+            showSuccess("Cotización creada correctamente");
+
+            // Generar el PDF programáticamente y enviarlo
+            try {
+                const pdf = await generarPDF(created, false, true);
+                let dataUrl: string | null = null;
+                try { dataUrl = pdf.output('datauristring'); } catch (e) {
+                    const blob = pdf.output('blob');
+                    dataUrl = await new Promise<string>((res) => {
+                        const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                    });
+                }
+
+                if (!dataUrl) throw new Error('No se pudo generar el PDF');
+
+                const comma = dataUrl.indexOf(',');
+                const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+                const mimeMatch = dataUrl.match(/data:([^;]+);/);
+                const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+                // armar HTML con logo embebido (simple replacement)
+                let finalHtml = buildDefaultHtml(created as any);
+                try {
+                    const resp = await fetch('/img/splash.png');
+                    if (resp.ok) {
+                        const blob = await resp.blob();
+                        const logoData = await new Promise<string>((res) => {
+                            const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                        });
+                        finalHtml = finalHtml.replace(/src=["']\/img\/splash\.png["']/g, `src="${logoData}"`);
+                    }
+                } catch (e) {
+                    // ignore logo embedding errors
+                }
+
+                const payload = {
+                    targets: [{ email: created.entidad?.correo || '', nombre: created.entidad?.nombre || '' }],
+                    subject: `Cotización #${created.id} - ${created.entidad?.nombre || ''}`,
+                    bodyHtml: finalHtml,
+                    attachments: [{ name: `Cotizacion_${created.id}.pdf`, contentType, contentBytes: base64 }]
+                };
+
+                const sendResp = await http.post('/correo/enviar-masivo', payload);
+                if (sendResp.data?.ok) {
+                    notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${created.entidad?.correo}` });
+                } else {
+                    notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
+                }
+            } catch (err) {
+                console.error('Error generando/enviando PDF:', err);
+                notification.error({ message: 'Error', description: 'No se pudo generar o enviar el PDF automáticamente.' });
+            }
+
+        } catch (error) {
+            handleApiError(error, "Error al crear cotización");
+        }
+    };
+
+    const handleGuardarYEnviarCotizacion = async () => {
+        if (!selectedCotizacion) {
+            handleApiError(null, 'No hay cotización seleccionada');
+            return;
+        }
+
+        try {
+            // Guardar primero
+            await handleUpdateCotizacion();
+
+            // Obtener la versión actualizada
+            const resp = await apiFetch(`/cotizaciones/${selectedCotizacion.id}`);
+            const cot = resp.data || resp;
+
+            // Generar PDF
+            const pdf = await generarPDF(cot, false, true);
+            let dataUrl: string | null = null;
+            try { dataUrl = pdf.output('datauristring'); } catch (e) {
+                const blob = pdf.output('blob');
+                dataUrl = await new Promise<string>((res) => {
+                    const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                });
+            }
+
+            if (!dataUrl) throw new Error('No se pudo generar el PDF');
+
+            const comma = dataUrl.indexOf(',');
+            const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+            const mimeMatch = dataUrl.match(/data:([^;]+);/);
+            const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+            // Construir HTML (simple) e intentar embeber logo
+            let finalHtml = buildDefaultHtmlForSend(cot as any);
+            try {
+                const r = await fetch('/img/splash.png');
+                if (r.ok) {
+                    const blob = await r.blob();
+                    const logoData = await new Promise<string>((res) => {
+                        const fr = new FileReader(); fr.onloadend = () => res(fr.result as string); fr.readAsDataURL(blob);
+                    });
+                    finalHtml = finalHtml.replace(/src=["']\/img\/splash\.png["']/g, `src="${logoData}"`);
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            const payload = {
+                targets: [{ email: cot.entidad?.correo || '', nombre: cot.entidad?.nombre || '' }],
+                subject: `Cotización #${cot.id} - ${cot.entidad?.nombre || ''}`,
+                bodyHtml: finalHtml,
+                attachments: [{ name: `Cotizacion_${cot.id}.pdf`, contentType, contentBytes: base64 }]
+            };
+
+            const sendResp = await http.post('/correo/enviar-masivo', payload);
+            if (sendResp.data?.ok) {
+                notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${cot.entidad?.correo}` });
+            } else {
+                notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
+            }
+
+        } catch (err) {
+            console.error('Error al guardar y enviar:', err);
+            notification.error({ message: 'Error', description: 'No se pudo guardar y enviar la cotización.' });
         }
     };
 
@@ -1594,6 +1834,8 @@ const Cotizaciones: React.FC = () => {
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
+    const [showSendMailModal, setShowSendMailModal] = useState(false);
+    const [showSentModal, setShowSentModal] = useState(false);
 
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
         try {
@@ -1834,6 +2076,21 @@ const Cotizaciones: React.FC = () => {
             >
                 <PrinterOutlined />
             </button>
+            <button
+                onClick={async () => {
+                    try {
+                        const data = await apiFetch(`/cotizaciones/${c.id}`);
+                        setSelectedCotizacion(data.data || data);
+                        setShowSendMailModal(true);
+                    } catch (err) {
+                        handleApiError(err, 'Error al preparar envío');
+                    }
+                }}
+                className={mobile ? "rounded-xl border border-yellow-200 p-2 text-yellow-600 hover:bg-yellow-50" : "text-sm text-yellow-600 hover:text-yellow-800"}
+                title="Enviar correo"
+            >
+                <MailOutlined />
+            </button>
             {!isCliente && (
                 <>
                     <button
@@ -1910,6 +2167,24 @@ const Cotizaciones: React.FC = () => {
                                 <p className="text-sm text-slate-500">
                                     Gestión y seguimiento de cotizaciones.
                                 </p>
+                                <div className="mt-3">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => { /* permanece en la vista actual */ }}
+                                            className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 text-sm"
+                                        >
+                                            Cotizaciones
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSentModal(true)}
+                                            className="px-3 py-1 rounded-full bg-white border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+                                        >
+                                            Cotizaciones Enviadas
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2040,6 +2315,17 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
                 </section>
+
+                <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
+
+                <Modal open={showSentModal} onCancel={() => setShowSentModal(false)} footer={null} title="Cotizaciones Enviadas">
+                    <div style={{ padding: 20, minHeight: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="text-center">
+                            <h3 className="text-lg font-semibold mb-2">El apartado está siendo creado</h3>
+                            <p>El apartado está siendo creado, agradecemos su paciencia</p>
+                        </div>
+                    </div>
+                </Modal>
 
                 {/* LISTADO */}
                 <section className="mt-6">
@@ -2311,6 +2597,7 @@ const Cotizaciones: React.FC = () => {
                     onUpdateItem={handleUpdateItem}
                     onRemoveItem={handleRemoveItem}
                     onCrearCotizacion={handleCreateCotizacion}
+                    onCrearYEnviarCotizacion={handleCreateAndSendCotizacion}
                     onCrearEmpresa={() => setShowNewEmpresaModal(true)}
                     onCrearProducto={() => {
                         setShowNewProductoModal(true);
@@ -2358,6 +2645,7 @@ const Cotizaciones: React.FC = () => {
                     onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
                     onVincularEquipo={handleVincularEquipoAItem}
                     onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
+                        onGuardarYEnviar={handleGuardarYEnviarCotizacion}
                 />)}
 
             <SelectProductoModal

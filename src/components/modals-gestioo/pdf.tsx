@@ -15,7 +15,7 @@ import {
 // ==============================
 //   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
-export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
+export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { download?: boolean }) => {
     try {
         const fechaActual = new Date().toLocaleString("es-CL", {
             day: "2-digit",
@@ -58,14 +58,14 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 
         const html = `
-<div class="pdf-container" style="
-    width: 1700px;
-    margin: 0 auto;
-    padding: 40px;
-    font-family: Arial, sans-serif;
-    color: #000;
-    font-size: 30px;
-">
+        <div class="pdf-container" style="
+            width: 1000px;
+            margin: 0 auto;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            color: #000;
+            font-size: 14px;
+        ">
 <br>
 <br>
 
@@ -251,16 +251,34 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         });
 
         // ✅ CONFIGURACIÓN OPTIMIZADA
-        const canvas = await html2canvas(container, {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: '#FFFFFF',
-            logging: false,
-            imageTimeout: 0,
-            width: container.scrollWidth,
-            height: container.scrollHeight,
-            windowWidth: container.scrollWidth,
-        });
+        // Intentar con una escala reducida para evitar consumo excesivo de memoria.
+        const targetWidth = Math.min(container.scrollWidth || 1000, 1000);
+        let canvas;
+        try {
+            canvas = await html2canvas(container, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#FFFFFF',
+                logging: false,
+                imageTimeout: 0,
+                width: targetWidth,
+                height: container.scrollHeight,
+                windowWidth: targetWidth,
+            });
+        } catch (e) {
+            console.warn('html2canvas scale 2 failed, retrying with scale 1', e);
+            // Fallback a escala 1 en caso de OOM o errores
+            canvas = await html2canvas(container, {
+                scale: 1,
+                useCORS: true,
+                backgroundColor: '#FFFFFF',
+                logging: false,
+                imageTimeout: 0,
+                width: targetWidth,
+                height: container.scrollHeight,
+                windowWidth: targetWidth,
+            });
+        }
 
         const pdf = new jsPDF("p", "mm", "a4", true);
         const img = canvas.toDataURL("image/jpeg", 1.0);
@@ -270,11 +288,18 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
         pdf.addImage(img, "JPEG", 0, 0, pdfWidth, proportionalHeight, undefined, 'FAST');
 
-        pdf.save(`Orden_${codigo}.pdf`);
+        if (options?.download !== false) {
+            pdf.save(`Orden_${codigo}.pdf`);
+        }
 
         document.body.removeChild(container);
+        return pdf;
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");
     }
+};
+// Generar PDF y retornar el objeto jsPDF (no descargar)
+export const generarOrdenPDF = async (orden: DetalleTrabajoGestioo) => {
+    return await handlePrint(orden, { download: false });
 };
