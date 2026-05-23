@@ -11,6 +11,7 @@ import {
     formatCLP,
     formatFechaVista,
 } from "../components/modals-facturasBaseapi/utils";
+import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
 import { Pagination } from "antd";
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000/api";
@@ -37,6 +38,7 @@ export default function Cobranza() {
 
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
+    const [downloadingFolio, setDownloadingFolio] = useState<string | null>(null);
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem("accessToken") ?? "";
@@ -362,6 +364,69 @@ export default function Cobranza() {
         window.location.href = `/rids/mailer?${params.toString()}`;
     };
 
+    const handleDescargarFactura = async (doc: any) => {
+        try {
+            if (activeTab !== "ventas") {
+                alert("Descarga disponible solo para documentos emitidos (ventas).");
+                return;
+            }
+
+            const folio = String(getValue(doc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
+            const tipo = String(getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"], "33"));
+            if (!folio) {
+                alert("No se pudo determinar el folio del documento");
+                return;
+            }
+
+            setDownloadingFolio(folio);
+
+            // Determinar clave de empresa usada por BaseAPI (como en facturasBaseapi)
+            const empresaDocumento = String(
+                getValue(doc, ["empresaOrigen", "empresa", "empresaKey"], empresa)
+            ).toLowerCase();
+
+            const params = new URLSearchParams({ periodo: `${ano}-${mes}`, empresa: empresaDocumento, tipoDTE: String(tipo) });
+
+            const token = localStorage.getItem("accessToken") ?? "";
+            const headers: any = { "Content-Type": "application/json" };
+            if (token) headers.Authorization = `Bearer ${token}`;
+
+            const res = await fetch(`${BASE_URL}/baseapi/dte/folio/${folio}?${params.toString()}`, { headers });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
+            }
+
+            const detalle = await res.json();
+
+            const pdfResult = await generarPdfDocumentoSeleccionado({
+                documento: doc,
+                detalleDte: detalle,
+                activeTab: activeTab === "ventas" ? "ventas" : "compras",
+                empresa,
+                mes,
+                ano,
+                autoDownload: false,
+            });
+
+            // Forzar descarga
+            const a = document.createElement("a");
+            a.href = pdfResult.url;
+            a.download = pdfResult.fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            // Liberar URL cuando ya no se use
+            try { URL.revokeObjectURL(pdfResult.url); } catch { }
+        } catch (error: any) {
+            console.error("Error descargando factura:", error);
+            alert(error?.message ?? "Error al descargar factura");
+        } finally {
+            setDownloadingFolio(null);
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="rounded-2xl border border-cyan-100 bg-white p-4 mb-4 shadow-sm">
@@ -505,12 +570,21 @@ export default function Cobranza() {
                 onBusquedaChange={(v) => { setBusqueda(v); setPage(1); }}
                 onSelectDocumento={handleSeleccionarDocumento}
                 renderRowActions={(doc) => (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setReminderDoc(doc); setReminderModalOpen(true); }}
-                        className="rounded bg-cyan-600 px-2 py-1 text-xs font-semibold text-white"
-                    >
-                        Recordatorios
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={async (e) => { e.stopPropagation(); const fol = String(getValue(doc, ["Folio","folio"], "")).replace(/[^0-9]/g,""); if (fol) { await handleDescargarFactura(doc); } else { alert('Folio no disponible'); } }}
+                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                            {downloadingFolio === String(getValue(doc, ["Folio","folio"], "")) ? 'Descargando...' : 'Descargar'}
+                        </button>
+
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setReminderDoc(doc); setReminderModalOpen(true); }}
+                            className="rounded bg-cyan-600 px-2 py-1 text-xs font-semibold text-white"
+                        >
+                            Recordatorios
+                        </button>
+                    </div>
                 )}
             />
 
@@ -564,12 +638,37 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
         let mounted = true;
         (async () => {
             try {
+                // Helper para normalizar contactos y extraer emails/teléfonos
+                const normalizeContact = (c: any) => {
+                    const nombre = c?.nombre || c?.name || c?.nombreContacto || c?.fullName || c?.contacto || c?.razonSocial || c?.razon || "Contacto";
+                    const email = c?.email || c?.correo || c?.mail || c?.eMail || c?.contactoEmail || null;
+                    const cargo = c?.cargo || c?.position || c?.puesto || c?.role || null;
+                    const phones: string[] = [];
+                    const phoneCandidates = [
+                        'telefono', 'telefonoFijo', 'telefono1', 'telefono_celular', 'celular', 'movil', 'fono', 'phone', 'tel', 'telefono2', 'telefono_movil'
+                    ];
+                    for (const k of phoneCandidates) {
+                        const v = c?.[k];
+                        if (v && String(v).trim()) phones.push(String(v).trim());
+                    }
+                    // también buscar en keys dinámicas
+                    for (const k of Object.keys(c || {})) {
+                        if (/tel|fono|movil|cel|phone/i.test(k) && !phoneCandidates.includes(k)) {
+                            const v = c?.[k];
+                            if (v && String(v).trim()) phones.push(String(v).trim());
+                        }
+                    }
+
+                    return { raw: c, nombre, email, cargo, telefonos: Array.from(new Set(phones)) };
+                };
+
                 // Intentar extraer contactos desde el documento abierto (heurística)
                 const maybe = reminderDoc?.contactos ?? reminderDoc?.empresa?.contactos ?? reminderDoc?.contactosEmpresa ?? reminderDoc?.data?.contactos ?? [];
                 if (Array.isArray(maybe) && maybe.length > 0) {
+                    const norm = maybe.map(normalizeContact);
                     if (!mounted) return;
-                    setContactos(maybe);
-                    setSelectedContacto(maybe[0]);
+                    setContactos(norm);
+                    setSelectedContacto(norm[0]);
                     return;
                 }
 
@@ -577,10 +676,17 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                 const possibleEmail = reminderDoc ? (
                     reminderDoc?.email || reminderDoc?.correo || reminderDoc?.contacto?.email || reminderDoc?.raw?.correo || reminderDoc?.raw?.email
                 ) : null;
-                if (possibleEmail) {
+                // También intentar extraer posibles teléfonos en campos comunes
+                const possiblePhone = reminderDoc ? (
+                    reminderDoc?.telefono || reminderDoc?.fono || reminderDoc?.phone || reminderDoc?.celular || reminderDoc?.movil || reminderDoc?.raw?.telefono
+                ) : null;
+                if (possibleEmail || possiblePhone) {
                     if (!mounted) return;
-                    setContactos([{ nombre: reminderDoc?.razonSocial || "Contacto", email: possibleEmail }]);
-                    setSelectedContacto({ nombre: reminderDoc?.razonSocial || "Contacto", email: possibleEmail });
+                    const cObj: any = { nombre: reminderDoc?.razonSocial || "Contacto", email: possibleEmail };
+                    if (possiblePhone) cObj.telefono = possiblePhone;
+                    const norm = [normalizeContact(cObj)];
+                    setContactos(norm);
+                    setSelectedContacto(norm[0]);
                     return;
                 }
 
@@ -601,20 +707,48 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                         const headers: any = { 'Content-Type': 'application/json' };
                         if (token) headers.Authorization = `Bearer ${token}`;
 
+                        console.debug('ReminderBody: intentando fetch contactos por empresaId', empresaId);
                         const resp = await fetch(`${BASE_URL}/ficha-empresa/${empresaId}/completa`, { headers });
                         if (resp.ok) {
                             const json = await resp.json();
-                            const remoteContacts = Array.isArray(json?.contactos) ? json.contactos : Array.isArray(json?.data?.contactos) ? json.data.contactos : [];
+                            console.debug('ReminderBody: respuesta ficha-empresa (por id):', json);
+                            const remoteContacts = Array.isArray(json?.contactos) ? json.contactos : Array.isArray(json?.data?.contactos) ? json.data.contactos : Array.isArray(json?.empresa?.contactos) ? json.empresa.contactos : [];
                             if (remoteContacts.length > 0) {
                                 if (!mounted) return;
-                                setContactos(remoteContacts);
-                                setSelectedContacto(remoteContacts[0]);
+                                const norm = remoteContacts.map(normalizeContact);
+                                setContactos(norm);
+                                setSelectedContacto(norm[0]);
                                 return;
                             }
                         }
                     } catch (e) {
                         // ignore network errors
                     }
+                }
+
+                // Si no hay empresaId, intentar por clave/slug/empresaKey
+                const empresaKey = reminderDoc?.empresa?.empresaKey || reminderDoc?.empresaKey || reminderDoc?.empresa || reminderDoc?.empresa_data || null;
+                if (!empresaId && empresaKey) {
+                    try {
+                        console.debug('ReminderBody: intentando fetch contactos por empresaKey', empresaKey);
+                        const token = localStorage.getItem('accessToken') ?? '';
+                        const headers: any = { 'Content-Type': 'application/json' };
+                        if (token) headers.Authorization = `Bearer ${token}`;
+
+                        const resp2 = await fetch(`${BASE_URL}/ficha-empresa/${empresaKey}/completa`, { headers });
+                        if (resp2.ok) {
+                            const json2 = await resp2.json();
+                            console.debug('ReminderBody: respuesta ficha-empresa (por key):', json2);
+                            const remoteContacts2 = Array.isArray(json2?.contactos) ? json2.contactos : Array.isArray(json2?.data?.contactos) ? json2.data.contactos : Array.isArray(json2?.empresa?.contactos) ? json2.empresa.contactos : [];
+                            if (remoteContacts2.length > 0) {
+                                if (!mounted) return;
+                                const norm = remoteContacts2.map(normalizeContact);
+                                setContactos(norm);
+                                setSelectedContacto(norm[0]);
+                                return;
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
                 }
             } catch (e) { /* ignore */ }
         })();
@@ -675,11 +809,20 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                     {hasContacts ? (
                         <div className="space-y-2">
                             {contactos.map((c, idx) => (
-                                <label key={idx} className={`flex items-center gap-3 rounded border p-3 ${selectedContacto === c ? 'border-cyan-300 bg-cyan-50' : 'border-slate-100 bg-white'}`}>
-                                    <input type="radio" name="contacto" checked={selectedContacto === c} onChange={() => setSelectedContacto(c)} />
-                                    <div>
-                                        <div className="font-semibold text-sm">{c.nombre ?? c.name ?? c.nombreContacto ?? c.email}</div>
-                                        <div className="text-xs text-slate-500">{c.email ?? c.correo ?? c.phone}</div>
+                                <label key={idx} className={`flex items-start gap-3 rounded border p-3 ${selectedContacto === c ? 'border-cyan-300 bg-cyan-50' : 'border-slate-100 bg-white'}`}>
+                                    <input className="mt-1" type="radio" name="contacto" checked={selectedContacto === c} onChange={() => setSelectedContacto(c)} />
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <div className="font-semibold text-sm">{c.nombre}</div>
+                                            {c.cargo && <div className="text-xs text-slate-500">{c.cargo}</div>}
+                                        </div>
+
+                                        <div className="mt-1 text-xs text-slate-500">
+                                            {c.email ? (<div><strong>Email:</strong> <span className="ml-1">{c.email}</span></div>) : null}
+                                            {c.telefonos && c.telefonos.length > 0 ? (
+                                                <div className="mt-1"><strong>Teléfono{c.telefonos.length>1? 's':''}:</strong> <span className="ml-1">{c.telefonos.join(' · ')}</span></div>
+                                            ) : null}
+                                        </div>
                                     </div>
                                 </label>
                             ))}
