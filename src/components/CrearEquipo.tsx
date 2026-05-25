@@ -31,6 +31,9 @@ import {
   MARCAS_EQUIPO,
   MODELOS_POR_MARCA,
   PROCESADORES,
+  TipoEquipo,
+  TipoEquipoLabel,
+  type TipoEquipoValue,
 } from "../components/modals-gestioo/types";
 
 /* =================== Tipos =================== */
@@ -106,6 +109,7 @@ type AntdValidateError = { errorFields: AntdFieldError[] };
 type CreateEquipoPayload = {
   empresaId: number;
   idSolicitante: number | null;
+  tipo: TipoEquipoValue;
   serial: string;
   marca: string;
   modelo: string;
@@ -175,6 +179,107 @@ const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
   { value: "EN_RIDS", label: "En RIDS" },
 ];
+
+type RequiredEquipoFields = {
+  procesador: boolean;
+  ram: boolean;
+  disco: boolean;
+};
+
+const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
+  [TipoEquipo.GENERICO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.NOTEBOOK]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.ALL_IN_ONE]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.DESKTOP]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.CPU]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.EQUIPO_ARMADO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+
+  [TipoEquipo.IMPRESORA]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.SCANNER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LASER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LED]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.MONITOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.ROUTER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.CARGADOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.INSUMOS_COMPUTACIONALES]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.RELOJ_CONTROL]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.OTRO]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+
+  [TipoEquipo.NAS]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+  [TipoEquipo.DISCO_DURO_EXTERNO]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+};
 
 /* =================== Branding =================== */
 const THEMES = {
@@ -346,6 +451,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const empresaId = Form.useWatch("empresaId", form);
   const marcaValue = Form.useWatch("marca", form);
 
+  const tipoEquipoValue =
+    (Form.useWatch("tipo", form) as TipoEquipoValue | undefined) ??
+    TipoEquipo.GENERICO;
+
+  const requiredFields =
+    REQUIRED_FIELDS_BY_TIPO[tipoEquipoValue] ??
+    REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+  const requiresProcesador = requiredFields.procesador;
+  const requiresRam = requiredFields.ram;
+  const requiresDisco = requiredFields.disco;
+
   // --- solicitantes ---
   const [solSearch, setSolSearch] = useState("");
   const debSearch = useDebounce(solSearch, 400);
@@ -438,11 +555,46 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     prevEmpresaId.current = empresaId;
   }, [empresaId, open, form]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const currentRequired =
+      REQUIRED_FIELDS_BY_TIPO[tipoEquipoValue] ??
+      REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+    if (!currentRequired.procesador) {
+      form.setFields([
+        { name: "procesador", errors: [] },
+      ]);
+      form.setFieldsValue({ procesador: undefined });
+    }
+
+    if (!currentRequired.ram) {
+      form.setFields([
+        { name: "ramGb", errors: [] },
+      ]);
+      form.setFieldsValue({ ramGb: undefined });
+    }
+
+    if (!currentRequired.disco) {
+      form.setFields([
+        { name: "disco", errors: [] },
+      ]);
+      form.setFieldsValue({ disco: undefined });
+    }
+  }, [tipoEquipoValue, open, form]);
+
   const handleOk = async () => {
     setSubmitError(null);
     try {
       const values = await form.validateFields();
       setLoading(true);
+
+      const tipoEquipo = (values.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue;
+
+      const currentRequired =
+        REQUIRED_FIELDS_BY_TIPO[tipoEquipo] ??
+        REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
 
       const payload: CreateEquipoPayload = {
         empresaId: values.empresaId,
@@ -451,12 +603,25 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             ? null
             : values.idSolicitante,
 
+        tipo: tipoEquipo,
         serial: (values.serial || "").trim().toUpperCase(),
         marca: values.marca.trim(),
         modelo: values.modelo.trim(),
-        procesador: values.procesador.trim(),
-        ram: `${Number(values.ramGb)}GB`,
-        disco: values.disco.trim(),
+
+        // El backend actual exige estos 3 campos.
+        // Si no aplican para el tipo seleccionado, se envía "N/A".
+        procesador: currentRequired.procesador
+          ? values.procesador.trim()
+          : "N/A",
+
+        ram: currentRequired.ram
+          ? `${Number(values.ramGb)}GB`
+          : "N/A",
+
+        disco: currentRequired.disco
+          ? values.disco.trim()
+          : "N/A",
+
         propiedad: values.propiedad.trim(),
 
         estado: values.estado ?? "ACTIVO",
@@ -715,7 +880,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           initialValues={{
             propiedad: "Empresa",
             idSolicitante: undefined,
-            // 🔥 Pre-poblar desde cotización si vienen valores
+            tipo: TipoEquipo.GENERICO,
+            // Pre-poblar desde cotización si vienen valores
             serial: defaultValues?.serial,
             marca: defaultValues?.marca,
             modelo: defaultValues?.modelo,
@@ -838,124 +1004,209 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
               </Tooltip>
             </div>
 
+            <motion.div
+              animate={shakeField === "tipo" ? shakeKeyframes : { x: 0 }}
+              transition={shakeTransition}
+              className={`rounded-lg ${hasError("tipo") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+            >
+              <Form.Item
+                name="tipo"
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Tipo de equipo <Tag color="processing">Requerido</Tag>
+                  </span>
+
+                }
+                rules={[{ required: true, message: "Selecciona el tipo de equipo" }]}
+              >
+                <Select
+                  placeholder="Selecciona tipo"
+                  options={Object.values(TipoEquipo).map((t) => ({
+                    value: t,
+                    label: TipoEquipoLabel[t],
+                  }))}
+                  onChange={() => {
+                    setSubmitError(null);
+                    form.setFields([
+                      { name: "procesador", errors: [] },
+                      { name: "ramGb", errors: [] },
+                      { name: "disco", errors: [] },
+                    ]);
+                  }}
+                  className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                />
+              </Form.Item>
+              {tipoEquipoValue && (
+                <div className="text-xs text-slate-500 -mt-2 mb-2 md:col-span-2">
+                  {requiresProcesador || requiresRam || requiresDisco
+                    ? "Este tipo de equipo requiere datos técnicos específicos."
+                    : "Este tipo de equipo no requiere procesador, RAM ni disco. Se guardarán como N/A."}
+                </div>
+              )}
+            </motion.div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                {
-                  name: "serial",
-                  label: "Serial",
-                  placeholder: "Ej: PF2X3ABC123",
-                  max: 60,
-                },
-                {
-                  name: "marca",
-                  label: "Marca",
-                  placeholder: "Ej: Lenovo, HP, Dell…",
-                  max: 60,
-                },
-                {
-                  name: "modelo",
-                  label: "Modelo",
-                  placeholder: "Ej: ThinkPad T14 Gen3",
-                  max: 80,
-                },
-                {
-                  name: "procesador",
-                  label: "Procesador",
-                  placeholder: "Ej: Intel i5-1240P / Ryzen 5 5600U",
-                  max: 80,
-                },
-              ].map((f) => (
-                <motion.div
-                  key={f.name}
-                  animate={shakeField === f.name ? shakeKeyframes : { x: 0 }}
-                  transition={shakeTransition}
-                  className={`rounded-lg ${hasError(f.name) ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              {/* SERIAL */}
+              <motion.div
+                key="serial-field"
+                animate={shakeField === "serial" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("serial") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="serial"
+                  label="Serial"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa serial"),
+                    },
+                  ]}
                 >
+                  <Input
+                    allowClear
+                    placeholder="Ej: PF2X3ABC123"
+                    maxLength={60}
+                    className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    onBlur={(e) => {
+                      form.setFieldsValue({
+                        serial: (e.target.value || "").toUpperCase(),
+                      });
+                    }}
+                  />
+                </Form.Item>
+              </motion.div>
 
-                  <Form.Item
-                    name={f.name}
-                    label={f.label}
-                    rules={[
-                      {
-                        validator: (_, v) =>
-                          v && v.trim()
-                            ? Promise.resolve()
-                            : Promise.reject(
-                              `Ingresa ${f.label.toLowerCase()}`
-                            ),
-                      },
-                    ]}
+              {/* MARCA */}
+              <motion.div
+                key="marca-field"
+                animate={shakeField === "marca" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("marca") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="marca"
+                  label="Marca"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa marca"),
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={MARCAS_EQUIPO.map((m) => ({ value: m }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toUpperCase()
+                        .includes(input.toUpperCase())
+                    }
+                    onChange={() => {
+                      form.setFieldsValue({ modelo: undefined });
+                    }}
                   >
-                    {f.name === "marca" ? (
+                    <Input
+                      allowClear
+                      placeholder="Ej: Lenovo, HP, Dell…"
+                      maxLength={60}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
 
-                      <AutoComplete
-                        options={MARCAS_EQUIPO.map((m) => ({ value: m }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toUpperCase()
-                            .includes(input.toUpperCase())
-                        }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
+              {/* MODELO */}
+              <motion.div
+                key={`modelo-field-${marcaValue || "sin-marca"}`}
+                animate={shakeField === "modelo" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("modelo") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="modelo"
+                  label="Modelo"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa modelo"),
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={getModelosPorMarca(marcaValue || "").map((m: string) => ({
+                      value: m,
+                    }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    disabled={!marcaValue}
+                  >
+                    <Input
+                      allowClear
+                      placeholder={
+                        marcaValue
+                          ? "Ej: ThinkPad T14 Gen3"
+                          : "Selecciona una marca primero"
+                      }
+                      maxLength={80}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
 
-                    ) : f.name === "modelo" ? (
+              {/* PROCESADOR */}
+              <motion.div
+                key="procesador-field"
+                animate={shakeField === "procesador" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("procesador") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="procesador"
+                  label={requiresProcesador ? "Procesador" : "Procesador (no aplica)"}
+                  rules={[
+                    {
+                      validator: (_, v) => {
+                        if (!requiresProcesador) return Promise.resolve();
 
-                      <AutoComplete
-                        options={getModelosPorMarca(marcaValue || "").map((m: string) => ({ value: m }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toLowerCase()
-                            .includes(input.toLowerCase())
-                        }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
-
-                    ) : f.name === "procesador" ? (
-
-                      <AutoComplete
-                        options={PROCESADORES.map((p) => ({ value: p }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toLowerCase()
-                            .includes(input.toLowerCase())
-                        }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
-
-                    ) : (
-
-                      <Input
-                        allowClear
-                        placeholder={f.placeholder}
-                        className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        onBlur={(e) => {
-                          if (f.name === "serial") {
-                            form.setFieldsValue({
-                              serial: (e.target.value || "").toUpperCase(),
-                            });
-                          }
-                        }}
-                      />
-
-                    )}
-                  </Form.Item>
-                </motion.div>
-              ))}
+                        return v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa procesador");
+                      },
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={PROCESADORES.map((p) => ({ value: p }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    disabled={!requiresProcesador}
+                  >
+                    <Input
+                      allowClear
+                      placeholder={
+                        requiresProcesador
+                          ? "Ej: Intel i5-1240P / Ryzen 5 5600U"
+                          : "No aplica para este tipo de equipo"
+                      }
+                      maxLength={80}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
 
               <motion.div
                 animate={shakeField === "anioPc" ? shakeKeyframes : { x: 0 }}
@@ -1010,14 +1261,21 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
               >
                 <Form.Item
                   name="ramGb"
-                  label="RAM"
-                  tooltip="Solo el número; se agregará 'GB' automáticamente"
+                  label={requiresRam ? "RAM" : "RAM (no aplica)"}
+                  tooltip={
+                    requiresRam
+                      ? "Solo el número; se agregará 'GB' automáticamente"
+                      : "Este tipo de equipo no requiere RAM"
+                  }
                   rules={[
                     {
-                      validator: (_, v) =>
-                        typeof v === "number" && v > 0
+                      validator: (_, v) => {
+                        if (!requiresRam) return Promise.resolve();
+
+                        return typeof v === "number" && v > 0
                           ? Promise.resolve()
-                          : Promise.reject("Ingresa la cantidad en GB (ej: 16)"),
+                          : Promise.reject("Ingresa la cantidad en GB (ej: 16)");
+                      },
                     },
                   ]}
                 >
@@ -1028,6 +1286,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     step={1}
                     placeholder="Ej: 16"
                     addonAfter="GB"
+                    disabled={!requiresRam}
                   />
                 </Form.Item>
               </motion.div>
@@ -1040,13 +1299,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
                 <Form.Item
                   name="disco"
-                  label="Disco"
+                  label={requiresDisco ? "Disco" : "Disco (no aplica)"}
                   rules={[
                     {
-                      validator: (_, v) =>
-                        v && v.trim()
+                      validator: (_, v) => {
+                        if (!requiresDisco) return Promise.resolve();
+
+                        return v && String(v).trim()
                           ? Promise.resolve()
-                          : Promise.reject("Ingresa el almacenamiento"),
+                          : Promise.reject("Ingresa el almacenamiento");
+                      },
                     },
                   ]}
                 >
@@ -1055,6 +1317,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     placeholder="Ej: 512GB NVMe"
                     maxLength={40}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    disabled={!requiresDisco}
                   />
                 </Form.Item>
               </motion.div>

@@ -30,6 +30,12 @@ import { DatePicker } from "antd";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 
+import {
+  TipoEquipo,
+  TipoEquipoLabel,
+  type TipoEquipoValue,
+} from "../components/modals-gestioo/types";
+
 import { useAuth } from "../components/hooks/useAuth";
 
 /* =================== Config =================== */
@@ -52,6 +58,7 @@ type EquipoAdicional = {
 type EquipoRow = {
   id_equipo: number;
   serial: string | null;
+  tipo?: TipoEquipoValue | null;
   marca: string | null;
   modelo: string | null;
   anioPc?: number | null;
@@ -169,6 +176,107 @@ const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
   { value: "EN_RIDS", label: "En RIDS" },
 ];
+
+type RequiredEquipoFields = {
+  procesador: boolean;
+  ram: boolean;
+  disco: boolean;
+};
+
+const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
+  [TipoEquipo.GENERICO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.NOTEBOOK]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.ALL_IN_ONE]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.DESKTOP]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.CPU]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.EQUIPO_ARMADO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+
+  [TipoEquipo.IMPRESORA]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.SCANNER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LASER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LED]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.MONITOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.ROUTER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.CARGADOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.INSUMOS_COMPUTACIONALES]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.RELOJ_CONTROL]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.OTRO]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+
+  [TipoEquipo.NAS]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+  [TipoEquipo.DISCO_DURO_EXTERNO]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+};
 
 function getEstadoEquipoLabel(value?: string | null) {
   return (
@@ -980,6 +1088,7 @@ const EquiposPage: React.FC = () => {
 
   type EquipoForm = {
     serial: string;
+    tipo: TipoEquipoValue;
     marca: string;
     modelo: string;
     anioPc: string;
@@ -1013,6 +1122,7 @@ const EquiposPage: React.FC = () => {
 
   const [editForm, setEditForm] = useState<EquipoForm>({
     serial: "",
+    tipo: TipoEquipo.GENERICO,
     marca: "",
     modelo: "",
     anioPc: "",
@@ -1119,6 +1229,7 @@ const EquiposPage: React.FC = () => {
 
     setEditForm({
       serial: row.serial || "",
+      tipo: row.tipo ?? TipoEquipo.GENERICO,
       marca: row.marca || "",
       modelo: row.modelo || "",
       anioPc: row.anioPc ? String(row.anioPc) : "",
@@ -1165,25 +1276,45 @@ const EquiposPage: React.FC = () => {
     setEditFieldError(null);
   };
 
+  const editRequiredFields =
+    REQUIRED_FIELDS_BY_TIPO[editForm.tipo] ??
+    REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+  const editRequiresProcesador = editRequiredFields.procesador;
+  const editRequiresRam = editRequiredFields.ram;
+  const editRequiresDisco = editRequiredFields.disco;
+
   const saveEdit = async () => {
     if (!editRow) return;
 
     const requiredFields: (keyof typeof editForm)[] = [
       "serial",
+      "tipo",
       "marca",
       "modelo",
-      "procesador",
-      "ram",
-      "disco",
       "propiedad",
     ];
 
+    if (editRequiresProcesador) {
+      requiredFields.push("procesador");
+    }
+
+    if (editRequiresRam) {
+      requiredFields.push("ram");
+    }
+
+    if (editRequiresDisco) {
+      requiredFields.push("disco");
+    }
+
     for (const k of requiredFields) {
       if (!String(editForm[k] ?? "").trim()) {
-        alert(`El campo "${k.toUpperCase()}" es obligatorio.`);
+        setEditFieldError(k);
+        setEditError(`El campo "${String(k).toUpperCase()}" es obligatorio.`);
         return;
       }
     }
+
     if (editEmpresaId == null) {
       alert("Debes seleccionar una empresa.");
       return;
@@ -1207,6 +1338,23 @@ const EquiposPage: React.FC = () => {
 
       const payload: any = {
         ...baseEditForm,
+
+        tipo: editForm.tipo,
+
+        // Si el tipo no requiere estos campos, se guarda N/A
+        // porque tu backend todavía los espera como strings.
+        procesador: editRequiresProcesador
+          ? editForm.procesador.trim()
+          : "N/A",
+
+        ram: editRequiresRam
+          ? editForm.ram.trim()
+          : "N/A",
+
+        disco: editRequiresDisco
+          ? editForm.disco.trim()
+          : "N/A",
+
         revisado: hoy,
         idSolicitante: editSolicitanteId,
         empresaId: editEmpresaId,
@@ -2398,54 +2546,132 @@ const EquiposPage: React.FC = () => {
               {(() => {
                 type FieldKey = keyof typeof editForm;
 
-                const FIELDS: Array<{ key: FieldKey; label: string; autoCap?: boolean }> = [
-                  { key: "serial", label: "Serial", autoCap: true },
-                  { key: "marca", label: "Marca", autoCap: true },
-                  { key: "modelo", label: "Modelo" },
-                  { key: "procesador", label: "CPU" },
-                  { key: "ram", label: "RAM" },
-                  { key: "disco", label: "Disco" },
-                  { key: "propiedad", label: "Propiedad" },
-                ];
+                const FIELDS: Array<{
+                  key: FieldKey;
+                  label: string;
+                  autoCap?: boolean;
+                  required?: boolean;
+                  disabled?: boolean;
+                }> = [
+                    { key: "serial", label: "Serial", autoCap: true, required: true },
+                    { key: "marca", label: "Marca", autoCap: true, required: true },
+                    { key: "modelo", label: "Modelo", required: true },
+                    {
+                      key: "procesador",
+                      label: editRequiresProcesador ? "CPU" : "CPU (no aplica)",
+                      required: editRequiresProcesador,
+                      disabled: !editRequiresProcesador,
+                    },
+                    {
+                      key: "ram",
+                      label: editRequiresRam ? "RAM" : "RAM (no aplica)",
+                      required: editRequiresRam,
+                      disabled: !editRequiresRam,
+                    },
+                    {
+                      key: "disco",
+                      label: editRequiresDisco ? "Disco" : "Disco (no aplica)",
+                      required: editRequiresDisco,
+                      disabled: !editRequiresDisco,
+                    },
+                    { key: "propiedad", label: "Propiedad", required: true },
+                  ];
 
-                return FIELDS.map((f) => (
-                  <label key={f.key} className="text-sm">
-                    <span className="block text-slate-700 mb-1">
-                      {f.label} <span className="text-rose-500">*</span>
-                    </span>
-                    <input
-                      required
-                      value={editForm[f.key]}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }));
+                return (
+                  <>
+                    <label className="text-sm sm:col-span-2">
+                      <span className="block text-slate-700 mb-1">
+                        Tipo de equipo <span className="text-rose-500">*</span>
+                      </span>
 
-                        if (editFieldError === f.key) {
-                          setEditFieldError(null);
+                      <select
+                        value={editForm.tipo}
+                        onChange={(e) => {
+                          const tipo = e.target.value as TipoEquipoValue;
+
+                          const nextRequired =
+                            REQUIRED_FIELDS_BY_TIPO[tipo] ??
+                            REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+                          setEditForm((prev) => ({
+                            ...prev,
+                            tipo,
+                            procesador: nextRequired.procesador ? prev.procesador : "",
+                            ram: nextRequired.ram ? prev.ram : "",
+                            disco: nextRequired.disco ? prev.disco : "",
+                          }));
+
                           setEditError(null);
-                        }
-                      }}
-                      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                        const v = e.target.value.trim();
-                        const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
-                        if (next !== editForm[f.key]) {
-                          setEditForm((prev) => ({ ...prev, [f.key]: next }));
-                        }
-                      }}
-                      placeholder={f.label}
-                      className={clsx(
-                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
-                        editFieldError === f.key
-                          ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
-                          : "border-cyan-200 focus:ring-cyan-500/30"
-                      )}
-                    />
-                    {editFieldError === f.key && editError && (
-                      <div className="mt-1 text-xs font-medium text-rose-600">
-                        {editError}
+                          setEditFieldError(null);
+                        }}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      >
+                        {Object.values(TipoEquipo).map((tipo) => (
+                          <option key={tipo} value={tipo}>
+                            {TipoEquipoLabel[tipo]}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="mt-1 text-[11px] text-slate-500">
+                        {editRequiresProcesador || editRequiresRam || editRequiresDisco
+                          ? "Este tipo de equipo requiere datos técnicos específicos."
+                          : "Este tipo de equipo no requiere CPU, RAM ni Disco. Se guardarán como N/A."}
                       </div>
-                    )}
-                  </label>
-                ));
+                    </label>
+
+                    {FIELDS.map((f) => (
+                      <label key={f.key} className="text-sm">
+                        <span className="block text-slate-700 mb-1">
+                          {f.label} {f.required && <span className="text-rose-500">*</span>}
+                        </span>
+
+                        <input
+                          required={f.required}
+                          disabled={f.disabled}
+                          value={editForm[f.key]}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            setEditForm((prev) => ({
+                              ...prev,
+                              [f.key]: e.target.value,
+                            }));
+
+                            if (editFieldError === f.key) {
+                              setEditFieldError(null);
+                              setEditError(null);
+                            }
+                          }}
+                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                            const v = e.target.value.trim();
+                            const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
+
+                            if (next !== editForm[f.key]) {
+                              setEditForm((prev) => ({
+                                ...prev,
+                                [f.key]: next,
+                              }));
+                            }
+                          }}
+                          placeholder={f.label}
+                          className={clsx(
+                            "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                            f.disabled
+                              ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                              : editFieldError === f.key
+                                ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                : "border-cyan-200 focus:ring-cyan-500/30"
+                          )}
+                        />
+
+                        {editFieldError === f.key && editError && (
+                          <div className="mt-1 text-xs font-medium text-rose-600">
+                            {editError}
+                          </div>
+                        )}
+                      </label>
+                    ))}
+                  </>
+                );
               })()}
 
               <label className="text-sm">

@@ -335,9 +335,11 @@ const OrdenesTaller: React.FC = () => {
                 area: "entrada",
                 fecha: getDateTimeLocalCL(),
                 tipoEntidad: "EMPRESA",
-                origenEntidad: "",
+                origenEntidad: "TODOS",
                 entidadId: "",
                 equipoId: "",
+                estadoEquipo: "",
+                tecnicoId: "",
                 incluyeCargador: false,
             });
 
@@ -1130,9 +1132,43 @@ const OrdenesTaller: React.FC = () => {
                 <ModalNuevaEntidad
                     tipoEntidad={formData.tipoEntidad}
                     onClose={() => setShowNewEntidadModal(false)}
-                    onSaved={(nuevoId) => {
-                        fetchSelectData();
-                        setFormData((prev) => ({ ...prev, entidadId: String(nuevoId) }));
+                    onSaved={async (nuevoId) => {
+                        setShowNewEntidadModal(false);
+
+                        try {
+                            const { data } = await http.get("/entidades", {
+                                params: {
+                                    tipo: formData.tipoEntidad,
+                                    ...(formData.tipoEntidad === "EMPRESA" &&
+                                        formData.origenEntidad &&
+                                        formData.origenEntidad !== "TODOS"
+                                        ? { origen: formData.origenEntidad }
+                                        : {}),
+                                },
+                            });
+
+                            const lista = Array.isArray(data)
+                                ? data
+                                : Array.isArray(data?.data)
+                                    ? data.data
+                                    : Array.isArray(data?.items)
+                                        ? data.items
+                                        : [];
+
+                            setEntidades(lista);
+
+                            setFormData((prev) => ({
+                                ...prev,
+                                entidadId: String(nuevoId),
+                            }));
+                        } catch (err) {
+                            console.error("Error recargando entidades:", err);
+
+                            setFormData((prev) => ({
+                                ...prev,
+                                entidadId: String(nuevoId),
+                            }));
+                        }
                     }}
                 />
             )}

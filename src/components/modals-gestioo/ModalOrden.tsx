@@ -64,7 +64,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     tecnicos,
     loading,
     buttonLabel,
+    setShowNewEntidadModal,
     setShowNuevoEquipoModal,
+    setShowEditEntidadModal,
     setShowEditEquipoModal,
     setEntidades,
     setEquipoEditando,
@@ -140,13 +142,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     }, [entidadesFiltradas, setFormData]);
 
     useEffect(() => {
-        if (formData.tipoEntidad !== "EMPRESA") return;
-
         const params: Record<string, string> = {
-            tipo: "EMPRESA",
+            tipo: formData.tipoEntidad,
         };
 
         if (
+            formData.tipoEntidad === "EMPRESA" &&
             formData.origenEntidad &&
             formData.origenEntidad !== "TODOS"
         ) {
@@ -159,15 +160,21 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                     ? data
                     : Array.isArray(data?.data)
                         ? data.data
-                        : [];
+                        : Array.isArray(data?.items)
+                            ? data.items
+                            : [];
 
                 setEntidades(lista);
             })
             .catch((err) => {
-                console.error("Error cargando entidades iniciales:", err);
+                console.error("Error cargando entidades:", err);
                 setEntidades([]);
             });
-    }, [formData.tipoEntidad, formData.origenEntidad, setEntidades]);
+    }, [
+        formData.tipoEntidad,
+        formData.origenEntidad,
+        setEntidades,
+    ]);
 
     const isFirstRender = useRef(true);
     const prevEquipoId = useRef(formData.equipoId);
@@ -439,27 +446,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         ...formData,
                                                         tipoEntidad: tipo,
                                                         entidadId: "",
+                                                        equipoId: "",
+                                                        estadoEquipo: "",
                                                         origenEntidad: tipo === "EMPRESA" ? "TODOS" : "",
                                                     });
-
-                                                    http.get("/entidades", {
-                                                        params: {
-                                                            tipo,
-                                                        },
-                                                    })
-                                                        .then(({ data }) => {
-                                                            const lista = Array.isArray(data)
-                                                                ? data
-                                                                : Array.isArray(data?.data)
-                                                                    ? data.data
-                                                                    : [];
-
-                                                            setEntidades(lista);
-                                                        })
-                                                        .catch((err) => {
-                                                            console.error("Error cargando entidades:", err);
-                                                            setEntidades([]);
-                                                        });
                                                 }}
                                                 className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                             >
@@ -502,9 +492,37 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                         {/* Entidad */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Entidad
-                                            </label>
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <label className="block text-sm font-semibold text-slate-700">
+                                                    Entidad <span className="text-rose-500">*</span>
+                                                </label>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowNewEntidadModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                                    >
+                                                        <PlusOutlined />
+                                                        Nueva {formData.tipoEntidad === "EMPRESA" ? "empresa" : "persona"}
+                                                    </button>
+
+                                                    {formData.entidadId && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setShowEditEntidadModal(true);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100"
+                                                        >
+                                                            <EditOutlined />
+                                                            Editar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
                                             <Select
                                                 showSearch
@@ -551,6 +569,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         : " de todos los orígenes"}
                                                 </p>
                                             )}
+
                                         </div>
 
                                     </div>
