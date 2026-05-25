@@ -25,9 +25,31 @@ type Props = {
 };
 
 function getEstadoRcv(doc: any) {
-    return String(
-        getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "REGISTRADO")
-    );
+    // Priorizar campo estadoPago si está presente (añadido en backend)
+    const estadoPago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
+    if (estadoPago) return String(estadoPago);
+    // Si no hay estadoPago, intentar inferir desde campos de Estado
+    const estadoRaw = String(
+        getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "")
+    ).trim();
+    if (estadoRaw) return estadoRaw;
+
+    // Si aún no hay estado, derivar desde fecha de vencimiento si está disponible
+    const fechaVenc = getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], null);
+    if (fechaVenc) {
+        try {
+            const s = String(fechaVenc).trim();
+            const d = s ? new Date(s.indexOf('T') === -1 && /\d{4}-\d{2}-\d{2}/.test(s) ? s + 'T00:00:00' : s) : null;
+            if (d && !isNaN(d.getTime())) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                if (d < today) return 'VENCIDA';
+                return 'PENDIENTE';
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    return 'REGISTRADO';
 }
 
 function getEstadoStyles(estado: string) {
@@ -40,6 +62,14 @@ function getEstadoStyles(estado: string) {
         };
     }
 
+    // Vencidas deben mostrarse en rojo
+    if (normalizado.includes("VENC")) {
+        return {
+            className: "bg-red-50 text-red-700 ring-1 ring-red-200",
+            icon: <CloseCircleOutlined />,
+        };
+    }
+
     if (normalizado.includes("RECLAMADO")) {
         return {
             className: "bg-red-50 text-red-700 ring-1 ring-red-200",
@@ -47,7 +77,8 @@ function getEstadoStyles(estado: string) {
         };
     }
 
-    if (normalizado.includes("ACUSADO")) {
+    // Tratar estados de confirmación/pago como confirmados (evitar mostrar "Acusado")
+    if (normalizado.includes("CONFIRM") || normalizado.includes("PAG") || normalizado.includes("CONFIRMADA") || normalizado.includes("PAGADA") || normalizado.includes("PAGADO")) {
         return {
             className: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
             icon: <CheckCircleOutlined />,
@@ -67,8 +98,10 @@ function EstadoBadge({ estado }: { estado: string }) {
         if (!s) return "Pendiente";
         const up = String(s).toUpperCase();
         if (up.includes("PENDIENTE")) return "Pendiente";
+        if (up.includes("VENC")) return "Vencida";
         if (up.includes("RECLAMADO")) return "Reclamado";
-        if (up.includes("ACUSADO")) return "Acusado";
+        if (up.includes("ACUSADO")) return "Confirmado";
+        if (up.includes("CONFIRM") || up.includes("PAG") || up.includes("CONFIRMADA") || up.includes("PAGADA") || up.includes("PAGADO")) return "Confirmado";
         // Fallback: capitalizar la primera letra
         const raw = String(s).trim();
         return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();

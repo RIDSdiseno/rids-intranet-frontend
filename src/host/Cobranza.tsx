@@ -10,6 +10,7 @@ import {
     safeParseUser,
     formatCLP,
     formatFechaVista,
+    EMPRESAS_PDF,
 } from "../components/modals-facturasBaseapi/utils";
 import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
 import { Pagination } from "antd";
@@ -33,8 +34,14 @@ export default function Cobranza() {
     const [resumenPorTipo, setResumenPorTipo] = useState<any[]>([]);
     const [busqueda, setBusqueda] = useState("");
     const [documentoSeleccionado, setDocumentoSeleccionado] = useState<any | null>(null);
+    const [detalleDte, setDetalleDte] = useState<any | null>(null);
+    const [detalleLoading, setDetalleLoading] = useState(false);
+    const [detalleError, setDetalleError] = useState("");
     const [reminderModalOpen, setReminderModalOpen] = useState(false);
     const [reminderDoc, setReminderDoc] = useState<any | null>(null);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editDoc, setEditDoc] = useState<any | null>(null);
+    const [editFecha, setEditFecha] = useState<string>("");
 
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
@@ -58,7 +65,8 @@ export default function Cobranza() {
                 setActiveTab("ventas");
                 return;
             }
-
+            
+            
             const params = new URLSearchParams({ mes, ano });
             if (!isCliente) params.set("empresa", empresa);
             if (forceRefresh) params.set("forceRefresh", "true");
@@ -342,18 +350,66 @@ export default function Cobranza() {
     }, [documentosFiltrados, resumenPorTipo]);
 
     function estadoFromDoc(doc: any) {
+        // Priorizar campo estadoPago (CONFIRMADA|VENCIDA|PENDIENTE) si existe, sino fallback al Estado original
+        const pago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
+        if (pago) return String(pago).toUpperCase();
         return String(getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "")).toUpperCase();
     }
 
-    const pendienteCount = useMemo(() => documentos.filter(d => estadoFromDoc(d).includes("PENDIENTE")).length, [documentos]);
-    const vencidaCount = useMemo(() => documentos.filter(d => estadoFromDoc(d).includes("VENC")).length, [documentos]);
-    const pagadaCount = useMemo(() => documentos.filter(d => {
-        const s = estadoFromDoc(d);
-        return s.includes("PAG") || s.includes("ACUSADO") || s.includes("PAGADA");
-    }).length, [documentos]);
+    const pendienteCount = useMemo(() => documentos.filter(d => String(estadoFromDoc(d)).toUpperCase().includes("PENDIENTE")).length, [documentos]);
+    const vencidaCount = useMemo(() => documentos.filter(d => { const s=String(estadoFromDoc(d)).toUpperCase(); return s.includes("VENC") || s.includes("VENCIDA"); }).length, [documentos]);
+    const pagadaCount = useMemo(() => documentos.filter(d => { const s=String(estadoFromDoc(d)).toUpperCase(); return s.includes("CONFIRM") || s.includes("PAG") || s.includes("PAGADA") || s.includes("PAGADO"); }).length, [documentos]);
 
     const handleSeleccionarDocumento = (doc: any) => {
         setDocumentoSeleccionado(doc);
+        // intentar cargar detalle DTE automáticamente
+        void (async () => {
+            if (activeTab !== "ventas") return;
+            await fetchDetalleDte(doc, false);
+        })();
+    };
+
+    const fetchDetalleDte = async (doc: any, forceRefresh = false) => {
+        setDetalleLoading(true);
+        setDetalleError("");
+        setDetalleDte(null);
+
+        try {
+            if (activeTab !== "ventas") {
+                throw new Error("Este endpoint de DTE/XML corresponde a documentos emitidos.");
+            }
+            const folio = getValue(doc, ["Folio", "folio", "Nro", "numero"], "");
+            const tipoDTE = getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"], "33");
+            if (!folio) throw new Error("No se pudo obtener el folio del documento");
+
+            const empresaDocumento = String(
+                getValue(doc, ["empresaOrigen", "empresa", "empresaKey"], empresa)
+            ).toLowerCase();
+
+            const params = new URLSearchParams({ periodo: `${ano}-${mes}`, empresa: empresaDocumento, tipoDTE: String(tipoDTE), ...(forceRefresh ? { forceRefresh: "true" } : {}) });
+
+            const token = localStorage.getItem("accessToken") ?? "";
+            const headers: any = { "Content-Type": "application/json" };
+            if (token) headers.Authorization = `Bearer ${token}`;
+
+            const res = await fetch(`${BASE_URL}/baseapi/dte/folio/${folio}?${params.toString()}`, { headers });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
+            }
+
+            const json = await res.json();
+
+            setDetalleDte(json);
+
+            return json;
+        } catch (error: any) {
+            const message = error?.message ?? "No se pudo consultar el DTE";
+            setDetalleError(message);
+            return null;
+        } finally {
+            setDetalleLoading(false);
+        }
     };
 
     const handleEnviarEmail = (doc: any) => {
@@ -391,13 +447,9 @@ export default function Cobranza() {
             const headers: any = { "Content-Type": "application/json" };
             if (token) headers.Authorization = `Bearer ${token}`;
 
-            const res = await fetch(`${BASE_URL}/baseapi/dte/folio/${folio}?${params.toString()}`, { headers });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
-            }
-
-            const detalle = await res.json();
+            // Reusar fetchDetalleDte para mantener consistencia y caché
+            const detalle = await fetchDetalleDte(doc, false);
+            if (!detalle) throw new Error('No se pudo obtener detalle del DTE');
 
             const pdfResult = await generarPdfDocumentoSeleccionado({
                 documento: doc,
@@ -424,6 +476,85 @@ export default function Cobranza() {
             alert(error?.message ?? "Error al descargar factura");
         } finally {
             setDownloadingFolio(null);
+        }
+    };
+
+    const handleSaveDueDate = async () => {
+        if (!editDoc) return;
+        try {
+            // fecha en formato YYYY-MM-DD
+            const newDate = String(editFecha || "").trim();
+            // optimist update local
+            setDocumentos((prev) => {
+                return prev.map((d) => {
+                    const folD = String(getValue(d, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
+                    const folE = String(getValue(editDoc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
+                    if (folD && folD === folE) {
+                        const copy = { ...d };
+                        // actualizar varias claves comunes
+                        const keys = ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"];
+                        for (const k of keys) copy[k] = newDate;
+
+                        try {
+                            // Si el documento ya está confirmado/pagado, no sobrescribir estado
+                            const current = estadoFromDoc(d).toUpperCase();
+                            if (!(current.includes("CONFIRM") || current.includes("PAG"))) {
+                                // Determinar si la nueva fecha ya venció
+                                let status = "PENDIENTE";
+                                if (newDate) {
+                                    const nd = new Date(newDate + 'T00:00:00');
+                                    const today = new Date();
+                                    today.setHours(0,0,0,0);
+                                    if (!isNaN(nd.getTime()) && nd < today) status = "VENCIDA";
+                                }
+
+                                copy["estadoPago"] = status;
+                                copy["Estado"] = status;
+                            }
+                        } catch (e) { /* ignore */ }
+
+                        return copy;
+                    }
+                    return d;
+                });
+            });
+
+            // Persistir override en backend
+            try {
+                const tipo = getValue(editDoc, ["Tipo Doc", "tipoDoc", "tipoDTE"], "33");
+                const folio = String(getValue(editDoc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
+                const empresaDocumento = String(getValue(editDoc, ["empresaOrigen", "empresa", "empresaKey"], empresa)).toLowerCase();
+
+                const res = await fetch(`${BASE_URL}/baseapi/rcv/vencimiento`, {
+                    method: 'PATCH',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ empresaKey: empresaDocumento, tipoDoc: String(tipo), folio, fechaVencimiento: newDate || null }),
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    const msg = err?.error ?? err?.message ?? `Error ${res.status}`;
+                    alert('No se pudo persistir la fecha en el servidor: ' + String(msg));
+                    // refrescar datos desde API para sincronizar estado
+                    await fetchDatos(true);
+                } else {
+                    alert('Fecha de vencimiento guardada');
+                    // refrescar desde servidor para actualizar cache y mantener persistencia
+                    await fetchDatos(true);
+                }
+            } catch (e) {
+                console.error('Error persistiendo vencimiento en backend:', e);
+                alert('Error al persistir la fecha en el servidor');
+                await fetchDatos(true);
+            }
+
+            // cerrar modal
+            setEditModalOpen(false);
+            setEditDoc(null);
+            setEditFecha("");
+        } catch (e) {
+            console.error('Error guardando fecha de vencimiento (local):', e);
+            alert('No se pudo actualizar la fecha localmente');
         }
     };
 
@@ -529,31 +660,31 @@ export default function Cobranza() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-4">
-                <div className="rounded-lg border border-cyan-400 p-4 md:p-6 bg-white min-h-24 flex flex-col justify-center">
+                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
                     <div className="text-xs uppercase text-cyan-800 tracking-wide">DOCUMENTOS</div>
                     <div className="mt-1 text-3xl md:text-4xl font-semibold">{documentosFiltrados.length}</div>
                     <div className="text-xs text-slate-500 mt-1">Registros encontrados</div>
                 </div>
 
-                <div className="rounded-lg border border-cyan-400 p-4 md:p-6 bg-white min-h-24 flex flex-col justify-center">
+                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
                     <div className="text-xs uppercase text-amber-600 tracking-wide">PENDIENTES</div>
                     <div className="mt-1 text-3xl md:text-4xl font-semibold">{pendienteCount}</div>
                     <div className="text-xs text-slate-500 mt-1">Documentos pendientes</div>
                 </div>
 
-                <div className="rounded-lg border border-cyan-400 p-4 md:p-6 bg-white min-h-24 flex flex-col justify-center">
+                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
                     <div className="text-xs uppercase text-rose-500 tracking-wide">VENCIDAS</div>
                     <div className="mt-1 text-3xl md:text-4xl font-semibold">{vencidaCount}</div>
                     <div className="text-xs text-slate-500 mt-1">Documentos vencidos</div>
                 </div>
 
-                <div className="rounded-lg border border-cyan-400 p-4 md:p-6 bg-white min-h-24 flex flex-col justify-center">
+                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
                     <div className="text-xs uppercase text-emerald-600 tracking-wide">CONFIRMADOS</div>
                     <div className="mt-1 text-3xl md:text-4xl font-semibold">{pagadaCount}</div>
                     <div className="text-xs text-slate-500 mt-1">Documentos confirmados/ pagados</div>
                 </div>
 
-                <div className="rounded-lg border border-cyan-400 p-4 md:p-6 bg-white min-h-24 relative flex flex-col justify-center">
+                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 relative flex flex-col justify-center shadow-sm">
                     <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-cyan-900 flex items-center justify-center text-white text-sm">⋯</div>
                     <div className="text-xs uppercase text-slate-500 tracking-wide">TOTAL</div>
                     <div className="mt-1 text-3xl md:text-4xl font-semibold">{formatCLP(totalImporte)}</div>
@@ -569,23 +700,52 @@ export default function Cobranza() {
                 busqueda={busqueda}
                 onBusquedaChange={(v) => { setBusqueda(v); setPage(1); }}
                 onSelectDocumento={handleSeleccionarDocumento}
-                renderRowActions={(doc) => (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={async (e) => { e.stopPropagation(); const fol = String(getValue(doc, ["Folio","folio"], "")).replace(/[^0-9]/g,""); if (fol) { await handleDescargarFactura(doc); } else { alert('Folio no disponible'); } }}
-                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                            {downloadingFolio === String(getValue(doc, ["Folio","folio"], "")) ? 'Descargando...' : 'Descargar'}
-                        </button>
+                renderRowActions={(doc) => {
+                    const ActionMenu: React.FC = () => {
+                        const [open, setOpen] = React.useState(false);
+                        const toggle = (e?: any) => { e && e.stopPropagation(); setOpen(!open); };
+                        const close = () => setOpen(false);
 
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setReminderDoc(doc); setReminderModalOpen(true); }}
-                            className="rounded bg-cyan-600 px-2 py-1 text-xs font-semibold text-white"
-                        >
-                            Recordatorios
-                        </button>
-                    </div>
-                )}
+                        const initialFecha = String(getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], "")).slice(0,10);
+
+                        return (
+                            <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={toggle} className="inline-flex items-center gap-2 rounded border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                    Acciones ▾
+                                </button>
+
+                                {open && (
+                                    <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-slate-200 bg-white shadow-lg">
+                                        <div className="flex flex-col p-2">
+                                            <button
+                                                onClick={async (e) => { e.stopPropagation(); close(); const fol = String(getValue(doc, ["Folio","folio"], "")).replace(/[^0-9]/g,""); if (fol) { await handleDescargarFactura(doc); } else { alert('Folio no disponible'); } }}
+                                                className="w-full text-left rounded px-2 py-2 text-sm hover:bg-slate-100"
+                                            >
+                                                Descargar
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); close(); setReminderDoc(doc); setReminderModalOpen(true); }}
+                                                className="w-full text-left rounded px-2 py-2 text-sm hover:bg-slate-100"
+                                            >
+                                                Recordatorios
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); close(); setEditDoc(doc); setEditFecha(initialFecha || ""); setEditModalOpen(true); }}
+                                                className="w-full text-left rounded px-2 py-2 text-sm hover:bg-slate-100"
+                                            >
+                                                Editar vencimiento
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    };
+
+                    return <ActionMenu />;
+                }}
             />
 
             <div className="mt-4 flex justify-end">
@@ -599,10 +759,10 @@ export default function Cobranza() {
                 mes={mes}
                 ano={ano}
                 onClose={() => setDocumentoSeleccionado(null)}
-                onConsultarDte={async () => { /* noop */ }}
-                detalleDte={null}
-                detalleLoading={false}
-                detalleError={""}
+                onConsultarDte={fetchDetalleDte}
+                detalleDte={detalleDte}
+                detalleLoading={detalleLoading}
+                detalleError={detalleError}
                 pdfPreparando={false}
                 pdfPreparadoUrl={null}
                 pdfPreparadoNombre={""}
@@ -619,7 +779,42 @@ export default function Cobranza() {
                         </div>
 
                         {/* Aviso si no hay contactos */}
-                        <ReminderBody reminderDoc={reminderDoc} onClose={() => setReminderModalOpen(false)} />
+                        <ReminderBody
+                            reminderDoc={reminderDoc}
+                            onClose={() => setReminderModalOpen(false)}
+                            fetchDetalleDte={fetchDetalleDte}
+                            activeTab={activeTab}
+                            empresa={empresa}
+                            mes={mes}
+                            ano={ano}
+                        />
+                    </div>
+                </div>
+            )}
+            {editModalOpen && editDoc && (
+                <div className="fixed inset-0 z-60 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => { setEditModalOpen(false); setEditDoc(null); setEditFecha(""); }} />
+
+                    <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold">Editar fecha de vencimiento</h2>
+                            <button onClick={() => { setEditModalOpen(false); setEditDoc(null); setEditFecha(""); }} className="text-slate-500 hover:text-slate-700">✕</button>
+                        </div>
+
+                        <div className="mt-4">
+                            <div className="text-sm text-slate-600">Documento</div>
+                            <div className="mt-1 font-semibold">{String(getValue(editDoc, ["Razon Social","razonSocial","empresa"], "-"))} · Folio {String(getValue(editDoc, ["Folio","folio","Nro","numero"], "-"))}</div>
+                        </div>
+
+                        <div className="mt-4">
+                            <label className="block text-xs font-medium text-slate-600 mb-2">Fecha de vencimiento</label>
+                            <input type="date" value={editFecha} onChange={(e) => setEditFecha(e.target.value)} className="w-full rounded border border-slate-200 px-3 py-2" />
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => { setEditModalOpen(false); setEditDoc(null); setEditFecha(""); }} className="rounded border border-slate-200 bg-white px-4 py-2 text-sm">Cancelar</button>
+                            <button onClick={() => handleSaveDueDate()} className="rounded bg-cyan-600 px-4 py-2 text-sm font-semibold text-white">Guardar</button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -628,11 +823,15 @@ export default function Cobranza() {
 }
 
 // Componente interno para el contenido del modal, separado para mantener Cobranza claro
-function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () => void }) {
+function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empresa, mes, ano }: { reminderDoc: any; onClose: () => void; fetchDetalleDte: (doc:any, force?:boolean)=>Promise<any>; activeTab: any; empresa: any; mes:string; ano:string }) {
     const [canal, setCanal] = React.useState<string>("");
     const [tipo, setTipo] = React.useState<string>("");
     const [contactos, setContactos] = React.useState<any[]>([]);
     const [selectedContacto, setSelectedContacto] = React.useState<any | null>(null);
+    const [observacion, setObservacion] = React.useState<string>("");
+    const [generando, setGenerando] = React.useState(false);
+    const [showPreviewHtml, setShowPreviewHtml] = React.useState(false);
+    const [previewHtml, setPreviewHtml] = React.useState<string>("");
 
     React.useEffect(() => {
         let mounted = true;
@@ -690,9 +889,8 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                     return;
                 }
 
-                // Intentar obtener contactos desde backend usando id de empresa
-                // Extraer posibles ids
-                const empresaObj = reminderDoc?.empresa ?? reminderDoc?.empresaData ?? reminderDoc?.empresaInfo ?? null;
+                // Intentar obtener contactos desde backend usando id de empresa o claves varias
+                const empresaObj = reminderDoc?.empresa ?? reminderDoc?.empresaData ?? reminderDoc?.empresaInfo ?? reminderDoc?.empresa_origen ?? null;
                 let empresaId: number | null = null;
                 if (empresaObj && typeof empresaObj === 'object') {
                     empresaId = Number(empresaObj?.id_empresa ?? empresaObj?.empresaId ?? empresaObj?.empresa_id ?? empresaObj?.id ?? null) || null;
@@ -701,55 +899,74 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                     empresaId = Number(reminderDoc?.empresaId || reminderDoc?.id_empresa || reminderDoc?.empresa_id || reminderDoc?.empresa || null) || null;
                 }
 
-                if (empresaId) {
+                const tryFetchFicha = async (keyOrId: string | number) => {
                     try {
                         const token = localStorage.getItem('accessToken') ?? '';
                         const headers: any = { 'Content-Type': 'application/json' };
                         if (token) headers.Authorization = `Bearer ${token}`;
 
-                        console.debug('ReminderBody: intentando fetch contactos por empresaId', empresaId);
-                        const resp = await fetch(`${BASE_URL}/ficha-empresa/${empresaId}/completa`, { headers });
+                        console.debug('ReminderBody: intentando fetch ficha-empresa por', keyOrId);
+                        const resp = await fetch(`${BASE_URL}/ficha-empresa/${keyOrId}/completa`, { headers });
                         if (resp.ok) {
                             const json = await resp.json();
-                            console.debug('ReminderBody: respuesta ficha-empresa (por id):', json);
+                            console.debug('ReminderBody: respuesta ficha-empresa:', json);
                             const remoteContacts = Array.isArray(json?.contactos) ? json.contactos : Array.isArray(json?.data?.contactos) ? json.data.contactos : Array.isArray(json?.empresa?.contactos) ? json.empresa.contactos : [];
                             if (remoteContacts.length > 0) {
-                                if (!mounted) return;
+                                if (!mounted) return true;
                                 const norm = remoteContacts.map(normalizeContact);
                                 setContactos(norm);
                                 setSelectedContacto(norm[0]);
-                                return;
-                            }
-                        }
-                    } catch (e) {
-                        // ignore network errors
-                    }
-                }
-
-                // Si no hay empresaId, intentar por clave/slug/empresaKey
-                const empresaKey = reminderDoc?.empresa?.empresaKey || reminderDoc?.empresaKey || reminderDoc?.empresa || reminderDoc?.empresa_data || null;
-                if (!empresaId && empresaKey) {
-                    try {
-                        console.debug('ReminderBody: intentando fetch contactos por empresaKey', empresaKey);
-                        const token = localStorage.getItem('accessToken') ?? '';
-                        const headers: any = { 'Content-Type': 'application/json' };
-                        if (token) headers.Authorization = `Bearer ${token}`;
-
-                        const resp2 = await fetch(`${BASE_URL}/ficha-empresa/${empresaKey}/completa`, { headers });
-                        if (resp2.ok) {
-                            const json2 = await resp2.json();
-                            console.debug('ReminderBody: respuesta ficha-empresa (por key):', json2);
-                            const remoteContacts2 = Array.isArray(json2?.contactos) ? json2.contactos : Array.isArray(json2?.data?.contactos) ? json2.data.contactos : Array.isArray(json2?.empresa?.contactos) ? json2.empresa.contactos : [];
-                            if (remoteContacts2.length > 0) {
-                                if (!mounted) return;
-                                const norm = remoteContacts2.map(normalizeContact);
-                                setContactos(norm);
-                                setSelectedContacto(norm[0]);
-                                return;
+                                return true;
                             }
                         }
                     } catch (e) { /* ignore */ }
+                    return false;
+                };
+
+                if (empresaId) {
+                    const ok = await tryFetchFicha(empresaId);
+                    if (ok) return;
                 }
+
+                // Si no hay empresaId, intentar por clave/slug/empresaKey u otros campos
+                const empresaKey = reminderDoc?.empresa?.empresaKey || reminderDoc?.empresaKey || reminderDoc?.empresa_slug || reminderDoc?.empresa || reminderDoc?.empresa_data || null;
+                if (empresaKey) {
+                    const ok2 = await tryFetchFicha(empresaKey);
+                    if (ok2) return;
+                }
+
+                // Si aún no hay coincidencias, intentar buscar en /empresas por RUT o razón social
+                try {
+                    const token = localStorage.getItem('accessToken') ?? '';
+                    const headers: any = { 'Content-Type': 'application/json' };
+                    if (token) headers.Authorization = `Bearer ${token}`;
+
+                    const possibleRut = String(getValue(reminderDoc, ['Rut cliente', 'RUT Cliente', 'rutCliente', 'rutReceptor', 'RUT Proveedor', 'Rut Proveedor', 'rutProveedor'], '')).replace(/\s+/g, '');
+                    const possibleName = String(getValue(reminderDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).trim();
+
+                    if (possibleRut || possibleName) {
+                        console.debug('ReminderBody: buscando empresa por rut/nombre', possibleRut, possibleName);
+                        // obtener lista de empresas (cached)
+                        const resp = await fetch(`${BASE_URL}/empresas`, { headers });
+                        if (resp.ok) {
+                            const json = await resp.json();
+                            const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+                            let found: any = null;
+                            if (possibleRut) {
+                                found = list.find((e: any) => String(e.rut ?? '').replace(/\s+/g, '') === possibleRut.replace(/\s+/g, ''));
+                            }
+                            if (!found && possibleName) {
+                                const lower = possibleName.toLowerCase();
+                                found = list.find((e: any) => String(e.nombre ?? '').toLowerCase().includes(lower));
+                            }
+
+                            if (found && found.id_empresa) {
+                                const ok3 = await tryFetchFicha(found.id_empresa);
+                                if (ok3) return;
+                            }
+                        }
+                    }
+                } catch (e) { /* ignore */ }
             } catch (e) { /* ignore */ }
         })();
 
@@ -833,10 +1050,99 @@ function ReminderBody({ reminderDoc, onClose }: { reminderDoc: any; onClose: () 
                 </div>
             </div>
 
+            <div className="mt-4">
+                <label className="block text-xs font-medium text-slate-600 mb-2">Observación (se incluirá en el PDF)</label>
+                <textarea value={observacion} onChange={(e)=>setObservacion(e.target.value)} className="w-full rounded border border-slate-200 p-2 text-sm" rows={3} />
+            </div>
+
             <div className="mt-6 flex items-center justify-end gap-3">
                 <button onClick={onClose} className="rounded border px-4 py-2 text-sm">Cerrar</button>
-                <button disabled={!hasContacts || !canal || !tipo || !selectedContacto} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!hasContacts || !canal || !tipo || !selectedContacto) ? 'opacity-60 cursor-not-allowed' : ''}`}>Previsualizar</button>
+                <button onClick={async ()=>{
+                    if (!hasContacts || !canal || !tipo || !selectedContacto) return;
+                    try {
+                            setGenerando(true);
+                            // obtener detalle DTE si es necesario
+                            const detalle = await fetchDetalleDte(reminderDoc, false);
+
+                            // Construir HTML de previsualización similar al Mailer
+                            const empresaKey = String(empresa || 'econnet').toLowerCase();
+                            const empresaPdf = EMPRESAS_PDF[empresaKey] ?? EMPRESAS_PDF['econnet'];
+
+                            const folio = String(getValue(reminderDoc, ["Folio","folio","Nro","numero"], "—"));
+                            const fechaVenc = String(getValue(reminderDoc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], getValue(detalle, ["fechaVencimiento","FchVenc","vencimiento"], "—")));
+                            const total = formatCLP(getMontoTotalDoc(reminderDoc));
+                            const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
+                            const titulo = tipo === 'vencida' ? 'Factura Vencida' : tipo === 'por_vencer' ? 'Factura por vencer' : 'Recordatorio';
+
+                            const saludo = selectedContacto?.nombre ? `Estimado(a) ${selectedContacto.nombre}:` : 'Estimado(a):';
+
+                            const html = `
+                            <div style="font-family: Arial, Helvetica, sans-serif; color:#111; padding:18px;">
+                              <div style="text-align:center; margin-bottom:18px;"><img src="${empresaPdf.logo}" style="max-height:64px; object-fit:contain;"/></div>
+                              <div style="background:#b91c1c; color:#fff; padding:14px; border-radius:6px; font-weight:700; margin-bottom:16px;">${titulo}</div>
+                              <div style="font-size:14px; line-height:1.5;">
+                                <p>${saludo}</p>
+                                <p>Junto con saludar le recordamos que al día de hoy nuestro sistema indica que usted mantiene un saldo de <strong>${montoPagar}</strong> pendiente de pago por la factura <strong>#${folio}</strong> que venció el <strong>${formatFechaVista(fechaVenc)}</strong>.</p>
+                                <p>Le pedimos por favor cancelar a la brevedad posible la deuda indicada en este correo.</p>
+                                ${observacion ? `<p><strong>Observación:</strong> ${observacion}</p>` : ''}
+                              </div>
+
+                              <div style="margin-top:18px; background:#f7f7f7; padding:12px; border-radius:6px;">
+                                <div style="font-weight:600; color:#444; margin-bottom:8px;">Documento #${folio}</div>
+                                <div style="display:flex; gap:18px; font-size:13px; color:#444;">
+                                  <div><div style="color:#888">Fecha de vencimiento</div><div>${formatFechaVista(fechaVenc)}</div></div>
+                                  <div><div style="color:#888">Total</div><div>${total}</div></div>
+                                  <div><div style="color:#888">Monto por pagar</div><div>${montoPagar}</div></div>
+                                </div>
+                              </div>
+
+                              <div style="margin-top:18px; text-align:center;">
+                                <a href="#" style="display:inline-block; background:#b91c1c; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">Ir al Portal</a>
+                              </div>
+
+                              <div style="margin-top:12px; display:flex; gap:10px; justify-content:center;">
+                                <button id="downloadPdfBtn" style="background:#fff; border:1px solid #eee; padding:8px 12px; border-radius:6px;">Descargar en PDF</button>
+                                <button id="downloadXmlBtn" style="background:#fff; border:1px solid #eee; padding:8px 12px; border-radius:6px;">Descargar en XML</button>
+                              </div>
+                            </div>
+                            `;
+
+                            setPreviewHtml(html);
+                            setShowPreviewHtml(true);
+                        } catch (e) {
+                            console.error(e);
+                            alert('Error generando previsualización');
+                        } finally { setGenerando(false); }
+                }} disabled={!hasContacts || !canal || !tipo || !selectedContacto || generando} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!hasContacts || !canal || !tipo || !selectedContacto) ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                    {generando ? 'Generando...' : 'Previsualizar'}
+                </button>
             </div>
+
+                {showPreviewHtml && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                        <div className="w-full max-w-2xl rounded-lg bg-white p-4 shadow-lg max-h-[80vh] overflow-auto">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-bold">Previsualización</h3>
+                                <button onClick={()=>setShowPreviewHtml(false)} className="text-slate-600">✕</button>
+                            </div>
+
+                            <div className="border rounded p-3" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+
+                            <div className="mt-3 flex justify-end gap-2">
+                                <button onClick={()=>setShowPreviewHtml(false)} className="rounded border px-4 py-2 text-sm">Cerrar</button>
+                                <button onClick={async ()=>{
+                                    try {
+                                        setGenerando(true);
+                                        const detalle = await fetchDetalleDte(reminderDoc, false);
+                                        const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
+                                        const a = document.createElement('a'); a.href = pdfResult.url; a.download = pdfResult.fileName; document.body.appendChild(a); a.click(); a.remove();
+                                    } catch (e) { console.error(e); alert('Error descargando PDF'); }
+                                    finally { setGenerando(false); }
+                                }} className="rounded bg-cyan-600 px-4 py-2 text-sm text-white">Descargar en PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
         </div>
     );
 }
