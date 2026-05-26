@@ -22,12 +22,44 @@ type Props = {
     onBusquedaChange: (value: string) => void;
     onSelectDocumento: (doc: any) => void;
     renderRowActions?: (doc: any) => React.ReactNode;
+    // mode: 'rcv' -> mostrar estado tal cual viene del RCV (incluye 'Acusado')
+    // mode: 'cobranza' -> mostrar estados normalizados: Pendiente/Vencida/Confirmada
+    mode?: "rcv" | "cobranza";
 };
 
-function getEstadoRcv(doc: any) {
-    return String(
-        getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "REGISTRADO")
-    );
+function getEstadoRcv(doc: any, mode: "rcv" | "cobranza" = "rcv") {
+    // mode === 'rcv' -> mostrar estado reportado por RCV primero
+    // mode === 'cobranza' -> priorizar estadoPago (Pendiente/Vencida/Confirmada)
+    const estadoRaw = String(
+        getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "")
+    ).trim();
+
+    const estadoPago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
+
+    if (mode === "rcv") {
+        if (estadoRaw) return estadoRaw;
+        if (estadoPago) return String(estadoPago);
+    } else {
+        if (estadoPago) return String(estadoPago);
+        if (estadoRaw) return estadoRaw;
+    }
+
+    // Si aún no hay estado, derivar desde fecha de vencimiento si está disponible
+    const fechaVenc = getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], null);
+    if (fechaVenc) {
+        try {
+            const s = String(fechaVenc).trim();
+            const d = s ? new Date(s.indexOf('T') === -1 && /\d{4}-\d{2}-\d{2}/.test(s) ? s + 'T00:00:00' : s) : null;
+            if (d && !isNaN(d.getTime())) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                if (d < today) return 'VENCIDA';
+                return 'PENDIENTE';
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    return 'REGISTRADO';
 }
 
 function getEstadoStyles(estado: string) {
@@ -40,6 +72,14 @@ function getEstadoStyles(estado: string) {
         };
     }
 
+    // Vencidas deben mostrarse en rojo
+    if (normalizado.includes("VENC")) {
+        return {
+            className: "bg-red-50 text-red-700 ring-1 ring-red-200",
+            icon: <CloseCircleOutlined />,
+        };
+    }
+
     if (normalizado.includes("RECLAMADO")) {
         return {
             className: "bg-red-50 text-red-700 ring-1 ring-red-200",
@@ -47,7 +87,8 @@ function getEstadoStyles(estado: string) {
         };
     }
 
-    if (normalizado.includes("ACUSADO")) {
+    // Tratar estados de confirmación/pago como confirmados (evitar mostrar "Acusado")
+    if (normalizado.includes("CONFIRM") || normalizado.includes("PAG") || normalizado.includes("CONFIRMADA") || normalizado.includes("PAGADA") || normalizado.includes("PAGADO")) {
         return {
             className: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
             icon: <CheckCircleOutlined />,
@@ -67,8 +108,10 @@ function EstadoBadge({ estado }: { estado: string }) {
         if (!s) return "Pendiente";
         const up = String(s).toUpperCase();
         if (up.includes("PENDIENTE")) return "Pendiente";
+        if (up.includes("VENC")) return "Vencida";
         if (up.includes("RECLAMADO")) return "Reclamado";
-        if (up.includes("ACUSADO")) return "Acusado";
+        if (up.includes("ACUSADO")) return "Confirmado";
+        if (up.includes("CONFIRM") || up.includes("PAG") || up.includes("CONFIRMADA") || up.includes("PAGADA") || up.includes("PAGADO")) return "Confirmado";
         // Fallback: capitalizar la primera letra
         const raw = String(s).trim();
         return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
@@ -96,6 +139,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
     onBusquedaChange,
     onSelectDocumento,
     renderRowActions,
+    mode = "rcv",
 }) => {
     return (
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
@@ -189,7 +233,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                             Folio {folio}
                                         </span>
 
-                                        <EstadoBadge estado={getEstadoRcv(doc)} />
+                                        <EstadoBadge estado={getEstadoRcv(doc, mode)} />
                                     </div>
 
                                     <p className="mt-2 truncate text-sm font-bold text-slate-900">
@@ -319,7 +363,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
 
                             const folio = getValue(doc, ["Folio", "folio"]);
                             const tipoDoc = getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"]);
-                            const estado = getEstadoRcv(doc);
+                            const estado = getEstadoRcv(doc, mode);
 
                             return (
                                 <tr
