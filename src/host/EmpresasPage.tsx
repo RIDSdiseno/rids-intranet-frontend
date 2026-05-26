@@ -446,20 +446,27 @@ const SaludBadge: React.FC<{ nivel: "ok" | "warn" | "alert" }> = ({ nivel }) => 
 type SoporteMensualRow = {
   empresaId: number;
   empresa: string;
+
+  visitas?: number;
+  remotas?: number;
+  tickets?: number;
+
   minutosVisitas: number;
   minutosRemotos: number;
-  minutosTickets: number;   // createdAt → resolvedAt|closedAt, cap 8h/ticket
+  minutosTickets: number;
   totalMinutos: number;
-  horasVisitas: number;
-  horasRemotas: number;
-  horasTickets: number;
-  totalHoras: number;
-  visitasPresenciales: number;
-  sesionesRemotas: number;
-  ticketsTotal: number;
+
+  horasVisitas?: number;
+  horasRemotas?: number;
+  horasTickets?: number;
+  totalHoras?: number;
+
+  visitasPresenciales?: number;
+  sesionesRemotas?: number;
+  ticketsTotal?: number;
   ticketsResueltos: number;
   ticketsAbiertos: number;
-  diasConVisitas: number;
+  diasConVisitas?: number;
 };
 
 /* ====================== TablaSoporteEmpresas ====================== */
@@ -489,89 +496,62 @@ const TablaSoporteEmpresas: React.FC<TablaSoporteProps> = ({ empresas, onVerDeta
   const [ano, setAno] = useState(String(now.getFullYear()));
   const [soporte, setSoporte] = useState<SoporteMensualRow[]>([]);
   const [loadingSoporte, setLoadingSoporte] = useState(false);
-  // Progreso: cuántas empresas ya se cargaron del total
-  const [loadingProgress, setLoadingProgress] = useState({ done: 0, total: 0 });
   const [sortBy, setSortBy] = useState<"nombre" | "total" | "visitas" | "remotas" | "tickets">("total");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    if (!empresas.length) return;
     let cancelled = false;
 
     const fetchSoporte = async () => {
-      setLoadingSoporte(true);
-      setLoadingProgress({ done: 0, total: empresas.length });
-      setSoporte([]);
+      try {
+        setLoadingSoporte(true);
+        setSoporte([]);
 
-      // Concurrencia limitada a 4 requests en paralelo para no saturar el servidor
-      const CONCURRENCY = 4;
-      const results: SoporteMensualRow[] = [];
+        const { data } = await http.get("/empresas/soporte-mensual", {
+          params: { mes, ano },
+        });
 
-      const chunks: Empresa[][] = [];
-      for (let i = 0; i < empresas.length; i += CONCURRENCY) {
-        chunks.push(empresas.slice(i, i + CONCURRENCY));
+        if (cancelled) return;
+
+        const items = Array.isArray(data?.data) ? data.data : [];
+
+        const mapped: SoporteMensualRow[] = items.map((item: any) => ({
+          empresaId: Number(item.empresaId),
+          empresa: String(item.empresa ?? ""),
+
+          minutosVisitas: Number(item.minutosVisitas ?? 0),
+          minutosRemotos: Number(item.minutosRemotos ?? 0),
+          minutosTickets: Number(item.minutosTickets ?? 0),
+          totalMinutos: Number(item.totalMinutos ?? 0),
+
+          horasVisitas: Number(item.horasVisitas ?? 0),
+          horasRemotas: Number(item.horasRemotas ?? 0),
+          horasTickets: Number(item.horasTickets ?? 0),
+          totalHoras: Number(item.totalHoras ?? 0),
+
+          visitasPresenciales: Number(item.visitasPresenciales ?? item.visitas ?? 0),
+          sesionesRemotas: Number(item.sesionesRemotas ?? item.remotas ?? 0),
+          ticketsTotal: Number(item.ticketsTotal ?? item.tickets ?? 0),
+          ticketsResueltos: Number(item.ticketsResueltos ?? 0),
+          ticketsAbiertos: Number(item.ticketsAbiertos ?? 0),
+          diasConVisitas: Number(item.diasConVisitas ?? 0),
+        }));
+
+        setSoporte(mapped);
+      } catch (err) {
+        console.error("Error cargando soporte mensual por empresa:", err);
+        if (!cancelled) setSoporte([]);
+      } finally {
+        if (!cancelled) setLoadingSoporte(false);
       }
-
-      let done = 0;
-
-      for (const chunk of chunks) {
-        if (cancelled) break;
-
-        const chunkResults = await Promise.allSettled(
-          chunk.map(async (e) => {
-            try {
-              const { data } = await http.get(`/empresas/${e.id_empresa}/dashboard`, {
-                params: { mes, ano },
-              });
-              const kpis = data?.data?.kpis;
-              if (!kpis) return null;
-
-              const row: SoporteMensualRow = {
-                empresaId: e.id_empresa,
-                empresa: e.nombre,
-                minutosVisitas: kpis.minutosVisitas ?? 0,
-                minutosRemotos: kpis.minutosRemotos ?? 0,
-                minutosTickets: kpis.minutosTickets ?? 0,
-                totalMinutos: kpis.totalMinutosSoporteConTickets ?? kpis.totalMinutosSoporte ?? 0,
-                horasVisitas: Math.round((kpis.minutosVisitas ?? 0) / 60 * 10) / 10,
-                horasRemotas: Math.round((kpis.minutosRemotos ?? 0) / 60 * 10) / 10,
-                horasTickets: Math.round((kpis.minutosTickets ?? 0) / 60 * 10) / 10,
-                totalHoras: kpis.horasSoporteConTickets ?? kpis.horasSoporte ?? 0,
-                visitasPresenciales: kpis.visitasPresencialesMes ?? 0,
-                sesionesRemotas: kpis.mantencionesRemotasMes ?? 0,
-                ticketsTotal: kpis.ticketsMes ?? 0,
-                ticketsResueltos: kpis.ticketsMesResueltos ?? 0,
-                ticketsAbiertos: kpis.ticketsMesAbiertos ?? 0,
-                diasConVisitas: kpis.diasConVisitasMes ?? 0,
-              };
-              return row;
-            } catch {
-              return null;
-            }
-          })
-        );
-
-        done += chunk.length;
-        if (!cancelled) {
-          // Agregar resultados del chunk parcialmente mientras sigue cargando
-          const newRows = chunkResults
-            .filter((r): r is PromiseFulfilledResult<SoporteMensualRow | null> => r.status === "fulfilled")
-            .map((r) => r.value)
-            .filter((r): r is SoporteMensualRow => r !== null);
-          results.push(...newRows);
-          setLoadingProgress({ done, total: empresas.length });
-          // Actualizar la tabla progresivamente con los datos que ya llegaron
-          setSoporte([...results]);
-        }
-      }
-
-      if (!cancelled) setLoadingSoporte(false);
     };
 
     void fetchSoporte();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mes, ano, empresas]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mes, ano]);
 
   // Merge soporte con lista base (para mostrar todas las empresas aunque no tengan actividad)
   const rows = useMemo(() => {
@@ -587,9 +567,9 @@ const TablaSoporteEmpresas: React.FC<TablaSoporteProps> = ({ empresas, onVerDeta
         minutosRemotos: s?.minutosRemotos ?? 0,
         minutosTickets: s?.minutosTickets ?? 0,
         totalMinutos: s?.totalMinutos ?? 0,
-        visitasPresenciales: s?.visitasPresenciales ?? 0,
-        sesionesRemotas: s?.sesionesRemotas ?? 0,
-        ticketsTotal: s?.ticketsTotal ?? 0,
+        visitasPresenciales: s?.visitasPresenciales ?? s?.visitas ?? 0,
+        sesionesRemotas: s?.sesionesRemotas ?? s?.remotas ?? 0,
+        ticketsTotal: s?.ticketsTotal ?? s?.tickets ?? 0,
         ticketsResueltos: s?.ticketsResueltos ?? 0,
         ticketsAbiertos: s?.ticketsAbiertos ?? 0,
         diasConVisitas: s?.diasConVisitas ?? 0,
@@ -656,9 +636,7 @@ const TablaSoporteEmpresas: React.FC<TablaSoporteProps> = ({ empresas, onVerDeta
         {loadingSoporte && (
           <span className="text-xs text-slate-400 inline-flex items-center gap-1.5">
             <LoadingOutlined className="text-[10px]" />
-            {loadingProgress.done < loadingProgress.total
-              ? `Cargando ${loadingProgress.done}/${loadingProgress.total} empresas…`
-              : "Cargando…"}
+            Cargando soporte mensual…
           </span>
         )}
         {!loadingSoporte && totalMinutos > 0 && (
