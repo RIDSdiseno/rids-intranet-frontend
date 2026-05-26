@@ -1621,56 +1621,6 @@ const EquiposPage: React.FC = () => {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Año PC
-                    </label>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <input
-                        type="number"
-                        min={2000}
-                        max={new Date().getFullYear() + 1}
-                        value={anioPcDesde}
-                        onChange={(e) => {
-                          setAnioPcDesde(e.target.value);
-                          setPage(1);
-                        }}
-                        placeholder="Desde"
-                        className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                      />
-
-                      <input
-                        type="number"
-                        min={2000}
-                        max={new Date().getFullYear() + 1}
-                        value={anioPcHasta}
-                        onChange={(e) => {
-                          setAnioPcHasta(e.target.value);
-                          setPage(1);
-                        }}
-                        placeholder="Hasta"
-                        className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                      />
-
-                      <select
-                        value={anioPcOrigenFilter}
-                        onChange={(e) => {
-                          setAnioPcOrigenFilter(
-                            e.target.value as "" | "AUTO" | "MANUAL" | "NO_DETERMINADO"
-                          );
-                          setPage(1);
-                        }}
-                        className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                      >
-                        <option value="">Todos</option>
-                        <option value="AUTO">Automático</option>
-                        <option value="MANUAL">Manual</option>
-                        <option value="NO_DETERMINADO">No determinado</option>
-                      </select>
-                    </div>
-                  </div>
-
                 </div>
               </div>
               {/* Fechas en grid de 2 columnas */}

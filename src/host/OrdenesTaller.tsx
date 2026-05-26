@@ -58,6 +58,12 @@ import { http } from "../service/http";
 
 import { useAuth } from "../components/hooks/useAuth"
 
+import {
+    PDF_ORIGEN_DATA,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "../components/modals-gestioo/pdfOrigen";
+
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
     a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : "SALIDA";
@@ -126,6 +132,14 @@ const toDateTimeLocal = (date: string | Date) => {
 const OrdenesTaller: React.FC = () => {
 
     const { isCliente } = useAuth();
+
+    const [origenPdf, setOrigenPdf] = useState<PdfOrigenKey>("RIDS");
+
+    const [printOrigenOpen, setPrintOrigenOpen] = useState(false);
+    const [ordenPendientePrint, setOrdenPendientePrint] =
+        useState<DetalleTrabajoGestioo | null>(null);
+
+    const [generandoPdf, setGenerandoPdf] = useState(false);
 
     // Función para duplicar orden a SALIDA
     const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
@@ -608,6 +622,47 @@ const OrdenesTaller: React.FC = () => {
         }
     }; */}
 
+    const abrirModalImpresion = (orden: DetalleTrabajoGestioo) => {
+        const error = validarOrdenParaImprimir(orden);
+
+        if (error) {
+            setToast({
+                type: "error",
+                message: error,
+            });
+            return;
+        }
+
+        setOrdenPendientePrint(orden);
+        setOrigenPdf("RIDS");
+        setPrintOrigenOpen(true);
+    };
+
+    const confirmarImpresion = async () => {
+        if (!ordenPendientePrint || generandoPdf) return;
+
+        try {
+            setGenerandoPdf(true);
+
+            // Permite que React pinte el loading antes de iniciar la generación pesada
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            await Promise.resolve(handlePrint(ordenPendientePrint, origenPdf));
+
+            setPrintOrigenOpen(false);
+            setOrdenPendientePrint(null);
+        } catch (error) {
+            console.error("Error al generar PDF:", error);
+
+            setToast({
+                type: "error",
+                message: "No se pudo generar el PDF de la orden.",
+            });
+        } finally {
+            setGenerandoPdf(false);
+        }
+    };
+
     // incluye múltiples filtros, acciones y modales. Se han aplicado estilos modernos con Tailwind CSS para lograr una apariencia limpia y profesional, y se han añadido animaciones suaves para mejorar la experiencia del usuario. La tabla de órdenes es completamente responsive y permite un scroll horizontal en pantallas pequeñas sin perder la estructura ni la usabilidad. Además, se han implementado contadores dinámicos en los filtros para mostrar la cantidad de órdenes en cada categoría, lo que facilita la navegación y el análisis rápido de la información.
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -1013,21 +1068,10 @@ const OrdenesTaller: React.FC = () => {
                                                             </>
                                                         )}
 
-
                                                         <button
-                                                            onClick={() => {
-                                                                const error =
-                                                                    validarOrdenParaImprimir(o);
-                                                                if (error) {
-                                                                    setToast({
-                                                                        type: "error",
-                                                                        message: error,
-                                                                    });
-                                                                    return;
-                                                                }
-                                                                handlePrint(o);
-                                                            }}
-                                                            className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50"
+                                                            onClick={() => abrirModalImpresion(o)}
+                                                            disabled={generandoPdf}
+                                                            className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                                                             title="Imprimir orden"
                                                         >
                                                             <PrinterOutlined />
@@ -1075,8 +1119,109 @@ const OrdenesTaller: React.FC = () => {
                         setPreviewOpen(false);
                         setPreviewOrden(null);
                     }}
-                    onPrint={() => handlePrint(previewOrden)}
+                    onPrint={() => abrirModalImpresion(previewOrden)}
                 />
+            )}
+
+            {printOrigenOpen && ordenPendientePrint && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900">
+                                    Seleccionar origen del PDF
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Elige la empresa emisora antes de imprimir la orden.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    if (generandoPdf) return;
+
+                                    setPrintOrigenOpen(false);
+                                    setOrdenPendientePrint(null);
+                                }}
+                                disabled={generandoPdf}
+                                className="text-slate-400 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Cerrar"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="mt-5">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Empresa emisora
+                            </label>
+
+                            <select
+                                value={origenPdf}
+                                onChange={(e) => setOrigenPdf(e.target.value as PdfOrigenKey)}
+                                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                            >
+                                <option value="RIDS">
+                                    {PDF_ORIGEN_DATA.RIDS.nombre}
+                                </option>
+
+                                <option value="ECONNET">
+                                    {PDF_ORIGEN_DATA.ECONNET.nombre}
+                                </option>
+
+                                <option value="OTRO">
+                                    Usar datos del cliente
+                                </option>
+                            </select>
+
+                            <p className="mt-2 text-xs text-slate-400">
+                                Esto solo cambia el encabezado y datos de empresa del PDF.
+                            </p>
+                            <p className="mt-2 text-xs text-slate-400">
+                                La generación del PDF puede tardar unos segundos, por favor espera sin cerrar esta ventana...
+                            </p>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    if (generandoPdf) return;
+
+                                    setPrintOrigenOpen(false);
+                                    setOrdenPendientePrint(null);
+                                }}
+                                disabled={generandoPdf}
+                                className={`rounded-xl border border-slate-200 px-4 py-2 text-sm ${generandoPdf
+                                    ? "text-slate-400 cursor-not-allowed opacity-60"
+                                    : "text-slate-700 hover:bg-slate-50"
+                                    }`}
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                onClick={confirmarImpresion}
+                                disabled={generandoPdf}
+                                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition ${generandoPdf
+                                    ? "bg-indigo-400 cursor-not-allowed opacity-70"
+                                    : "bg-indigo-600 hover:bg-indigo-700"
+                                    }`}
+                            >
+                                {generandoPdf ? (
+                                    <>
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        Generando PDF...
+                                    </>
+                                ) : (
+                                    <>
+                                        <PrinterOutlined />
+                                        Imprimir
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* ===== Modal Crear ===== */}

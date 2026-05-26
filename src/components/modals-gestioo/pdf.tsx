@@ -1,3 +1,4 @@
+// src/components/modals-gestioo/pdf.tsx
 // PDF
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -12,10 +13,19 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
+import {
+    getPdfOrigenInfo,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "./pdfOrigen";
+
 // ==============================
 //   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
-export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
+export const handlePrint = async (
+    orden: DetalleTrabajoGestioo,
+    origenPdf?: PdfOrigenKey
+) => {
     try {
         const fechaActual = new Date().toLocaleString("es-CL", {
             day: "2-digit",
@@ -29,31 +39,16 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         const codigo = String(orden.ordenGrupoId ?? orden.id).padStart(6, "0");
         const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
-        const ORIGEN_DATA = {
-            RIDS: {
-                nombre: "RIDS LTDA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "soporte@rids.cl",
-                telefono: "+56 9 8823 1976",
-                logo: "/img/splash.png",
-            },
-            ECONNET: {
-                nombre: "ECONNET SPA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "ventas@econnet.cl",
-                telefono: "+56 9 8807 6593",
-                logo: "/img/ecconetlogo.png",
-            },
-            OTRO: {
-                nombre: orden.entidad?.nombre ?? "Empresa",
-                direccion: orden.entidad?.direccion ?? "",
-                correo: orden.entidad?.correo ?? "",
-                telefono: orden.entidad?.telefono ?? "",
-                logo: "/img/splash.png",
-            },
-        };
+        const origenSeleccionado = origenPdf ?? normalizarPdfOrigen(orden.entidad?.origen ?? "RIDS");
 
-        const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
+        const origenInfo = getPdfOrigenInfo(origenSeleccionado, {
+            nombre: orden.entidad?.nombre,
+            direccion: orden.entidad?.direccion,
+            correo: orden.entidad?.correo,
+            telefono: orden.entidad?.telefono,
+            rut: orden.entidad?.rut,
+        });
+
         const tipoEquipoLabel =
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 

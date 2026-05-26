@@ -1,10 +1,17 @@
-// components/modals/GenerarPDFModal.tsx
+// components/modals-cotizaciones/GenerarPDFModal.tsx
 import React, { useState } from 'react';
 import { Modal, Button } from 'antd';
 import { FilePdfOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { CotizacionGestioo } from './types';
+
+import {
+    PDF_ORIGEN_DATA,
+    getPdfOrigenInfo,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "../modals-gestioo/pdfOrigen";
 
 interface GenerarPDFModalProps {
     show: boolean;
@@ -23,13 +30,17 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
     const [generating, setGenerating] = useState(false);
     const [mostrarTotales, setMostrarTotales] = useState(true);
 
+    const [origenPdf, setOrigenPdf] = useState<PdfOrigenKey>(
+        normalizarPdfOrigen(cotizacion?.entidad?.origen ?? "RIDS")
+    );
+
     // Función principal para generar el PDF, con opción de vista previa o descarga directa
     const handleGenerarPDF = async (previewMode = false) => {
         if (!cotizacion) return;
 
         setGenerating(true);
         try {
-            const pdf = await generarPDF(cotizacion, previewMode, mostrarTotales);
+            const pdf = await generarPDF(cotizacion, previewMode, mostrarTotales, origenPdf);
 
             if (previewMode && pdf && onPreviewPDF) {
                 const blob = pdf.output('blob');
@@ -93,6 +104,26 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
                     </label>
                 </div>
 
+                <div className="mb-5 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 text-left">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Empresa emisora del PDF
+                    </label>
+
+                    <select
+                        value={origenPdf}
+                        onChange={(e) => setOrigenPdf(e.target.value as PdfOrigenKey)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white"
+                    >
+                        <option value="RIDS">{PDF_ORIGEN_DATA.RIDS.nombre}</option>
+                        <option value="ECONNET">{PDF_ORIGEN_DATA.ECONNET.nombre}</option>
+                        <option value="OTRO">Usar datos del cliente</option>
+                    </select>
+
+                    <p className="mt-2 text-xs text-gray-500">
+                        Esta opción solo cambia la empresa que aparece como emisora en el PDF.
+                    </p>
+                </div>
+
                 <div className="space-y-3">
                     <Button
                         type="primary"
@@ -128,7 +159,12 @@ const GenerarPDFModal: React.FC<GenerarPDFModalProps> = ({
 // ================================
 // FUNCIÓN PRINCIPAL DE GENERACIÓN
 // ================================
-const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarTotales = true) => {
+const generarPDF = async (
+    cot: CotizacionGestioo,
+    returnAsBlob = false,
+    mostrarTotales = true,
+    origenPdf: PdfOrigenKey = "RIDS"
+) => {
 
     async function urlToBase64(url: string | null): Promise<string | null> {
         try {
@@ -196,40 +232,13 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 
     const codigo = `COT-${String(cot.id).padStart(6, "0")}`;
 
-    type OrigenGestiooLocal = "RIDS" | "ECONNET" | "OTRO";
-
-    const ORIGEN_DATA: Record<OrigenGestiooLocal, {
-        nombre: string; direccion: string; correo: string;
-        telefono: string; logo: string; rut: string;
-    }> = {
-        RIDS: {
-            nombre: "RIDS LTDA",
-            direccion: "Santiago - Providencia, La Concepción 65",
-            correo: "soporte@rids.cl",
-            telefono: "+56 9 8823 1976",
-            rut: "76.758.352-4",
-            logo: "/img/splash.png",
-        },
-        ECONNET: {
-            nombre: "ECONNET SPA",
-            direccion: "Santiago - Providencia, La Concepción 65",
-            correo: "ventas@econnet.cl",
-            telefono: "+56 9 8807 6593",
-            rut: "76.758.352-4",
-            logo: "/img/ecconetlogo.png",
-        },
-        OTRO: {
-            nombre: cot.entidad?.nombre ?? "Empresa",
-            direccion: cot.entidad?.direccion ?? "",
-            correo: cot.entidad?.correo ?? "",
-            telefono: cot.entidad?.telefono ?? "",
-            rut: cot.entidad?.rut ?? "",
-            logo: "/img/splash.png",
-        },
-    };
-
-    const origen = (cot.entidad?.origen ?? "OTRO") as OrigenGestiooLocal;
-    const origenInfo = ORIGEN_DATA[origen];
+    const origenInfo = getPdfOrigenInfo(origenPdf, {
+        nombre: cot.entidad?.nombre,
+        direccion: cot.entidad?.direccion,
+        correo: cot.entidad?.correo,
+        telefono: cot.entidad?.telefono,
+        rut: cot.entidad?.rut,
+    });
 
     const formatPDF = (valorCLP: number) => {
         if (isNaN(valorCLP)) return "$0";
