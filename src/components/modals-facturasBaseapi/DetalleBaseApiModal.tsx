@@ -41,6 +41,7 @@ const DetalleBaseApiModal: React.FC<{
     ano: string;
     onClose: () => void;
     onConsultarDte: (doc: any, forceRefresh?: boolean) => Promise<any | null>;
+    onBack?: () => void;
     detalleDte: any | null;
     detalleLoading: boolean;
     detalleError: string;
@@ -61,6 +62,7 @@ const DetalleBaseApiModal: React.FC<{
     pdfPreparando = false,
     pdfPreparadoUrl = null,
     pdfPreparadoNombre = "",
+    onBack,
 }) => {
 
         if (!documento) return null;
@@ -196,15 +198,29 @@ const DetalleBaseApiModal: React.FC<{
                                 </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                aria-label="Cerrar modal"
-                                title="Cerrar"
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-200 bg-white text-cyan-700 transition hover:bg-cyan-50"
-                            >
-                                <CloseOutlined />
-                            </button>
+                            <div className="flex gap-2">
+                                {onBack && (
+                                    <button
+                                        type="button"
+                                        onClick={onBack}
+                                        aria-label="Volver"
+                                        title="Volver"
+                                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                    >
+                                        ← Volver
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    aria-label="Cerrar modal"
+                                    title="Cerrar"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-200 bg-white text-cyan-700 transition hover:bg-cyan-50"
+                                >
+                                    <CloseOutlined />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Acciones */}

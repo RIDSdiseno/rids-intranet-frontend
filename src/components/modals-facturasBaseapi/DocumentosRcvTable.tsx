@@ -22,17 +22,27 @@ type Props = {
     onBusquedaChange: (value: string) => void;
     onSelectDocumento: (doc: any) => void;
     renderRowActions?: (doc: any) => React.ReactNode;
+    // mode: 'rcv' -> mostrar estado tal cual viene del RCV (incluye 'Acusado')
+    // mode: 'cobranza' -> mostrar estados normalizados: Pendiente/Vencida/Confirmada
+    mode?: "rcv" | "cobranza";
 };
 
-function getEstadoRcv(doc: any) {
-    // Priorizar campo estadoPago si está presente (añadido en backend)
-    const estadoPago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
-    if (estadoPago) return String(estadoPago);
-    // Si no hay estadoPago, intentar inferir desde campos de Estado
+function getEstadoRcv(doc: any, mode: "rcv" | "cobranza" = "rcv") {
+    // mode === 'rcv' -> mostrar estado reportado por RCV primero
+    // mode === 'cobranza' -> priorizar estadoPago (Pendiente/Vencida/Confirmada)
     const estadoRaw = String(
         getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "")
     ).trim();
-    if (estadoRaw) return estadoRaw;
+
+    const estadoPago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
+
+    if (mode === "rcv") {
+        if (estadoRaw) return estadoRaw;
+        if (estadoPago) return String(estadoPago);
+    } else {
+        if (estadoPago) return String(estadoPago);
+        if (estadoRaw) return estadoRaw;
+    }
 
     // Si aún no hay estado, derivar desde fecha de vencimiento si está disponible
     const fechaVenc = getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], null);
@@ -129,6 +139,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
     onBusquedaChange,
     onSelectDocumento,
     renderRowActions,
+    mode = "rcv",
 }) => {
     return (
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
@@ -222,7 +233,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                             Folio {folio}
                                         </span>
 
-                                        <EstadoBadge estado={getEstadoRcv(doc)} />
+                                        <EstadoBadge estado={getEstadoRcv(doc, mode)} />
                                     </div>
 
                                     <p className="mt-2 truncate text-sm font-bold text-slate-900">
@@ -352,7 +363,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
 
                             const folio = getValue(doc, ["Folio", "folio"]);
                             const tipoDoc = getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"]);
-                            const estado = getEstadoRcv(doc);
+                            const estado = getEstadoRcv(doc, mode);
 
                             return (
                                 <tr
