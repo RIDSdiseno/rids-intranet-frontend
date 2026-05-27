@@ -25,6 +25,7 @@ import {
     ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import DOMPurify from "dompurify";
+import { notification } from "antd";
 
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -570,8 +571,26 @@ export default function TicketDetailPage() {
 
             setReplyFiles([]);
             await loadTicket();
-        } catch {
-            message.error("Error al enviar mensaje");
+        } catch (error: any) {
+            console.error("❌ Error respondiendo ticket:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const errorMessage =
+                error?.response?.data?.detail ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Error al responder ticket";
+
+            notification.error({
+                message: "No se pudo responder el ticket",
+                description: errorMessage,
+                placement: "topRight",
+                duration: 6,
+            });
         } finally {
             setSendingReply(false);
         }

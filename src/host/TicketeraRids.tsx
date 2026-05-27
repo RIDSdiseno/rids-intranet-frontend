@@ -846,7 +846,25 @@ export default function TicketeraRids() {
             await loadTickets();
             await loadSla();
         } catch (error: any) {
-            message.error(error?.response?.data?.message || "Error al crear ticket");
+            console.error("❌ Error creando ticket:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const errorMessage =
+                error?.response?.data?.detail ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Error al crear ticket";
+
+            notificationApi.error({
+                message: "No se pudo crear el ticket",
+                description: errorMessage,
+                placement: "topRight",
+                duration: 6,
+            });
         } finally {
             setCreatingTicket(false);
         }
