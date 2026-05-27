@@ -3,12 +3,18 @@ import { PublicClientApplication } from "@azure/msal-browser";
 
 export const pca = new PublicClientApplication({
   auth: {
-    clientId: import.meta.env.VITE_AAD_CLIENT_ID!,
-    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AAD_TENANT_ID}`,
+    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID!,
+    authority: "https://login.microsoftonline.com/organizations",
     redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
+    navigateToLoginRequestUrl: false,
   },
-  cache: { cacheLocation: "localStorage" },
+  cache: {
+    cacheLocation: "localStorage",
+    storeAuthStateInCookie: false,
+  },
 });
 
-export const loginRequest = { scopes: ["User.Read", "Sites.Read.All", "Files.Read.All"] };
-
+export const loginRequest = {
+  scopes: ["openid", "profile", "email", "User.Read"],
+};

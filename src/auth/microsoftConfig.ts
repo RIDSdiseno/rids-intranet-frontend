@@ -8,20 +8,14 @@ import {
    Variables de entorno
 ========================= */
 const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID as string | undefined;
-const tenantId = import.meta.env.VITE_MICROSOFT_TENANT_ID as string | undefined;
 
 /* =========================
    Validación obligatoria
 ========================= */
-if (!clientId || !tenantId) {
-  const missingVars = [
-    !clientId ? "VITE_MICROSOFT_CLIENT_ID" : null,
-    !tenantId ? "VITE_MICROSOFT_TENANT_ID" : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  throw new Error(`❌ Faltan variables de entorno de Microsoft: ${missingVars}`);
+if (!clientId) {
+  throw new Error(
+    "❌ Falta variable de entorno de Microsoft: VITE_MICROSOFT_CLIENT_ID"
+  );
 }
 
 /* =========================
@@ -30,18 +24,30 @@ if (!clientId || !tenantId) {
 const msalConfig: Configuration = {
   auth: {
     clientId,
-    authority: `https://login.microsoftonline.com/${tenantId}`,
+
+    /*
+      IMPORTANTE:
+      organizations permite cuentas Microsoft empresariales de múltiples tenants.
+      No permite cuentas personales tipo hotmail/outlook.
+    */
+    authority: "https://login.microsoftonline.com/organizations",
+
     redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
     navigateToLoginRequestUrl: false,
   },
+
   cache: {
     cacheLocation: "localStorage",
     storeAuthStateInCookie: false,
   },
+
   system: {
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
         if (containsPii) return;
+
+        if (!import.meta.env.DEV) return;
 
         switch (level) {
           case LogLevel.Error:
@@ -96,6 +102,7 @@ export const initializeMsal = async (): Promise<void> => {
   if (active) return;
 
   const accounts = pca.getAllAccounts();
+
   if (accounts.length > 0) {
     pca.setActiveAccount(accounts[0]);
   }
@@ -106,6 +113,7 @@ export const initializeMsal = async (): Promise<void> => {
 ========================= */
 export const loginRequest = {
   scopes: ["openid", "profile", "email", "User.Read"],
+  prompt: "select_account",
 };
 
 export const getActiveMsalAccount = () => pca.getActiveAccount();
