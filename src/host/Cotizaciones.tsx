@@ -1000,6 +1000,24 @@ const Cotizaciones: React.FC = () => {
                 const sendResp = await http.post('/correo/enviar-masivo', payload);
                 if (sendResp.data?.ok) {
                     notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${created.entidad?.correo}` });
+                                        // Registrar envío en cotizaciones-enviadas (no bloquear)
+                                        (async () => {
+                                            try {
+                                                await http.post('/cotizaciones/enviadas', {
+                                                    cotizacionId: created.id,
+                                                    to: created.entidad?.correo ?? null,
+                                                    subject: payload.subject,
+                                                    jobId: sendResp.data.jobId ?? null,
+                                                    meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                                                });
+                                            } catch (err: any) {
+                                                console.error('Error registrando cotizacion enviada:', err);
+                                                try {
+                                                    const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                                                    notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                                                } catch (_) {}
+                                            }
+                                        })();
                 } else {
                     notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
                 }
@@ -1069,6 +1087,24 @@ const Cotizaciones: React.FC = () => {
             const sendResp = await http.post('/correo/enviar-masivo', payload);
             if (sendResp.data?.ok) {
                 notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${cot.entidad?.correo}` });
+                                // Registrar envío en cotizaciones-enviadas (no bloquear)
+                                (async () => {
+                                    try {
+                                        await http.post('/cotizaciones/enviadas', {
+                                            cotizacionId: cot.id,
+                                            to: cot.entidad?.correo ?? null,
+                                            subject: payload.subject,
+                                            jobId: sendResp.data.jobId ?? null,
+                                            meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                                        });
+                                    } catch (err: any) {
+                                        console.error('Error registrando cotizacion enviada:', err);
+                                        try {
+                                            const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                                            notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                                        } catch (_) {}
+                                    }
+                                })();
             } else {
                 notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
             }

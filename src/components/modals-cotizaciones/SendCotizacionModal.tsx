@@ -212,6 +212,38 @@ export default function SendCotizacionModal({ show, onClose, cotizacion }: Props
       const { data } = await http.post('/correo/enviar-masivo', payload);
       if (data?.ok) {
         notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${dest}` });
+
+        // Emitir evento global para que la UI recargue la lista de envíos
+        try {
+          window.dispatchEvent(new CustomEvent('cotizacion:enviada', { detail: { cotizacionId: cotizacion?.id ?? null, to: dest, jobId: data.jobId ?? null } }));
+        } catch (e) {}
+
+        // Registrar el envío en cotizaciones-enviadas (no bloquear el flujo principal)
+        (async () => {
+          try {
+            await http.post('/cotizaciones/enviadas', {
+              cotizacionId: cotizacion?.id ?? null,
+              to: dest,
+              subject,
+              jobId: data.jobId ?? null,
+              meta: { attachments: finalAttachments.length },
+              clienteNombre: cotizacion?.entidad?.nombre ?? null,
+              creadoPor: cotizacion?.tecnico?.nombre ?? null,
+              fechaCreacion: (cotizacion as any)?.fecha ?? (cotizacion as any)?.createdAt ?? null,
+            });
+          } catch (err: any) {
+            console.error('Error registrando cotizacion enviada:', err);
+            try {
+              const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+              notification.warning({
+                message: 'Registro no guardado',
+                description: `No se pudo registrar el envío en Cotizaciones Enviadas: ${msg}`,
+                duration: 6,
+              });
+            } catch (_) {}
+          }
+        })();
+
         onClose();
       } else {
         notification.error({ message: 'Error', description: String(data?.message ?? 'Respuesta inválida') });
