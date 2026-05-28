@@ -835,17 +835,28 @@ const EquiposPage: React.FC = () => {
       const res = await http.get("/inventario/export", {
         params: {
           mes: mesExport,
-          empresaId: empresaFilterId || undefined
+
+          empresaId: empresaFilterId || undefined,
+
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
+
+          updatedFrom: updatedFrom || undefined,
+          updatedTo: updatedTo || undefined,
         },
-        responseType: "blob"
+        responseType: "blob",
       });
 
       const blob = res.data;
       const url = window.URL.createObjectURL(blob);
 
+      const filtroFecha = updatedFrom
+        ? `_editados_desde_${dayjs(updatedFrom).format("YYYY-MM-DD")}`
+        : "";
+
       const fileName = empresaFilterName
-        ? `Inventario_${empresaFilterName}_${mesExport}.xlsx`
-        : `Inventario_TODAS_${mesExport}.xlsx`;
+        ? `Inventario_${empresaFilterName}_${mesExport}${filtroFecha}.xlsx`
+        : `Inventario_TODAS_${mesExport}${filtroFecha}.xlsx`;
 
       const a = document.createElement("a");
       a.href = url;

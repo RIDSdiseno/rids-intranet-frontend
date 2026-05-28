@@ -674,9 +674,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                                             disabled={!requiresProcesador}
                                             className="w-full"
                                         >
-                                            <Input
-                                                prefix={<DashboardOutlined className="text-gray-400" />}
-                                            />
                                         </AutoComplete>
                                         {fieldErrors.procesador && (
                                             <p className="text-xs text-red-600 mt-1">{fieldErrors.procesador}</p>
@@ -708,7 +705,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                                             disabled={!requiresRam}
                                             className="w-full"
                                         >
-                                            <Input prefix={<DashboardOutlined className="text-gray-400" />} />
                                         </AutoComplete>
                                         {fieldErrors.ram && (
                                             <p className="text-xs text-red-600 mt-1">{fieldErrors.ram}</p>
@@ -738,7 +734,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                                             disabled={!requiresDisco}
                                             className="w-full"
                                         >
-                                            <Input prefix={<HddOutlined className="text-gray-400" />} />
                                         </AutoComplete>
                                         {fieldErrors.disco && (
                                             <p className="text-xs text-red-600 mt-1">{fieldErrors.disco}</p>

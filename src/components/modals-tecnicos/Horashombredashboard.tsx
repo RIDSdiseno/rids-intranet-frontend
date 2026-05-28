@@ -1,4 +1,17 @@
 // src/host/components/HorasHombreDashboard.tsx
+//
+// ─── Variables CSS del sistema (index.css) ───────────────────────────────────
+//  Superficies : --color-surface  /  --color-surface-2  /  --color-surface-3
+//  Fondo base  : --color-bg
+//  Bordes      : --color-border   /  --color-border-light
+//  Texto       : --color-text-primary  /  --color-text-secondary  /  --color-text-muted
+//  Acento      : --color-accent   /  --color-success  /  --color-error
+//  Semánticos  : --color-visitas  /  --color-remotas  /  --color-tickets
+//
+//  ⚠️  NO se usan --color-background-*, --color-border-tertiary ni similares
+//      que no existen en el sistema de tokens.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import React, { useState, useMemo } from "react";
 import {
   ClockCircleOutlined,
@@ -64,12 +77,29 @@ export type HorasTecnicosDashboardData = {
   porTecnicoEmpresa: HorasTecnicoEmpresaRow[];
 };
 
+/* ====================== Token alias ====================== */
+// Un solo lugar donde mapear los nombres cortos a las variables reales.
+// Si cambia el token en index.css, solo hay que actualizar aquí.
+const T = {
+  surface: "var(--color-surface)",
+  surface2: "var(--color-surface-2)",
+  surface3: "var(--color-surface-3)",
+  bg: "var(--color-bg)",
+  border: "var(--color-border)",
+  borderLight: "var(--color-border-light)",
+  text: "var(--color-text-primary)",
+  textSub: "var(--color-text-secondary)",
+  textMuted: "var(--color-text-muted)",
+  accent: "var(--color-accent)",
+  success: "var(--color-success)",
+  error: "var(--color-error)",
+  visitas: "var(--color-visitas)",
+  remotas: "var(--color-remotas)",
+};
+
 /* ====================== Helpers ====================== */
 function fmtH(v?: number | null) {
-  return Number(v ?? 0).toLocaleString("es-CL", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+  return Number(v ?? 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 function fmtInt(v?: number | null) {
   return Number(v ?? 0).toLocaleString("es-CL");
@@ -81,22 +111,19 @@ function formatMesLabel(mes: string) {
   return d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
 }
 function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
+  return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
+// Paleta de avatares oscura → funciona en ambos temas
 const AVATAR_PALETTE: [string, string][] = [
-  ["#E6F1FB", "#185FA5"],
-  ["#E1F5EE", "#0F6E56"],
-  ["#EEEDFE", "#534AB7"],
-  ["#FAECE7", "#993C1D"],
-  ["#FAEEDA", "#854F0B"],
-  ["#FBEAF0", "#993556"],
-  ["#EAF3DE", "#3B6D11"],
-  ["#F1EFE8", "#444441"],
+  ["#1e3a5f", "#93c5fd"],
+  ["#064e3b", "#6ee7b7"],
+  ["#3b1d8c", "#c4b5fd"],
+  ["#7c1d2a", "#fda4af"],
+  ["#78350f", "#fcd34d"],
+  ["#4a1a42", "#f0abfc"],
+  ["#1c4a3a", "#6ee7b7"],
+  ["#2d2a4a", "#a5b4fc"],
 ];
 function avatarColor(name: string): [string, string] {
   let h = 0;
@@ -104,122 +131,48 @@ function avatarColor(name: string): [string, string] {
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-// Colores para columnas de empresa en la comparativa
+// Paleta de empresas: colores con contraste suficiente en claro Y oscuro
 const EMPRESA_COLORS = [
-  { bg: "#E6F1FB", text: "#0C447C", bar: "#185FA5", badge: "#185FA5" },
-  { bg: "#E1F5EE", text: "#085041", bar: "#0F6E56", badge: "#0F6E56" },
-  { bg: "#EEEDFE", text: "#3C3489", bar: "#534AB7", badge: "#534AB7" },
-  { bg: "#FAEEDA", text: "#633806", bar: "#854F0B", badge: "#854F0B" },
+  { accent: "#0891b2", chipBg: "#164e63", chipText: "#67e8f9" }, // cyan
+  { accent: "#059669", chipBg: "#064e3b", chipText: "#6ee7b7" }, // emerald
+  { accent: "#7c3aed", chipBg: "#3b1d8c", chipText: "#c4b5fd" }, // violet
+  { accent: "#d97706", chipBg: "#78350f", chipText: "#fcd34d" }, // amber
 ];
 
 /* ====================== Barra horizontal ====================== */
 const HBar: React.FC<{ pct: number; color: string; h?: number }> = ({ pct, color, h = 5 }) => (
-  <div
-    style={{
-      background: "#f1f5f9",
-      borderRadius: 99,
-      overflow: "hidden",
-      height: h,
-      width: "100%",
-    }}
-  >
-    <div
-      style={{
-        height: "100%",
-        width: `${Math.min(100, Math.max(0, Math.round(pct)))}%`,
-        background: color,
-        borderRadius: 99,
-        transition: "width 0.4s ease",
-      }}
-    />
+  <div style={{ background: T.surface3, borderRadius: 99, overflow: "hidden", height: h, width: "100%" }}>
+    <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, Math.round(pct)))}%`, background: color, borderRadius: 99, transition: "width .4s ease" }} />
   </div>
 );
 
 /* ====================== KPI mini card ====================== */
-const KpiCard: React.FC<{
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ReactNode;
-  color: string;
-}> = ({ label, value, sub, icon, color }) => (
-  <div
-    style={{
-      background: "var(--color-background-secondary)",
-      borderRadius: "var(--border-radius-md)",
-      padding: "10px 14px",
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 4,
-      }}
-    >
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--color-text-secondary)",
-          fontWeight: 500,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </span>
+const KpiCard: React.FC<{ label: string; value: string; sub?: string; icon: React.ReactNode; color: string }> = ({ label, value, sub, icon, color }) => (
+  <div style={{ background: T.surface2, borderRadius: 10, padding: "10px 14px", border: `0.5px solid ${T.border}` }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+      <span style={{ fontSize: 11, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
       <span style={{ color, fontSize: 14 }}>{icon}</span>
     </div>
-    <div
-      style={{
-        fontSize: 22,
-        fontWeight: 500,
-        color: "var(--color-text-primary)",
-        lineHeight: 1.1,
-      }}
-    >
-      {value}
-    </div>
-    {sub && (
-      <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 2 }}>
-        {sub}
-      </div>
-    )}
+    <div style={{ fontSize: 22, fontWeight: 500, color: T.text, lineHeight: 1.1 }}>{value}</div>
+    {sub && <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{sub}</div>}
   </div>
 );
 
 /* ====================== Sparkline SVG ====================== */
 const Sparkline: React.FC<{ values: number[]; color: string }> = ({ values, color }) => {
   if (values.length < 2) return null;
-  const w = 80;
-  const h = 24;
+  const w = 80; const h = 24;
   const max = Math.max(...values, 0.01);
   const step = w / (values.length - 1);
-  const pts = values
-    .map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * (h - 4) - 2).toFixed(1)}`)
-    .join(" ");
+  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * (h - 4) - 2).toFixed(1)}`).join(" ");
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      width={w}
-      height={h}
-      style={{ display: "block" }}
-    >
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.7"
-      />
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} style={{ display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
     </svg>
   );
 };
 
-/* ====================== Modal: selector de empresas ====================== */
+/* ====================== Modal selector de empresas ====================== */
 const EmpresaPickerModal: React.FC<{
   empresas: Array<{ id: number; nombre: string; totalHH: number }>;
   selected: number[];
@@ -228,314 +181,185 @@ const EmpresaPickerModal: React.FC<{
   onClose: () => void;
   search: string;
   onSearchChange: (v: string) => void;
-}> = ({
-  empresas,
-  selected,
-  maxSelect,
-  onToggle,
-  onClose,
-  search,
-  onSearchChange,
-}) => {
-    const filtered = empresas.filter(
-      (e) =>
-        !search.trim() ||
-        e.nombre.toLowerCase().includes(search.toLowerCase())
-    );
+}> = ({ empresas, selected, maxSelect, onToggle, onClose, search, onSearchChange }) => {
+  const filtered = empresas.filter((e) => !search.trim() || e.nombre.toLowerCase().includes(search.toLowerCase()));
+  const maxHH = Math.max(...empresas.map((e) => e.totalHH), 0.01);
 
-    const maxHH = Math.max(...empresas.map((e) => e.totalHH), 0.01);
-
-    return (
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Seleccionar empresas a comparar"
+      onMouseDown={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "rgba(15,23,42,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      {/* Panel */}
       <div
-        role="dialog"
-        aria-modal="true"
-        onMouseDown={onClose}
+        onMouseDown={(e) => e.stopPropagation()}
         style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9999,
-          background: "rgba(15, 23, 42, 0.45)",
+          width: "min(760px, 100%)",
+          maxHeight: "82vh",
+          background: T.surface,
+          borderRadius: 16,
+          border: `1px solid ${T.border}`,
+          boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+          overflow: "hidden",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
+          flexDirection: "column",
         }}
       >
-        <div
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            width: "min(760px, 100%)",
-            maxHeight: "82vh",
-            background: "var(--color-background-primary, #fff)",
-            borderRadius: 18,
-            boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
-            border: "1px solid rgba(148, 163, 184, 0.35)",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              padding: "18px 20px",
-              borderBottom: "1px solid rgba(226, 232, 240, 0.9)",
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 16,
-            }}
+        {/* Header */}
+        <div style={{ padding: "18px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, background: T.surface, flexShrink: 0 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>
+              Seleccionar empresas a comparar
+            </h3>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textSub }}>
+              Elige hasta {maxSelect} empresas · {selected.length} seleccionada{selected.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18, color: T.textMuted, padding: 4, lineHeight: 1, flexShrink: 0 }}
           >
-            <div>
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "var(--color-text-primary, #0f172a)",
-                }}
-              >
-                Seleccionar empresas a comparar
-              </h3>
+            <CloseOutlined />
+          </button>
+        </div>
 
-              <p
-                style={{
-                  margin: "4px 0 0",
-                  fontSize: 13,
-                  color: "var(--color-text-secondary, #64748b)",
-                }}
-              >
-                Elige hasta {maxSelect} empresas para comparar sus horas hombre.
-              </p>
+        {/* Búsqueda */}
+        <div style={{ padding: "12px 20px", borderBottom: `1px solid ${T.border}`, background: T.surface, flexShrink: 0 }}>
+          <div style={{ position: "relative" }}>
+            <SearchOutlined style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textMuted, fontSize: 14 }} />
+            <input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Buscar empresa..."
+              autoFocus
+              style={{
+                width: "100%",
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                padding: "9px 12px 9px 36px",
+                outline: "none",
+                fontSize: 14,
+                color: T.text,
+                background: T.surface2,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Lista de empresas — grid cards */}
+        <div style={{ padding: 16, overflowY: "auto", flex: 1, background: T.bg }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: 32, textAlign: "center", color: T.textMuted, fontSize: 14 }}>
+              No se encontraron empresas.
             </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+              {filtered.map((empresa) => {
+                const checked = selected.includes(empresa.id);
+                const disabled = !checked && selected.length >= maxSelect;
+                const pct = (empresa.totalHH / maxHH) * 100;
+                const colorIdx = selected.indexOf(empresa.id);
+                const ec = colorIdx >= 0 ? EMPRESA_COLORS[colorIdx] : null;
 
+                return (
+                  <button
+                    key={empresa.id}
+                    type="button"
+                    onClick={() => { if (!disabled) onToggle(empresa.id); }}
+                    disabled={disabled}
+                    style={{
+                      textAlign: "left",
+                      border: checked ? `2px solid ${ec?.accent ?? T.accent}` : `1px solid ${T.border}`,
+                      background: checked ? T.surface2 : T.surface,
+                      borderRadius: 12,
+                      padding: 12,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.4 : 1,
+                      transition: "all .15s ease",
+                    }}
+                  >
+                    {/* Nombre + radio */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontWeight: 600, color: T.text, fontSize: 13, lineHeight: 1.3 }}>
+                        {empresa.nombre}
+                      </span>
+                      <span
+                        style={{
+                          width: 16, height: 16, borderRadius: 999, flexShrink: 0, marginTop: 1,
+                          border: checked ? `5px solid ${ec?.accent ?? T.accent}` : `1.5px solid ${T.border}`,
+                          background: T.surface,
+                        }}
+                      />
+                    </div>
+
+                    {/* Horas */}
+                    <div style={{ marginTop: 6, fontSize: 12, color: checked ? (ec?.accent ?? T.accent) : T.textSub, fontWeight: checked ? 600 : 400 }}>
+                      {fmtH(empresa.totalHH)} h
+                    </div>
+
+                    {/* Barra */}
+                    <div style={{ marginTop: 8 }}>
+                      <HBar pct={pct} color={checked ? (ec?.accent ?? T.accent) : T.surface3} h={4} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "14px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: T.surface2, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: T.textSub }}>
+            {selected.length} de {maxSelect} seleccionadas
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
             <button
               type="button"
               onClick={onClose}
+              style={{ border: `1px solid ${T.border}`, background: T.surface, color: T.text, borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={selected.length === 0}
               style={{
                 border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: 18,
-                color: "var(--color-text-secondary, #64748b)",
-                padding: 4,
-                lineHeight: 1,
-              }}
-              aria-label="Cerrar"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Search */}
-          <div
-            style={{
-              padding: "14px 20px",
-              borderBottom: "1px solid rgba(226, 232, 240, 0.9)",
-            }}
-          >
-            <div style={{ position: "relative" }}>
-              <SearchOutlined
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#94a3b8",
-                  fontSize: 14,
-                }}
-              />
-
-              <input
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Buscar empresa..."
-                autoFocus
-                style={{
-                  width: "100%",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 12,
-                  padding: "10px 12px 10px 36px",
-                  outline: "none",
-                  fontSize: 14,
-                  color: "#0f172a",
-                  background: "#fff",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Body */}
-          <div
-            style={{
-              padding: 16,
-              overflowY: "auto",
-              flex: 1,
-            }}
-          >
-            {filtered.length === 0 ? (
-              <div
-                style={{
-                  padding: 32,
-                  textAlign: "center",
-                  color: "#94a3b8",
-                  fontSize: 14,
-                }}
-              >
-                No se encontraron empresas.
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                  gap: 10,
-                }}
-              >
-                {filtered.map((empresa) => {
-                  const checked = selected.includes(empresa.id);
-                  const disabled = !checked && selected.length >= maxSelect;
-                  const pct = (empresa.totalHH / maxHH) * 100;
-
-                  return (
-                    <button
-                      key={empresa.id}
-                      type="button"
-                      onClick={() => {
-                        if (disabled) return;
-                        onToggle(empresa.id);
-                      }}
-                      disabled={disabled}
-                      style={{
-                        textAlign: "left",
-                        border: checked
-                          ? "1.5px solid #0891b2"
-                          : "1px solid #e2e8f0",
-                        background: checked ? "#ecfeff" : "#fff",
-                        borderRadius: 14,
-                        padding: 12,
-                        cursor: disabled ? "not-allowed" : "pointer",
-                        opacity: disabled ? 0.45 : 1,
-                        transition: "all .15s ease",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            color: "#0f172a",
-                            fontSize: 14,
-                            lineHeight: 1.25,
-                          }}
-                        >
-                          {empresa.nombre}
-                        </div>
-
-                        <span
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: 999,
-                            border: checked
-                              ? "5px solid #0891b2"
-                              : "1px solid #cbd5e1",
-                            background: "#fff",
-                            flexShrink: 0,
-                          }}
-                        />
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: 8,
-                          fontSize: 12,
-                          color: "#64748b",
-                        }}
-                      >
-                        {fmtH(empresa.totalHH)} h
-                      </div>
-
-                      <div style={{ marginTop: 8 }}>
-                        <HBar pct={pct} color="#0891b2" h={5} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              padding: "14px 20px",
-              borderTop: "1px solid rgba(226, 232, 240, 0.9)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              background: "#f8fafc",
-            }}
-          >
-            <span
-              style={{
+                background: selected.length === 0 ? T.surface3 : T.accent,
+                color: "#fff",
+                borderRadius: 10,
+                padding: "8px 16px",
                 fontSize: 13,
-                color: "#475569",
+                fontWeight: 700,
+                cursor: selected.length === 0 ? "not-allowed" : "pointer",
               }}
             >
-              {selected.length} de {maxSelect} seleccionadas
-            </span>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  border: "1px solid #cbd5e1",
-                  background: "#fff",
-                  color: "#334155",
-                  borderRadius: 12,
-                  padding: "9px 14px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={selected.length === 0}
-                style={{
-                  border: "none",
-                  background: selected.length === 0 ? "#94a3b8" : "#0891b2",
-                  color: "#fff",
-                  borderRadius: 12,
-                  padding: "9px 16px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: selected.length === 0 ? "not-allowed" : "pointer",
-                }}
-              >
-                Comparar
-              </button>
-            </div>
+              Comparar
+            </button>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-/* ====================== Columna de empresa en comparativa ====================== */
+/* ====================== Columna empresa en comparativa ====================== */
 const EmpresaColumn: React.FC<{
   empresa: { id: number; nombre: string; totalHH: number };
   tecnicoRows: Array<HorasTecnicoEmpresaRow & { rank: number }>;
@@ -548,357 +372,106 @@ const EmpresaColumn: React.FC<{
   const totalR = tecnicoRows.reduce((s, r) => s + r.totalHorasRemotas, 0);
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "var(--color-background-primary)",
-        border: `1px solid ${colorScheme.badge}33`,
-        borderRadius: "var(--border-radius-lg)",
-        overflow: "hidden",
-        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-      }}
-    >
-      {/* Header columna */}
-      <div
-        style={{
-          background: colorScheme.bg,
-          padding: "12px 14px",
-          borderBottom: `0.5px solid ${colorScheme.badge}22`,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 8,
-            marginBottom: 8,
-          }}
-        >
+    <div style={{ width: "100%", height: "100%", background: T.surface, border: `2px solid ${colorScheme.accent}44`, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,.08)" }}>
+
+      {/* Header */}
+      <div style={{ background: T.surface2, padding: "12px 14px", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: colorScheme.text,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-              title={empresa.nombre}
-            >
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={empresa.nombre}>
               {empresa.nombre}
             </div>
-            <div style={{ fontSize: 11, color: colorScheme.text, opacity: 0.7, marginTop: 1 }}>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1 }}>
               {tecnicoRows.length} técnico{tecnicoRows.length !== 1 ? "s" : ""}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onRemove}
-            title="Quitar empresa"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: colorScheme.text,
-              opacity: 0.5,
-              fontSize: 13,
-              padding: 2,
-              flexShrink: 0,
-            }}
-          >
+          {/* Dot de color */}
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: colorScheme.accent, flexShrink: 0, marginTop: 3 }} />
+          <button type="button" onClick={onRemove} title="Quitar empresa" style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, fontSize: 13, padding: 2, flexShrink: 0 }}>
             <CloseOutlined />
           </button>
         </div>
-        {/* Total H.H. grande */}
-        <div
-          style={{
-            fontSize: 26,
-            fontWeight: 500,
-            color: colorScheme.text,
-            lineHeight: 1,
-            marginBottom: 6,
-          }}
-        >
+
+        {/* Total H.H. */}
+        <div style={{ fontSize: 26, fontWeight: 500, color: colorScheme.accent, lineHeight: 1, marginBottom: 8 }}>
           {fmtH(empresa.totalHH)} h
         </div>
-        {/* Desglose visitas / remotas */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: colorScheme.text, opacity: 0.8, width: 52 }}>
-              Visitas
-            </span>
-            <HBar
-              pct={empresa.totalHH > 0 ? (totalV / empresa.totalHH) * 100 : 0}
-              color={colorScheme.bar}
-              h={4}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: colorScheme.text,
-                width: 46,
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              {fmtH(totalV)} h
+
+        {/* Desglose */}
+        {[{ label: "Visitas", val: totalV }, { label: "Remotas", val: totalR }].map(({ label, val }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: T.textSub, width: 52, flexShrink: 0 }}>{label}</span>
+            <HBar pct={empresa.totalHH > 0 ? (val / empresa.totalHH) * 100 : 0} color={colorScheme.accent} h={4} />
+            <span style={{ fontSize: 11, fontWeight: 500, color: colorScheme.accent, width: 46, textAlign: "right", flexShrink: 0 }}>
+              {fmtH(val)} h
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: colorScheme.text, opacity: 0.8, width: 52 }}>
-              Remotas
-            </span>
-            <HBar
-              pct={empresa.totalHH > 0 ? (totalR / empresa.totalHH) * 100 : 0}
-              color={colorScheme.bar}
-              h={4}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: colorScheme.text,
-                width: 46,
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              {fmtH(totalR)} h
-            </span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Ranking de técnicos */}
+      {/* Ranking técnicos */}
       <div>
         {tecnicoRows.length === 0 && (
-          <div
-            style={{
-              padding: "20px 14px",
-              textAlign: "center",
-              fontSize: 12,
-              color: "var(--color-text-secondary)",
-            }}
-          >
+          <div style={{ padding: "20px 14px", textAlign: "center", fontSize: 12, color: T.textMuted }}>
             Sin actividad en este período.
           </div>
         )}
         {tecnicoRows.map((row, idx) => {
           const [avBg, avFg] = avatarColor(row.tecnico);
           const pct = empresa.totalHH > 0 ? (row.totalHorasHombre / empresa.totalHH) * 100 : 0;
-          const mesSparkVals = row.meses
-            .sort((a, b) => a.mes.localeCompare(b.mes))
-            .map((m) => m.horasTotal);
+          const mesVals = [...row.meses].sort((a, b) => a.mes.localeCompare(b.mes)).map((m) => m.horasTotal);
           const isOpen = expanded === row.tecnicoId;
 
           return (
-            <div
-              key={row.tecnicoId}
-              style={{
-                borderBottom: "0.5px solid var(--color-border-tertiary)",
-                background:
-                  idx % 2 === 0
-                    ? "var(--color-background-primary)"
-                    : "var(--color-background-secondary)",
-              }}
-            >
-              {/* Fila principal */}
-              <button
-                type="button"
-                onClick={() => setExpanded(isOpen ? null : row.tecnicoId)}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 6,
-                  }}
-                >
-                  {/* Rank badge */}
-                  <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      background:
-                        idx === 0
-                          ? colorScheme.badge
-                          : "var(--color-background-secondary)",
-                      color: idx === 0 ? "#fff" : "var(--color-text-secondary)",
-                      fontSize: 10,
-                      fontWeight: 500,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      border: `1px solid ${idx === 0 ? colorScheme.badge : "var(--color-border-secondary)"}`,
-                    }}
-                  >
+            <div key={row.tecnicoId} style={{ borderBottom: `0.5px solid ${T.borderLight}`, background: idx % 2 === 0 ? T.surface : T.surface2 }}>
+              <button type="button" onClick={() => setExpanded(isOpen ? null : row.tecnicoId)} style={{ width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  {/* Rank */}
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, background: idx === 0 ? colorScheme.accent : T.surface3, color: idx === 0 ? "#fff" : T.textMuted, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${idx === 0 ? colorScheme.accent : T.border}` }}>
                     {idx + 1}
                   </div>
                   {/* Avatar */}
-                  <div
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      background: avBg,
-                      color: avFg,
-                      fontSize: 10,
-                      fontWeight: 500,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: avBg, color: avFg, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     {initials(row.tecnico)}
                   </div>
                   {/* Nombre */}
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: 12,
-                      fontWeight: idx === 0 ? 500 : 400,
-                      color: "var(--color-text-primary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: idx === 0 ? 600 : 400, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {row.tecnico}
                   </span>
-                  {/* Total + chevron */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: colorScheme.badge,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {fmtH(row.totalHorasHombre)} h
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: "var(--color-text-secondary)",
-                        transition: "transform 0.2s",
-                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-                        display: "inline-block",
-                      }}
-                    >
-                      ▾
-                    </span>
-                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colorScheme.accent, flexShrink: 0 }}>
+                    {fmtH(row.totalHorasHombre)} h
+                  </span>
+                  <span style={{ fontSize: 10, color: T.textMuted, display: "inline-block", transition: "transform .2s", transform: isOpen ? "rotate(180deg)" : "none" }}>▾</span>
                 </div>
-                {/* Barra proporcional */}
                 <div style={{ paddingLeft: 52 }}>
-                  <HBar pct={pct} color={colorScheme.bar} h={4} />
+                  <HBar pct={pct} color={colorScheme.accent} h={4} />
                 </div>
               </button>
 
-              {/* Detalle expandible */}
               {isOpen && (
-                <div
-                  style={{
-                    padding: "0 14px 12px",
-                    background: `${colorScheme.bg}66`,
-                    borderTop: `0.5px solid ${colorScheme.badge}22`,
-                  }}
-                >
-                  {/* Mini KPIs */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: 6,
-                      paddingTop: 10,
-                      marginBottom: 10,
-                    }}
-                  >
+                <div style={{ padding: "0 14px 12px", background: T.surface2, borderTop: `0.5px solid ${T.border}` }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, paddingTop: 10, marginBottom: 10 }}>
                     {[
-                      { label: "H. visitas", val: `${fmtH(row.totalHorasVisitas)} h`, color: colorScheme.badge },
-                      { label: "H. remotas", val: `${fmtH(row.totalHorasRemotas)} h`, color: colorScheme.badge },
-                      { label: "Tickets", val: fmtInt(row.tickets), color: colorScheme.badge },
+                      { label: "H. visitas", val: `${fmtH(row.totalHorasVisitas)} h` },
+                      { label: "H. remotas", val: `${fmtH(row.totalHorasRemotas)} h` },
+                      { label: "Tickets", val: fmtInt(row.tickets) },
                     ].map((k) => (
-                      <div
-                        key={k.label}
-                        style={{
-                          background: colorScheme.bg,
-                          borderRadius: 6,
-                          padding: "6px 8px",
-                          textAlign: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: colorScheme.text,
-                            opacity: 0.7,
-                            marginBottom: 2,
-                          }}
-                        >
-                          {k.label}
-                        </div>
-                        <div
-                          style={{ fontSize: 13, fontWeight: 500, color: colorScheme.text }}
-                        >
-                          {k.val}
-                        </div>
+                      <div key={k.label} style={{ background: T.surface3, borderRadius: 6, padding: "6px 8px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 2 }}>{k.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: colorScheme.accent }}>{k.val}</div>
                       </div>
                     ))}
                   </div>
-                  {/* Sparkline + meses */}
-                  {mesSparkVals.filter((v) => v > 0).length > 0 && (
+                  {mesVals.some((v) => v > 0) && (
                     <div>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: colorScheme.text,
-                          opacity: 0.7,
-                          marginBottom: 4,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        Tendencia mensual
-                      </div>
-                      <Sparkline values={mesSparkVals} color={colorScheme.bar} />
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "2px 8px",
-                          marginTop: 4,
-                        }}
-                      >
-                        {row.meses
-                          .filter((m) => m.horasTotal > 0)
-                          .sort((a, b) => a.mes.localeCompare(b.mes))
-                          .map((m) => (
-                            <span
-                              key={m.mes}
-                              style={{ fontSize: 11, color: colorScheme.text, opacity: 0.8 }}
-                            >
-                              {formatMesLabel(m.mes)}:{" "}
-                              <strong style={{ opacity: 1 }}>{fmtH(m.horasTotal)} h</strong>
-                            </span>
-                          ))}
+                      <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tendencia mensual</div>
+                      <Sparkline values={mesVals} color={colorScheme.accent} />
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 8px", marginTop: 4 }}>
+                        {[...row.meses].filter((m) => m.horasTotal > 0).sort((a, b) => a.mes.localeCompare(b.mes)).map((m) => (
+                          <span key={m.mes} style={{ fontSize: 11, color: T.textSub }}>
+                            {formatMesLabel(m.mes)}: <strong style={{ color: T.text }}>{fmtH(m.horasTotal)} h</strong>
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -912,47 +485,22 @@ const EmpresaColumn: React.FC<{
   );
 };
 
-/* ====================== Vista general (sin comparativa activa) ====================== */
+/* ====================== Vista general ====================== */
 const VistaGeneral: React.FC<{
   data: HorasTecnicosDashboardData;
   empresasDisponibles: Array<{ id: number; nombre: string; totalHH: number }>;
   onAbrirComparar: () => void;
 }> = ({ data, empresasDisponibles, onAbrirComparar }) => {
-  const resumen = useMemo(
-    () =>
-      [...data.resumenPorTecnico].sort((a, b) => b.totalHorasHombre - a.totalHorasHombre),
-    [data]
-  );
+  const resumen = useMemo(() => [...data.resumenPorTecnico].sort((a, b) => b.totalHorasHombre - a.totalHorasHombre), [data]);
   const maxHH = Math.max(...resumen.map((r) => r.totalHorasHombre), 0.01);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Banner de acción */}
-      <div
-        style={{
-          background: "var(--color-background-secondary)",
-          border: "0.5px solid var(--color-border-tertiary)",
-          borderRadius: "var(--border-radius-lg)",
-          padding: "14px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
+      {/* Banner CTA */}
+      <div style={{ background: T.surface, border: `0.5px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: "var(--color-text-primary)",
-              marginBottom: 2,
-            }}
-          >
-            Vista general del período
-          </div>
-          <div style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 2 }}>Vista general del período</div>
+          <div style={{ fontSize: 12, color: T.textSub }}>
             {empresasDisponibles.length} empresa{empresasDisponibles.length !== 1 ? "s" : ""} con actividad ·{" "}
             {data.kpis.tecnicosConActividad} técnico{data.kpis.tecnicosConActividad !== 1 ? "s" : ""} activos
           </div>
@@ -960,396 +508,81 @@ const VistaGeneral: React.FC<{
         <button
           type="button"
           onClick={onAbrirComparar}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 16px",
-            borderRadius: 10,
-            background: "#185FA5",
-            color: "#fff",
-            border: "none",
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, background: T.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
         >
           <SwapOutlined style={{ fontSize: 13 }} />
           Comparar empresas
         </button>
       </div>
 
-      {/* Ranking general de técnicos */}
-      <div
-        style={{
-          background: "var(--color-background-primary)",
-          border: "0.5px solid var(--color-border-tertiary)",
-          borderRadius: "var(--border-radius-lg)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "12px 16px",
-            borderBottom: "0.5px solid var(--color-border-tertiary)",
-            background: "var(--color-background-secondary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
+      {/* Ranking */}
+      <div style={{ background: T.surface, border: `0.5px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ padding: "12px 16px", borderBottom: `0.5px solid ${T.border}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>
-              Ranking general de técnicos
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                color: "var(--color-text-secondary)",
-                display: "block",
-                marginTop: 1,
-              }}
-            >
-              Acumulado de todas las empresas
-            </span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Ranking general de técnicos</span>
+            <span style={{ fontSize: 11, color: T.textMuted, display: "block", marginTop: 1 }}>Acumulado de todas las empresas</span>
           </div>
-          <span
-            style={{
-              fontSize: 11,
-              background: "#E6F1FB",
-              color: "#0C447C",
-              padding: "3px 8px",
-              borderRadius: 99,
-              fontWeight: 500,
-            }}
-          >
+          <span style={{ fontSize: 11, background: T.surface3, color: T.textSub, padding: "3px 8px", borderRadius: 99, fontWeight: 500 }}>
             {fmtInt(data.kpis.tecnicosConActividad)} técnicos
           </span>
         </div>
 
-        {/* Mobile: cards */}
+        {/* Mobile */}
         <div className="block lg:hidden">
           {resumen.map((row, i) => {
             const [avBg, avFg] = avatarColor(row.tecnico);
-            const pct = (row.totalHorasHombre / maxHH) * 100;
             return (
-              <div
-                key={row.tecnicoId}
-                style={{
-                  padding: "12px 16px",
-                  borderBottom: "0.5px solid var(--color-border-tertiary)",
-                  background:
-                    i % 2 === 0
-                      ? "var(--color-background-primary)"
-                      : "var(--color-background-secondary)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    marginBottom: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      background: i < 3 ? "#185FA5" : "var(--color-background-secondary)",
-                      color: i < 3 ? "#fff" : "var(--color-text-secondary)",
-                      fontSize: 10,
-                      fontWeight: 500,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background: avBg,
-                      color: avFg,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {initials(row.tecnico)}
-                  </div>
+              <div key={row.tecnicoId} style={{ padding: "12px 16px", borderBottom: `0.5px solid ${T.borderLight}`, background: i % 2 === 0 ? T.surface : T.surface2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: i < 3 ? T.accent : T.surface3, color: i < 3 ? "#fff" : T.textMuted, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: avBg, color: avFg, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{initials(row.tecnico)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
-                      {row.tecnico}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                      {fmtInt(row.visitas ?? row.jornadas ?? 0)} vis · {fmtInt(row.remotas)} rem · {fmtInt(row.tickets)} tickets
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{row.tecnico}</div>
+                    <div style={{ fontSize: 11, color: T.textMuted }}>{fmtInt(row.visitas ?? row.jornadas ?? 0)} vis · {fmtInt(row.remotas)} rem · {fmtInt(row.tickets)} tickets</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 500,
-                        color: "#185FA5",
-                      }}
-                    >
-                      {fmtH(row.totalHorasHombre)} h
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                      total
-                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: T.accent }}>{fmtH(row.totalHorasHombre)} h</div>
+                    <div style={{ fontSize: 11, color: T.textMuted }}>total</div>
                   </div>
                 </div>
-                <HBar pct={pct} color="#185FA5" h={4} />
+                <HBar pct={(row.totalHorasHombre / maxHH) * 100} color={T.accent} h={4} />
               </div>
             );
           })}
         </div>
 
-        {/* Desktop: tabla */}
+        {/* Desktop */}
         <div className="hidden lg:block overflow-x-auto">
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
-              <tr
-                style={{
-                  borderBottom: "0.5px solid var(--color-border-tertiary)",
-                  background: "var(--color-background-secondary)",
-                }}
-              >
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    width: 32,
-                  }}
-                >
-                  #
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Técnico
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "right",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  H. visitas
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "right",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  H. remotas
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "right",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Total H.H.
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "left",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    width: 160,
-                  }}
-                >
-                  Distribución
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "right",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Visitas
-                </th>
-                <th
-                  style={{
-                    padding: "8px 16px",
-                    textAlign: "right",
-                    fontSize: 11,
-                    color: "var(--color-text-secondary)",
-                    fontWeight: 500,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Tickets
-                </th>
+              <tr style={{ borderBottom: `0.5px solid ${T.border}`, background: T.surface2 }}>
+                {["#", "Técnico", "H. visitas", "H. remotas", "Total H.H.", "Distribución", "Visitas", "Tickets"].map((h, i) => (
+                  <th key={h} style={{ padding: "8px 16px", textAlign: i >= 2 && i !== 5 ? "right" : "left", fontSize: 11, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.05em", width: h === "Distribución" ? 160 : h === "#" ? 32 : "auto" }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {resumen.map((row, i) => {
                 const [avBg, avFg] = avatarColor(row.tecnico);
-                const pct = (row.totalHorasHombre / maxHH) * 100;
                 return (
-                  <tr
-                    key={row.tecnicoId}
-                    style={{
-                      borderBottom: "0.5px solid var(--color-border-tertiary)",
-                      background:
-                        i % 2 === 0
-                          ? "var(--color-background-primary)"
-                          : "var(--color-background-secondary)",
-                    }}
-                  >
+                  <tr key={row.tecnicoId} style={{ borderBottom: `0.5px solid ${T.borderLight}`, background: i % 2 === 0 ? T.surface : T.surface2 }}>
                     <td style={{ padding: "10px 16px" }}>
-                      <div
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: "50%",
-                          background: i < 3 ? "#185FA5" : "var(--color-background-secondary)",
-                          color: i < 3 ? "#fff" : "var(--color-text-secondary)",
-                          fontSize: 10,
-                          fontWeight: 500,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {i + 1}
-                      </div>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: i < 3 ? T.accent : T.surface3, color: i < 3 ? "#fff" : T.textMuted, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</div>
                     </td>
                     <td style={{ padding: "10px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "50%",
-                            background: avBg,
-                            color: avFg,
-                            fontSize: 11,
-                            fontWeight: 500,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {initials(row.tecnico)}
-                        </div>
-                        <span style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-                          {row.tecnico}
-                        </span>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: avBg, color: avFg, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{initials(row.tecnico)}</div>
+                        <span style={{ fontWeight: 500, color: T.text }}>{row.tecnico}</span>
                       </div>
                     </td>
-                    <td
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "right",
-                        color: "#185FA5",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {fmtH(row.totalHorasVisitas)} h
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "right",
-                        color: "#534AB7",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {fmtH(row.totalHorasRemotas)} h
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "right",
-                        fontWeight: 500,
-                        color: "var(--color-text-primary)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {fmtH(row.totalHorasHombre)} h
-                    </td>
-                    <td style={{ padding: "10px 16px" }}>
-                      <HBar pct={pct} color="#185FA5" h={5} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "right",
-                        color: "var(--color-text-secondary)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {fmtInt(row.visitas ?? row.jornadas ?? 0)}
-                    </td>
-                    <td
-                      style={{
-                        padding: "10px 16px",
-                        textAlign: "right",
-                        color: "var(--color-text-secondary)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {fmtInt(row.tickets)}
-                    </td>
+                    <td style={{ padding: "10px 16px", textAlign: "right", color: T.visitas, fontVariantNumeric: "tabular-nums" }}>{fmtH(row.totalHorasVisitas)} h</td>
+                    <td style={{ padding: "10px 16px", textAlign: "right", color: T.remotas, fontVariantNumeric: "tabular-nums" }}>{fmtH(row.totalHorasRemotas)} h</td>
+                    <td style={{ padding: "10px 16px", textAlign: "right", fontWeight: 600, color: T.text, fontVariantNumeric: "tabular-nums" }}>{fmtH(row.totalHorasHombre)} h</td>
+                    <td style={{ padding: "10px 16px" }}><HBar pct={(row.totalHorasHombre / maxHH) * 100} color={T.accent} h={5} /></td>
+                    <td style={{ padding: "10px 16px", textAlign: "right", color: T.textSub, fontVariantNumeric: "tabular-nums" }}>{fmtInt(row.visitas ?? row.jornadas ?? 0)}</td>
+                    <td style={{ padding: "10px 16px", textAlign: "right", color: T.textSub, fontVariantNumeric: "tabular-nums" }}>{fmtInt(row.tickets)}</td>
                   </tr>
                 );
               })}
@@ -1372,92 +605,56 @@ const HorasHombreDashboard: React.FC<{
   const [modalSearch, setModalSearch] = useState("");
   const MAX_EMPRESAS = 4;
 
-  // Empresas disponibles con su total
   const empresasDisponibles = useMemo(() => {
     if (!data) return [];
     const map = new Map<number, { id: number; nombre: string; totalHH: number }>();
     data.porTecnicoEmpresa.forEach((row) => {
-      if (!map.has(row.empresaId)) {
-        map.set(row.empresaId, { id: row.empresaId, nombre: row.empresa, totalHH: 0 });
-      }
+      if (!map.has(row.empresaId)) map.set(row.empresaId, { id: row.empresaId, nombre: row.empresa, totalHH: 0 });
       map.get(row.empresaId)!.totalHH += row.totalHorasHombre;
     });
     return [...map.values()].sort((a, b) => b.totalHH - a.totalHH);
   }, [data]);
 
-  // Para cada empresa seleccionada, armar ranking de técnicos
   const columnasPorEmpresa = useMemo(() => {
     if (!data) return [];
-    return empresasSeleccionadas.map((empId) => {
-      const empresa = empresasDisponibles.find((e) => e.id === empId);
-      if (!empresa) return null;
-      const rows = data.porTecnicoEmpresa
-        .filter((r) => r.empresaId === empId)
-        .sort((a, b) => b.totalHorasHombre - a.totalHorasHombre)
-        .map((r, i) => ({ ...r, rank: i + 1 }));
-      return { empresa, rows };
-    }).filter(Boolean) as Array<{
-      empresa: { id: number; nombre: string; totalHH: number };
-      rows: Array<HorasTecnicoEmpresaRow & { rank: number }>;
-    }>;
+    return empresasSeleccionadas
+      .map((empId) => {
+        const empresa = empresasDisponibles.find((e) => e.id === empId);
+        if (!empresa) return null;
+        const rows = data.porTecnicoEmpresa
+          .filter((r) => r.empresaId === empId)
+          .sort((a, b) => b.totalHorasHombre - a.totalHorasHombre)
+          .map((r, i) => ({ ...r, rank: i + 1 }));
+        return { empresa, rows };
+      })
+      .filter(Boolean) as Array<{ empresa: { id: number; nombre: string; totalHH: number }; rows: Array<HorasTecnicoEmpresaRow & { rank: number }> }>;
   }, [data, empresasSeleccionadas, empresasDisponibles]);
 
-  const toggleEmpresa = (id: number) => {
-    setEmpresasSeleccionadas((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(0, MAX_EMPRESAS)
-    );
-  };
-  const removerEmpresa = (id: number) => {
+  const toggleEmpresa = (id: number) =>
+    setEmpresasSeleccionadas((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(0, MAX_EMPRESAS));
+  const removerEmpresa = (id: number) =>
     setEmpresasSeleccionadas((prev) => prev.filter((x) => x !== id));
-  };
 
-  /* ---- Estados ---- */
+  /* Estados */
   if (loading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            style={{
-              height: i === 0 ? 80 : 120,
-              borderRadius: "var(--border-radius-lg)",
-              background: "var(--color-background-secondary)",
-              animation: "pulse 1.5s ease-in-out infinite",
-            }}
-          />
+          <div key={i} className="animate-pulse" style={{ height: i === 0 ? 80 : 120, borderRadius: 12, background: T.surface2 }} />
         ))}
       </div>
     );
   }
   if (error) {
     return (
-      <div
-        style={{
-          border: "0.5px solid var(--color-border-danger)",
-          background: "var(--color-background-danger)",
-          borderRadius: "var(--border-radius-lg)",
-          padding: 24,
-          textAlign: "center",
-          color: "var(--color-text-danger)",
-          fontSize: 14,
-        }}
-      >
+      <div style={{ border: `0.5px solid ${T.error}`, background: T.surface, borderRadius: 12, padding: 24, textAlign: "center", color: T.error, fontSize: 14 }}>
         {error}
       </div>
     );
   }
   if (!data) {
     return (
-      <div
-        style={{
-          border: "0.5px solid var(--color-border-tertiary)",
-          borderRadius: "var(--border-radius-lg)",
-          padding: "48px 24px",
-          textAlign: "center",
-          color: "var(--color-text-secondary)",
-          fontSize: 14,
-        }}
-      >
+      <div style={{ border: `0.5px solid ${T.border}`, borderRadius: 12, padding: "48px 24px", textAlign: "center", color: T.textMuted, fontSize: 14 }}>
         <ClockCircleOutlined style={{ fontSize: 32, display: "block", margin: "0 auto 12px" }} />
         Sin datos para el período seleccionado.
       </div>
@@ -1467,183 +664,51 @@ const HorasHombreDashboard: React.FC<{
   const modoComparacion = empresasSeleccionadas.length > 0;
 
   return (
-    // Wrapper relativo para que el modal absoluto quede contenido
-    <div style={{ position: "relative" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-      {/* KPIs globales */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
-        <KpiCard
-          label="Total H.H."
-          value={`${fmtH(data.kpis.totalHorasHombre)} h`}
-          sub="Visitas + remotas"
-          icon={<ClockCircleOutlined />}
-          color="#0891b2"
-        />
-        <KpiCard
-          label="H. visitas"
-          value={`${fmtH(data.kpis.totalHorasVisitas)} h`}
-          sub="Registros completados"
-          icon={<TeamOutlined />}
-          color="#185FA5"
-        />
-        <KpiCard
-          label="H. remotas"
-          value={`${fmtH(data.kpis.totalHorasRemotas)} h`}
-          sub="Mantenciones remotas"
-          icon={<BuildOutlined />}
-          color="#534AB7"
-        />
-        <KpiCard
-          label="Tickets"
-          value={fmtInt(data.kpis.totalTickets)}
-          sub="No suman horas"
-          icon={<FileDoneOutlined />}
-          color="#5F5E5A"
-        />
-        <KpiCard
-          label="Técnicos"
-          value={String(data.kpis.tecnicosConActividad)}
-          sub="Con actividad"
-          icon={<TeamOutlined />}
-          color="#0F6E56"
-        />
+      {/* KPIs */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+        <KpiCard label="Total H.H." value={`${fmtH(data.kpis.totalHorasHombre)} h`} sub="Visitas + remotas" icon={<ClockCircleOutlined />} color={T.accent} />
+        <KpiCard label="H. visitas" value={`${fmtH(data.kpis.totalHorasVisitas)} h`} sub="Registros completados" icon={<TeamOutlined />} color={T.visitas} />
+        <KpiCard label="H. remotas" value={`${fmtH(data.kpis.totalHorasRemotas)} h`} sub="Mantenciones remotas" icon={<BuildOutlined />} color={T.remotas} />
+        <KpiCard label="Tickets" value={fmtInt(data.kpis.totalTickets)} sub="No suman horas" icon={<FileDoneOutlined />} color={T.textSub} />
+        <KpiCard label="Técnicos" value={String(data.kpis.tecnicosConActividad)} sub="Con actividad" icon={<TeamOutlined />} color={T.success} />
       </div>
 
-      {/* ---- MODO COMPARACIÓN ---- */}
+      {/* ── MODO COMPARACIÓN ── */}
       {modoComparacion && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Toolbar comparación */}
-          <div
-            style={{
-              background: "var(--color-background-primary)",
-              border: "0.5px solid var(--color-border-tertiary)",
-              borderRadius: "var(--border-radius-lg)",
-              padding: "10px 14px",
-              display: "flex",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-            }}
-          >
-            <span
-              style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-primary)" }}
-            >
-              Comparando:
-            </span>
-            {/* Chips de empresas activas */}
+          {/* Toolbar */}
+          <div style={{ background: T.surface, border: `0.5px solid ${T.border}`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, position: "sticky", top: 0, zIndex: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>Comparando:</span>
+
             {columnasPorEmpresa.map((col, i) => {
               const ec = EMPRESA_COLORS[i % EMPRESA_COLORS.length];
               return (
-                <span
-                  key={col.empresa.id}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "3px 10px",
-                    borderRadius: 99,
-                    background: ec.bg,
-                    color: ec.text,
-                    fontSize: 12,
-                    fontWeight: 500,
-                  }}
-                >
+                <span key={col.empresa.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 99, background: T.surface2, color: T.textSub, fontSize: 12, fontWeight: 500, border: `1.5px solid ${ec.accent}` }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: ec.accent, flexShrink: 0 }} />
                   {col.empresa.nombre}
-                  <button
-                    type="button"
-                    onClick={() => removerEmpresa(col.empresa.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: ec.text,
-                      fontSize: 11,
-                      padding: 0,
-                      lineHeight: 1,
-                      opacity: 0.6,
-                    }}
-                  >
-                    ✕
-                  </button>
+                  <button type="button" onClick={() => removerEmpresa(col.empresa.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.textMuted, fontSize: 11, padding: 0, lineHeight: 1 }}>✕</button>
                 </span>
               );
             })}
-            {/* Agregar empresa */}
+
             {empresasSeleccionadas.length < MAX_EMPRESAS && (
-              <button
-                type="button"
-                onClick={() => setModalOpen(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "3px 10px",
-                  borderRadius: 99,
-                  background: "var(--color-background-secondary)",
-                  color: "var(--color-text-secondary)",
-                  border: "0.5px dashed var(--color-border-secondary)",
-                  fontSize: 12,
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" onClick={() => setModalOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 99, background: "transparent", color: T.textMuted, border: `0.5px dashed ${T.border}`, fontSize: 12, cursor: "pointer" }}>
                 <PlusOutlined style={{ fontSize: 11 }} /> Agregar
               </button>
             )}
-            {/* Volver a vista general */}
-            <button
-              type="button"
-              onClick={() => setEmpresasSeleccionadas([])}
-              style={{
-                marginLeft: "auto",
-                fontSize: 12,
-                color: "var(--color-text-secondary)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
+
+            <button type="button" onClick={() => setEmpresasSeleccionadas([])} style={{ marginLeft: "auto", fontSize: 12, color: T.textMuted, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <BarsOutlined style={{ fontSize: 12 }} /> Vista general
             </button>
           </div>
 
-          {/* Columnas comparativas */}
-          <div
-            style={{
-              width: "100%",
-              overflowX: "auto",
-              paddingBottom: 8,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                gap: 14,
-                alignItems: "stretch",
-                minWidth: "max-content",
-              }}
-            >
+          {/* Columnas — scroll horizontal en mobile */}
+          <div style={{ width: "100%", overflowX: "auto", paddingBottom: 8 }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "stretch", minWidth: "max-content" }}>
               {columnasPorEmpresa.map((col, i) => (
-                <div
-                  key={col.empresa.id}
-                  style={{
-                    flex: "0 0 360px",
-                    width: 360,
-                    maxWidth: 360,
-                  }}
-                >
+                <div key={col.empresa.id} style={{ flex: "0 0 360px", width: 360 }}>
                   <EmpresaColumn
                     empresa={col.empresa}
                     tecnicoRows={col.rows}
@@ -1658,16 +723,12 @@ const HorasHombreDashboard: React.FC<{
         </div>
       )}
 
-      {/* ---- VISTA GENERAL ---- */}
+      {/* ── VISTA GENERAL ── */}
       {!modoComparacion && (
-        <VistaGeneral
-          data={data}
-          empresasDisponibles={empresasDisponibles}
-          onAbrirComparar={() => setModalOpen(true)}
-        />
+        <VistaGeneral data={data} empresasDisponibles={empresasDisponibles} onAbrirComparar={() => setModalOpen(true)} />
       )}
 
-      {/* ---- MODAL SELECTOR ---- */}
+      {/* ── MODAL ── */}
       {modalOpen && (
         <EmpresaPickerModal
           empresas={empresasDisponibles}

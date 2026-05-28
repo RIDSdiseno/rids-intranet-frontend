@@ -802,7 +802,7 @@ const TablaSoporteEmpresas: React.FC<TablaSoporteProps> = ({ empresas, onVerDeta
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">Sin empresas</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">Sin empresas</td>
               </tr>
             )}
           </tbody>
@@ -826,7 +826,7 @@ const TablaSoporteEmpresas: React.FC<TablaSoporteProps> = ({ empresas, onVerDeta
                 <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-800 border-l border-slate-200">
                   {fmtHoras(totalMinutos)}
                 </td>
-                <td className="px-4 py-3" /><td className="px-4 py-3" />
+                <td className="px-4 py-3" />
               </tr>
             </tfoot>
           )}

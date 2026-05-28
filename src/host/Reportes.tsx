@@ -351,7 +351,7 @@ const ReportesPage: React.FC = () => {
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <EyeOutlined className="mr-2" /> Ver PDF (modal)
+                <EyeOutlined className="mr-2" /> Ver PDF
               </button>
             </div>
 

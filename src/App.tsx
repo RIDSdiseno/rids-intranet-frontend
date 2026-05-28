@@ -2,6 +2,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Header from "./components/Header";
+import AccessibilityPanel from "./components/modals-accesibilidad/AccessibilityPanel";
 
 /* =========================
    Lazy Pages (HOST)
@@ -147,6 +148,7 @@ function AppLayout() {
           <Outlet />
         </Suspense>
       </main>
+      <AccessibilityPanel />
     </div>
   );
 }
