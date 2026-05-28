@@ -168,13 +168,21 @@ type TecnicoApiRow = {
   rol?: string | null;
 };
 
-type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS";
+type EstadoEquipo =
+  | "ACTIVO"
+  | "EN_STOCK"
+  | "DADO_DE_BAJA"
+  | "EN_RIDS"
+  | "EN_GARANTIA"
+  | "EN_TALLER_EXTERNO";
 
 const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "ACTIVO", label: "Activo" },
   { value: "EN_STOCK", label: "En stock" },
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
   { value: "EN_RIDS", label: "En RIDS" },
+  { value: "EN_GARANTIA", label: "En garantía" },
+  { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
 ];
 
 type RequiredEquipoFields = {
@@ -289,17 +297,26 @@ function getEstadoEquipoClass(value?: string | null) {
   switch (value) {
     case "ACTIVO":
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
+
     case "EN_STOCK":
       return "bg-blue-50 text-blue-700 border-blue-200";
+
     case "EN_RIDS":
       return "bg-amber-50 text-amber-700 border-amber-200";
+
+    case "EN_GARANTIA":
+      return "bg-cyan-50 text-cyan-700 border-cyan-200";
+
+    case "EN_TALLER_EXTERNO":
+      return "bg-purple-50 text-purple-700 border-purple-200";
+
     case "DADO_DE_BAJA":
       return "bg-rose-50 text-rose-700 border-rose-200";
+
     default:
       return "bg-slate-50 text-slate-700 border-slate-200";
   }
 }
-
 function getAnioPcOrigenLabel(value?: string | null) {
   switch (value) {
     case "AUTO":
@@ -1634,7 +1651,6 @@ const EquiposPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              {/* Fechas en grid de 2 columnas */}
               {/* Fechas - agregar md:col-span-12 al wrapper */}
               <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
 

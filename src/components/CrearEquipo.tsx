@@ -121,7 +121,7 @@ type CreateEquipoPayload = {
 
   estado: EstadoEquipo;
 
-  // 🔥 DETALLE
+  // DETALLE
   macWifi?: string;
   redEthernet?: string;
   so?: string;
@@ -149,7 +149,7 @@ type CrearEquipoModalProps = {
   onCreated?: (nuevoEquipo: EquipoDTO) => void;
   brand?: "rids" | "econnet";
   logoUrl?: string;
-  // 🔥 NUEVO
+
   defaultValues?: {
     serial?: string;
     marca?: string;
@@ -171,13 +171,15 @@ type CreateEquipoResponse = {
   }>;
 };
 
-type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS";
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS" | "EN_GARANTIA" | "EN_TALLER_EXTERNO";
 
 const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
   { value: "ACTIVO", label: "Activo" },
   { value: "EN_STOCK", label: "En stock" },
   { value: "DADO_DE_BAJA", label: "Dado de baja" },
   { value: "EN_RIDS", label: "En RIDS" },
+  { value: "EN_GARANTIA", label: "En garantía" },
+  { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
 ];
 
 type RequiredEquipoFields = {
@@ -480,7 +482,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     setLoadingSolicitantes(true);
     try {
       if (empresaId) {
-        // ✅ NO pasamos debSearch - cargamos TODOS los solicitantes de la empresa
+        // NO pasamos debSearch - cargamos TODOS los solicitantes de la empresa
         const solicitantes = await fetchSolicitantesByEmpresa(empresaId); // ← Sin search
         setSolOpts(solicitantes.map(s => ({ ...s, empresa: { id_empresa: empresaId, nombre: "" } })));
       } else {
@@ -626,7 +628,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
         estado: values.estado ?? "ACTIVO",
 
-        // 🔥 detalle
+        // detalle
         macWifi: values.macWifi,
         redEthernet: values.redEthernet,
         so: values.so,
@@ -694,7 +696,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           setTimeout(() => setShakeField(null), 500);
         }
       } else {
-        // ✅ Captura el error de serial duplicado desde la respuesta del backend
+        // Captura el error de serial duplicado desde la respuesta del backend
         const axiosData = (err as any)?.response?.data;
 
         if (axiosData?.errors?.length > 0) {

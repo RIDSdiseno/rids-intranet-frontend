@@ -12,12 +12,16 @@ export type EstadoEquipo =
     | "ACTIVO"
     | "EN_STOCK"
     | "EN_RIDS"
+    | "EN_GARANTIA"
+    | "EN_TALLER_EXTERNO"
     | "DADO_DE_BAJA";
 
 export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
     ACTIVO: "Activo",
     EN_STOCK: "En stock",
     EN_RIDS: "En RIDS",
+    EN_GARANTIA: "En garantía",
+    EN_TALLER_EXTERNO: "En taller externo",
     DADO_DE_BAJA: "Dado de baja",
 };
 
@@ -25,6 +29,8 @@ export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
     ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     EN_STOCK: "bg-sky-50 text-sky-700 ring-sky-200",
     EN_RIDS: "bg-amber-50 text-amber-700 ring-amber-200",
+    EN_GARANTIA: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    EN_TALLER_EXTERNO: "bg-purple-50 text-purple-700 ring-purple-200",
     DADO_DE_BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 

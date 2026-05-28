@@ -667,6 +667,8 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 <option value="EN_STOCK">{EstadoEquipoLabel.EN_STOCK}</option>
                                                 <option value="EN_RIDS">{EstadoEquipoLabel.EN_RIDS}</option>
                                                 <option value="DADO_DE_BAJA">{EstadoEquipoLabel.DADO_DE_BAJA}</option>
+                                                <option value="EN_GARANTIA">{EstadoEquipoLabel.EN_GARANTIA}</option>
+                                                <option value="EN_TALLER_EXTERNO">{EstadoEquipoLabel.EN_TALLER_EXTERNO}</option>
                                             </select>
 
                                             {formData.equipoId && formData.estadoEquipo && (
