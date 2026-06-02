@@ -1,4 +1,4 @@
-// components/reportes/KPICards.tsx
+// src/components/modals-reportes/KpiCards.tsx
 import React from "react";
 import { motion } from "framer-motion";
 import {

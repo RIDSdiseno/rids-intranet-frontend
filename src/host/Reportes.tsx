@@ -1,4 +1,4 @@
-// pages/ReportesPage.tsx
+// src/host/Reportes.tsx
 import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -336,7 +336,7 @@ const ReportesPage: React.FC = () => {
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <RobotOutlined className="mr-2" /> Descargar Word IA (Beta)
+                <RobotOutlined className="mr-2" /> Descargar Word IA
               </button>
 
               <button

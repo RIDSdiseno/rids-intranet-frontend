@@ -44,6 +44,8 @@ const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 
+const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
+
 /* =========================
    Auth helpers
 ========================= */
@@ -60,19 +62,6 @@ function getUserRol(): string | null {
   try {
     const raw = localStorage.getItem("user");
     return raw ? (JSON.parse(raw)?.rol ?? null) : null;
-  } catch {
-    return null;
-  }
-}
-
-function getUserEmail(): string | null {
-  try {
-    const raw = localStorage.getItem("user");
-    if (!raw) return null;
-
-    const email = JSON.parse(raw)?.email;
-
-    return email ? String(email).toLowerCase().trim() : null;
   } catch {
     return null;
   }
@@ -181,6 +170,7 @@ export default function App() {
               <Route path="/tickets" element={<TicketsPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/productos" element={<ProductosPage />} />
+              <Route path="/bitacora-tecnico" element={<BitacoraTecnicoPage />} />
             </Route>
 
             {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}

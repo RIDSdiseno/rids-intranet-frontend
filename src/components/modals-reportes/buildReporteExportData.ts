@@ -1,3 +1,4 @@
+// src/components/modals-reportes/buildReporteExportData.ts
 import type {
     ReporteGeneralData,
     TicketDashboardMonthlyRow,

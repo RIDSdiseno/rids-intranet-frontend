@@ -2871,3 +2871,129 @@ html.a11y-theme-dark .text-slate-400,
 html.a11y-theme-dark .text-slate-500 {
   color: var(--color-text-muted) !important;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SIDEBAR / HEADER — LOGO ADAPTATIVO AL MODO OSCURO
+   ─────────────────────────────────────────────────────────────────────────
+   El logo del sidebar suele ser una imagen PNG con fondo claro o un SVG
+   que hereda colores claros. Estas reglas cubren los tres casos posibles:
+     1. <img> con logo PNG/JPG sobre fondo claro → filter invert/brightness
+     2. SVG inline con paths oscuros → fill/stroke al color apropiado
+     3. Contenedor del logo con fondo blanco → fondo transparente
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Contenedor del logo en el sidebar ──────────────────────────────────── */
+/* Cubre divs wrapper con clases típicas de sidebar headers */
+html.a11y-theme-dark header img[alt*="logo" i],
+html.a11y-theme-dark header img[alt*="rids" i],
+html.a11y-theme-dark header img[src*="logo" i],
+html.a11y-theme-dark header img[src*="rids" i],
+html.a11y-theme-dark nav img[alt*="logo" i],
+html.a11y-theme-dark nav img[alt*="rids" i],
+html.a11y-theme-dark nav img[src*="logo" i],
+html.a11y-theme-dark nav img[src*="rids" i],
+html.a11y-theme-dark aside img[alt*="logo" i],
+html.a11y-theme-dark aside img[src*="logo" i],
+/* Selector de alcance máximo: cualquier imagen de logo en la sidebar */
+html.a11y-theme-dark [class*="sidebar"] img,
+html.a11y-theme-dark [class*="header"] img[src*="logo" i],
+html.a11y-theme-dark [class*="header"] img[src*="rids" i],
+html.a11y-theme-dark [id*="sidebar"] img,
+html.a11y-theme-dark [class*="Header"] img {
+  /*
+    filter explicado:
+      invert(1)          → invierte todos los colores (negro→blanco, blanco→negro)
+      hue-rotate(180deg) → corrige el tinte que produce invert en colores de marca
+      brightness(0.85)   → baja ligeramente el brillo para no quemar
+      saturate(1.2)      → recupera la saturación que se pierde con invert
+ 
+    Para logos con fondo transparente y texto/ícono oscuro, invert(1) es
+    suficiente y produce texto/ícono blanco sobre fondo transparente.
+ 
+    Si el logo ya tiene colores bien definidos y fondo transparente,
+    usar solo brightness(2) puede ser más fiel al diseño original.
+  */
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) saturate(1.1) !important;
+  /* Asegura que el fondo del img en sí sea transparente */
+  background-color: transparent !important;
+}
+
+/* ── Excepción: imágenes que NO son logos (avatares, flags, etc.) ─────────
+   Se excluyen imágenes de usuario (avatars) y banderas para no distorsionarlas.
+   Agregar más excepciones aquí si aparecen imágenes de producto, etc.
+*/
+html.a11y-theme-dark img[class*="avatar"],
+html.a11y-theme-dark img[class*="Avatar"],
+html.a11y-theme-dark img[alt*="avatar" i],
+html.a11y-theme-dark img[alt*="usuario" i],
+html.a11y-theme-dark img[alt*="user" i],
+html.a11y-theme-dark img[alt*="foto" i],
+html.a11y-theme-dark img[alt*="profile" i],
+html.a11y-theme-dark img[class*="flag"],
+html.a11y-theme-dark img[class*="Flag"],
+/* Imágenes dentro de tablas → no invertir (equipos, productos, etc.) */
+html.a11y-theme-dark td img,
+html.a11y-theme-dark .ant-table img {
+  filter: none !important;
+}
+
+/* ── SVG inline del logo ─────────────────────────────────────────────────
+   Si el logo es un <svg> embebido directamente en el JSX del Header,
+   los paths con color oscuro necesitan cambiar a blanco.
+*/
+html.a11y-theme-dark header svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]),
+html.a11y-theme-dark nav svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]),
+html.a11y-theme-dark [class*="sidebar"] svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]) {
+  /* Colorea los paths que usan fill="currentColor" o fill oscuro */
+  color: #f8fafc !important;
+}
+
+/* Paths con fill explícito oscuro dentro del SVG del logo */
+html.a11y-theme-dark header svg path[fill="#000"],
+html.a11y-theme-dark header svg path[fill="#000000"],
+html.a11y-theme-dark header svg path[fill="#1F2937"],
+html.a11y-theme-dark header svg path[fill="#111827"],
+html.a11y-theme-dark header svg path[fill="#0f172a"],
+html.a11y-theme-dark header svg path[fill="#374151"],
+html.a11y-theme-dark nav svg path[fill="#000"],
+html.a11y-theme-dark nav svg path[fill="#000000"],
+html.a11y-theme-dark nav svg path[fill="#1F2937"],
+html.a11y-theme-dark nav svg path[fill="#111827"],
+html.a11y-theme-dark nav svg path[fill="#0f172a"],
+html.a11y-theme-dark [class*="sidebar"] svg path[fill="#000"],
+html.a11y-theme-dark [class*="sidebar"] svg path[fill="#0f172a"] {
+  fill: #f8fafc !important;
+}
+
+/* Paths que usan stroke oscuro */
+html.a11y-theme-dark header svg path[stroke="#000"],
+html.a11y-theme-dark header svg path[stroke="#000000"],
+html.a11y-theme-dark nav svg path[stroke="#000"],
+html.a11y-theme-dark [class*="sidebar"] svg path[stroke="#000"] {
+  stroke: #f8fafc !important;
+}
+
+/* ── Contenedor wrapper del logo ─────────────────────────────────────────
+   Algunos sidebars envuelven el logo en un <div> o <a> con fondo blanco.
+*/
+html.a11y-theme-dark [class*="sidebar"] [class*="logo"],
+html.a11y-theme-dark [class*="sidebar"] [class*="Logo"],
+html.a11y-theme-dark [class*="sidebar"] [class*="brand"],
+html.a11y-theme-dark [class*="header"] [class*="logo"],
+html.a11y-theme-dark [class*="header"] [class*="Logo"],
+html.a11y-theme-dark [class*="Header"] [class*="logo"],
+html.a11y-theme-dark [class*="Header"] [class*="Logo"],
+html.a11y-theme-dark nav a[href="/"],
+html.a11y-theme-dark nav a[href="/home"] {
+  background-color: transparent !important;
+}
+
+/* ── Variante: logo con fondo blanco explícito en el elemento img ─────────
+   A veces el padding/background del contenedor del logo crea un recuadro blanco.
+*/
+html.a11y-theme-dark [class*="sidebar"]>div:first-child,
+html.a11y-theme-dark [class*="sidebar"]>a:first-child,
+html.a11y-theme-dark [class*="sidebar"] header {
+  background-color: transparent !important;
+}

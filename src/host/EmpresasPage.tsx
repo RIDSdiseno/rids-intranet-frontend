@@ -53,6 +53,7 @@ import FichaEmpresaModal from "../components/modals-empresa/FichaEmpresaModal";
 import CrearEmpresaModal from "../components/modals-empresa/CrearEmpresa";
 import EmpresasHistorial from "../components/modals-empresa/EmpresasHistorial";
 import EmpresasInventarioIA from "../components/modals-empresa/EmpresasInventarioIA";
+import ManualesTab from "../components/modals-empresa/ManualesPage";
 
 import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
@@ -1024,7 +1025,12 @@ type StatBase = {
 };
 type RefreshableStat = StatBase & { onRefresh: () => void };
 type Stat = StatBase | RefreshableStat;
-type EmpresaTab = "overview" | "companies" | "historial" | "inventarioIA";
+type EmpresaTab =
+  | "overview"
+  | "companies"
+  | "manuales"
+  | "historial"
+  | "inventarioIA";
 
 function isRefreshableStat(s: Stat): s is RefreshableStat {
   return "onRefresh" in s && typeof (s as RefreshableStat).onRefresh === "function";
@@ -1360,7 +1366,7 @@ const EmpresasPage: React.FC = () => {
               {isCliente ? "Dashboard de mi empresa" : "Dashboard de Empresas"}
             </h1>
             <p className="mt-2 text-slate-600">
-              {isCliente ? "Información y estadísticas de tu empresa." : "Análisis y estadísticas de todas las empresas."}
+              {isCliente ? "Información y estadísticas de tu empresa." : "Información y Análisis de todas las empresas."}
             </p>
           </motion.div>
 
@@ -1370,6 +1376,7 @@ const EmpresasPage: React.FC = () => {
             {[
               { key: "overview" as const, label: "Resumen" },
               { key: "companies" as const, label: "Empresas" },
+              { key: "manuales" as const, label: "Manuales" },
               { key: "historial" as const, label: "Historial" },
               { key: "inventarioIA" as const, label: "Inventario IA" },
             ].map((tab) => (
@@ -1717,6 +1724,18 @@ const EmpresasPage: React.FC = () => {
                   ))
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* ========== MANUALES ========== */}
+          {activeTab === "manuales" && (
+            <motion.div
+              className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <ManualesTab />
             </motion.div>
           )}
 

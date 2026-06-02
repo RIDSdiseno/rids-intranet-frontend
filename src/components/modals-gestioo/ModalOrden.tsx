@@ -20,14 +20,19 @@ import type {
     OrigenGestioo,
     OrigenGestiooFiltro,
     EstadoEquipo,
+    DestinoEquipoTaller,
 } from "./types";
 
 import {
     TipoEquipoLabel,
     EstadoEquipoLabel,
+    DestinoEquipoTallerOptions,
 } from "./types";
 
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
+
+const antdSelectInputClass =
+    "w-full [&_.ant-select-selector]:!min-h-[42px] [&_.ant-select-selector]:!rounded-xl [&_.ant-select-selector]:!border-cyan-200 [&_.ant-select-selector]:!bg-white [&_.ant-select-selector]:!px-2 [&_.ant-select-selection-item]:!flex [&_.ant-select-selection-item]:!items-center [&_.ant-select-selection-placeholder]:!flex [&_.ant-select-selection-placeholder]:!items-center";
 
 export interface ModalOrdenProps {
     title: string;
@@ -116,6 +121,8 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         formData.equipoId,
         formData.tecnicoId,
         formData.estadoEquipo,
+        formData.destinoEquipo,
+        formData.destinoEquipoNota,
     ]);
 
     // Filtrar entidades según búsqueda
@@ -313,6 +320,48 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         rows={3}
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Destino del equipo <span className="text-rose-500">*</span>
+                                    </label>
+
+                                    <Select
+                                        value={formData.destinoEquipo}
+                                        onChange={(value) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipo: value as DestinoEquipoTaller,
+                                            }))
+                                        }
+                                        style={{ width: "100%" }}
+                                        options={DestinoEquipoTallerOptions}
+                                        placeholder="Seleccionar destino..."
+                                    />
+
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Indica si el equipo queda para venta, RIDS, cliente o baja.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Nota destino equipo
+                                    </label>
+
+                                    <textarea
+                                        value={formData.destinoEquipoNota}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipoNota: e.target.value,
+                                            }))
+                                        }
+                                        className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400 resize-none"
+                                        rows={2}
+                                        placeholder="Ej: Equipo destinado a venta luego de cambio de SSD..."
+                                    />
+                                </div>
                             </div>
 
                             {/* Columna Derecha */}
@@ -392,7 +441,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             />
 
-                                            {/* 👇 AQUÍ VA EXACTAMENTE */}
+                                            {/* AQUÍ VA EXACTAMENTE */}
                                             {formData.area === "salida" && (
                                                 <p className="text-xs text-amber-700 mt-1">
                                                     Se creará una nueva orden de salida para mantener el historial
@@ -402,7 +451,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                         <div className="mt-4">
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Técnico Responsable
+                                                Técnico Responsable <span className="text-rose-500">*</span>
                                             </label>
 
                                             <select
@@ -599,7 +648,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         </div>
 
                                         <div className="flex justify-between items-center">
-                                            <label className="block text-xs font-medium text-slate-600">Equipo</label>
+                                            <label className="block text-xs font-medium text-slate-600">Equipo <span className="text-rose-500">*</span></label>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -641,7 +690,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         </select>
                                         <div>
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Estado del equipo
+                                                Estado del equipo <span className="text-rose-500">*</span>
                                             </label>
 
                                             <select

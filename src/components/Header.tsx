@@ -5,7 +5,6 @@ import {
   LogOut,
   Home,
   CalendarDays,
-  Ticket,
   Users,
   Building2,
   Laptop,
@@ -20,8 +19,6 @@ import {
   ClipboardList,
   ReceiptText,
   Headset,
-  FileSpreadsheet,
-  UserRoundCheck,
   Handshake,
   FileText,
 } from "lucide-react";
@@ -49,6 +46,7 @@ const HELPDESK_PATH = "/helpdesk";
 // COBRANZA_PATH = "/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas-baseapi";
 const CLIENTES_EXT_PATH = "/clientes-ext";
+const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 
 type NavItem = {
   label: string;
@@ -99,10 +97,11 @@ const NAV: NavEntry[] = [
     items: [
       { label: "Clientes Externos", to: CLIENTES_EXT_PATH, icon: <Handshake size={20} /> },
       { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
+      { label: "Bitácora Técnico", to: BITACORA_TECNICO_PATH, icon: <FileText size={20} /> },
       { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH],
   },
   {
     type: "group",

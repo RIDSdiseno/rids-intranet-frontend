@@ -1,3 +1,4 @@
+// src/components/modals-reportes/ReportExportView.tsx
 import React from "react";
 import type { ReporteGeneralData } from "../modals-reportes/typesReportes";
 import { buildReporteExportData } from "./buildReporteExportData";

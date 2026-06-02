@@ -21,6 +21,40 @@ export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
     DADO_DE_BAJA: "Dado de baja",
 };
 
+export type DestinoEquipoTaller =
+    | "SIN_DEFINIR"
+    | "VENTA"
+    | "RIDS"
+    | "CLIENTE"
+    | "BAJA";
+
+export const DestinoEquipoTallerLabel: Record<DestinoEquipoTaller, string> = {
+    SIN_DEFINIR: "Sin definir",
+    VENTA: "Venta",
+    RIDS: "RIDS",
+    CLIENTE: "Cliente",
+    BAJA: "Baja",
+};
+
+export const DestinoEquipoTallerColor: Record<DestinoEquipoTaller, string> = {
+    SIN_DEFINIR: "bg-slate-50 text-slate-600 ring-slate-200",
+    VENTA: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    RIDS: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    CLIENTE: "bg-blue-50 text-blue-700 ring-blue-200",
+    BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
+};
+
+export const DestinoEquipoTallerOptions: Array<{
+    value: DestinoEquipoTaller;
+    label: string;
+}> = [
+        { value: "SIN_DEFINIR", label: "Sin definir" },
+        { value: "VENTA", label: "Venta" },
+        { value: "RIDS", label: "RIDS" },
+        { value: "CLIENTE", label: "Cliente" },
+        { value: "BAJA", label: "Baja" },
+    ];
+
 export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
     ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     EN_STOCK: "bg-sky-50 text-sky-700 ring-sky-200",
@@ -102,6 +136,9 @@ export interface OrdenFormData {
 
     tecnicoId?: string;
     incluyeCargador: boolean;
+
+    destinoEquipo: DestinoEquipoTaller;
+    destinoEquipoNota: string;
 }
 
 export interface EntidadGestioo {
@@ -174,10 +211,12 @@ export interface DetalleTrabajoGestioo {
 
     incluyeCargador?: boolean;
 
-    // 🔥 AGREGAR ESTO
     numeroOrden?: string | null;
     cotizacionId?: number | null;
     origenTrabajo?: "INDEPENDIENTE" | "DESDE_COTIZACION";
+
+    destinoEquipo?: DestinoEquipoTaller | null;
+    destinoEquipoNota?: string | null;
 
     cotizacion?: {
         id: number;

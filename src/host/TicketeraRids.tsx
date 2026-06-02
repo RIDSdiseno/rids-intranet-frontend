@@ -51,20 +51,25 @@ const { isCliente } = useAuth();
 
 // Tipos y utilidades
 type TicketSla = {
-    targets?: { firstResponseMinutes: number; resolutionMinutes: number };
+    targets?: {
+        firstResponseMinutes: number;
+        resolutionMinutes: number;
+    };
+    startsAt?: string | null | Date;
+    waitingAssignment?: boolean;
     firstResponse?: {
-        dueAt: string;
-        at?: string | null;
+        dueAt: string | null | Date;
+        at?: string | null | Date;
         elapsedMinutes?: number | null;
         status: "PENDING" | "OK" | "BREACHED";
-        remainingMinutes?: number;
+        remainingMinutes?: number | null;
     };
     resolution?: {
-        dueAt: string;
-        at?: string | null;
+        dueAt: string | null | Date;
+        at?: string | null | Date;
         elapsedMinutes?: number | null;
         status: "PENDING" | "OK" | "BREACHED";
-        remainingMinutes?: number;
+        remainingMinutes?: number | null;
     };
 };
 
@@ -1008,6 +1013,7 @@ export default function TicketeraRids() {
             setBulkAssignModalOpen(false);
             setSelectedTechnicianId(null);
             await loadTickets();
+            await loadSla();
         } catch (error: any) {
             console.error("❌ Error asignación masiva:", {
                 status: error?.response?.status,
@@ -1124,6 +1130,9 @@ export default function TicketeraRids() {
             );
 
             message.success("Técnico asignado correctamente");
+
+            await loadTickets();
+            await loadSla();
         } catch (error: any) {
             console.error("❌ Error asignando técnico:", {
                 status: error?.response?.status,
@@ -1587,16 +1596,24 @@ export default function TicketeraRids() {
                                                                     </span>
                                                                 )}
 
-                                                                {ticket.sla?.firstResponse && (
-                                                                    <Tag color={slaColor(ticket.sla.firstResponse.status)} className="m-0">
-                                                                        1ra resp: {slaLabel(ticket.sla.firstResponse.status)}
+                                                                {ticket.sla?.waitingAssignment ? (
+                                                                    <Tag color="default" className="m-0">
+                                                                        SLA pausado: sin asignar
                                                                     </Tag>
-                                                                )}
+                                                                ) : (
+                                                                    <>
+                                                                        {ticket.sla?.firstResponse && (
+                                                                            <Tag color={slaColor(ticket.sla.firstResponse.status)} className="m-0">
+                                                                                1ra resp: {slaLabel(ticket.sla.firstResponse.status)}
+                                                                            </Tag>
+                                                                        )}
 
-                                                                {ticket.sla?.resolution && (
-                                                                    <Tag color={slaColor(ticket.sla.resolution.status)} className="m-0">
-                                                                        Cierre: {slaLabel(ticket.sla.resolution.status)}
-                                                                    </Tag>
+                                                                        {ticket.sla?.resolution && (
+                                                                            <Tag color={slaColor(ticket.sla.resolution.status)} className="m-0">
+                                                                                Cierre: {slaLabel(ticket.sla.resolution.status)}
+                                                                            </Tag>
+                                                                        )}
+                                                                    </>
                                                                 )}
                                                             </div>
                                                         </div>
