@@ -55,13 +55,29 @@ type ClienteFormValues = {
 };
 
 function getErrorMessage(error: unknown) {
+    console.error("❌ Error capturado en ClientesExt:", error);
+
     if (axios.isAxiosError(error)) {
-        return (
+        const status = error.response?.status;
+
+        const backendMessage =
             error.response?.data?.error ||
             error.response?.data?.message ||
-            error.message ||
-            "Error inesperado"
-        );
+            error.response?.data?.details;
+
+        if (backendMessage) return backendMessage;
+
+        if (status === 400) return "Solicitud inválida";
+        if (status === 401) return "No tienes sesión activa";
+        if (status === 403) return "No tienes permisos para realizar esta acción";
+        if (status === 404) return "Registro no encontrado";
+        if (status === 409) return "Conflicto con los datos enviados";
+
+        return error.message || "Error inesperado";
+    }
+
+    if (error instanceof Error) {
+        return error.message;
     }
 
     return "Error inesperado";
@@ -76,6 +92,10 @@ const Clientes: React.FC = () => {
     const [search, setSearch] = useState("");
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<ClienteRow | null>(null);
+
+    const [disableModalOpen, setDisableModalOpen] = useState(false);
+    const [clienteToDisable, setClienteToDisable] = useState<ClienteRow | null>(null);
+    const [disabling, setDisabling] = useState(false);
 
     const [form] = Form.useForm<ClienteFormValues>();
 
@@ -211,26 +231,34 @@ const Clientes: React.FC = () => {
         }
     };
 
-    const handleDisable = async (row: ClienteRow) => {
-        Modal.confirm({
-            title: "Desactivar cliente",
-            content: `¿Seguro que deseas desactivar a ${row.nombre}?`,
-            okText: "Desactivar",
-            cancelText: "Cancelar",
-            okButtonProps: {
-                danger: true,
-            },
-            async onOk() {
-                try {
-                    await api.delete(`/clientes-ext/${row.id_tecnico}`);
+    const handleDisable = (row: ClienteRow) => {
 
-                    message.success("Cliente desactivado correctamente");
-                    fetchClientes();
-                } catch (error) {
-                    message.error(getErrorMessage(error));
-                }
-            },
-        });
+        setClienteToDisable(row);
+        setDisableModalOpen(true);
+    };
+
+    const confirmDisableCliente = async () => {
+        if (!clienteToDisable) return;
+
+        try {
+            setDisabling(true);
+
+            const { data } = await api.delete(
+                `/clientes-ext/${clienteToDisable.id_tecnico}`
+            );
+
+            message.success(data?.message || "Cliente desactivado correctamente");
+
+            setDisableModalOpen(false);
+            setClienteToDisable(null);
+
+            await fetchClientes();
+        } catch (error) {
+            console.error("❌ Error al desactivar cliente:", error);
+            message.error(getErrorMessage(error));
+        } finally {
+            setDisabling(false);
+        }
     };
 
     const columns: ColumnsType<ClienteRow> = [
@@ -465,6 +493,32 @@ const Clientes: React.FC = () => {
                         </Form.Item>
                     )}
                 </Form>
+            </Modal>
+            <Modal
+                title="Desactivar cliente"
+                open={disableModalOpen}
+                onCancel={() => {
+                    if (disabling) return;
+                    setDisableModalOpen(false);
+                    setClienteToDisable(null);
+                }}
+                onOk={confirmDisableCliente}
+                okText="Desactivar"
+                cancelText="Cancelar"
+                confirmLoading={disabling}
+                okButtonProps={{
+                    danger: true,
+                }}
+                destroyOnHidden
+            >
+                <p>
+                    ¿Seguro que deseas desactivar a{" "}
+                    <strong>{clienteToDisable?.nombre}</strong>?
+                </p>
+
+                <p className="text-sm text-slate-500">
+                    El cliente no podrá seguir accediendo al portal mientras esté inactivo.
+                </p>
             </Modal>
         </div>
     );
