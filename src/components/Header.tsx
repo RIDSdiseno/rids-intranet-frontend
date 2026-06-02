@@ -21,9 +21,11 @@ import {
   Headset,
   Handshake,
   FileText,
+  MapPin,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
+import { canViewMapaTecnicos } from "../utils/canViewMapaTecnicos";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -47,6 +49,7 @@ const HELPDESK_PATH = "/helpdesk";
 const FACTURAS_BASEAPI_PATH = "/facturas-baseapi";
 const CLIENTES_EXT_PATH = "/clientes-ext";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
+const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
 
 type NavItem = {
   label: string;
@@ -98,10 +101,11 @@ const NAV: NavEntry[] = [
       { label: "Clientes Externos", to: CLIENTES_EXT_PATH, icon: <Handshake size={20} /> },
       { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
       { label: "Bitácora Técnico", to: BITACORA_TECNICO_PATH, icon: <FileText size={20} /> },
+      { label: "Mapa técnicos", to: MAPA_TECNICOS_PATH, icon: <MapPin size={20} /> },
       { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH],
   },
   {
     type: "group",
@@ -228,6 +232,8 @@ const Header = () => {
   const canAccessGestionTecnicosClientes =
     userRole === "ADMIN" || userRole === "ADMINISTRACION";
 
+  const canAccessMapaTecnicos = canViewMapaTecnicos(user);
+
   /*
   const canAccessGestionTecnicosClientes =
     USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail) */
@@ -250,6 +256,10 @@ const Header = () => {
             // Clientes Externos: solo ADMIN y ADMINISTRACION
             if (item.to === CLIENTES_EXT_PATH) {
               return canAccessGestionTecnicosClientes;
+            }
+
+            if (item.to === MAPA_TECNICOS_PATH) {
+              return canAccessMapaTecnicos;
             }
 
             // Visitas, calendario, etc.
@@ -312,6 +322,7 @@ const Header = () => {
     canAccessFacturas,
     canAccessTecnicos,
     canAccessGestionTecnicosClientes,
+    canAccessMapaTecnicos,
   ]);
 
   const handleLogout = async () => {

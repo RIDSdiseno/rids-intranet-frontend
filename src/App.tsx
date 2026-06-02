@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Header from "./components/Header";
 import AccessibilityPanel from "./components/modals-accesibilidad/AccessibilityPanel";
+import { canViewMapaTecnicos } from "./utils/canViewMapaTecnicos";
 
 /* =========================
    Lazy Pages (HOST)
@@ -45,6 +46,7 @@ const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
+const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
 
 /* =========================
    Auth helpers
@@ -67,6 +69,15 @@ function getUserRol(): string | null {
   }
 }
 
+function getUser(): Record<string, unknown> | null {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 /* =========================
    Guards
 ========================= */
@@ -82,6 +93,16 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
 
   if (!rolNormalizado || !allowedRoles.includes(rolNormalizado)) {
     const fallback = rolNormalizado === "CLIENTE" ? "/helpdesk" : "/home";
+    return <Navigate to={fallback} replace />;
+  }
+
+  return <Outlet />;
+}
+
+function MapaTecnicosRoute() {
+  if (!canViewMapaTecnicos(getUser())) {
+    const rol = String(getUserRol() ?? "").toUpperCase().trim();
+    const fallback = rol === "CLIENTE" ? "/helpdesk" : "/home";
     return <Navigate to={fallback} replace />;
   }
 
@@ -176,6 +197,11 @@ export default function App() {
             {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
               <Route path="/clientes-ext" element={<ClientesExtPage />} />
+            </Route>
+
+            {/* ── Supervisión Mapa Técnicos ────────────────────────────── */}
+            <Route element={<MapaTecnicosRoute />}>
+              <Route path="/mapa-tecnicos" element={<MapaTecnicosPage />} />
             </Route>
 
             {/* ── Internos + CLIENTE (backend filtra por empresa) ─────── */}
