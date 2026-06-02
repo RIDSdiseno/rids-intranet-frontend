@@ -2997,3 +2997,502 @@ html.a11y-theme-dark [class*="sidebar"]>a:first-child,
 html.a11y-theme-dark [class*="sidebar"] header {
   background-color: transparent !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BITÁCORA TÉCNICA — labels y textos pequeños en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Labels de filtros y formularios */
+html.a11y-theme-dark label.text-xs.font-semibold.uppercase,
+html.a11y-theme-dark label[class*="text-xs"][class*="font-semibold"][class*="uppercase"] {
+  color: #cbd5e1 !important;
+  letter-spacing: 0.045em;
+}
+
+/* Labels tipo <p> dentro de cards: Total actividades, Fecha consultada, etc. */
+html.a11y-theme-dark p.text-xs.font-semibold.uppercase,
+html.a11y-theme-dark p[class*="text-xs"][class*="font-semibold"][class*="uppercase"] {
+  color: #94a3b8 !important;
+}
+
+/* Labels pequeños con text-[11px], como REGISTROS / PERIODO */
+html.a11y-theme-dark div[class*="text-[11px]"][class*="font-bold"][class*="uppercase"],
+html.a11y-theme-dark span[class*="text-[11px]"][class*="font-bold"][class*="uppercase"] {
+  color: #67e8f9 !important;
+}
+
+/* Valores dentro de cards del header: 3, 02 jun 2026, etc. */
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 .text-slate-950,
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+/* Títulos principales de cards/secciones */
+html.a11y-theme-dark h1.text-slate-950,
+html.a11y-theme-dark h2.text-slate-900,
+html.a11y-theme-dark h3.text-slate-800 {
+  color: #f8fafc !important;
+}
+
+/* Descripciones bajo títulos */
+html.a11y-theme-dark p.text-slate-600,
+html.a11y-theme-dark p.text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+/* Texto de ayuda muy pequeño */
+html.a11y-theme-dark p.text-xs.text-slate-500,
+html.a11y-theme-dark span.text-xs.text-slate-400,
+html.a11y-theme-dark span.text-xs.text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PDF EXPORT — no permitir que modo oscuro afecte capturas html2canvas
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .pdf-export-light,
+html.a11y-theme-dark .pdf-export-light * {
+  color-scheme: light !important;
+}
+
+html.a11y-theme-dark .pdf-export-light {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .page,
+html.a11y-theme-dark .pdf-export-light .pdf-container {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light p,
+html.a11y-theme-dark .pdf-export-light span,
+html.a11y-theme-dark .pdf-export-light div,
+html.a11y-theme-dark .pdf-export-light label,
+html.a11y-theme-dark .pdf-export-light li,
+html.a11y-theme-dark .pdf-export-light td,
+html.a11y-theme-dark .pdf-export-light th,
+html.a11y-theme-dark .pdf-export-light h1,
+html.a11y-theme-dark .pdf-export-light h2,
+html.a11y-theme-dark .pdf-export-light h3,
+html.a11y-theme-dark .pdf-export-light h4,
+html.a11y-theme-dark .pdf-export-light h5,
+html.a11y-theme-dark .pdf-export-light h6,
+html.a11y-theme-dark .pdf-export-light b,
+html.a11y-theme-dark .pdf-export-light strong {
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light table,
+html.a11y-theme-dark .pdf-export-light tbody,
+html.a11y-theme-dark .pdf-export-light tr {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+}
+
+html.a11y-theme-dark .pdf-export-light th,
+html.a11y-theme-dark .pdf-export-light thead,
+html.a11y-theme-dark .pdf-export-light thead tr {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light td {
+  background-color: transparent !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .pdf-section,
+html.a11y-theme-dark .pdf-export-light .card,
+html.a11y-theme-dark .pdf-export-light .info-box,
+html.a11y-theme-dark .pdf-export-light .observaciones,
+html.a11y-theme-dark .pdf-export-light .payment-info,
+html.a11y-theme-dark .pdf-export-light .comentarios-box {
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .card.gray,
+html.a11y-theme-dark .pdf-export-light .bg-gray-50,
+html.a11y-theme-dark .pdf-export-light .bg-slate-50 {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .card.blue,
+html.a11y-theme-dark .pdf-export-light .bg-blue-50,
+html.a11y-theme-dark .pdf-export-light .bg-cyan-50 {
+  background: #eef6ff !important;
+  background-color: #eef6ff !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .sii-box,
+html.a11y-theme-dark .pdf-export-light .sii-box * {
+  color: #c43a3a !important;
+}
+
+html.a11y-theme-dark .pdf-export-light img {
+  background: transparent !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FACTURAS SII / RCV — detalle de documento en modo oscuro
+   Corrige título "Documento #..." y labels/textos del modal detalle.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Título principal del modal: Documento #1242 */
+html.a11y-theme-dark [class*="Documento"] h1,
+html.a11y-theme-dark [class*="Documento"] h2,
+html.a11y-theme-dark [class*="documento"] h1,
+html.a11y-theme-dark [class*="documento"] h2,
+html.a11y-theme-dark [role="dialog"] h1,
+html.a11y-theme-dark [role="dialog"] h2,
+html.a11y-theme-dark [role="dialog"] .text-slate-950,
+html.a11y-theme-dark [role="dialog"] .text-slate-900,
+html.a11y-theme-dark [role="dialog"] .text-gray-900,
+html.a11y-theme-dark [role="dialog"] .text-black {
+  color: #f8fafc !important;
+}
+
+/* Subtítulo: Cliente: BERCIA S.A. */
+html.a11y-theme-dark [role="dialog"] p.text-slate-600,
+html.a11y-theme-dark [role="dialog"] p.text-slate-500,
+html.a11y-theme-dark [role="dialog"] .text-slate-600,
+html.a11y-theme-dark [role="dialog"] .text-slate-500,
+html.a11y-theme-dark [role="dialog"] .text-gray-600,
+html.a11y-theme-dark [role="dialog"] .text-gray-500 {
+  color: #cbd5e1 !important;
+}
+
+/* Labels pequeños: Tipo Documento, Folio, Fecha Documento, Estado RCV */
+html.a11y-theme-dark [role="dialog"] label,
+html.a11y-theme-dark [role="dialog"] .text-xs.font-bold.uppercase,
+html.a11y-theme-dark [role="dialog"] .text-xs.font-semibold.uppercase,
+html.a11y-theme-dark [role="dialog"] [class*="text-xs"][class*="uppercase"],
+html.a11y-theme-dark [role="dialog"] [class*="text-[10px]"][class*="uppercase"],
+html.a11y-theme-dark [role="dialog"] [class*="text-[11px]"][class*="uppercase"] {
+  color: #67e8f9 !important;
+}
+
+/* Valores dentro de las tarjetas: 33, 1242, 01/05/2026, ACUSADO */
+html.a11y-theme-dark [role="dialog"] .font-black,
+html.a11y-theme-dark [role="dialog"] .font-bold,
+html.a11y-theme-dark [role="dialog"] .font-semibold {
+  color: #f8fafc !important;
+}
+
+/* Cards internas del detalle */
+html.a11y-theme-dark [role="dialog"] .bg-white,
+html.a11y-theme-dark [role="dialog"] .bg-slate-50,
+html.a11y-theme-dark [role="dialog"] .bg-gray-50,
+html.a11y-theme-dark [role="dialog"] .bg-white\/80,
+html.a11y-theme-dark [role="dialog"] .bg-white\/90 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Contenedor principal del modal si tiene bordes cyan */
+html.a11y-theme-dark [role="dialog"] .border-cyan-100,
+html.a11y-theme-dark [role="dialog"] .border-cyan-200,
+html.a11y-theme-dark [role="dialog"] .border-cyan-300 {
+  border-color: #155e75 !important;
+}
+
+/* Secciones tipo "Datos del cliente", "Datos del documento" */
+html.a11y-theme-dark [role="dialog"] h3,
+html.a11y-theme-dark [role="dialog"] h4 {
+  color: #f8fafc !important;
+}
+
+/* Textos pequeños dentro de cards */
+html.a11y-theme-dark [role="dialog"] .text-xs,
+html.a11y-theme-dark [role="dialog"] .text-sm {
+  color: #cbd5e1;
+}
+
+/* Botones del modal: conservar color propio de botones */
+html.a11y-theme-dark [role="dialog"] button,
+html.a11y-theme-dark [role="dialog"] button span,
+html.a11y-theme-dark [role="dialog"] button svg {
+  color: inherit;
+}
+
+/* Refuerzo específico para títulos negros dentro de modales custom */
+html.a11y-theme-dark div[class*="fixed"] h1,
+html.a11y-theme-dark div[class*="fixed"] h2,
+html.a11y-theme-dark div[class*="fixed"] .text-black,
+html.a11y-theme-dark div[class*="fixed"] .text-slate-950,
+html.a11y-theme-dark div[class*="fixed"] .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ANT DESIGN SELECT — corrección visual en modales custom modo oscuro
+   Corrige selects con fondo cortado / flecha con fondo distinto.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark [role="dialog"] .ant-select,
+html.a11y-theme-dark .ant-modal .ant-select,
+html.a11y-theme-dark .ant-drawer .ant-select {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Input interno del Select cuando tiene búsqueda */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-search-input,
+html.a11y-theme-dark .ant-modal .ant-select-selection-search-input,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-search-input {
+  background-color: transparent !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Texto seleccionado */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-item,
+html.a11y-theme-dark .ant-modal .ant-select-selection-item,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+/* Placeholder */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-placeholder,
+html.a11y-theme-dark .ant-modal .ant-select-selection-placeholder,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Flecha del select */
+html.a11y-theme-dark [role="dialog"] .ant-select-arrow,
+html.a11y-theme-dark .ant-modal .ant-select-arrow,
+html.a11y-theme-dark .ant-drawer .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+  background-color: transparent !important;
+}
+
+/* Evita que algún wrapper interno pinte un bloque distinto detrás de la flecha */
+html.a11y-theme-dark [role="dialog"] .ant-select .ant-select-selector::before,
+html.a11y-theme-dark [role="dialog"] .ant-select .ant-select-selector::after,
+html.a11y-theme-dark .ant-modal .ant-select .ant-select-selector::before,
+html.a11y-theme-dark .ant-modal .ant-select .ant-select-selector::after {
+  background: transparent !important;
+}
+
+/* Hover / focus */
+html.a11y-theme-dark [role="dialog"] .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .ant-select-focused .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-focused .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-focused .ant-select-selector {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15) !important;
+}
+
+/* Disabled */
+html.a11y-theme-dark [role="dialog"] .ant-select-disabled .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-disabled .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-disabled .ant-select-selector {
+  background-color: var(--color-surface-3) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border-light) !important;
+  opacity: 0.65;
+}
+
+/* Dropdown del Select, aunque se renderice fuera del modal */
+html.a11y-theme-dark .ant-select-dropdown {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: rgba(34, 211, 238, 0.16) !important;
+  color: var(--color-accent) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TICKET DETAIL — detalle de ticket en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .min-h-screen.bg-gray-50 {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Header superior del ticket */
+html.a11y-theme-dark .rounded-t-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .rounded-t-2xl.bg-white h1,
+html.a11y-theme-dark .rounded-t-2xl.bg-white .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Layout principal */
+html.a11y-theme-dark .rounded-b-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-r.border-gray-200,
+html.a11y-theme-dark .border-t.border-gray-200,
+html.a11y-theme-dark .border-b.border-gray-200,
+html.a11y-theme-dark .border.border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+/* Zona de mensajes */
+html.a11y-theme-dark .rounded-xl.border.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .rounded-xl.border.bg-blue-50 {
+  background-color: rgba(30, 58, 95, 0.45) !important;
+  border-color: #10b981 !important;
+}
+
+html.a11y-theme-dark .rounded-xl.border.bg-amber-50 {
+  background-color: rgba(69, 26, 3, 0.5) !important;
+  border-color: #f59e0b !important;
+}
+
+/* Header de cada mensaje */
+html.a11y-theme-dark .border-b.border-gray-100 {
+  border-color: var(--color-border-light) !important;
+}
+
+/* Texto de mensajes y metadatos */
+html.a11y-theme-dark .text-gray-900,
+html.a11y-theme-dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-gray-700,
+html.a11y-theme-dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-gray-500,
+html.a11y-theme-dark .text-gray-400 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Chips de CC y adjuntos */
+html.a11y-theme-dark .bg-gray-100.text-gray-600.border-gray-200,
+html.a11y-theme-dark a.bg-gray-100.text-gray-700.border-gray-200 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark a.bg-gray-100.text-gray-700.border-gray-200:hover {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* Footer acciones del ticket */
+html.a11y-theme-dark .shrink-0.bg-gray-50 {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Panel lateral */
+html.a11y-theme-dark aside.bg-gray-50\/80 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+html.a11y-theme-dark aside .rounded-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark aside .bg-gray-50 {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Labels del panel lateral: EMPRESA, SOLICITANTE, CREADO... */
+html.a11y-theme-dark aside .text-xs.uppercase,
+html.a11y-theme-dark aside [class*="text-xs"][class*="uppercase"] {
+  color: #94a3b8 !important;
+}
+
+/* Selects del panel lateral */
+html.a11y-theme-dark aside .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark aside .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark aside .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+}
+
+/* Tabs y área de respuesta */
+html.a11y-theme-dark .ant-tabs,
+html.a11y-theme-dark .ant-tabs-content,
+html.a11y-theme-dark .ant-tabs-tabpane {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-accent) !important;
+}
+
+/* Textareas de respuesta */
+html.a11y-theme-dark textarea.ant-input {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Nota interna con style inline amarillo */
+html.a11y-theme-dark textarea.ant-input[style*="255, 251, 235"],
+html.a11y-theme-dark textarea.ant-input[style*="#fffbeb"] {
+  background-color: rgba(69, 26, 3, 0.55) !important;
+  color: #fde68a !important;
+  border-color: #92400e !important;
+}
+
+/* Iframe del correo: solo contenedor externo */
+html.a11y-theme-dark iframe {
+  background-color: var(--color-surface-2) !important;
+  border-radius: 10px !important;
+}

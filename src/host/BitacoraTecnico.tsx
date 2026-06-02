@@ -62,6 +62,23 @@ type TipoRelacionOpcional =
     | "equipos"
     | "cotizaciones";
 
+type RelacionKey = Exclude<TipoRelacionOpcional, "">;
+
+type FormRelacionKey =
+    | "solicitanteId"
+    | "ticketId"
+    | "trabajoId"
+    | "visitaId"
+    | "mantencionId"
+    | "equipoId"
+    | "cotizacionId";
+
+interface RelacionConfig {
+    tipo: RelacionKey;
+    label: string;
+    formKey: FormRelacionKey;
+}
+
 type VistaBitacora = "resumen-diario";
 
 interface UiMessage {
@@ -145,6 +162,8 @@ interface BitacoraTecnico {
         numeroOrden?: string | null;
         tipoTrabajo: string;
         estado?: string | null;
+        area?: string | null;
+        destinoEquipo?: string | null;
     } | null;
 
     visita?: {
@@ -311,6 +330,7 @@ function formatFechaChile(value: string) {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
+        hour12: false,
     }).format(date.toDate());
 }
 
@@ -345,6 +365,40 @@ function formatFechaHoraChile(value: string) {
         minute: "2-digit",
         hour12: false,
     }).format(date.toDate());
+}
+
+function traducirEstadoTicket(status?: string | null) {
+    const estado = String(status ?? "").toUpperCase();
+
+    const estados: Record<string, string> = {
+        NEW: "Nuevo",
+        OPEN: "Abierto",
+        PENDING: "Pendiente",
+        CLOSED: "Cerrado",
+    };
+
+    return estados[estado] ?? status ?? "-";
+}
+
+function normalizarBusqueda(value?: string | number | null) {
+    return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function incluyeBusqueda(texto: unknown, busqueda: unknown) {
+    const textoNormalizado = normalizarBusqueda(String(texto ?? ""));
+    const busquedaNormalizada = normalizarBusqueda(String(busqueda ?? ""));
+
+    if (!busquedaNormalizada) return true;
+
+    const palabras = busquedaNormalizada
+        .split(/\s+/)
+        .filter(Boolean);
+
+    return palabras.every((palabra) => textoNormalizado.includes(palabra));
 }
 
 function toNumberOrNull(value: string): number | null {
@@ -394,14 +448,14 @@ function mapRelacionOption(
         case "tickets":
             return {
                 id: item.id,
-                label: `${item.publicId ?? `#${item.id}`} - ${item.subject} - ${item.status}`,
+                label: `Ticket #${item.id} - ${item.subject} - ${traducirEstadoTicket(item.status)}`,
                 raw: item,
             };
 
         case "trabajos":
             return {
                 id: item.id,
-                label: `${item.numeroOrden ?? `Orden #${item.id}`} - ${item.tipoTrabajo ?? "Trabajo"} - ${item.estado ?? ""}`,
+                label: `${item.numeroOrden ?? `Orden #${item.id}`} - ${item.tipoTrabajo ?? "Trabajo"} - ${item.area ?? ""} - ${item.destinoEquipo ?? ""} `,
                 raw: item,
             };
 
@@ -438,6 +492,44 @@ function mapRelacionOption(
     }
 }
 
+const RELACIONES_CONFIG: RelacionConfig[] = [
+    {
+        tipo: "solicitantes",
+        label: "Solicitante",
+        formKey: "solicitanteId",
+    },
+    {
+        tipo: "tickets",
+        label: "Ticket",
+        formKey: "ticketId",
+    },
+    {
+        tipo: "trabajos",
+        label: "Trabajo / Orden de taller",
+        formKey: "trabajoId",
+    },
+    {
+        tipo: "visitas",
+        label: "Visita",
+        formKey: "visitaId",
+    },
+    {
+        tipo: "mantenciones",
+        label: "Mantención remota",
+        formKey: "mantencionId",
+    },
+    {
+        tipo: "equipos",
+        label: "Equipo",
+        formKey: "equipoId",
+    },
+    {
+        tipo: "cotizaciones",
+        label: "Cotización",
+        formKey: "cotizacionId",
+    },
+];
+
 /* =====================================================
    COMPONENTE
 ===================================================== */
@@ -454,8 +546,13 @@ export default function BitacoraTecnicoPage() {
     const [editId, setEditId] = useState<number | null>(null);
     const [modalBitacoraOpen, setModalBitacoraOpen] = useState(false);
 
-    const [tipoRelacion, setTipoRelacion] = useState<TipoRelacionOpcional>("");
-    const [opcionesRelacion, setOpcionesRelacion] = useState<OpcionRelacion[]>([]);
+    const [opcionesPorRelacion, setOpcionesPorRelacion] = useState<
+        Partial<Record<RelacionKey, OpcionRelacion[]>>
+    >({});
+
+    const [loadingPorRelacion, setLoadingPorRelacion] = useState<
+        Partial<Record<RelacionKey, boolean>>
+    >({});
 
     const [uiMessage, setUiMessage] = useState<UiMessage | null>(null);
     const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -540,24 +637,6 @@ export default function BitacoraTecnicoPage() {
             errors.descripcion = "La descripción es obligatoria.";
         }
 
-        if (tipoRelacion && !form.empresaId) {
-            errors.empresaId = "Primero debes seleccionar una empresa.";
-        }
-
-        if (
-            tipoRelacion &&
-            !form.solicitanteId &&
-            !form.ticketId &&
-            !form.trabajoId &&
-            !form.visitaId &&
-            !form.mantencionId &&
-            !form.equipoId &&
-            !form.cotizacionId
-        ) {
-            errors.relacion =
-                "Selecciona un registro relacionado o limpia el tipo de relación.";
-        }
-
         setFormErrors(errors);
 
         return Object.keys(errors).length === 0;
@@ -565,9 +644,9 @@ export default function BitacoraTecnicoPage() {
 
     function resetForm() {
         setEditId(null);
-        setTipoRelacion("");
-        setOpcionesRelacion([]);
         setFormErrors({});
+        setOpcionesPorRelacion({});
+        setLoadingPorRelacion({});
 
         setForm({
             fecha: todayInputDate(),
@@ -675,25 +754,21 @@ export default function BitacoraTecnicoPage() {
     }
 
     async function cargarOpcionesRelacion(
-        tipo: TipoRelacionOpcional,
+        tipo: RelacionKey,
         empresaIdValue: string
     ) {
-        if (!tipo) {
-            setOpcionesRelacion([]);
-            return;
-        }
-
         const empresaId = Number(empresaIdValue);
 
         if (!Number.isInteger(empresaId) || empresaId <= 0) {
             showMessage("warning", "Primero debes seleccionar una empresa.");
-            setTipoRelacion("");
-            setOpcionesRelacion([]);
             return;
         }
 
         try {
-            setLoadingRelacion(true);
+            setLoadingPorRelacion((prev) => ({
+                ...prev,
+                [tipo]: true,
+            }));
 
             const res = await api.get("/bitacora-tecnico/opciones-relacion", {
                 params: {
@@ -708,13 +783,23 @@ export default function BitacoraTecnicoPage() {
                 .map((item: unknown) => mapRelacionOption(tipo, item))
                 .filter(Boolean) as OpcionRelacion[];
 
-            setOpcionesRelacion(mapped);
+            setOpcionesPorRelacion((prev) => ({
+                ...prev,
+                [tipo]: mapped,
+            }));
         } catch (error) {
             console.error("Error al cargar opciones de relación:", error);
             showMessage("error", getAxiosErrorMessage(error));
-            setOpcionesRelacion([]);
+
+            setOpcionesPorRelacion((prev) => ({
+                ...prev,
+                [tipo]: [],
+            }));
         } finally {
-            setLoadingRelacion(false);
+            setLoadingPorRelacion((prev) => ({
+                ...prev,
+                [tipo]: false,
+            }));
         }
     }
 
@@ -801,29 +886,21 @@ export default function BitacoraTecnicoPage() {
             cotizacionId: bitacora.cotizacionId ? String(bitacora.cotizacionId) : "",
         });
 
-        const tipoDetectado: TipoRelacionOpcional = bitacora.solicitanteId
-            ? "solicitantes"
-            : bitacora.ticketId
-                ? "tickets"
-                : bitacora.trabajoId
-                    ? "trabajos"
-                    : bitacora.visitaId
-                        ? "visitas"
-                        : bitacora.mantencionId
-                            ? "mantenciones"
-                            : bitacora.equipoId
-                                ? "equipos"
-                                : bitacora.cotizacionId
-                                    ? "cotizaciones"
-                                    : "";
-
-        setTipoRelacion(tipoDetectado);
         setFormErrors({});
+        setOpcionesPorRelacion({});
+        setLoadingPorRelacion({});
 
-        if (tipoDetectado && bitacora.empresaId) {
-            cargarOpcionesRelacion(tipoDetectado, String(bitacora.empresaId));
-        } else {
-            setOpcionesRelacion([]);
+        if (bitacora.empresaId) {
+            const empresaId = String(bitacora.empresaId);
+
+            const relacionesConValor = RELACIONES_CONFIG.filter((config) => {
+                const valor = bitacora[config.formKey as keyof BitacoraTecnico];
+                return Boolean(valor);
+            });
+
+            relacionesConValor.forEach((config) => {
+                cargarOpcionesRelacion(config.tipo, empresaId);
+            });
         }
     }
 
@@ -843,36 +920,52 @@ export default function BitacoraTecnicoPage() {
         }
     }
 
-    function renderRelacionResumen(bitacora: BitacoraTecnico) {
+    function renderRelacionesResumen(bitacora: BitacoraTecnico) {
+        const relaciones: string[] = [];
+
+        if (bitacora.solicitante) {
+            relaciones.push(`Solicitante: ${bitacora.solicitante.nombre}  ${bitacora.solicitante.email ? `- ${bitacora.solicitante.email}` : ""}`.trim());
+        }
+
         if (bitacora.ticket) {
-            return `Ticket: ${bitacora.ticket.publicId}`;
+            relaciones.push(
+                `Ticket #${bitacora.ticket.id} - ${traducirEstadoTicket(bitacora.ticket.status)} - ${bitacora.ticket.subject}`.trim()
+            );
         }
 
         if (bitacora.trabajo) {
-            return `Orden: ${bitacora.trabajo.numeroOrden ?? `#${bitacora.trabajo.id}`}`;
-        }
-
-        if (bitacora.equipo) {
-            return `Equipo: ${bitacora.equipo.marca} ${bitacora.equipo.modelo}`;
-        }
-
-        if (bitacora.cotizacion) {
-            return `Cotización: #${bitacora.cotizacion.id}`;
-        }
-
-        if (bitacora.solicitante) {
-            return `Solicitante: ${bitacora.solicitante.nombre}`;
+            relaciones.push(
+                `Orden: ${bitacora.trabajo.numeroOrden ?? `#${bitacora.trabajo.id}`}`
+            );
         }
 
         if (bitacora.visita) {
-            return `Visita: #${bitacora.visita.id_visita}`;
+            relaciones.push(`Visita: #${bitacora.visita.id_visita}`);
         }
 
         if (bitacora.mantencion) {
-            return `Mantención: #${bitacora.mantencion.id_mantencion}`;
+            relaciones.push(`Mantención: #${bitacora.mantencion.id_mantencion}`);
         }
 
-        return "-";
+        if (bitacora.equipo) {
+            relaciones.push(
+                `Equipo: ${bitacora.equipo.serial ?? ""} ${bitacora.equipo.marca ?? ""} ${bitacora.equipo.modelo ?? ""}`.trim()
+            );
+        }
+
+        if (bitacora.cotizacion) {
+            relaciones.push(`Cotización: #${bitacora.cotizacion.id}`);
+        }
+
+        return relaciones;
+    }
+
+    function renderRelacionResumen(bitacora: BitacoraTecnico) {
+        const relaciones = renderRelacionesResumen(bitacora);
+
+        if (relaciones.length === 0) return "-";
+
+        return relaciones.join(" · ");
     }
 
     useEffect(() => {
@@ -893,6 +986,71 @@ export default function BitacoraTecnicoPage() {
         filtros.tipoActividad,
         filtros.estado,
     ]);
+
+    function renderRelacionSelect(config: RelacionConfig) {
+        const opciones = opcionesPorRelacion[config.tipo] ?? [];
+        const loading = Boolean(loadingPorRelacion[config.tipo]);
+        const value = form[config.formKey] || undefined;
+        const empresaSeleccionada = Boolean(form.empresaId);
+
+        return (
+            <div key={config.tipo}>
+                <label className={labelBase}>{config.label}</label>
+
+                <Select
+                    value={value}
+                    disabled={!empresaSeleccionada}
+                    loading={loading}
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
+                    placeholder={
+                        !empresaSeleccionada
+                            ? "Selecciona empresa primero"
+                            : loading
+                                ? "Cargando..."
+                                : `Seleccionar ${config.label.toLowerCase()}`
+                    }
+                    className="w-full"
+                    options={opciones.map((opcion) => ({
+                        value: String(opcion.id),
+                        label: opcion.label,
+                    }))}
+                    onDropdownVisibleChange={(open) => {
+                        if (
+                            open &&
+                            empresaSeleccionada &&
+                            !loading &&
+                            opciones.length === 0
+                        ) {
+                            cargarOpcionesRelacion(config.tipo, form.empresaId);
+                        }
+                    }}
+                    onFocus={() => {
+                        if (
+                            empresaSeleccionada &&
+                            !loading &&
+                            opciones.length === 0
+                        ) {
+                            cargarOpcionesRelacion(config.tipo, form.empresaId);
+                        }
+                    }}
+                    onChange={(selectedValue) => {
+                        setForm((prev) => ({
+                            ...prev,
+                            [config.formKey]: selectedValue ? String(selectedValue) : "",
+                        }));
+
+                        setFormErrors((prev) => ({
+                            ...prev,
+                            relacion: undefined,
+                        }));
+                    }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 lg:px-8">
@@ -1044,6 +1202,7 @@ export default function BitacoraTecnicoPage() {
                                     placeholder="Seleccione técnico"
                                     showSearch
                                     optionFilterProp="label"
+                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
                                     className="w-full"
                                     status={formErrors.tecnicoId ? "error" : undefined}
                                     options={tecnicos.map((tecnico) => ({
@@ -1073,8 +1232,8 @@ export default function BitacoraTecnicoPage() {
                                             cotizacionId: "",
                                         }));
 
-                                        setTipoRelacion("");
-                                        setOpcionesRelacion([]);
+                                        setOpcionesPorRelacion({});
+                                        setLoadingPorRelacion({});
 
                                         setFormErrors((prev) => ({
                                             ...prev,
@@ -1086,6 +1245,7 @@ export default function BitacoraTecnicoPage() {
                                     placeholder="Sin empresa"
                                     showSearch
                                     optionFilterProp="label"
+                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
                                     className="w-full"
                                     status={formErrors.empresaId ? "error" : undefined}
                                     options={empresas.map((empresa) => ({
@@ -1180,128 +1340,26 @@ export default function BitacoraTecnicoPage() {
                             </div>
                         </div>
 
-                        <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-                                Relaciones opcionales
-                            </summary>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-4">
+                                <h3 className="text-sm font-semibold text-slate-800">
+                                    Relaciones opcionales
+                                </h3>
+                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                    Puedes asociar una o más relaciones a esta bitácora. Primero selecciona
+                                    una empresa y luego elige los registros relacionados que correspondan.
+                                </p>
+                            </div>
 
-                            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                                <div>
-                                    <label className={labelBase}>Tipo de relación</label>
-
-                                    <Select
-                                        value={tipoRelacion || undefined}
-                                        onChange={(value) => {
-                                            const nuevoTipo = (value ?? "") as TipoRelacionOpcional;
-
-                                            setTipoRelacion(nuevoTipo);
-
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                solicitanteId: "",
-                                                ticketId: "",
-                                                trabajoId: "",
-                                                visitaId: "",
-                                                mantencionId: "",
-                                                equipoId: "",
-                                                cotizacionId: "",
-                                            }));
-
-                                            setFormErrors((prev) => ({
-                                                ...prev,
-                                                relacion: undefined,
-                                            }));
-
-                                            cargarOpcionesRelacion(nuevoTipo, form.empresaId);
-                                        }}
-                                        allowClear
-                                        placeholder="Seleccione relación"
-                                        className="w-full"
-                                        options={[
-                                            { value: "solicitantes", label: "Solicitante" },
-                                            { value: "tickets", label: "Ticket" },
-                                            { value: "trabajos", label: "Trabajo / Orden de taller" },
-                                            { value: "visitas", label: "Visita" },
-                                            { value: "mantenciones", label: "Mantención remota" },
-                                            { value: "equipos", label: "Equipo" },
-                                            { value: "cotizaciones", label: "Cotización" },
-                                        ]}
-                                    />
+                            {!form.empresaId && (
+                                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                    Para cargar solicitantes, tickets, órdenes, visitas, mantenciones,
+                                    equipos o cotizaciones, primero selecciona una empresa.
                                 </div>
+                            )}
 
-                                <div className="lg:col-span-2">
-                                    <label className={labelBase}>Registro relacionado</label>
-
-                                    <Select
-                                        disabled={
-                                            !tipoRelacion ||
-                                            loadingRelacion ||
-                                            opcionesRelacion.length === 0
-                                        }
-                                        loading={loadingRelacion}
-                                        value={
-                                            tipoRelacion === "solicitantes"
-                                                ? form.solicitanteId || undefined
-                                                : tipoRelacion === "tickets"
-                                                    ? form.ticketId || undefined
-                                                    : tipoRelacion === "trabajos"
-                                                        ? form.trabajoId || undefined
-                                                        : tipoRelacion === "visitas"
-                                                            ? form.visitaId || undefined
-                                                            : tipoRelacion === "mantenciones"
-                                                                ? form.mantencionId || undefined
-                                                                : tipoRelacion === "equipos"
-                                                                    ? form.equipoId || undefined
-                                                                    : tipoRelacion === "cotizaciones"
-                                                                        ? form.cotizacionId || undefined
-                                                                        : undefined
-                                        }
-                                        onChange={(value) => {
-                                            const selectedValue = value ? String(value) : "";
-
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                solicitanteId:
-                                                    tipoRelacion === "solicitantes" ? selectedValue : "",
-                                                ticketId:
-                                                    tipoRelacion === "tickets" ? selectedValue : "",
-                                                trabajoId:
-                                                    tipoRelacion === "trabajos" ? selectedValue : "",
-                                                visitaId:
-                                                    tipoRelacion === "visitas" ? selectedValue : "",
-                                                mantencionId:
-                                                    tipoRelacion === "mantenciones" ? selectedValue : "",
-                                                equipoId:
-                                                    tipoRelacion === "equipos" ? selectedValue : "",
-                                                cotizacionId:
-                                                    tipoRelacion === "cotizaciones" ? selectedValue : "",
-                                            }));
-
-                                            setFormErrors((prev) => ({
-                                                ...prev,
-                                                relacion: undefined,
-                                            }));
-                                        }}
-                                        allowClear
-                                        showSearch
-                                        optionFilterProp="label"
-                                        placeholder={
-                                            loadingRelacion
-                                                ? "Cargando opciones..."
-                                                : !tipoRelacion
-                                                    ? "Seleccione primero el tipo de relación"
-                                                    : opcionesRelacion.length === 0
-                                                        ? "Sin registros disponibles"
-                                                        : "Seleccione registro"
-                                        }
-                                        status={formErrors.relacion ? "error" : undefined}
-                                        className="w-full"
-                                        options={opcionesRelacion.map((opcion) => ({
-                                            value: String(opcion.id),
-                                            label: opcion.label,
-                                        }))}
-                                    />
-                                </div>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                {RELACIONES_CONFIG.map((config) => renderRelacionSelect(config))}
                             </div>
 
                             {formErrors.relacion && (
@@ -1309,12 +1367,7 @@ export default function BitacoraTecnicoPage() {
                                     {formErrors.relacion}
                                 </div>
                             )}
-
-                            <p className="mt-3 text-xs leading-5 text-slate-500">
-                                Selecciona primero una empresa. Luego elige el tipo de relación para cargar
-                                solo los registros asociados a esa empresa.
-                            </p>
-                        </details>
+                        </div>
 
                         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                             <Button onClick={cerrarModalBitacora}>
@@ -1443,11 +1496,25 @@ export default function BitacoraTecnicoPage() {
 
                             <div className="rounded-2xl border border-slate-200 bg-white p-4">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Relación asociada
+                                    Relaciones asociadas
                                 </p>
-                                <p className="mt-2 text-sm font-semibold text-slate-800">
-                                    {renderRelacionResumen(bitacoraSeleccionada)}
-                                </p>
+
+                                {renderRelacionesResumen(bitacoraSeleccionada).length > 0 ? (
+                                    <div className="mt-3 flex flex-col gap-2">
+                                        {renderRelacionesResumen(bitacoraSeleccionada).map((relacion, index) => (
+                                            <div
+                                                key={`${relacion}-${index}`}
+                                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800"
+                                            >
+                                                {relacion}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="mt-2 text-sm font-semibold text-slate-800">
+                                        Sin relaciones asociadas
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}
@@ -1558,6 +1625,7 @@ export default function BitacoraTecnicoPage() {
                                     allowClear
                                     showSearch
                                     optionFilterProp="label"
+                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
                                     placeholder="Todos"
                                     className="w-full"
                                     options={tecnicos.map((tecnico) => ({

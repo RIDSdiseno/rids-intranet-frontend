@@ -19,6 +19,11 @@ import {
     type PdfOrigenKey,
 } from "./pdfOrigen";
 
+import {
+    prepararContenedorPdf,
+    getHtml2CanvasPdfOptions,
+} from "../../utils/pdfLightExport";
+
 // ==============================
 //   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
@@ -210,6 +215,7 @@ export const handlePrint = async (
 
         const container = document.createElement("div");
         container.innerHTML = html;
+        prepararContenedorPdf(container, "1700px");
         document.body.appendChild(container);
 
         // ✅ OPTIMIZAR SECCIONES
@@ -245,17 +251,20 @@ export const handlePrint = async (
             (el as HTMLElement).style.color = '#000000';
         });
 
-        // ✅ CONFIGURACIÓN OPTIMIZADA
-        const canvas = await html2canvas(container, {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: '#FFFFFF',
-            logging: false,
-            imageTimeout: 0,
-            width: container.scrollWidth,
-            height: container.scrollHeight,
-            windowWidth: container.scrollWidth,
-        });
+        // CONFIGURACIÓN OPTIMIZADA
+        const canvas = await html2canvas(
+            container,
+            getHtml2CanvasPdfOptions({
+                scale: 3,
+                useCORS: true,
+                backgroundColor: "#ffffff",
+                logging: false,
+                imageTimeout: 0,
+                width: container.scrollWidth,
+                height: container.scrollHeight,
+                windowWidth: container.scrollWidth,
+            })
+        );
 
         const pdf = new jsPDF("p", "mm", "a4", true);
         const img = canvas.toDataURL("image/jpeg", 1.0);
@@ -268,6 +277,11 @@ export const handlePrint = async (
         pdf.save(`Orden_${codigo}.pdf`);
 
         document.body.removeChild(container);
+
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
+        
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");

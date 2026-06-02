@@ -29,6 +29,11 @@ import {
 } from "./utils";
 import type { utils } from "xlsx-js-style";
 
+import {
+    prepararContenedorPdf,
+    getHtml2CanvasPdfOptions,
+} from "../../utils/pdfLightExport";
+
 export async function generarPdfDocumentoSeleccionado(params: {
     documento: any;
     detalleDte: any | null;
@@ -596,28 +601,27 @@ export async function generarPdfDocumentoSeleccionado(params: {
     const container = document.createElement("div");
 
     try {
-        container.style.position = "fixed";
-        container.style.left = "-99999px";
-        container.style.top = "0";
-        container.style.width = "794px";
-        container.style.backgroundColor = "#ffffff";
         container.innerHTML = html;
+        prepararContenedorPdf(container, "794px");
 
         document.body.appendChild(container);
 
         await esperarImagenes(container);
 
-        const canvas = await html2canvas(container, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#ffffff",
-            logging: false,
-            imageTimeout: 0,
-            width: container.scrollWidth,
-            height: container.scrollHeight,
-            windowWidth: container.scrollWidth,
-        });
+        const canvas = await html2canvas(
+            container,
+            getHtml2CanvasPdfOptions({
+                scale: 3,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: "#ffffff",
+                logging: false,
+                imageTimeout: 0,
+                width: container.scrollWidth,
+                height: container.scrollHeight,
+                windowWidth: container.scrollWidth,
+            })
+        );
 
         const imgData = canvas.toDataURL("image/jpeg", 0.96);
 
