@@ -1,6 +1,3498 @@
+/* src/index.css */
+
 @import "tailwindcss";
 
-html {
+/* ══════════════════════════════════════════════════════════════════════════
+   TOKENS — modo claro
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-surface-3: #e2e8f0;
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-accent: #0891b2;
+  --color-accent-light: #ecfeff;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+  --color-visitas: #3b82f6;
+  --color-remotas: #6366f1;
+  --color-tickets: #8b5cf6;
+  --color-chart-grid: #e5e7eb;
+  --color-chart-axis: #94a3b8;
+  --color-chart-tooltip-bg: #ffffff;
+  --color-chart-tooltip-border: #e2e8f0;
   font-size: 14px;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   TOKENS — modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark {
+  color-scheme: dark;
+  --color-bg: #020617;
+  --color-surface: #0f172a;
+  --color-surface-2: #1e293b;
+  --color-surface-3: #334155;
+  --color-border: #334155;
+  --color-border-light: #1e293b;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #64748b;
+  --color-accent: #22d3ee;
+  --color-accent-light: #164e63;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+  --color-visitas: #60a5fa;
+  --color-remotas: #818cf8;
+  --color-tickets: #a78bfa;
+  --color-chart-grid: #1e293b;
+  --color-chart-axis: #64748b;
+  --color-chart-tooltip-bg: #1e293b;
+  --color-chart-tooltip-border: #334155;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPA 1 — FONDO BASE DEL ÁREA DE CONTENIDO
+   Esta es la corrección principal del problema de las capturas:
+   body, #root, main y .layout-content reciben fondo oscuro explícitamente.
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark body,
+html.a11y-theme-dark #root,
+html.a11y-theme-dark main,
+html.a11y-theme-dark .layout-content,
+html.a11y-theme-dark [class*="min-h-screen"] {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TRANSICIÓN SUAVE
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPA 2 — CLASES TAILWIND
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Superficies */
+html.a11y-theme-dark .bg-white {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark .bg-slate-50 {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .bg-gray-50 {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .bg-slate-100 {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark .bg-gray-100 {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark .bg-slate-200 {
+  background-color: #475569 !important;
+}
+
+/* Variantes de opacidad */
+html.a11y-theme-dark .bg-slate-50\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+html.a11y-theme-dark .bg-slate-50\/40 {
+  background-color: rgba(30, 41, 59, 0.4) !important;
+}
+
+html.a11y-theme-dark .bg-white\/98 {
+  background-color: rgba(15, 23, 42, 0.98) !important;
+}
+
+/* Gradiente de página */
+html.a11y-theme-dark [class*="from-slate-50"][class*="via-cyan-50"][class*="to-white"] {
+  background: linear-gradient(135deg, var(--color-bg), var(--color-surface)) !important;
+}
+
+/* Texto */
+html.a11y-theme-dark .text-slate-900,
+html.a11y-theme-dark .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-slate-800,
+html.a11y-theme-dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-slate-700,
+html.a11y-theme-dark .text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-slate-600,
+html.a11y-theme-dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-slate-500,
+html.a11y-theme-dark .text-gray-500,
+html.a11y-theme-dark .text-slate-400,
+html.a11y-theme-dark .text-gray-400 {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .text-slate-300 {
+  color: #94a3b8 !important;
+}
+
+html.a11y-theme-dark .text-neutral-400 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Colores de acento */
+html.a11y-theme-dark .text-cyan-600,
+html.a11y-theme-dark .text-cyan-700 {
+  color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .text-blue-600,
+html.a11y-theme-dark .text-blue-700 {
+  color: var(--color-info) !important;
+}
+
+html.a11y-theme-dark .text-emerald-600,
+html.a11y-theme-dark .text-emerald-700 {
+  color: var(--color-success) !important;
+}
+
+html.a11y-theme-dark .text-rose-500,
+html.a11y-theme-dark .text-red-600 {
+  color: var(--color-error) !important;
+}
+
+html.a11y-theme-dark .text-amber-500,
+html.a11y-theme-dark .text-amber-600 {
+  color: var(--color-warning) !important;
+}
+
+html.a11y-theme-dark .text-violet-600,
+html.a11y-theme-dark .text-violet-700,
+html.a11y-theme-dark .text-purple-700 {
+  color: #c4b5fd !important;
+}
+
+html.a11y-theme-dark .text-indigo-600,
+html.a11y-theme-dark .text-indigo-700 {
+  color: var(--color-remotas) !important;
+}
+
+/* Bordes */
+html.a11y-theme-dark .border-slate-50,
+html.a11y-theme-dark .border-slate-100,
+html.a11y-theme-dark .border-gray-100 {
+  border-color: var(--color-border-light) !important;
+}
+
+html.a11y-theme-dark .border-slate-200,
+html.a11y-theme-dark .border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-cyan-100,
+html.a11y-theme-dark .border-cyan-200 {
+  border-color: #155e75 !important;
+}
+
+html.a11y-theme-dark .border-blue-200 {
+  border-color: #1e40af !important;
+}
+
+html.a11y-theme-dark .border-emerald-200 {
+  border-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .border-amber-200 {
+  border-color: #92400e !important;
+}
+
+html.a11y-theme-dark .border-rose-200 {
+  border-color: #9f1239 !important;
+}
+
+html.a11y-theme-dark .border-indigo-100,
+html.a11y-theme-dark .border-indigo-200 {
+  border-color: #3730a3 !important;
+}
+
+html.a11y-theme-dark .border-violet-200 {
+  border-color: #5b21b6 !important;
+}
+
+/* Sombras */
+html.a11y-theme-dark .shadow,
+html.a11y-theme-dark .shadow-sm,
+html.a11y-theme-dark .shadow-md,
+html.a11y-theme-dark .shadow-lg {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Hover */
+html.a11y-theme-dark .hover\:bg-slate-50\/60:hover,
+html.a11y-theme-dark .hover\:bg-slate-50:hover,
+html.a11y-theme-dark .hover\:bg-slate-100:hover {
+  background-color: var(--color-surface-2) !important;
+}
+
+/* Inputs nativos */
+html.a11y-theme-dark input,
+html.a11y-theme-dark select,
+html.a11y-theme-dark textarea {
+  color-scheme: dark;
+  /* ← línea nueva */
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark input::placeholder,
+html.a11y-theme-dark textarea::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Skeleton */
+html.a11y-theme-dark .animate-pulse {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* Badges */
+html.a11y-theme-dark .bg-cyan-50 {
+  background-color: var(--color-accent-light) !important;
+}
+
+html.a11y-theme-dark .bg-blue-50,
+html.a11y-theme-dark .bg-blue-100 {
+  background-color: #1e3a5f !important;
+}
+
+html.a11y-theme-dark .bg-indigo-50 {
+  background-color: #1e1b4b !important;
+}
+
+html.a11y-theme-dark .bg-indigo-50\/40 {
+  background-color: rgba(30, 27, 75, 0.4) !important;
+}
+
+html.a11y-theme-dark .bg-violet-50 {
+  background-color: #2e1065 !important;
+}
+
+html.a11y-theme-dark .bg-emerald-50 {
+  background-color: #064e3b !important;
+}
+
+html.a11y-theme-dark .bg-amber-50 {
+  background-color: #451a03 !important;
+}
+
+html.a11y-theme-dark .bg-rose-50 {
+  background-color: #4c0519 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPA 3 — TABLAS HTML NATIVAS
+   Cubre la tabla de visitas y cualquier <table> de la app.
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark table {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark thead tr {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark tfoot tr {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark tbody tr {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark tbody tr:nth-child(even) {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark tbody tr:hover {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark th {
+  border-color: var(--color-border-light) !important;
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark td {
+  border-color: var(--color-border-light) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPA 4 — CALENDARIO (react-big-calendar)
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark .rbc-calendar,
+html.a11y-theme-dark .rbc-month-view,
+html.a11y-theme-dark .rbc-time-view {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .rbc-header {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .rbc-day-bg {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark .rbc-off-range-bg {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .rbc-today {
+  background-color: rgba(8, 145, 178, 0.10) !important;
+}
+
+html.a11y-theme-dark .rbc-month-row {
+  border-color: var(--color-border-light) !important;
+}
+
+html.a11y-theme-dark .rbc-date-cell {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .rbc-date-cell.rbc-now {
+  color: var(--color-accent) !important;
+  font-weight: 700;
+}
+
+html.a11y-theme-dark .rbc-show-more {
+  color: var(--color-accent) !important;
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .rbc-toolbar button {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .rbc-toolbar button:hover,
+html.a11y-theme-dark .rbc-toolbar button.rbc-active {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark .rbc-toolbar-label {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .rbc-event {
+  opacity: 0.92;
+}
+
+/* FullCalendar (por si se usa fc) */
+html.a11y-theme-dark .fc-col-header-cell,
+html.a11y-theme-dark .fc-daygrid-day,
+html.a11y-theme-dark .fc-timegrid-slot {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .fc-col-header-cell-cushion,
+html.a11y-theme-dark .fc-daygrid-day-number {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .fc-daygrid-day.fc-day-today {
+  background-color: rgba(8, 145, 178, 0.10) !important;
+}
+
+html.a11y-theme-dark .fc-toolbar-title {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .fc-button-group .fc-button {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: #000 !important;
+}
+
+html.a11y-theme-dark .fc-popover {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.a11y-theme-dark .fc-popover-header {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .fc-more-link {
+  color: var(--color-accent) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CAPA 5 — ANT DESIGN
+   El ConfigProvider cubre lo principal vía darkAlgorithm.
+   Estas reglas cubren lo que escapa al token system.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Tabla */
+html.a11y-theme-dark .ant-table-wrapper,
+html.a11y-theme-dark .ant-table,
+html.a11y-theme-dark .ant-table-container {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark .ant-table-thead>tr>th {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-table-tbody>tr>td {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-light) !important;
+}
+
+html.a11y-theme-dark .ant-table-tbody>tr:nth-child(even)>td {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .ant-table-tbody>tr:hover>td {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark .ant-table-summary>tr>td {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Paginación */
+html.a11y-theme-dark .ant-pagination-item {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-pagination-item a {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .ant-pagination-item-active {
+  background-color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .ant-pagination-item-active a {
+  color: #000 !important;
+}
+
+html.a11y-theme-dark .ant-pagination-prev .ant-pagination-item-link,
+html.a11y-theme-dark .ant-pagination-next .ant-pagination-item-link {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .ant-pagination-options-quick-jumper input {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Select */
+html.a11y-theme-dark .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-select-selection-item,
+html.a11y-theme-dark .ant-select-selection-placeholder {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.a11y-theme-dark .ant-select-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent) !important;
+}
+
+/* Input */
+html.a11y-theme-dark .ant-input,
+html.a11y-theme-dark .ant-input-affix-wrapper,
+html.a11y-theme-dark .ant-input-number {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-input::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-input-prefix,
+html.a11y-theme-dark .ant-input-suffix,
+html.a11y-theme-dark .ant-input-group-addon {
+  color: var(--color-text-muted) !important;
+  background-color: var(--color-surface-3) !important;
+}
+
+/* DatePicker */
+html.a11y-theme-dark .ant-picker {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-picker-input>input {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-picker-panel-container,
+html.a11y-theme-dark .ant-picker-dropdown {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.a11y-theme-dark .ant-picker-header,
+html.a11y-theme-dark .ant-picker-header button {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-picker-cell {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-picker-cell-in-view {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background: var(--color-accent) !important;
+  color: #000 !important;
+}
+
+/* Modal */
+html.a11y-theme-dark .ant-modal-content {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-modal-header {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-modal-title {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-modal-close {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-modal-footer {
+  border-color: var(--color-border) !important;
+  background-color: var(--color-surface) !important;
+}
+
+/* Drawer */
+html.a11y-theme-dark .ant-drawer-content {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark .ant-drawer-header {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-drawer-title {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-drawer-close {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-drawer-body {
+  background-color: var(--color-surface) !important;
+}
+
+/* Card */
+html.a11y-theme-dark .ant-card {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-card-head {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-card-body {
+  color: var(--color-text-primary) !important;
+}
+
+/* Tags */
+html.a11y-theme-dark .ant-tag {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+/* Botones */
+html.a11y-theme-dark .ant-btn-default {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-btn-default:hover {
+  background-color: var(--color-surface-3) !important;
+  border-color: var(--color-accent) !important;
+  color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .ant-btn-primary {
+  background-color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: #000 !important;
+}
+
+/* Divider */
+html.a11y-theme-dark .ant-divider {
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-divider-inner-text {
+  color: var(--color-text-muted) !important;
+}
+
+/* Typography */
+html.a11y-theme-dark .ant-typography,
+html.a11y-theme-dark h1.ant-typography,
+html.a11y-theme-dark h2.ant-typography,
+html.a11y-theme-dark h3.ant-typography,
+html.a11y-theme-dark h4.ant-typography,
+html.a11y-theme-dark h5.ant-typography {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-typography.ant-typography-secondary {
+  color: var(--color-text-muted) !important;
+}
+
+/* Radio / Checkbox */
+html.a11y-theme-dark .ant-radio-wrapper,
+html.a11y-theme-dark .ant-checkbox-wrapper {
+  color: var(--color-text-primary) !important;
+}
+
+/* Switch */
+html.a11y-theme-dark .ant-switch:not(.ant-switch-checked) {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* Tooltip / Popover */
+html.a11y-theme-dark .ant-tooltip-inner {
+  background-color: var(--color-surface-3) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-popover-inner {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+/* Form labels */
+html.a11y-theme-dark .ant-form-item-label>label {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .ant-form-item-explain-error {
+  color: var(--color-error) !important;
+}
+
+/* Tabs */
+html.a11y-theme-dark .ant-tabs-nav {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-ink-bar {
+  background-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-content-holder {
+  background-color: var(--color-surface) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCROLLBARS
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark * {
+  scrollbar-color: var(--color-surface-3) var(--color-surface-2);
+}
+
+html.a11y-theme-dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html.a11y-theme-dark ::-webkit-scrollbar-track {
+  background: var(--color-surface-2);
+}
+
+html.a11y-theme-dark ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 4px;
+}
+
+html.a11y-theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TIPOGRAFÍA
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-font-small {
+  font-size: 12px;
+}
+
+html.a11y-font-normal {
+  font-size: 14px;
+}
+
+html.a11y-font-large {
+  font-size: 16px;
+}
+
+html.a11y-font-xlarge {
+  font-size: 18px;
+}
+
+html.a11y-readable-spacing body {
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+}
+
+html.a11y-underline-links a,
+html.a11y-underline-links button[class*="text-"] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REDUCIR ANIMACIONES
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-motion-reduced *,
+html.a11y-motion-reduced *::before,
+html.a11y-motion-reduced *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ALTO CONTRASTE
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-contrast-high body {
+  background: #fff !important;
+  color: #000 !important;
+}
+
+html.a11y-contrast-high .bg-white,
+html.a11y-contrast-high .bg-slate-50,
+html.a11y-contrast-high .bg-slate-100 {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+html.a11y-contrast-high [class*="text-slate-"],
+html.a11y-contrast-high [class*="text-gray-"] {
+  color: #000 !important;
+}
+
+html.a11y-contrast-high [class*="border-slate-"],
+html.a11y-contrast-high [class*="border-gray-"] {
+  border-color: #000 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FOCO VISIBLE
+   ══════════════════════════════════════════════════════════════════════════ */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
+html.a11y-theme-dark button:focus-visible,
+html.a11y-theme-dark a:focus-visible,
+html.a11y-theme-dark input:focus-visible,
+html.a11y-theme-dark select:focus-visible,
+html.a11y-theme-dark textarea:focus-visible,
+html.a11y-theme-dark [tabindex]:focus-visible {
+  outline-color: #60a5fa !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYOUT
+   ══════════════════════════════════════════════════════════════════════════ */
+#root {
+  width: 100% !important;
+  min-height: 100vh !important;
+}
+
+body:not(.sidebar-collapsed) .layout-content {
+  padding-left: 16rem;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.sidebar-collapsed .layout-content {
+  padding-left: 5rem;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.layout-content {
+  width: 100%;
+  min-height: 100vh;
+}
+
+@media (max-width: 1024px) {
+  .layout-content {
+    padding-left: 0 !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REGLA UNIVERSAL DE ÚLTIMO RECURSO
+   ─────────────────────────────────────────────────────────────────────────
+   Captura cualquier elemento con background-color: white o #fff que
+   escape a las reglas anteriores (estilos inline, componentes con
+   clases propias, librerías de terceros).
+
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark div[style*="background-color: white"],
+html.a11y-theme-dark div[style*="background-color: #fff"],
+html.a11y-theme-dark div[style*="background-color: #ffffff"],
+html.a11y-theme-dark div[style*="background-color:white"],
+html.a11y-theme-dark div[style*="background-color:#fff"],
+html.a11y-theme-dark div[style*="background-color:#ffffff"],
+html.a11y-theme-dark section[style*="background"],
+html.a11y-theme-dark article[style*="background"],
+html.a11y-theme-dark header[style*="background-color: white"],
+html.a11y-theme-dark header[style*="background-color: #fff"] {
+  background-color: var(--color-surface) !important;
+}
+
+/* ── Paneles/cards con rounded + shadow (patrón típico de headers de página) ── */
+html.a11y-theme-dark .rounded-xl.shadow-md,
+html.a11y-theme-dark .rounded-xl.shadow-lg,
+html.a11y-theme-dark .rounded-2xl.shadow-md,
+html.a11y-theme-dark .rounded-2xl.shadow-lg,
+html.a11y-theme-dark .rounded-xl.shadow-sm,
+html.a11y-theme-dark .rounded-2xl.shadow-sm,
+html.a11y-theme-dark .rounded-lg.shadow-md,
+html.a11y-theme-dark .rounded-lg.shadow-lg {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* ── Patrón: panel con p-6 + border (cards de sección) ── */
+html.a11y-theme-dark .rounded-xl.border,
+html.a11y-theme-dark .rounded-2xl.border,
+html.a11y-theme-dark .rounded-lg.border {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* ── Headers internos de paneles (p-4 o p-6 + border-b) ── */
+html.a11y-theme-dark .border-b,
+html.a11y-theme-dark .border-t {
+  border-color: var(--color-border-light) !important;
+}
+
+/* ── Texto que desaparece: cualquier texto sobre fondo oscuro ── */
+html.a11y-theme-dark p,
+html.a11y-theme-dark span:not([class*="bg-"]):not([class*="text-white"]):not([class*="text-black"]),
+html.a11y-theme-dark label,
+html.a11y-theme-dark li,
+html.a11y-theme-dark dt,
+html.a11y-theme-dark dd {
+  color: var(--color-text-primary);
+}
+
+/* ── Excepciones: no tocar colores de badges/chips/botones de color ── */
+html.a11y-theme-dark [class*="text-white"],
+html.a11y-theme-dark [class*="text-black"],
+html.a11y-theme-dark .ant-btn-primary span,
+html.a11y-theme-dark .ant-tag span {
+  /* heredar el color definido por el componente padre */
+  color: inherit !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FILTROS AVANZADOS / PANELS DE FORMULARIO
+   (como el panel "Actividad por técnico" visible en la captura)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Panel con fondo semitransparente sobre bg claro */
+html.a11y-theme-dark [class*="bg-slate"][class*="rounded"],
+html.a11y-theme-dark [class*="bg-gray"][class*="rounded"] {
+  background-color: var(--color-surface-2) !important;
+}
+
+/* Labels flotantes de filtros */
+html.a11y-theme-dark [class*="text-xs"][class*="font-semibold"],
+html.a11y-theme-dark [class*="text-xs"][class*="uppercase"] {
+  color: var(--color-text-muted) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COLORES ESPECÍFICOS QUE QUEDAN VISIBLES EN MODO OSCURO
+   (eventos del calendario, badges de estado)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Mantener legibilidad de badges de estado (Activo, Completada, etc.) */
+html.a11y-theme-dark .bg-green-500,
+html.a11y-theme-dark .bg-green-600,
+html.a11y-theme-dark .bg-emerald-500,
+html.a11y-theme-dark .bg-emerald-600 {
+  background-color: #065f46 !important;
+  color: #6ee7b7 !important;
+}
+
+html.a11y-theme-dark .bg-red-500,
+html.a11y-theme-dark .bg-red-600 {
+  background-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+
+html.a11y-theme-dark .bg-yellow-500,
+html.a11y-theme-dark .bg-amber-500 {
+  background-color: #78350f !important;
+  color: #fcd34d !important;
+}
+
+html.a11y-theme-dark .bg-blue-500,
+html.a11y-theme-dark .bg-blue-600 {
+  background-color: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+
+/* Gradiente de botón principal (from-cyan to-indigo) — excluye bg-clip-text */
+html.a11y-theme-dark .bg-gradient-to-tr.from-cyan-600.to-indigo-600:not([class*="bg-clip-text"]),
+html.a11y-theme-dark [class*="from-cyan-6"][class*="to-indigo-6"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5) {
+  background: linear-gradient(135deg, #164e63, #312e81) !important;
+  color: #e0f2fe !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CORRECCIÓN PARA TEXTO INVISIBLE
+   Cuando un elemento hereda color oscuro sobre fondo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Encabezados h1-h6 que no tienen clase de color explícita */
+html.a11y-theme-dark h1:not([class*="text-"]),
+html.a11y-theme-dark h2:not([class*="text-"]),
+html.a11y-theme-dark h3:not([class*="text-"]),
+html.a11y-theme-dark h4:not([class*="text-"]),
+html.a11y-theme-dark h5:not([class*="text-"]),
+html.a11y-theme-dark h6:not([class*="text-"]) {
+  color: var(--color-text-primary) !important;
+}
+
+/* Texto con clase de color explícita ya cubierta arriba;
+   pero por si acaso, cualquier elemento sin clase de color */
+html.a11y-theme-dark *:not([class*="text-"]):not(svg):not(path):not(circle):not(line):not(rect) {
+  color: inherit;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GRADIENTES DE FONDO DE PÁGINA — solo aplica a contenedores, NO a texto
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* from-white / via-white / to-white — solo en elementos que NO son texto con clip */
+html.a11y-theme-dark [class*="from-white"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5),
+html.a11y-theme-dark [class*="via-white"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5),
+html.a11y-theme-dark [class*="to-white"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5) {
+  background: var(--color-bg) !important;
+}
+
+/* from-cyan-50 / from-slate-50 en contenedores de página */
+html.a11y-theme-dark [class*="from-cyan-50"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5),
+html.a11y-theme-dark [class*="via-cyan-50"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5),
+html.a11y-theme-dark [class*="from-slate-50"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5),
+html.a11y-theme-dark [class*="via-slate-50"]:not([class*="bg-clip-text"]):not(span):not(h1):not(h2):not(h3):not(h4):not(h5) {
+  background: var(--color-bg) !important;
+}
+
+/* Gradientes de dirección (bg-gradient-to-b/br/r/tr) en divs contenedores.
+   EXCLUYE: span, headings, elementos con bg-clip-text → protege "RIDS.CL" */
+html.a11y-theme-dark div.bg-gradient-to-b:not([class*="bg-clip-text"]),
+html.a11y-theme-dark div.bg-gradient-to-br:not([class*="bg-clip-text"]),
+html.a11y-theme-dark div.bg-gradient-to-r:not([class*="bg-clip-text"]),
+html.a11y-theme-dark div.bg-gradient-to-tr:not([class*="bg-clip-text"]),
+html.a11y-theme-dark section.bg-gradient-to-b:not([class*="bg-clip-text"]),
+html.a11y-theme-dark section.bg-gradient-to-br:not([class*="bg-clip-text"]),
+html.a11y-theme-dark main.bg-gradient-to-b:not([class*="bg-clip-text"]),
+html.a11y-theme-dark main.bg-gradient-to-br:not([class*="bg-clip-text"]) {
+  background: var(--color-bg) !important;
+}
+
+/* ── Protección explícita del texto con gradiente decorativo ────────────────
+   bg-clip-text text-transparent from-cyan-600 to-indigo-600
+   → Se preserva el gradiente original. Esto anula cualquier regla anterior
+     que pudiera haberlo capturado. */
+html.a11y-theme-dark .bg-clip-text {
+  /* Dejar que el navegador renderice el gradiente original del texto */
+  background-color: unset !important;
+  background-image: unset !important;
+  /* Reaplicar el gradiente original (cyan → indigo, el más común en la app) */
+  background: linear-gradient(to right, #22d3ee, #818cf8) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BACKDROP / GLASS EFFECTS
+   bg-white/80 con backdrop-blur → superficie semitransparente oscura
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark .bg-white\/80,
+html.a11y-theme-dark .bg-white\/90,
+html.a11y-theme-dark .bg-white\/70,
+html.a11y-theme-dark .bg-white\/60,
+html.a11y-theme-dark .bg-white\/50 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+html.a11y-theme-dark [class*="bg-white\/"][class*="backdrop-blur"] {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABS / PILL NAVIGATION (patrón inline-flex rounded-2xl border bg-white p-1)
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark .inline-flex.rounded-2xl,
+html.a11y-theme-dark .inline-flex.rounded-xl {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Botón de tab inactivo */
+html.a11y-theme-dark .hover\:bg-cyan-50:not(.bg-cyan-600):not([class*="bg-cyan-7"]) {
+  color: var(--color-text-secondary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLA DE TÉCNICOS — elementos específicos
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Header de la tabla con gradiente cyan-50 a indigo-50 */
+html.a11y-theme-dark [class*="from-cyan-50"][class*="to-indigo-50"],
+html.a11y-theme-dark .bg-gradient-to-r.from-cyan-50.to-indigo-50 {
+  background: var(--color-surface-2) !important;
+}
+
+/* Filas alternas de la tabla */
+html.a11y-theme-dark .odd\:bg-white {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark .even\:bg-slate-50\/40 {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .hover\:bg-cyan-50\/60:hover {
+  background-color: rgba(8, 145, 178, 0.08) !important;
+}
+
+/* Avatar circular del técnico */
+html.a11y-theme-dark .bg-cyan-50 {
+  background-color: var(--color-accent-light) !important;
+}
+
+/* Header toolbar de la tabla (bg-cyan-50) */
+html.a11y-theme-dark .border-b.border-cyan-200.bg-cyan-50,
+html.a11y-theme-dark [class*="border-cyan-200"][class*="bg-cyan-50"] {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Footer de paginación */
+html.a11y-theme-dark .bg-slate-50\/60 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+/* Botones de paginación */
+html.a11y-theme-dark .border-cyan-200.bg-white {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+/* Número de página activo ya tiene bg-cyan-600 → se mantiene */
+/* Números inactivos */
+html.a11y-theme-dark .border-cyan-200.bg-white.text-cyan-800:not(.bg-cyan-600) {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL (componente Modal local de TecnicosPage)
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark .rounded-t-2xl.bg-white,
+html.a11y-theme-dark .rounded-2xl.border.bg-white.shadow-xl,
+html.a11y-theme-dark [class*="rounded"][class*="border-cyan-200"][class*="bg-white"] {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Sticky header del modal */
+html.a11y-theme-dark .sticky.top-0.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border-light) !important;
+}
+
+/* Backdrop del modal */
+html.a11y-theme-dark .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BADGES DE ROL — ring-1 con colores claros → ajustar para fondo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ADMIN */
+html.a11y-theme-dark .bg-red-50.text-red-700 {
+  background-color: #450a0a !important;
+  color: #fca5a5 !important;
+}
+
+html.a11y-theme-dark .ring-red-200 {
+  --tw-ring-color: #7f1d1d !important;
+}
+
+/* ADMINISTRACION */
+html.a11y-theme-dark .bg-orange-50.text-orange-700 {
+  background-color: #431407 !important;
+  color: #fdba74 !important;
+}
+
+html.a11y-theme-dark .ring-orange-200 {
+  --tw-ring-color: #9a3412 !important;
+}
+
+/* TECNICO */
+html.a11y-theme-dark .bg-indigo-50.text-indigo-700 {
+  background-color: #1e1b4b !important;
+  color: #a5b4fc !important;
+}
+
+html.a11y-theme-dark .ring-indigo-200 {
+  --tw-ring-color: #3730a3 !important;
+}
+
+/* VENTAS */
+html.a11y-theme-dark .bg-emerald-50.text-emerald-700 {
+  background-color: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+html.a11y-theme-dark .ring-emerald-200 {
+  --tw-ring-color: #065f46 !important;
+}
+
+/* Estado Activo/Inactivo */
+html.a11y-theme-dark .bg-emerald-50.text-emerald-700.ring-emerald-200 {
+  background-color: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+html.a11y-theme-dark .bg-rose-50.text-rose-700.ring-rose-200 {
+  background-color: #4c0519 !important;
+  color: #fda4af !important;
+}
+
+html.a11y-theme-dark .ring-rose-200 {
+  --tw-ring-color: #9f1239 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BOTONES DE ACCIÓN (Editar / Eliminar)
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark .border-emerald-200.text-emerald-700 {
+  border-color: #065f46 !important;
+  color: var(--color-success) !important;
+}
+
+html.a11y-theme-dark .border-emerald-200.text-emerald-700:hover,
+html.a11y-theme-dark .hover\:bg-emerald-50:hover {
+  background-color: #064e3b !important;
+}
+
+html.a11y-theme-dark .border-rose-200.text-rose-700 {
+  border-color: #9f1239 !important;
+  color: var(--color-error) !important;
+}
+
+html.a11y-theme-dark .border-rose-200.text-rose-700:hover,
+html.a11y-theme-dark .hover\:bg-rose-50:hover {
+  background-color: #4c0519 !important;
+}
+
+/* Botón recargar */
+html.a11y-theme-dark .border-cyan-200.text-cyan-800 {
+  border-color: var(--color-border) !important;
+  color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark .border-cyan-200.text-cyan-800:hover,
+html.a11y-theme-dark .hover\:bg-cyan-50:hover {
+  background-color: rgba(8, 145, 178, 0.1) !important;
+}
+
+/* bg-clip-text ya cubierto en la sección GRADIENTES DE FONDO DE PÁGINA arriba */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODALES CUSTOM EN MODO OSCURO
+   Corrige modales propios que no son completamente Ant Design.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .bg-white.rounded-2xl,
+html.a11y-theme-dark .bg-white.rounded-xl,
+html.a11y-theme-dark .bg-white.rounded-lg {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-b.bg-white,
+html.a11y-theme-dark .border-t.bg-white,
+html.a11y-theme-dark .sticky.bg-white,
+html.a11y-theme-dark .sticky.top-0.bg-white,
+html.a11y-theme-dark .sticky.bottom-0.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Headers y footers de modal */
+html.a11y-theme-dark [class*="modal"] .bg-white,
+html.a11y-theme-dark [role="dialog"] .bg-white {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Títulos dentro de modales */
+html.a11y-theme-dark [role="dialog"] h1,
+html.a11y-theme-dark [role="dialog"] h2,
+html.a11y-theme-dark [role="dialog"] h3,
+html.a11y-theme-dark [role="dialog"] h4,
+html.a11y-theme-dark [role="dialog"] p {
+  color: var(--color-text-primary) !important;
+}
+
+/* Textos secundarios dentro de modal */
+html.a11y-theme-dark [role="dialog"] .text-slate-400,
+html.a11y-theme-dark [role="dialog"] .text-slate-500,
+html.a11y-theme-dark [role="dialog"] .text-gray-400,
+html.a11y-theme-dark [role="dialog"] .text-gray-500 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Buscador dentro de modal */
+html.a11y-theme-dark [role="dialog"] input,
+html.a11y-theme-dark [role="dialog"] .ant-input,
+html.a11y-theme-dark [role="dialog"] .ant-input-affix-wrapper {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] input::placeholder,
+html.a11y-theme-dark [role="dialog"] .ant-input::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Cards seleccionables dentro del modal */
+html.a11y-theme-dark [role="dialog"] .border.rounded-xl,
+html.a11y-theme-dark [role="dialog"] .border.rounded-lg,
+html.a11y-theme-dark [role="dialog"] .rounded-xl.border,
+html.a11y-theme-dark [role="dialog"] .rounded-lg.border {
+  background-color: var(--color-bg) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Card hover */
+html.a11y-theme-dark [role="dialog"] .hover\:bg-slate-50:hover,
+html.a11y-theme-dark [role="dialog"] .hover\:bg-slate-100:hover,
+html.a11y-theme-dark [role="dialog"] .hover\:border-cyan-300:hover {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Nombre de empresa dentro de las cards */
+html.a11y-theme-dark [role="dialog"] .font-semibold,
+html.a11y-theme-dark [role="dialog"] .font-bold,
+html.a11y-theme-dark [role="dialog"] .font-medium {
+  color: var(--color-text-primary) !important;
+}
+
+/* Footer del modal */
+html.a11y-theme-dark [role="dialog"] .border-t,
+html.a11y-theme-dark [role="dialog"] .border-b {
+  border-color: var(--color-border) !important;
+}
+
+/* Botones secundarios dentro del modal */
+html.a11y-theme-dark [role="dialog"] button:not(.ant-btn-primary) {
+  color: var(--color-text-secondary);
+}
+
+/* Botón cancelar/deshabilitado */
+html.a11y-theme-dark [role="dialog"] button:disabled,
+html.a11y-theme-dark [role="dialog"] .ant-btn:disabled {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Scroll interno del modal */
+html.a11y-theme-dark [role="dialog"] ::-webkit-scrollbar-track {
+  background: var(--color-surface-2);
+}
+
+html.a11y-theme-dark [role="dialog"] ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INPUTS NATIVOS — DATE / TIME / DATETIME-LOCAL / COLOR
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark input[type="date"],
+html.a11y-theme-dark input[type="time"],
+html.a11y-theme-dark input[type="datetime-local"],
+html.a11y-theme-dark input[type="week"],
+html.a11y-theme-dark input[type="month"] {
+  /* Activa la variante oscura del picker nativo del SO */
+  color-scheme: dark;
+
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Icono de calendario / reloj */
+html.a11y-theme-dark input[type="date"]::-webkit-calendar-picker-indicator,
+html.a11y-theme-dark input[type="time"]::-webkit-calendar-picker-indicator,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+html.a11y-theme-dark input[type="week"]::-webkit-calendar-picker-indicator,
+html.a11y-theme-dark input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.85);
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+html.a11y-theme-dark input[type="date"]::-webkit-calendar-picker-indicator:hover,
+html.a11y-theme-dark input[type="time"]::-webkit-calendar-picker-indicator:hover,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Partes de texto internas (día, mes, año, hh, mm, separadores) */
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  background: transparent !important;
+}
+
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-text,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-text,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-text {
+  /* separadores "/" y ":" */
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-day-field,
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-month-field,
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-year-field,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-hour-field,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-minute-field,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-second-field,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-ampm-field,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-day-field,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-month-field,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-year-field,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-hour-field,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-minute-field,
+html.a11y-theme-dark input[type="month"]::-webkit-datetime-edit-month-field,
+html.a11y-theme-dark input[type="month"]::-webkit-datetime-edit-year-field {
+  color: var(--color-text-primary) !important;
+  border-radius: 3px;
+}
+
+/* Campo activo/seleccionado dentro del input */
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-day-field:focus,
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-month-field:focus,
+html.a11y-theme-dark input[type="date"]::-webkit-datetime-edit-year-field:focus,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-day-field:focus,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-month-field:focus,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-year-field:focus,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-hour-field:focus,
+html.a11y-theme-dark input[type="datetime-local"]::-webkit-datetime-edit-minute-field:focus,
+html.a11y-theme-dark input[type="month"]::-webkit-datetime-edit-month-field:focus,
+html.a11y-theme-dark input[type="month"]::-webkit-datetime-edit-year-field:focus {
+  background-color: var(--color-accent) !important;
+  color: #fff !important;
+}
+
+/* Placeholder "--" cuando el campo está vacío */
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-hour-field[aria-valuetext="--"],
+html.a11y-theme-dark input[type="time"]::-webkit-datetime-edit-minute-field[aria-valuetext="--"] {
+  color: var(--color-text-muted) !important;
+}
+
+/* ── input[type="month"] — selector mes/año ─────────────────────────────── */
+html.a11y-theme-dark input[type="month"] {
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INPUT[TYPE="COLOR"]
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input[type="color"] {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  padding: 2px;
+  cursor: pointer;
+}
+
+html.a11y-theme-dark input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+  border-radius: 4px;
+}
+
+html.a11y-theme-dark input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INPUT[TYPE="NUMBER"] — spinner arrows
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input[type="number"]::-webkit-inner-spin-button,
+html.a11y-theme-dark input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1) brightness(0.7);
+  opacity: 0.6;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INPUT[TYPE="RANGE"] — slider
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input[type="range"] {
+  accent-color: var(--color-accent);
+}
+
+html.a11y-theme-dark input[type="range"]::-webkit-slider-runnable-track {
+  background: var(--color-surface-3) !important;
+  border-radius: 99px;
+  height: 4px;
+}
+
+html.a11y-theme-dark input[type="range"]::-webkit-slider-thumb {
+  background: var(--color-accent) !important;
+  border: 2px solid var(--color-surface) !important;
+  border-radius: 50%;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INPUT[TYPE="CHECKBOX"] / [TYPE="RADIO"] — nativos
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input[type="checkbox"],
+html.a11y-theme-dark input[type="radio"] {
+  accent-color: var(--color-accent);
+  /* color-scheme hace que el borde y el fondo vacío usen la paleta oscura */
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SELECT NATIVO
+   ─────────────────────────────────────────────────────────────────────────
+   El <select> nativo tiene una flecha del sistema que también hay que teñir.
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark select {
+  color-scheme: dark;
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TEXTAREA NATIVO
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark textarea {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark textarea::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Resize handle */
+html.a11y-theme-dark textarea::-webkit-resizer {
+  filter: invert(1) brightness(0.6);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AUTOFILL — Chrome/Edge rellenan con fondo amarillo brillante por defecto
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input:-webkit-autofill,
+html.a11y-theme-dark input:-webkit-autofill:hover,
+html.a11y-theme-dark input:-webkit-autofill:focus,
+html.a11y-theme-dark select:-webkit-autofill,
+html.a11y-theme-dark textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-surface-2) inset !important;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
+  caret-color: var(--color-text-primary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FOCUS RING — todos los inputs en dark mode
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input:focus,
+html.a11y-theme-dark select:focus,
+html.a11y-theme-dark textarea:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DISABLED STATE
+   ══════════════════════════════════════════════════════════════════════════ */
+html.a11y-theme-dark input:disabled,
+html.a11y-theme-dark select:disabled,
+html.a11y-theme-dark textarea:disabled {
+  background-color: var(--color-surface-3) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border-light) !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Sufijo/prefijo de ant-input en dark mode */
+html.a11y-theme-dark .ant-input-suffix,
+html.a11y-theme-dark .ant-input-prefix {
+  color: var(--color-text-muted) !important;
+  background-color: transparent !important;
+}
+
+html.a11y-theme-dark .ant-input-affix-wrapper {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-input-affix-wrapper>input.ant-input {
+  background-color: transparent !important;
+}
+
+/* Input group addon (ej: "GB" al lado del campo RAM) */
+html.a11y-theme-dark .ant-input-group-addon {
+  background-color: var(--color-surface-3) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .ant-input-group>.ant-input {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-select-selection-placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 1 !important;
+}
+
+html.a11y-theme-dark .ant-select:not(.ant-select-disabled) .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-select-focused .ant-select-selector {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15) !important;
+}
+
+html.a11y-theme-dark .ant-input-suffix .anticon,
+html.a11y-theme-dark .ant-input-prefix .anticon {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-input-clear-icon {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-input-clear-icon:hover {
+  color: var(--color-text-secondary) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EQUIPOS PAGE — badges de marca, empresa y filas de tabla
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Fondos de badges claros que no tienen regla específica */
+html.a11y-theme-dark .bg-teal-50 {
+  background-color: #042f2e !important;
+}
+
+html.a11y-theme-dark .bg-sky-50 {
+  background-color: #082f49 !important;
+}
+
+html.a11y-theme-dark .bg-cyan-50 {
+  background-color: var(--color-accent-light) !important;
+}
+
+html.a11y-theme-dark .bg-orange-50 {
+  background-color: #431407 !important;
+}
+
+html.a11y-theme-dark .bg-lime-50 {
+  background-color: #1a2e05 !important;
+}
+
+html.a11y-theme-dark .bg-green-50 {
+  background-color: #052e16 !important;
+}
+
+html.a11y-theme-dark .bg-fuchsia-50 {
+  background-color: #2d1b45 !important;
+}
+
+html.a11y-theme-dark .bg-pink-50 {
+  background-color: #3b0a2a !important;
+}
+
+html.a11y-theme-dark .bg-red-50 {
+  background-color: #450a0a !important;
+}
+
+html.a11y-theme-dark .bg-neutral-50 {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .bg-slate-50 {
+  background-color: var(--color-surface-2) !important;
+}
+
+/* Textos de badges — versiones oscuras de cada color */
+html.a11y-theme-dark .text-teal-900 {
+  color: #99f6e4 !important;
+}
+
+html.a11y-theme-dark .text-sky-900 {
+  color: #bae6fd !important;
+}
+
+html.a11y-theme-dark .text-cyan-900 {
+  color: #a5f3fc !important;
+}
+
+html.a11y-theme-dark .text-orange-900 {
+  color: #fed7aa !important;
+}
+
+html.a11y-theme-dark .text-lime-900 {
+  color: #d9f99d !important;
+}
+
+html.a11y-theme-dark .text-green-900 {
+  color: #bbf7d0 !important;
+}
+
+html.a11y-theme-dark .text-fuchsia-900 {
+  color: #f0abfc !important;
+}
+
+html.a11y-theme-dark .text-pink-900 {
+  color: #fbcfe8 !important;
+}
+
+html.a11y-theme-dark .text-red-900 {
+  color: #fecaca !important;
+}
+
+html.a11y-theme-dark .text-neutral-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Bordes de badges */
+html.a11y-theme-dark .border-teal-200 {
+  border-color: #115e59 !important;
+}
+
+html.a11y-theme-dark .border-sky-200 {
+  border-color: #0c4a6e !important;
+}
+
+html.a11y-theme-dark .border-orange-200 {
+  border-color: #9a3412 !important;
+}
+
+html.a11y-theme-dark .border-lime-200 {
+  border-color: #365314 !important;
+}
+
+html.a11y-theme-dark .border-green-200 {
+  border-color: #14532d !important;
+}
+
+html.a11y-theme-dark .border-fuchsia-200 {
+  border-color: #6b21a8 !important;
+}
+
+html.a11y-theme-dark .border-pink-200 {
+  border-color: #831843 !important;
+}
+
+html.a11y-theme-dark .border-red-200 {
+  border-color: #991b1b !important;
+}
+
+html.a11y-theme-dark .border-neutral-200 {
+  border-color: var(--color-border) !important;
+}
+
+/* Filas de tabla coloreadas por empresa (companyRowTheme) */
+html.a11y-theme-dark .bg-cyan-50\/60 {
+  background-color: rgba(8, 145, 178, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-sky-50\/60 {
+  background-color: rgba(14, 116, 144, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-teal-50\/60 {
+  background-color: rgba(20, 184, 166, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-indigo-50\/60 {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-rose-50\/60 {
+  background-color: rgba(244, 63, 94, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-amber-50\/60 {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-lime-50\/60 {
+  background-color: rgba(132, 204, 22, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-fuchsia-50\/60 {
+  background-color: rgba(217, 70, 239, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-emerald-50\/60 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-blue-50\/60 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+html.a11y-theme-dark .bg-violet-50\/60 {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+
+/* Hover sobre filas coloreadas */
+html.a11y-theme-dark .hover\:bg-cyan-50\/70:hover {
+  background-color: rgba(8, 145, 178, 0.12) !important;
+}
+
+/* Panel "Actividad por técnico" */
+html.a11y-theme-dark .bg-indigo-50\/40 {
+  background-color: rgba(99, 102, 241, 0.06) !important;
+}
+
+html.a11y-theme-dark .border-indigo-100 {
+  border-color: #3730a3 !important;
+}
+
+/* Sección accesos (bg-amber-50) */
+html.a11y-theme-dark .border-amber-200 {
+  border-color: #92400e !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL NUEVA VISITA / EDITAR VISITA (CreateVisitaModal)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Fondo principal del modal — bg-white/90 */
+html.a11y-theme-dark .bg-white\/90 {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Header del modal — from-cyan-50/60 to-white */
+html.a11y-theme-dark .from-cyan-50\/60 {
+  --tw-gradient-from: rgba(8, 145, 178, 0.08) !important;
+}
+
+html.a11y-theme-dark .to-white {
+  --tw-gradient-to: var(--color-surface) !important;
+}
+
+/* Footer del modal — bg-white/80 */
+html.a11y-theme-dark .bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+/* Fieldsets internos — bg-white/70 */
+html.a11y-theme-dark .bg-white\/70 {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+}
+
+/* Bordes de fieldset */
+html.a11y-theme-dark .border-neutral-200 {
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-neutral-300 {
+  border-color: var(--color-border) !important;
+}
+
+/* Textos neutros */
+html.a11y-theme-dark .text-neutral-900 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-neutral-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-neutral-500 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Inputs y selects dentro del modal */
+html.a11y-theme-dark .border-neutral-300.bg-white {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Placeholder */
+html.a11y-theme-dark .placeholder-neutral-400::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Hover en opciones del select */
+html.a11y-theme-dark .hover\:bg-neutral-50:hover {
+  background-color: var(--color-surface-2) !important;
+}
+
+/* Chips de solicitantes seleccionados */
+html.a11y-theme-dark .bg-emerald-50 {
+  background-color: #064e3b !important;
+}
+
+html.a11y-theme-dark .text-emerald-800 {
+  color: #6ee7b7 !important;
+}
+
+html.a11y-theme-dark .border-emerald-200 {
+  border-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .bg-emerald-200 {
+  background-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .hover\:bg-emerald-100:hover {
+  background-color: #064e3b !important;
+}
+
+/* Ring del backdrop */
+html.a11y-theme-dark .ring-cyan-100 {
+  --tw-ring-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-cyan-100\/60 {
+  border-color: rgba(21, 94, 117, 0.4) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DASHBOARD SOLICITANTES (SolicitantesDashboardTab)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .bg-gray-50 {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .bg-gray-100 {
+  background-color: var(--color-surface-3) !important;
+}
+
+html.a11y-theme-dark .border-gray-100 {
+  border-color: var(--color-border-light) !important;
+}
+
+html.a11y-theme-dark .border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-gray-500 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-gray-400 {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .text-gray-300 {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .hover\:bg-gray-50:hover {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .bg-gray-50\/60 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+html.a11y-theme-dark .bg-gray-50\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* Badge "Carga inicial" — bg-amber-100 */
+html.a11y-theme-dark .bg-amber-100 {
+  background-color: #451a03 !important;
+}
+
+html.a11y-theme-dark .text-amber-700 {
+  color: #fcd34d !important;
+}
+
+html.a11y-theme-dark .text-amber-600 {
+  color: #fbbf24 !important;
+}
+
+/* Badge "24 empresas" — bg-blue-50 text-blue-700 */
+html.a11y-theme-dark .bg-blue-50 {
+  background-color: #1e3a5f !important;
+}
+
+html.a11y-theme-dark .text-blue-700 {
+  color: #60a5fa !important;
+}
+
+/* Panel detalle nuevos — bg-emerald-50/60 border-emerald-100/200 */
+html.a11y-theme-dark .bg-emerald-50\/60 {
+  background-color: rgba(6, 78, 59, 0.4) !important;
+}
+
+html.a11y-theme-dark .border-emerald-100 {
+  border-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .text-emerald-800 {
+  color: #6ee7b7 !important;
+}
+
+html.a11y-theme-dark .text-emerald-400 {
+  color: #34d399 !important;
+}
+
+html.a11y-theme-dark .text-emerald-600 {
+  color: var(--color-success) !important;
+}
+
+/* Panel detalle bajas — bg-rose-50/60 border-rose-100/200 */
+html.a11y-theme-dark .bg-rose-50\/60 {
+  background-color: rgba(76, 5, 25, 0.4) !important;
+}
+
+html.a11y-theme-dark .border-rose-100 {
+  border-color: #9f1239 !important;
+}
+
+html.a11y-theme-dark .text-rose-800 {
+  color: #fda4af !important;
+}
+
+html.a11y-theme-dark .text-rose-400 {
+  color: #fb7185 !important;
+}
+
+html.a11y-theme-dark .text-rose-500,
+html.a11y-theme-dark .text-rose-600 {
+  color: var(--color-error) !important;
+}
+
+/* Selector de mes y botones de métrica */
+html.a11y-theme-dark .border-gray-200.bg-white {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Barras de distribución (bg-gray-100) */
+html.a11y-theme-dark .bg-gray-100.rounded-full {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL CREAR EQUIPO (CrearEquipoModal)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Wrapper principal del formulario — bg-white/90 backdrop-blur */
+html.a11y-theme-dark .bg-white\/90[class*="backdrop-blur"] {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Borde del wrapper — border-cyan-100 */
+html.a11y-theme-dark .border-cyan-100 {
+  border-color: #155e75 !important;
+}
+
+/* Sección Contexto — bg-slate-50/60 border-slate-200/60 */
+html.a11y-theme-dark .bg-slate-50\/60 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+html.a11y-theme-dark .border-slate-200\/60 {
+  border-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+/* Secciones Especificaciones / Detalles — bg-white border-slate-200/60 */
+html.a11y-theme-dark .rounded-xl.border.bg-white.p-3,
+html.a11y-theme-dark .rounded-xl.border.bg-white.p-4,
+html.a11y-theme-dark .rounded-xl[class*="border-slate-200\/60"][class*="bg-white"] {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Stepper pills — bg-white ring-1 ring-black/5 */
+html.a11y-theme-dark .rounded-full.bg-white[class*="ring-1"] {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  --tw-ring-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Dot inactivo del stepper */
+html.a11y-theme-dark .bg-slate-300 {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* Separador del stepper — h-px bg-slate-300 */
+html.a11y-theme-dark .h-px.bg-slate-300,
+html.a11y-theme-dark .h-px.w-6.bg-slate-300 {
+  background-color: var(--color-border) !important;
+}
+
+/* Chip "Completa los campos requeridos" — bg-cyan-50 text-slate-700 */
+html.a11y-theme-dark .bg-cyan-50.text-slate-700 {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+/* Chip "Empresa seleccionada" — bg-green-50 text-green-700 */
+html.a11y-theme-dark .bg-green-50 {
+  background-color: #052e16 !important;
+}
+
+html.a11y-theme-dark .text-green-700 {
+  color: #4ade80 !important;
+}
+
+/* Texto del título del modal — text-slate-900 */
+html.a11y-theme-dark .font-semibold.text-slate-900 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Labels de secciones — text-slate-700 font-medium */
+html.a11y-theme-dark .text-slate-700.font-medium {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Texto de ayuda debajo de campos */
+html.a11y-theme-dark .text-xs.text-slate-500 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Labels de subsecciones uppercase — text-slate-500 uppercase */
+html.a11y-theme-dark .text-xs.font-semibold.text-slate-500 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Cards de adicionales — bg-slate-50 border-slate-200 */
+html.a11y-theme-dark .rounded-2xl.border.border-slate-200.bg-slate-50 {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Blobs decorativos — no deben ser visibles en dark */
+html.a11y-theme-dark .from-sky-200\/40 {
+  --tw-gradient-from: rgba(8, 145, 178, 0.04) !important;
+}
+
+html.a11y-theme-dark .to-violet-200\/40 {
+  --tw-gradient-to: rgba(139, 92, 246, 0.04) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EQUIPOS PAGE — HISTORIAL DE EQUIPOS EN MODO OSCURO
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Contenedor general del historial dentro del modal */
+html.a11y-theme-dark [role="dialog"] h3+button+*,
+html.a11y-theme-dark [role="dialog"] .p-5.space-y-3 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Header interno: "Historial equipo #..." */
+html.a11y-theme-dark [role="dialog"] .px-5.py-4.border-b.border-cyan-100 {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .px-5.py-4.border-b.border-cyan-100 h3 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Línea vertical del timeline */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 {
+  border-left-color: #475569 !important;
+}
+
+/* Punto del timeline */
+html.a11y-theme-dark [role="dialog"] .absolute.left-\[-6px\].top-2.w-3.h-3.rounded-full.bg-indigo-500 {
+  background-color: #818cf8 !important;
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.16) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .absolute.left-\[-6px\].top-2.w-3.h-3.rounded-full.bg-emerald-500 {
+  background-color: #34d399 !important;
+  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.16) !important;
+}
+
+/* Card de cada evento del historial */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6>.rounded-xl.border.border-slate-200.bg-white.px-4.py-3.shadow-sm {
+  background-color: #020617 !important;
+  border-color: #334155 !important;
+  color: var(--color-text-primary) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24) !important;
+}
+
+/* Hover visual suave */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6>.rounded-xl.border.border-slate-200.bg-white.px-4.py-3.shadow-sm:hover {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+}
+
+/* Badge de acción: Equipo actualizado / CREATE / DELETE */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 span.rounded-full.text-\[10px\].font-semibold {
+  background-color: #1e293b !important;
+  color: #e0f2fe !important;
+  border: 1px solid #475569 !important;
+}
+
+/* Badge CREATE */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .bg-emerald-100.text-emerald-700 {
+  background-color: #064e3b !important;
+  color: #6ee7b7 !important;
+  border-color: #047857 !important;
+}
+
+/* Badge UPDATE */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .bg-indigo-100.text-indigo-700 {
+  background-color: #1e1b4b !important;
+  color: #c4b5fd !important;
+  border-color: #3730a3 !important;
+}
+
+/* Badge DELETE */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .bg-rose-100.text-rose-700 {
+  background-color: #4c0519 !important;
+  color: #fda4af !important;
+  border-color: #9f1239 !important;
+}
+
+/* Fecha del historial */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .text-xs.text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Texto "Actualizado por" / "Creado por" */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 b {
+  color: #f8fafc !important;
+  font-weight: 700 !important;
+}
+
+/* Usuario */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .mt-1.text-xs {
+  color: #cbd5e1 !important;
+}
+
+/* Nombre del campo: Estado, Año PC, Origen Año PC */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .font-semibold.text-slate-700.min-w-\[140px\] {
+  color: #f8fafc !important;
+  font-weight: 700 !important;
+}
+
+/* Valor anterior */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .text-slate-500.font-mono {
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 999px !important;
+  padding: 2px 8px !important;
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border: 1px solid #334155 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+/* Flecha */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .text-slate-400.mx-1 {
+  color: #94a3b8 !important;
+  padding: 0 4px !important;
+}
+
+/* Valor nuevo */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .text-slate-900.font-mono.font-semibold {
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 999px !important;
+  padding: 2px 8px !important;
+  background-color: #064e3b !important;
+  color: #6ee7b7 !important;
+  border: 1px solid #047857 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+}
+
+/* Mensaje "Sin cambios relevantes" */
+html.a11y-theme-dark [role="dialog"] .relative.pl-6.border-l.border-slate-200.pb-6 .italic {
+  color: #94a3b8 !important;
+}
+
+/* Loading / sin historial */
+html.a11y-theme-dark [role="dialog"] .p-5.space-y-3>.text-sm.text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+/* Error de historial */
+html.a11y-theme-dark [role="dialog"] .p-5.space-y-3>.text-sm.text-rose-700 {
+  color: #fda4af !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EQUIPOS PAGE — corrección visibilidad badges de marca
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Textos faltantes en chips de marca/empresa */
+html.a11y-theme-dark .text-blue-900 {
+  color: #bfdbfe !important;
+}
+
+html.a11y-theme-dark .text-indigo-900 {
+  color: #c7d2fe !important;
+}
+
+html.a11y-theme-dark .text-violet-900 {
+  color: #ddd6fe !important;
+}
+
+html.a11y-theme-dark .text-rose-900 {
+  color: #fecdd3 !important;
+}
+
+html.a11y-theme-dark .text-amber-900 {
+  color: #fde68a !important;
+}
+
+html.a11y-theme-dark .text-slate-900 {
+  color: #e2e8f0 !important;
+}
+
+html.a11y-theme-dark .text-emerald-900 {
+  color: #a7f3d0 !important;
+}
+
+/* Fondos más legibles para chips específicos */
+html.a11y-theme-dark .bg-slate-50 {
+  background-color: #1e293b !important;
+}
+
+html.a11y-theme-dark .bg-blue-50 {
+  background-color: #172554 !important;
+}
+
+html.a11y-theme-dark .bg-indigo-50 {
+  background-color: #1e1b4b !important;
+}
+
+html.a11y-theme-dark .bg-violet-50 {
+  background-color: #2e1065 !important;
+}
+
+html.a11y-theme-dark .bg-rose-50 {
+  background-color: #4c0519 !important;
+}
+
+html.a11y-theme-dark .bg-amber-50 {
+  background-color: #451a03 !important;
+}
+
+html.a11y-theme-dark .bg-emerald-50 {
+  background-color: #064e3b !important;
+}
+
+/* Bordes faltantes */
+html.a11y-theme-dark .border-slate-300 {
+  border-color: #475569 !important;
+}
+
+html.a11y-theme-dark .border-indigo-200 {
+  border-color: #3730a3 !important;
+}
+
+html.a11y-theme-dark .border-violet-200 {
+  border-color: #5b21b6 !important;
+}
+
+html.a11y-theme-dark .border-rose-200 {
+  border-color: #9f1239 !important;
+}
+
+html.a11y-theme-dark .border-amber-200 {
+  border-color: #92400e !important;
+}
+
+/* Aplica específicamente a botones de marca para evitar herencias raras */
+html.a11y-theme-dark td button.rounded-full[class*="bg-"][class*="text-"] {
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+html.a11y-theme-dark td button.rounded-full[class*="bg-"][class*="text-"] span,
+html.a11y-theme-dark td button.rounded-full[class*="bg-"][class*="text-"] .anticon {
+  color: inherit !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ÓRDENES DE TALLER — filtros rápidos en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Panel superior */
+html.a11y-theme-dark .rounded-3xl.border.border-cyan-200.bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Buscador de órdenes */
+html.a11y-theme-dark input[placeholder*="Buscar por N° orden"] {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark input[placeholder*="Buscar por N° orden"]::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark input[placeholder*="Buscar por N° orden"]:focus {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.16) !important;
+}
+
+/* Botones inactivos de filtros Estado */
+html.a11y-theme-dark button.bg-white.text-cyan-700.border-cyan-200 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-accent) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark button.bg-white.text-cyan-700.border-cyan-200:hover {
+  background-color: rgba(8, 145, 178, 0.14) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Botones inactivos de filtros Área */
+html.a11y-theme-dark button.bg-white.text-indigo-700.border-indigo-200 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-remotas) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark button.bg-white.text-indigo-700.border-indigo-200:hover {
+  background-color: rgba(99, 102, 241, 0.14) !important;
+  border-color: var(--color-remotas) !important;
+}
+
+/* Botón activo Estado */
+html.a11y-theme-dark button.bg-cyan-600.text-white.border-cyan-600 {
+  background-color: #0891b2 !important;
+  border-color: #22d3ee !important;
+  color: #ecfeff !important;
+}
+
+/* Botón activo Área */
+html.a11y-theme-dark button.bg-indigo-600.text-white.border-indigo-600 {
+  background-color: #4f46e5 !important;
+  border-color: #818cf8 !important;
+  color: #eef2ff !important;
+}
+
+/* Contadores internos inactivos */
+html.a11y-theme-dark button .bg-cyan-100.text-cyan-700 {
+  background-color: #164e63 !important;
+  color: #a5f3fc !important;
+}
+
+html.a11y-theme-dark button .bg-indigo-100.text-indigo-700 {
+  background-color: #312e81 !important;
+  color: #c7d2fe !important;
+}
+
+/* Contadores internos activos */
+html.a11y-theme-dark button .bg-white\/20.text-white {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+/* Select empresa/técnico dentro de filtros */
+html.a11y-theme-dark .custom-empresa-select .ant-select-selector,
+html.a11y-theme-dark .mt-4.flex.flex-wrap.gap-4.items-center .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .custom-empresa-select .ant-select-selection-item,
+html.a11y-theme-dark .mt-4.flex.flex-wrap.gap-4.items-center .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .custom-empresa-select .ant-select-selection-placeholder,
+html.a11y-theme-dark .mt-4.flex.flex-wrap.gap-4.items-center .ant-select-selection-placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .custom-empresa-select .ant-select-arrow,
+html.a11y-theme-dark .mt-4.flex.flex-wrap.gap-4.items-center .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+}
+
+/* Dropdown de Select en modo oscuro */
+html.a11y-theme-dark .ant-select-dropdown {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+html.a11y-theme-dark .ant-select-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: rgba(8, 145, 178, 0.18) !important;
+  color: var(--color-accent) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DASHBOARD TICKETS — porcentaje ≤ 8h
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .bg-emerald-50.text-emerald-700.border-emerald-200 {
+  background-color: rgba(6, 78, 59, 0.55) !important;
+  color: #6ee7b7 !important;
+  border-color: #047857 !important;
+}
+
+html.a11y-theme-dark .bg-amber-50.text-amber-700.border-amber-200 {
+  background-color: rgba(69, 26, 3, 0.65) !important;
+  color: #fcd34d !important;
+  border-color: #92400e !important;
+}
+
+html.a11y-theme-dark .bg-rose-50.text-rose-700.border-rose-200 {
+  background-color: rgba(76, 5, 25, 0.65) !important;
+  color: #fda4af !important;
+  border-color: #9f1239 !important;
+}
+
+html.a11y-theme-dark .bg-emerald-500 {
+  background-color: #34d399 !important;
+}
+
+html.a11y-theme-dark .bg-amber-500 {
+  background-color: #fbbf24 !important;
+}
+
+html.a11y-theme-dark .bg-rose-500 {
+  background-color: #fb7185 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONFIGURACIÓN TICKETS — editor de respuestas / plantillas en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Contenedores comunes de configuración */
+html.a11y-theme-dark .ticket-config,
+html.a11y-theme-dark .tickets-config,
+html.a11y-theme-dark .email-template-config,
+html.a11y-theme-dark .response-config,
+html.a11y-theme-dark .template-editor,
+html.a11y-theme-dark .editor-wrapper {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Editor TipTap / ProseMirror */
+html.a11y-theme-dark .ProseMirror,
+html.a11y-theme-dark .tiptap,
+html.a11y-theme-dark [contenteditable="true"],
+html.a11y-theme-dark .editor-content,
+html.a11y-theme-dark .editor-body,
+html.a11y-theme-dark .email-editor,
+html.a11y-theme-dark .template-preview {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Texto dentro del editor */
+html.a11y-theme-dark .ProseMirror *,
+html.a11y-theme-dark .tiptap *,
+html.a11y-theme-dark [contenteditable="true"] *,
+html.a11y-theme-dark .editor-content *,
+html.a11y-theme-dark .editor-body *,
+html.a11y-theme-dark .email-editor *,
+html.a11y-theme-dark .template-preview * {
+  color: var(--color-text-primary) !important;
+}
+
+/* Párrafos y listas del editor */
+html.a11y-theme-dark .ProseMirror p,
+html.a11y-theme-dark .ProseMirror li,
+html.a11y-theme-dark .ProseMirror span,
+html.a11y-theme-dark .tiptap p,
+html.a11y-theme-dark .tiptap li,
+html.a11y-theme-dark .tiptap span,
+html.a11y-theme-dark [contenteditable="true"] p,
+html.a11y-theme-dark [contenteditable="true"] li,
+html.a11y-theme-dark [contenteditable="true"] span {
+  color: var(--color-text-primary) !important;
+}
+
+/* Placeholder de TipTap */
+html.a11y-theme-dark .ProseMirror p.is-editor-empty:first-child::before,
+html.a11y-theme-dark .tiptap p.is-editor-empty:first-child::before,
+html.a11y-theme-dark [contenteditable="true"] p.is-editor-empty:first-child::before {
+  color: var(--color-text-muted) !important;
+}
+
+/* Links dentro del editor */
+html.a11y-theme-dark .ProseMirror a,
+html.a11y-theme-dark .tiptap a,
+html.a11y-theme-dark [contenteditable="true"] a,
+html.a11y-theme-dark .template-preview a {
+  color: var(--color-accent) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Variables tipo {{nombre}}, {{ticketId}}, etc. */
+html.a11y-theme-dark .ProseMirror code,
+html.a11y-theme-dark .tiptap code,
+html.a11y-theme-dark [contenteditable="true"] code,
+html.a11y-theme-dark .template-preview code,
+html.a11y-theme-dark .variable-chip,
+html.a11y-theme-dark .template-variable {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent) !important;
+  border-color: #155e75 !important;
+}
+
+/* Toolbar del editor */
+html.a11y-theme-dark .editor-toolbar,
+html.a11y-theme-dark .tiptap-toolbar,
+html.a11y-theme-dark .template-toolbar,
+html.a11y-theme-dark .ProseMirror-menubar {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Botones de toolbar */
+html.a11y-theme-dark .editor-toolbar button,
+html.a11y-theme-dark .tiptap-toolbar button,
+html.a11y-theme-dark .template-toolbar button,
+html.a11y-theme-dark .ProseMirror-menubar button {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Botón activo de toolbar */
+html.a11y-theme-dark .editor-toolbar button.is-active,
+html.a11y-theme-dark .tiptap-toolbar button.is-active,
+html.a11y-theme-dark .template-toolbar button.is-active,
+html.a11y-theme-dark .ProseMirror-menubar button.is-active,
+html.a11y-theme-dark .editor-toolbar button[aria-pressed="true"],
+html.a11y-theme-dark .tiptap-toolbar button[aria-pressed="true"] {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Preview HTML de plantilla */
+html.a11y-theme-dark iframe,
+html.a11y-theme-dark .template-iframe,
+html.a11y-theme-dark .email-preview,
+html.a11y-theme-dark .html-preview {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Cajas de ayuda / descripción */
+html.a11y-theme-dark .help-text,
+html.a11y-theme-dark .template-help,
+html.a11y-theme-dark .config-description,
+html.a11y-theme-dark .response-description {
+  color: var(--color-text-muted) !important;
+}
+
+/* Cards o paneles dentro de configuración */
+html.a11y-theme-dark .rounded-xl.border.bg-white,
+html.a11y-theme-dark .rounded-2xl.border.bg-white,
+html.a11y-theme-dark .rounded-lg.border.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Inputs de asunto / nombre de plantilla */
+html.a11y-theme-dark input[name*="subject"],
+html.a11y-theme-dark input[name*="asunto"],
+html.a11y-theme-dark input[placeholder*="Asunto"],
+html.a11y-theme-dark input[placeholder*="asunto"],
+html.a11y-theme-dark input[placeholder*="Subject"],
+html.a11y-theme-dark input[placeholder*="subject"] {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FACTURAS SII / BASE API — header en modo oscuro
+   Corrige título "Facturas SII" y textos del encabezado
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Header principal de Facturas SII */
+html.a11y-theme-dark [class*="facturas"] h1,
+html.a11y-theme-dark [class*="facturas"] h2,
+html.a11y-theme-dark [class*="facturas"] h3,
+html.a11y-theme-dark [class*="baseapi"] h1,
+html.a11y-theme-dark [class*="baseapi"] h2,
+html.a11y-theme-dark [class*="baseapi"] h3 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Por si el título no tiene clase identificable, cubrir títulos dentro de cards oscuras */
+html.a11y-theme-dark .rounded-2xl.border h1,
+html.a11y-theme-dark .rounded-2xl.border h2,
+html.a11y-theme-dark .rounded-3xl.border h1,
+html.a11y-theme-dark .rounded-3xl.border h2 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Texto descriptivo bajo "Facturas SII" */
+html.a11y-theme-dark [class*="facturas"] p,
+html.a11y-theme-dark [class*="baseapi"] p,
+html.a11y-theme-dark .rounded-3xl.border p {
+  color: var(--color-text-secondary) !important;
+}
+
+/* Badges superiores: Registro de Compras y Ventas / Ventas */
+html.a11y-theme-dark .rounded-full.bg-cyan-100,
+html.a11y-theme-dark .rounded-full.bg-cyan-50 {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent) !important;
+  border-color: #155e75 !important;
+}
+
+html.a11y-theme-dark .rounded-full.bg-indigo-100,
+html.a11y-theme-dark .rounded-full.bg-indigo-50 {
+  background-color: #1e1b4b !important;
+  color: #c7d2fe !important;
+  border-color: #3730a3 !important;
+}
+
+/* Cards pequeñas EMPRESA / PERIODO */
+html.a11y-theme-dark .rounded-xl.border.border-cyan-200,
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .rounded-xl.border.border-cyan-200 .text-cyan-600,
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 .text-cyan-600 {
+  color: var(--color-accent) !important;
+}
+
+/* Tabs Documentos RCV / Dashboard RCV / Conciliación RCV */
+html.a11y-theme-dark button[class*="bg-white"],
+html.a11y-theme-dark .rounded-xl button,
+html.a11y-theme-dark .rounded-2xl button {
+  border-color: var(--color-border) !important;
+}
+
+/* Texto secundario derecha: documentos cargados */
+html.a11y-theme-dark .text-slate-400,
+html.a11y-theme-dark .text-slate-500 {
+  color: var(--color-text-muted) !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SIDEBAR / HEADER — LOGO ADAPTATIVO AL MODO OSCURO
+   ─────────────────────────────────────────────────────────────────────────
+   El logo del sidebar suele ser una imagen PNG con fondo claro o un SVG
+   que hereda colores claros. Estas reglas cubren los tres casos posibles:
+     1. <img> con logo PNG/JPG sobre fondo claro → filter invert/brightness
+     2. SVG inline con paths oscuros → fill/stroke al color apropiado
+     3. Contenedor del logo con fondo blanco → fondo transparente
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Contenedor del logo en el sidebar ──────────────────────────────────── */
+/* Cubre divs wrapper con clases típicas de sidebar headers */
+html.a11y-theme-dark header img[alt*="logo" i],
+html.a11y-theme-dark header img[alt*="rids" i],
+html.a11y-theme-dark header img[src*="logo" i],
+html.a11y-theme-dark header img[src*="rids" i],
+html.a11y-theme-dark nav img[alt*="logo" i],
+html.a11y-theme-dark nav img[alt*="rids" i],
+html.a11y-theme-dark nav img[src*="logo" i],
+html.a11y-theme-dark nav img[src*="rids" i],
+html.a11y-theme-dark aside img[alt*="logo" i],
+html.a11y-theme-dark aside img[src*="logo" i],
+/* Selector de alcance máximo: cualquier imagen de logo en la sidebar */
+html.a11y-theme-dark [class*="sidebar"] img,
+html.a11y-theme-dark [class*="header"] img[src*="logo" i],
+html.a11y-theme-dark [class*="header"] img[src*="rids" i],
+html.a11y-theme-dark [id*="sidebar"] img,
+html.a11y-theme-dark [class*="Header"] img {
+  /*
+    filter explicado:
+      invert(1)          → invierte todos los colores (negro→blanco, blanco→negro)
+      hue-rotate(180deg) → corrige el tinte que produce invert en colores de marca
+      brightness(0.85)   → baja ligeramente el brillo para no quemar
+      saturate(1.2)      → recupera la saturación que se pierde con invert
+ 
+    Para logos con fondo transparente y texto/ícono oscuro, invert(1) es
+    suficiente y produce texto/ícono blanco sobre fondo transparente.
+ 
+    Si el logo ya tiene colores bien definidos y fondo transparente,
+    usar solo brightness(2) puede ser más fiel al diseño original.
+  */
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) saturate(1.1) !important;
+  /* Asegura que el fondo del img en sí sea transparente */
+  background-color: transparent !important;
+}
+
+/* ── Excepción: imágenes que NO son logos (avatares, flags, etc.) ─────────
+   Se excluyen imágenes de usuario (avatars) y banderas para no distorsionarlas.
+   Agregar más excepciones aquí si aparecen imágenes de producto, etc.
+*/
+html.a11y-theme-dark img[class*="avatar"],
+html.a11y-theme-dark img[class*="Avatar"],
+html.a11y-theme-dark img[alt*="avatar" i],
+html.a11y-theme-dark img[alt*="usuario" i],
+html.a11y-theme-dark img[alt*="user" i],
+html.a11y-theme-dark img[alt*="foto" i],
+html.a11y-theme-dark img[alt*="profile" i],
+html.a11y-theme-dark img[class*="flag"],
+html.a11y-theme-dark img[class*="Flag"],
+/* Imágenes dentro de tablas → no invertir (equipos, productos, etc.) */
+html.a11y-theme-dark td img,
+html.a11y-theme-dark .ant-table img {
+  filter: none !important;
+}
+
+/* ── SVG inline del logo ─────────────────────────────────────────────────
+   Si el logo es un <svg> embebido directamente en el JSX del Header,
+   los paths con color oscuro necesitan cambiar a blanco.
+*/
+html.a11y-theme-dark header svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]),
+html.a11y-theme-dark nav svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]),
+html.a11y-theme-dark [class*="sidebar"] svg:not([class*="icon"]):not([class*="Icon"]):not([class*="anticon"]) {
+  /* Colorea los paths que usan fill="currentColor" o fill oscuro */
+  color: #f8fafc !important;
+}
+
+/* Paths con fill explícito oscuro dentro del SVG del logo */
+html.a11y-theme-dark header svg path[fill="#000"],
+html.a11y-theme-dark header svg path[fill="#000000"],
+html.a11y-theme-dark header svg path[fill="#1F2937"],
+html.a11y-theme-dark header svg path[fill="#111827"],
+html.a11y-theme-dark header svg path[fill="#0f172a"],
+html.a11y-theme-dark header svg path[fill="#374151"],
+html.a11y-theme-dark nav svg path[fill="#000"],
+html.a11y-theme-dark nav svg path[fill="#000000"],
+html.a11y-theme-dark nav svg path[fill="#1F2937"],
+html.a11y-theme-dark nav svg path[fill="#111827"],
+html.a11y-theme-dark nav svg path[fill="#0f172a"],
+html.a11y-theme-dark [class*="sidebar"] svg path[fill="#000"],
+html.a11y-theme-dark [class*="sidebar"] svg path[fill="#0f172a"] {
+  fill: #f8fafc !important;
+}
+
+/* Paths que usan stroke oscuro */
+html.a11y-theme-dark header svg path[stroke="#000"],
+html.a11y-theme-dark header svg path[stroke="#000000"],
+html.a11y-theme-dark nav svg path[stroke="#000"],
+html.a11y-theme-dark [class*="sidebar"] svg path[stroke="#000"] {
+  stroke: #f8fafc !important;
+}
+
+/* ── Contenedor wrapper del logo ─────────────────────────────────────────
+   Algunos sidebars envuelven el logo en un <div> o <a> con fondo blanco.
+*/
+html.a11y-theme-dark [class*="sidebar"] [class*="logo"],
+html.a11y-theme-dark [class*="sidebar"] [class*="Logo"],
+html.a11y-theme-dark [class*="sidebar"] [class*="brand"],
+html.a11y-theme-dark [class*="header"] [class*="logo"],
+html.a11y-theme-dark [class*="header"] [class*="Logo"],
+html.a11y-theme-dark [class*="Header"] [class*="logo"],
+html.a11y-theme-dark [class*="Header"] [class*="Logo"],
+html.a11y-theme-dark nav a[href="/"],
+html.a11y-theme-dark nav a[href="/home"] {
+  background-color: transparent !important;
+}
+
+/* ── Variante: logo con fondo blanco explícito en el elemento img ─────────
+   A veces el padding/background del contenedor del logo crea un recuadro blanco.
+*/
+html.a11y-theme-dark [class*="sidebar"]>div:first-child,
+html.a11y-theme-dark [class*="sidebar"]>a:first-child,
+html.a11y-theme-dark [class*="sidebar"] header {
+  background-color: transparent !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BITÁCORA TÉCNICA — labels y textos pequeños en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Labels de filtros y formularios */
+html.a11y-theme-dark label.text-xs.font-semibold.uppercase,
+html.a11y-theme-dark label[class*="text-xs"][class*="font-semibold"][class*="uppercase"] {
+  color: #cbd5e1 !important;
+  letter-spacing: 0.045em;
+}
+
+/* Labels tipo <p> dentro de cards: Total actividades, Fecha consultada, etc. */
+html.a11y-theme-dark p.text-xs.font-semibold.uppercase,
+html.a11y-theme-dark p[class*="text-xs"][class*="font-semibold"][class*="uppercase"] {
+  color: #94a3b8 !important;
+}
+
+/* Labels pequeños con text-[11px], como REGISTROS / PERIODO */
+html.a11y-theme-dark div[class*="text-[11px]"][class*="font-bold"][class*="uppercase"],
+html.a11y-theme-dark span[class*="text-[11px]"][class*="font-bold"][class*="uppercase"] {
+  color: #67e8f9 !important;
+}
+
+/* Valores dentro de cards del header: 3, 02 jun 2026, etc. */
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 .text-slate-950,
+html.a11y-theme-dark .rounded-2xl.border.border-cyan-200 .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+/* Títulos principales de cards/secciones */
+html.a11y-theme-dark h1.text-slate-950,
+html.a11y-theme-dark h2.text-slate-900,
+html.a11y-theme-dark h3.text-slate-800 {
+  color: #f8fafc !important;
+}
+
+/* Descripciones bajo títulos */
+html.a11y-theme-dark p.text-slate-600,
+html.a11y-theme-dark p.text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+/* Texto de ayuda muy pequeño */
+html.a11y-theme-dark p.text-xs.text-slate-500,
+html.a11y-theme-dark span.text-xs.text-slate-400,
+html.a11y-theme-dark span.text-xs.text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PDF EXPORT — no permitir que modo oscuro afecte capturas html2canvas
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .pdf-export-light,
+html.a11y-theme-dark .pdf-export-light * {
+  color-scheme: light !important;
+}
+
+html.a11y-theme-dark .pdf-export-light {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .page,
+html.a11y-theme-dark .pdf-export-light .pdf-container {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light p,
+html.a11y-theme-dark .pdf-export-light span,
+html.a11y-theme-dark .pdf-export-light div,
+html.a11y-theme-dark .pdf-export-light label,
+html.a11y-theme-dark .pdf-export-light li,
+html.a11y-theme-dark .pdf-export-light td,
+html.a11y-theme-dark .pdf-export-light th,
+html.a11y-theme-dark .pdf-export-light h1,
+html.a11y-theme-dark .pdf-export-light h2,
+html.a11y-theme-dark .pdf-export-light h3,
+html.a11y-theme-dark .pdf-export-light h4,
+html.a11y-theme-dark .pdf-export-light h5,
+html.a11y-theme-dark .pdf-export-light h6,
+html.a11y-theme-dark .pdf-export-light b,
+html.a11y-theme-dark .pdf-export-light strong {
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light table,
+html.a11y-theme-dark .pdf-export-light tbody,
+html.a11y-theme-dark .pdf-export-light tr {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+}
+
+html.a11y-theme-dark .pdf-export-light th,
+html.a11y-theme-dark .pdf-export-light thead,
+html.a11y-theme-dark .pdf-export-light thead tr {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light td {
+  background-color: transparent !important;
+  color: #111827 !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .pdf-section,
+html.a11y-theme-dark .pdf-export-light .card,
+html.a11y-theme-dark .pdf-export-light .info-box,
+html.a11y-theme-dark .pdf-export-light .observaciones,
+html.a11y-theme-dark .pdf-export-light .payment-info,
+html.a11y-theme-dark .pdf-export-light .comentarios-box {
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .card.gray,
+html.a11y-theme-dark .pdf-export-light .bg-gray-50,
+html.a11y-theme-dark .pdf-export-light .bg-slate-50 {
+  background: #f9fafb !important;
+  background-color: #f9fafb !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .card.blue,
+html.a11y-theme-dark .pdf-export-light .bg-blue-50,
+html.a11y-theme-dark .pdf-export-light .bg-cyan-50 {
+  background: #eef6ff !important;
+  background-color: #eef6ff !important;
+}
+
+html.a11y-theme-dark .pdf-export-light .sii-box,
+html.a11y-theme-dark .pdf-export-light .sii-box * {
+  color: #c43a3a !important;
+}
+
+html.a11y-theme-dark .pdf-export-light img {
+  background: transparent !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FACTURAS SII / RCV — detalle de documento en modo oscuro
+   Corrige título "Documento #..." y labels/textos del modal detalle.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Título principal del modal: Documento #1242 */
+html.a11y-theme-dark [class*="Documento"] h1,
+html.a11y-theme-dark [class*="Documento"] h2,
+html.a11y-theme-dark [class*="documento"] h1,
+html.a11y-theme-dark [class*="documento"] h2,
+html.a11y-theme-dark [role="dialog"] h1,
+html.a11y-theme-dark [role="dialog"] h2,
+html.a11y-theme-dark [role="dialog"] .text-slate-950,
+html.a11y-theme-dark [role="dialog"] .text-slate-900,
+html.a11y-theme-dark [role="dialog"] .text-gray-900,
+html.a11y-theme-dark [role="dialog"] .text-black {
+  color: #f8fafc !important;
+}
+
+/* Subtítulo: Cliente: BERCIA S.A. */
+html.a11y-theme-dark [role="dialog"] p.text-slate-600,
+html.a11y-theme-dark [role="dialog"] p.text-slate-500,
+html.a11y-theme-dark [role="dialog"] .text-slate-600,
+html.a11y-theme-dark [role="dialog"] .text-slate-500,
+html.a11y-theme-dark [role="dialog"] .text-gray-600,
+html.a11y-theme-dark [role="dialog"] .text-gray-500 {
+  color: #cbd5e1 !important;
+}
+
+/* Labels pequeños: Tipo Documento, Folio, Fecha Documento, Estado RCV */
+html.a11y-theme-dark [role="dialog"] label,
+html.a11y-theme-dark [role="dialog"] .text-xs.font-bold.uppercase,
+html.a11y-theme-dark [role="dialog"] .text-xs.font-semibold.uppercase,
+html.a11y-theme-dark [role="dialog"] [class*="text-xs"][class*="uppercase"],
+html.a11y-theme-dark [role="dialog"] [class*="text-[10px]"][class*="uppercase"],
+html.a11y-theme-dark [role="dialog"] [class*="text-[11px]"][class*="uppercase"] {
+  color: #67e8f9 !important;
+}
+
+/* Valores dentro de las tarjetas: 33, 1242, 01/05/2026, ACUSADO */
+html.a11y-theme-dark [role="dialog"] .font-black,
+html.a11y-theme-dark [role="dialog"] .font-bold,
+html.a11y-theme-dark [role="dialog"] .font-semibold {
+  color: #f8fafc !important;
+}
+
+/* Cards internas del detalle */
+html.a11y-theme-dark [role="dialog"] .bg-white,
+html.a11y-theme-dark [role="dialog"] .bg-slate-50,
+html.a11y-theme-dark [role="dialog"] .bg-gray-50,
+html.a11y-theme-dark [role="dialog"] .bg-white\/80,
+html.a11y-theme-dark [role="dialog"] .bg-white\/90 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Contenedor principal del modal si tiene bordes cyan */
+html.a11y-theme-dark [role="dialog"] .border-cyan-100,
+html.a11y-theme-dark [role="dialog"] .border-cyan-200,
+html.a11y-theme-dark [role="dialog"] .border-cyan-300 {
+  border-color: #155e75 !important;
+}
+
+/* Secciones tipo "Datos del cliente", "Datos del documento" */
+html.a11y-theme-dark [role="dialog"] h3,
+html.a11y-theme-dark [role="dialog"] h4 {
+  color: #f8fafc !important;
+}
+
+/* Textos pequeños dentro de cards */
+html.a11y-theme-dark [role="dialog"] .text-xs,
+html.a11y-theme-dark [role="dialog"] .text-sm {
+  color: #cbd5e1;
+}
+
+/* Botones del modal: conservar color propio de botones */
+html.a11y-theme-dark [role="dialog"] button,
+html.a11y-theme-dark [role="dialog"] button span,
+html.a11y-theme-dark [role="dialog"] button svg {
+  color: inherit;
+}
+
+/* Refuerzo específico para títulos negros dentro de modales custom */
+html.a11y-theme-dark div[class*="fixed"] h1,
+html.a11y-theme-dark div[class*="fixed"] h2,
+html.a11y-theme-dark div[class*="fixed"] .text-black,
+html.a11y-theme-dark div[class*="fixed"] .text-slate-950,
+html.a11y-theme-dark div[class*="fixed"] .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ANT DESIGN SELECT — corrección visual en modales custom modo oscuro
+   Corrige selects con fondo cortado / flecha con fondo distinto.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark [role="dialog"] .ant-select,
+html.a11y-theme-dark .ant-modal .ant-select,
+html.a11y-theme-dark .ant-drawer .ant-select {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Input interno del Select cuando tiene búsqueda */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-search-input,
+html.a11y-theme-dark .ant-modal .ant-select-selection-search-input,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-search-input {
+  background-color: transparent !important;
+  color: var(--color-text-primary) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Texto seleccionado */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-item,
+html.a11y-theme-dark .ant-modal .ant-select-selection-item,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+/* Placeholder */
+html.a11y-theme-dark [role="dialog"] .ant-select-selection-placeholder,
+html.a11y-theme-dark .ant-modal .ant-select-selection-placeholder,
+html.a11y-theme-dark .ant-drawer .ant-select-selection-placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Flecha del select */
+html.a11y-theme-dark [role="dialog"] .ant-select-arrow,
+html.a11y-theme-dark .ant-modal .ant-select-arrow,
+html.a11y-theme-dark .ant-drawer .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+  background-color: transparent !important;
+}
+
+/* Evita que algún wrapper interno pinte un bloque distinto detrás de la flecha */
+html.a11y-theme-dark [role="dialog"] .ant-select .ant-select-selector::before,
+html.a11y-theme-dark [role="dialog"] .ant-select .ant-select-selector::after,
+html.a11y-theme-dark .ant-modal .ant-select .ant-select-selector::before,
+html.a11y-theme-dark .ant-modal .ant-select .ant-select-selector::after {
+  background: transparent !important;
+}
+
+/* Hover / focus */
+html.a11y-theme-dark [role="dialog"] .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark [role="dialog"] .ant-select-focused .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-focused .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-focused .ant-select-selector {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.15) !important;
+}
+
+/* Disabled */
+html.a11y-theme-dark [role="dialog"] .ant-select-disabled .ant-select-selector,
+html.a11y-theme-dark .ant-modal .ant-select-disabled .ant-select-selector,
+html.a11y-theme-dark .ant-drawer .ant-select-disabled .ant-select-selector {
+  background-color: var(--color-surface-3) !important;
+  color: var(--color-text-muted) !important;
+  border-color: var(--color-border-light) !important;
+  opacity: 0.65;
+}
+
+/* Dropdown del Select, aunque se renderice fuera del modal */
+html.a11y-theme-dark .ant-select-dropdown {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark .ant-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: rgba(34, 211, 238, 0.16) !important;
+  color: var(--color-accent) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TICKET DETAIL — detalle de ticket en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .min-h-screen.bg-gray-50 {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Header superior del ticket */
+html.a11y-theme-dark .rounded-t-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .rounded-t-2xl.bg-white h1,
+html.a11y-theme-dark .rounded-t-2xl.bg-white .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+/* Layout principal */
+html.a11y-theme-dark .rounded-b-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .border-r.border-gray-200,
+html.a11y-theme-dark .border-t.border-gray-200,
+html.a11y-theme-dark .border-b.border-gray-200,
+html.a11y-theme-dark .border.border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+/* Zona de mensajes */
+html.a11y-theme-dark .rounded-xl.border.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark .rounded-xl.border.bg-blue-50 {
+  background-color: rgba(30, 58, 95, 0.45) !important;
+  border-color: #10b981 !important;
+}
+
+html.a11y-theme-dark .rounded-xl.border.bg-amber-50 {
+  background-color: rgba(69, 26, 3, 0.5) !important;
+  border-color: #f59e0b !important;
+}
+
+/* Header de cada mensaje */
+html.a11y-theme-dark .border-b.border-gray-100 {
+  border-color: var(--color-border-light) !important;
+}
+
+/* Texto de mensajes y metadatos */
+html.a11y-theme-dark .text-gray-900,
+html.a11y-theme-dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .text-gray-700,
+html.a11y-theme-dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark .text-gray-500,
+html.a11y-theme-dark .text-gray-400 {
+  color: var(--color-text-muted) !important;
+}
+
+/* Chips de CC y adjuntos */
+html.a11y-theme-dark .bg-gray-100.text-gray-600.border-gray-200,
+html.a11y-theme-dark a.bg-gray-100.text-gray-700.border-gray-200 {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-secondary) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark a.bg-gray-100.text-gray-700.border-gray-200:hover {
+  background-color: var(--color-surface-3) !important;
+}
+
+/* Footer acciones del ticket */
+html.a11y-theme-dark .shrink-0.bg-gray-50 {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Panel lateral */
+html.a11y-theme-dark aside.bg-gray-50\/80 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+}
+
+html.a11y-theme-dark aside .rounded-2xl.bg-white {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.a11y-theme-dark aside .bg-gray-50 {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Labels del panel lateral: EMPRESA, SOLICITANTE, CREADO... */
+html.a11y-theme-dark aside .text-xs.uppercase,
+html.a11y-theme-dark aside [class*="text-xs"][class*="uppercase"] {
+  color: #94a3b8 !important;
+}
+
+/* Selects del panel lateral */
+html.a11y-theme-dark aside .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark aside .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark aside .ant-select-arrow {
+  color: var(--color-text-muted) !important;
+}
+
+/* Tabs y área de respuesta */
+html.a11y-theme-dark .ant-tabs,
+html.a11y-theme-dark .ant-tabs-content,
+html.a11y-theme-dark .ant-tabs-tabpane {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab {
+  color: var(--color-text-muted) !important;
+}
+
+html.a11y-theme-dark .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-accent) !important;
+}
+
+/* Textareas de respuesta */
+html.a11y-theme-dark textarea.ant-input {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Nota interna con style inline amarillo */
+html.a11y-theme-dark textarea.ant-input[style*="255, 251, 235"],
+html.a11y-theme-dark textarea.ant-input[style*="#fffbeb"] {
+  background-color: rgba(69, 26, 3, 0.55) !important;
+  color: #fde68a !important;
+  border-color: #92400e !important;
+}
+
+/* Iframe del correo: solo contenedor externo */
+html.a11y-theme-dark iframe {
+  background-color: var(--color-surface-2) !important;
+  border-radius: 10px !important;
+}

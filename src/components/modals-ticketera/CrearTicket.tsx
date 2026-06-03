@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/CrearTicket.tsx
 import { useRef } from "react";
 import { Drawer, Button, Input, Select, Row, Col, Tag } from "antd";
 import { PaperClipOutlined } from "@ant-design/icons";
@@ -142,7 +143,7 @@ export function CrearTicketDrawer({
                     />
                     <div className="mt-3">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Correo manual
+                            Correo manual (Solo si no se selecciona un contacto, o es un contacto externo)
                         </label>
                         <Input
                             placeholder="correo@cliente.com"

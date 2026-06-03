@@ -25,10 +25,14 @@ import {
     ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import DOMPurify from "dompurify";
+import { notification } from "antd";
 
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../api/api";
+import { useAuth } from "../../components/hooks/useAuth"
+
+const { isCliente } = useAuth();
 
 const API_URL =
     (import.meta as any).env?.VITE_API_URL || "http://localhost:4000/api";
@@ -567,8 +571,26 @@ export default function TicketDetailPage() {
 
             setReplyFiles([]);
             await loadTicket();
-        } catch {
-            message.error("Error al enviar mensaje");
+        } catch (error: any) {
+            console.error("❌ Error respondiendo ticket:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const errorMessage =
+                error?.response?.data?.detail ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Error al responder ticket";
+
+            notification.error({
+                message: "No se pudo responder el ticket",
+                description: errorMessage,
+                placement: "topRight",
+                duration: 6,
+            });
         } finally {
             setSendingReply(false);
         }
@@ -582,7 +604,10 @@ export default function TicketDetailPage() {
     };
 
     useEffect(() => {
-        loadTecnicos();
+        // Los técnicos solo se necesitan para los selectores internos
+        if (!isCliente) {
+            loadTecnicos();
+        }
     }, []);
 
     useEffect(() => {
@@ -692,244 +717,234 @@ export default function TicketDetailPage() {
                         <div className="flex-1 min-h-0 overflow-y-auto px-7 py-5">
                             <div className="relative">
 
-                                {ticketDetalle.messages.map((m) => {
-                                    const isOutbound = m.direction === "OUTBOUND";
-                                    const isInternal = m.isInternal;
-                                    const author = getMessageAuthor(m, ticketDetalle);
+                                {ticketDetalle.messages
+                                    .filter((m) => {
+                                        // CLIENTE no ve notas internas
+                                        if (isCliente && m.isInternal) return false;
+                                        return true;
+                                    })
+                                    .map((m) => {
+                                        const isOutbound = m.direction === "OUTBOUND";
+                                        const isInternal = m.isInternal;
+                                        const author = getMessageAuthor(m, ticketDetalle);
 
-                                    let bgColor = "bg-white";
-                                    let borderColor = "border-l-blue-400";
-                                    let avatarBg = "bg-blue-500";
-                                    let avatarIcon = <UserOutlined className="text-white text-xs" />;
+                                        let bgColor = "bg-white";
+                                        let borderColor = "border-l-blue-400";
+                                        let avatarBg = "bg-blue-500";
+                                        let avatarIcon = <UserOutlined className="text-white text-xs" />;
 
-                                    if (isInternal) {
-                                        bgColor = "bg-amber-50";
-                                        borderColor = "border-l-amber-400";
-                                        avatarBg = "bg-amber-400";
-                                        avatarIcon = <EditOutlined className="text-white text-xs" />;
-                                    } else if (isOutbound) {
-                                        bgColor = "bg-blue-50";
-                                        borderColor = "border-l-emerald-400";
-                                        avatarBg = "bg-emerald-500";
-                                        avatarIcon = <TeamOutlined className="text-white text-xs" />;
-                                    }
+                                        if (isInternal) {
+                                            bgColor = "bg-amber-50";
+                                            borderColor = "border-l-amber-400";
+                                            avatarBg = "bg-amber-400";
+                                            avatarIcon = <EditOutlined className="text-white text-xs" />;
+                                        } else if (isOutbound) {
+                                            bgColor = "bg-blue-50";
+                                            borderColor = "border-l-emerald-400";
+                                            avatarBg = "bg-emerald-500";
+                                            avatarIcon = <TeamOutlined className="text-white text-xs" />;
+                                        }
 
-                                    return (
-                                        <div key={m.id} className="relative mb-8">
+                                        return (
+                                            <div key={m.id} className="relative mb-8">
 
-                                            <div
-                                                className={`rounded-xl border ${bgColor} ${borderColor} border-l-4`}
-                                            >
-                                                <div className="px-4 py-3 border-b border-gray-100">
-                                                    <div className="flex justify-between items-center gap-4">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-semibold text-sm text-gray-800">
-                                                                {author.name}
-                                                            </span>
-                                                            <span className="text-xs text-gray-400">
-                                                                ({author.role})
-                                                            </span>
-                                                            <Tag
-                                                                color={
-                                                                    isInternal ? "gold" : isOutbound ? "blue" : "default"
-                                                                }
-                                                                className="text-xs m-0"
-                                                            >
-                                                                {isInternal
-                                                                    ? "Interno"
-                                                                    : isOutbound
-                                                                        ? "Enviado"
-                                                                        : "Recibido"}
-                                                            </Tag>
+                                                <div
+                                                    className={`rounded-xl border ${bgColor} ${borderColor} border-l-4`}
+                                                >
+                                                    <div className="px-4 py-3 border-b border-gray-100">
+                                                        <div className="flex justify-between items-center gap-4">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-semibold text-sm text-gray-800">
+                                                                    {author.name}
+                                                                </span>
+                                                                <span className="text-xs text-gray-400">
+                                                                    ({author.role})
+                                                                </span>
+                                                                <Tag
+                                                                    color={
+                                                                        isInternal ? "gold" : isOutbound ? "blue" : "default"
+                                                                    }
+                                                                    className="text-xs m-0"
+                                                                >
+                                                                    {isInternal
+                                                                        ? "Interno"
+                                                                        : isOutbound
+                                                                            ? "Enviado"
+                                                                            : "Recibido"}
+                                                                </Tag>
+                                                            </div>
+
+                                                            <div className="text-right">
+                                                                <div className="text-xs text-gray-500">
+                                                                    {formatDateTime(m.createdAt)}
+                                                                </div>
+                                                                <div className="text-xs text-gray-400">
+                                                                    {formatRelativeTime(m.createdAt)}
+                                                                </div>
+                                                            </div>
                                                         </div>
 
-                                                        <div className="text-right">
-                                                            <div className="text-xs text-gray-500">
-                                                                {formatDateTime(m.createdAt)}
+                                                        {!m.isInternal && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {m.fromEmail && (
+                                                                    <div className="flex items-center text-m">
+                                                                        <span className="font-semibold text-gray-500 w-8 shrink-0">De:</span>
+                                                                        <span className="py-0.5 rounded-md font-medium">
+                                                                            {m.fromEmail}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+
+                                                                {(() => {
+                                                                    const toList = typeof m.toEmail === "string"
+                                                                        ? m.toEmail.split(",").map((v) => v.trim()).filter(Boolean)
+                                                                        : [];
+                                                                    if (!toList.length) return null;
+                                                                    return (
+                                                                        <div className="flex items-center gap-2 text-m">
+                                                                            <span className="font-semibold text-gray-500 w-8 shrink-0">Para:</span>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {toList.map((e, i) => (
+                                                                                    <span key={i} className="py-0.5 rounded-md font-medium">
+                                                                                        {e}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+
+                                                                {(() => {
+                                                                    const ccList = Array.isArray(m.cc) ? m.cc : [];
+                                                                    if (!ccList.length) return null;
+                                                                    return (
+                                                                        <div className="flex items-center text-m">
+                                                                            <span className="font-semibold text-gray-500 w-8 shrink-0">CC:</span>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {ccList.map((e, i) => (
+                                                                                    <span key={i} className="bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md">
+                                                                                        {e}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
-                                                            <div className="text-xs text-gray-400">
-                                                                {formatRelativeTime(m.createdAt)}
-                                                            </div>
-                                                        </div>
+                                                        )}
                                                     </div>
 
-                                                    {!m.isInternal && (
-                                                        <div className="mt-2 space-y-1">
-                                                            {m.fromEmail && (
-                                                                <div className="flex items-center text-m">
-                                                                    <span className="font-semibold text-gray-500 w-8 shrink-0">De:</span>
-                                                                    <span className="py-0.5 rounded-md font-medium">
-                                                                        {m.fromEmail}
-                                                                    </span>
+                                                    <div className="px-4 py-3">
+                                                        {hasUnresolvedCidImages(m.bodyHtml, m.attachments) && (
+                                                            <div className="mb-3 px-3 py-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
+                                                                ⚠️ Algunas imágenes de la firma no pudieron mostrarse.
+                                                            </div>
+                                                        )}
+
+                                                        {m.bodyHtml ? (
+                                                            <AutoResizeIframe
+                                                                srcDoc={buildEmailHtml(
+                                                                    DOMPurify.sanitize(
+                                                                        resolveInlineImages(m.bodyHtml, m.attachments),
+                                                                        {
+                                                                            ADD_ATTR: ["target", "src", "style", "width", "height"],
+                                                                            ADD_TAGS: ["img", "table", "tbody", "tr", "td"],
+                                                                            FORCE_BODY: true,
+                                                                        }
+                                                                    )
+                                                                )}
+                                                            />
+                                                        ) : (
+                                                            <div
+                                                                className="prose prose-sm max-w-none text-[13px] leading-6 text-gray-700"
+                                                                dangerouslySetInnerHTML={{
+                                                                    __html: DOMPurify.sanitize(formatEmailBody(m.bodyText)),
+                                                                }}
+                                                            />
+                                                        )}
+
+                                                        {(m.attachments?.filter((a) => !a.isInline).length ?? 0) > 0 && (
+                                                            <div className="mt-4 pt-3 border-t border-gray-100">
+                                                                <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                                                                    <PaperClipOutlined />
+                                                                    {m.attachments?.filter((a) => !a.isInline).length} archivo(s)
+                                                                    adjunto(s)
                                                                 </div>
-                                                            )}
 
-                                                            {(() => {
-                                                                const toList = typeof m.toEmail === "string"
-                                                                    ? m.toEmail.split(",").map((v) => v.trim()).filter(Boolean)
-                                                                    : [];
-                                                                if (!toList.length) return null;
-                                                                return (
-                                                                    <div className="flex items-center gap-2 text-m">
-                                                                        <span className="font-semibold text-gray-500 w-8 shrink-0">Para:</span>
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            {toList.map((e, i) => (
-                                                                                <span key={i} className="py-0.5 rounded-md font-medium">
-                                                                                    {e}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })()}
-
-                                                            {(() => {
-                                                                const ccList = Array.isArray(m.cc) ? m.cc : [];
-                                                                if (!ccList.length) return null;
-                                                                return (
-                                                                    <div className="flex items-center text-m">
-                                                                        <span className="font-semibold text-gray-500 w-8 shrink-0">CC:</span>
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            {ccList.map((e, i) => (
-                                                                                <span key={i} className="bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md">
-                                                                                    {e}
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="px-4 py-3">
-                                                    {hasUnresolvedCidImages(m.bodyHtml, m.attachments) && (
-                                                        <div className="mb-3 px-3 py-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
-                                                            ⚠️ Algunas imágenes de la firma no pudieron mostrarse.
-                                                        </div>
-                                                    )}
-
-                                                    {m.bodyHtml ? (
-                                                        <AutoResizeIframe
-                                                            srcDoc={buildEmailHtml(
-                                                                DOMPurify.sanitize(
-                                                                    resolveInlineImages(m.bodyHtml, m.attachments),
-                                                                    {
-                                                                        ADD_ATTR: ["target", "src", "style", "width", "height"],
-                                                                        ADD_TAGS: ["img", "table", "tbody", "tr", "td"],
-                                                                        FORCE_BODY: true,
-                                                                    }
-                                                                )
-                                                            )}
-                                                        />
-                                                    ) : (
-                                                        <div
-                                                            className="prose prose-sm max-w-none text-[13px] leading-6 text-gray-700"
-                                                            dangerouslySetInnerHTML={{
-                                                                __html: DOMPurify.sanitize(formatEmailBody(m.bodyText)),
-                                                            }}
-                                                        />
-                                                    )}
-
-                                                    {(m.attachments?.filter((a) => !a.isInline).length ?? 0) > 0 && (
-                                                        <div className="mt-4 pt-3 border-t border-gray-100">
-                                                            <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                                                                <PaperClipOutlined />
-                                                                {m.attachments?.filter((a) => !a.isInline).length} archivo(s)
-                                                                adjunto(s)
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {(m.attachments ?? [])
+                                                                        .filter((a) => !a.isInline)
+                                                                        .map((att) => (
+                                                                            <a
+                                                                                key={att.id}
+                                                                                href={`${API_URL}/helpdesk/tickets/attachments/${att.id}/download`}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 no-underline border border-gray-200"
+                                                                            >
+                                                                                <PaperClipOutlined />
+                                                                                {att.filename}
+                                                                            </a>
+                                                                        ))}
+                                                                </div>
                                                             </div>
-
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {(m.attachments ?? [])
-                                                                    .filter((a) => !a.isInline)
-                                                                    .map((att) => (
-                                                                        <a
-                                                                            key={att.id}
-                                                                            href={`${API_URL}/helpdesk/tickets/attachments/${att.id}/download`}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 no-underline border border-gray-200"
-                                                                        >
-                                                                            <PaperClipOutlined />
-                                                                            {att.filename}
-                                                                        </a>
-                                                                    ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
 
                                 <div ref={messagesEndRef} />
                             </div>
                         </div>
 
                         <div className="shrink-0 bg-gray-50 border-t border-gray-200">
-                            <div className="flex items-center justify-between px-6 py-3">
-                                <div className="text-sm font-medium text-gray-700">
-                                    Acciones del ticket
-                                </div>
+                            {!isCliente && (
+                                <>
+                                    <div className="flex items-center justify-between px-6 py-3">
+                                        <div className="text-sm font-medium text-gray-700">
+                                            Acciones del ticket
+                                        </div>
 
-                                <Button
-                                    size="small"
-                                    onClick={() => setShowReplyPanel((prev) => !prev)}
-                                >
-                                    {showReplyPanel ? "Ocultar" : "Mostrar"}
-                                </Button>
-                            </div>
+                                        <Button
+                                            size="small"
+                                            onClick={() => setShowReplyPanel((prev) => !prev)}
+                                        >
+                                            {showReplyPanel ? "Ocultar" : "Mostrar"}
+                                        </Button>
+                                    </div>
 
-                            {showReplyPanel && (
-                                <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
-                                    <Tabs
-                                        className="h-full"
-                                        items={[
-                                            {
-                                                key: "reply",
-                                                label: (
-                                                    <span className="flex items-center gap-1">
-                                                        <SendOutlined /> Responder al cliente
-                                                    </span>
-                                                ),
-                                                children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-3">
-                                                        <div className="shrink-0">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="text-xs text-gray-500">Para:</span>
-                                                                {!showCc && (
-                                                                    <Button size="small" type="link" onClick={() => setShowCc(true)}>
-                                                                        + CC
-                                                                    </Button>
-                                                                )}
-                                                            </div>
+                                    {showReplyPanel && (
+                                        <div className="px-6 pb-4 h-[min(720px,65vh)] min-h-[420px] overflow-hidden">
+                                            <Tabs
+                                                className="h-full"
+                                                items={[
+                                                    {
+                                                        key: "reply",
+                                                        label: (
+                                                            <span className="flex items-center gap-1">
+                                                                <SendOutlined /> Responder al cliente
+                                                            </span>
+                                                        ),
+                                                        children: (
+                                                            <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+                                                                <div className="shrink-0">
+                                                                    <div className="flex justify-between items-center mb-1">
+                                                                        <span className="text-xs text-gray-500">Para:</span>
+                                                                        {!showCc && (
+                                                                            <Button size="small" type="link" onClick={() => setShowCc(true)}>
+                                                                                + CC
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
 
-                                                            <Select
-                                                                mode="tags"
-                                                                showSearch
-                                                                placeholder="Agregar destinatarios"
-                                                                value={toEmails}
-                                                                onChange={setToEmails}
-                                                                onSearch={debouncedSearchContactos}
-                                                                loading={loadingContactos}
-                                                                options={contactos.map((c) => ({
-                                                                    label: `${c.nombre} (${c.email})`,
-                                                                    value: c.email,
-                                                                }))}
-                                                                style={{ width: "100%" }}
-                                                            />
-
-                                                            {showCc && (
-                                                                <div className="mt-3">
-                                                                    <span className="text-xs text-gray-500">CC:</span>
                                                                     <Select
                                                                         mode="tags"
                                                                         showSearch
-                                                                        placeholder="Agregar CC"
-                                                                        value={ccEmails}
-                                                                        onChange={setCcEmails}
+                                                                        placeholder="Agregar destinatarios"
+                                                                        value={toEmails}
+                                                                        onChange={setToEmails}
                                                                         onSearch={debouncedSearchContactos}
                                                                         loading={loadingContactos}
                                                                         options={contactos.map((c) => ({
@@ -938,152 +953,172 @@ export default function TicketDetailPage() {
                                                                         }))}
                                                                         style={{ width: "100%" }}
                                                                     />
+
+                                                                    {showCc && (
+                                                                        <div className="mt-3">
+                                                                            <span className="text-xs text-gray-500">CC:</span>
+                                                                            <Select
+                                                                                mode="tags"
+                                                                                showSearch
+                                                                                placeholder="Agregar CC"
+                                                                                value={ccEmails}
+                                                                                onChange={setCcEmails}
+                                                                                onSearch={debouncedSearchContactos}
+                                                                                loading={loadingContactos}
+                                                                                options={contactos.map((c) => ({
+                                                                                    label: `${c.nombre} (${c.email})`,
+                                                                                    value: c.email,
+                                                                                }))}
+                                                                                style={{ width: "100%" }}
+                                                                            />
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
 
-                                                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                                                            <Input.TextArea
-                                                                value={replyText}
-                                                                onChange={(e) => setReplyText(e.target.value)}
-                                                                placeholder="Escribe tu respuesta al cliente..."
-                                                                autoSize={false}
-                                                                style={{
-                                                                    height: "clamp(150px, 40vh, 400px)",
-                                                                    minHeight: "150px",
-                                                                    resize: "vertical",
-                                                                }}
-                                                            />
-                                                        </div>
+                                                                <div className="min-h-0 flex-1 overflow-hidden pr-1">
+                                                                    <Input.TextArea
+                                                                        value={replyText}
+                                                                        onChange={(e) => setReplyText(e.target.value)}
+                                                                        placeholder="Escribe tu respuesta al cliente..."
+                                                                        autoSize={false}
+                                                                        style={{
+                                                                            height: "100%",
+                                                                            minHeight: "150px",
+                                                                            resize: "none",
+                                                                        }}
+                                                                    />
+                                                                </div>
 
-                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
-                                                            <input
-                                                                ref={replyFileInputRef}
-                                                                type="file"
-                                                                multiple
-                                                                hidden
-                                                                onChange={(e) => {
-                                                                    const files = e.target.files;
-                                                                    if (!files?.length) return;
-                                                                    setReplyFiles([...replyFiles, ...Array.from(files)]);
-                                                                    e.target.value = "";
-                                                                }}
-                                                            />
+                                                                <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
+                                                                    <input
+                                                                        ref={replyFileInputRef}
+                                                                        type="file"
+                                                                        multiple
+                                                                        hidden
+                                                                        onChange={(e) => {
+                                                                            const files = e.target.files;
+                                                                            if (!files?.length) return;
+                                                                            setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                            e.target.value = "";
+                                                                        }}
+                                                                    />
 
-                                                            <Button
-                                                                icon={<PaperClipOutlined />}
-                                                                size="small"
-                                                                onClick={() => replyFileInputRef.current?.click()}
-                                                            >
-                                                                Adjuntar
-                                                            </Button>
+                                                                    <Button
+                                                                        icon={<PaperClipOutlined />}
+                                                                        size="small"
+                                                                        onClick={() => replyFileInputRef.current?.click()}
+                                                                    >
+                                                                        Adjuntar
+                                                                    </Button>
 
-                                                            {replyFiles.map((file, i) => (
-                                                                <Tag
-                                                                    key={i}
-                                                                    closable
-                                                                    onClose={() =>
-                                                                        setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
-                                                                    }
-                                                                >
-                                                                    {file.name}
-                                                                </Tag>
-                                                            ))}
+                                                                    {replyFiles.map((file, i) => (
+                                                                        <Tag
+                                                                            key={i}
+                                                                            closable
+                                                                            onClose={() =>
+                                                                                setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
+                                                                            }
+                                                                        >
+                                                                            {file.name}
+                                                                        </Tag>
+                                                                    ))}
 
-                                                            {puedeCerrarTicket() && (
-                                                                <Button onClick={() => updateTicket({ status: "CLOSED" })}>
-                                                                    Cerrar ticket
-                                                                </Button>
-                                                            )}
+                                                                    {puedeCerrarTicket() && (
+                                                                        <Button onClick={() => updateTicket({ status: "CLOSED" })}>
+                                                                            Cerrar ticket
+                                                                        </Button>
+                                                                    )}
 
-                                                            <Button
-                                                                type="primary"
-                                                                loading={sendingReply}
-                                                                onClick={() => responderTicket(false)}
-                                                                icon={<SendOutlined />}
-                                                                className="ml-auto"
-                                                            >
-                                                                Enviar respuesta
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ),
-                                            },
-                                            {
-                                                key: "internal",
-                                                label: (
-                                                    <span className="flex items-center gap-1">
-                                                        <EditOutlined /> Nota interna
-                                                    </span>
-                                                ),
-                                                children: (
-                                                    <div className="flex h-full min-h-0 flex-col gap-3">
-                                                        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                                                            <Input.TextArea
-                                                                value={internalNoteText}
-                                                                onChange={(e) => setInternalNoteText(e.target.value)}
-                                                                placeholder="Escribe una nota interna (no visible para el cliente)..."
-                                                                autoSize={false}
-                                                                style={{
-                                                                    height: "clamp(150px, 40vh, 400px)",
-                                                                    minHeight: "150px",
-                                                                    resize: "vertical",
-                                                                    background: "#fffbeb", // fondo amarillo suave para distinguirla
-                                                                }}
-                                                            />
-                                                        </div>
+                                                                    <Button
+                                                                        type="primary"
+                                                                        loading={sendingReply}
+                                                                        onClick={() => responderTicket(false)}
+                                                                        icon={<SendOutlined />}
+                                                                        className="ml-auto"
+                                                                    >
+                                                                        Enviar respuesta
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    },
+                                                    {
+                                                        key: "internal",
+                                                        label: (
+                                                            <span className="flex items-center gap-1">
+                                                                <EditOutlined /> Nota interna
+                                                            </span>
+                                                        ),
+                                                        children: (
+                                                            <div className="flex h-full min-h-0 flex-col gap-3">
+                                                                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                                                    <Input.TextArea
+                                                                        value={internalNoteText}
+                                                                        onChange={(e) => setInternalNoteText(e.target.value)}
+                                                                        placeholder="Escribe una nota interna (no visible para el cliente)..."
+                                                                        autoSize={false}
+                                                                        style={{
+                                                                            height: "clamp(150px, 40vh, 400px)",
+                                                                            minHeight: "150px",
+                                                                            resize: "vertical",
+                                                                            background: "#fffbeb", // fondo amarillo suave para distinguirla
+                                                                        }}
+                                                                    />
+                                                                </div>
 
-                                                        <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
-                                                            <input
-                                                                ref={replyFileInputRef}
-                                                                type="file"
-                                                                multiple
-                                                                hidden
-                                                                onChange={(e) => {
-                                                                    const files = e.target.files;
-                                                                    if (!files?.length) return;
-                                                                    setReplyFiles([...replyFiles, ...Array.from(files)]);
-                                                                    e.target.value = "";
-                                                                }}
-                                                            />
+                                                                <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
+                                                                    <input
+                                                                        ref={replyFileInputRef}
+                                                                        type="file"
+                                                                        multiple
+                                                                        hidden
+                                                                        onChange={(e) => {
+                                                                            const files = e.target.files;
+                                                                            if (!files?.length) return;
+                                                                            setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                            e.target.value = "";
+                                                                        }}
+                                                                    />
 
-                                                            <Button
-                                                                icon={<PaperClipOutlined />}
-                                                                size="small"
-                                                                onClick={() => replyFileInputRef.current?.click()}
-                                                            >
-                                                                Adjuntar
-                                                            </Button>
+                                                                    <Button
+                                                                        icon={<PaperClipOutlined />}
+                                                                        size="small"
+                                                                        onClick={() => replyFileInputRef.current?.click()}
+                                                                    >
+                                                                        Adjuntar
+                                                                    </Button>
 
-                                                            {replyFiles.map((file, i) => (
-                                                                <Tag
-                                                                    key={i}
-                                                                    closable
-                                                                    onClose={() =>
-                                                                        setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
-                                                                    }
-                                                                >
-                                                                    {file.name}
-                                                                </Tag>
-                                                            ))}
+                                                                    {replyFiles.map((file, i) => (
+                                                                        <Tag
+                                                                            key={i}
+                                                                            closable
+                                                                            onClose={() =>
+                                                                                setReplyFiles(replyFiles.filter((_, idx) => idx !== i))
+                                                                            }
+                                                                        >
+                                                                            {file.name}
+                                                                        </Tag>
+                                                                    ))}
 
-                                                            <Button
-                                                                type="primary"
-                                                                loading={sendingReply}
-                                                                onClick={() => responderTicket(true)}  // ← true = interna
-                                                                icon={<EyeInvisibleOutlined />}
-                                                                className="ml-auto"
-                                                                style={{ background: "#d97706" }} // color ámbar para distinguirla
-                                                            >
-                                                                Guardar nota
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ),
-                                            },
-                                        ]}
-                                    />
-                                </div>
+                                                                    <Button
+                                                                        type="primary"
+                                                                        loading={sendingReply}
+                                                                        onClick={() => responderTicket(true)}  // ← true = interna
+                                                                        icon={<EyeInvisibleOutlined />}
+                                                                        className="ml-auto"
+                                                                        style={{ background: "#d97706" }} // color ámbar para distinguirla
+                                                                    >
+                                                                        Guardar nota
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    },
+                                                ]}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -1130,72 +1165,95 @@ export default function TicketDetailPage() {
                                         </div>
                                     </div>
 
+                                    {/* Estado — selector para internos, texto para CLIENTE */}
                                     <div>
                                         <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
                                             Estado
                                         </div>
-                                        <Select
-                                            value={ticketDetalle.status}
-                                            onChange={(v) => {
-                                                if (v === "CLOSED" && !puedeCerrarTicket()) {
-                                                    message.warning("Debes responder o agregar una nota antes de cerrar");
-                                                    return;
-                                                }
-                                                updateTicket({ status: v });
-                                            }}
-                                            options={[
-                                                { value: "NEW", label: "Nuevo" },
-                                                { value: "OPEN", label: "Abierto" },
-                                                { value: "PENDING", label: "Pendiente" },
-                                                { value: "CLOSED", label: "Cerrado" },
-                                            ]}
-                                            style={{ width: "100%" }}
-                                            size="small"
-                                        />
+                                        {isCliente ? (
+                                            <Tag color={statusColor(ticketDetalle.status)}>
+                                                {TICKET_STATUS_LABEL[ticketDetalle.status] ?? ticketDetalle.status}
+                                            </Tag>
+                                        ) : (
+                                            <Select
+                                                value={ticketDetalle.status}
+                                                onChange={(v) => {
+                                                    if (v === "CLOSED" && !puedeCerrarTicket()) {
+                                                        message.warning("Debes responder o agregar una nota antes de cerrar");
+                                                        return;
+                                                    }
+                                                    updateTicket({ status: v });
+                                                }}
+                                                options={[
+                                                    { value: "NEW", label: "Nuevo" },
+                                                    { value: "OPEN", label: "Abierto" },
+                                                    { value: "PENDING", label: "Pendiente" },
+                                                    { value: "CLOSED", label: "Cerrado" },
+                                                ]}
+                                                style={{ width: "100%" }}
+                                                size="small"
+                                            />
+                                        )}
                                     </div>
 
+                                    {/* Prioridad — selector para internos, texto para CLIENTE */}
                                     <div>
                                         <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
                                             Prioridad
                                         </div>
-                                        <Select
-                                            value={ticketDetalle.priority}
-                                            onChange={(v) => updateTicket({ priority: v })}
-                                            options={[
-                                                { value: "LOW", label: "Baja" },
-                                                { value: "NORMAL", label: "Media" },
-                                                { value: "HIGH", label: "Alta" },
-                                                { value: "URGENT", label: "Urgente" },
-                                            ]}
-                                            style={{ width: "100%" }}
-                                            size="small"
-                                        />
+                                        {isCliente ? (
+                                            <Tag color={priorityColor(ticketDetalle.priority)}>
+                                                {TICKET_PRIORITY_LABEL[ticketDetalle.priority] ?? ticketDetalle.priority}
+                                            </Tag>
+                                        ) : (
+                                            <Select
+                                                value={ticketDetalle.priority}
+                                                onChange={(v) => updateTicket({ priority: v })}
+                                                options={[
+                                                    { value: "LOW", label: "Baja" },
+                                                    { value: "NORMAL", label: "Media" },
+                                                    { value: "HIGH", label: "Alta" },
+                                                    { value: "URGENT", label: "Urgente" },
+                                                ]}
+                                                style={{ width: "100%" }}
+                                                size="small"
+                                            />
+                                        )}
                                     </div>
 
+                                    {/* Asignado — selector para internos, texto para CLIENTE */}
                                     <div>
                                         <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
                                             Asignado a
                                         </div>
-                                        <Select
-                                            allowClear
-                                            value={ticketDetalle.assignee?.id_tecnico}
-                                            onChange={(v) => updateTicket({ assigneeId: v ?? null })}
-                                            placeholder="Sin asignar"
-                                            options={tecnicos.map((t) => ({
-                                                value: t.id_tecnico,
-                                                label: t.nombre,
-                                            }))}
-                                            style={{ width: "100%" }}
-                                            size="small"
-                                        />
+                                        {isCliente ? (
+                                            <div className="font-medium text-gray-700">
+                                                {ticketDetalle.assignee?.nombre ?? (
+                                                    <span className="italic text-gray-400 text-xs">Sin asignar</span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <Select
+                                                allowClear
+                                                value={ticketDetalle.assignee?.id_tecnico}
+                                                onChange={(v) => updateTicket({ assigneeId: v ?? null })}
+                                                placeholder="Sin asignar"
+                                                options={tecnicos.map((t) => ({
+                                                    value: t.id_tecnico,
+                                                    label: t.nombre,
+                                                }))}
+                                                style={{ width: "100%" }}
+                                                size="small"
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            {ticketDetalle.sla && (
+                            {/* SLA — solo para internos */}
+                            {!isCliente && ticketDetalle.sla && (
                                 <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
                                     <div className="font-semibold text-sm text-gray-800 mb-3">SLA</div>
-
                                     <div className="flex h-full min-h-0 flex-col gap-3">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
@@ -1207,10 +1265,7 @@ export default function TicketDetailPage() {
                                                         : "-"}
                                                 </div>
                                             </div>
-                                            <Tag
-                                                color={slaColor(ticketDetalle.sla.firstResponse?.status)}
-                                                className="m-0"
-                                            >
+                                            <Tag color={slaColor(ticketDetalle.sla.firstResponse?.status)} className="m-0">
                                                 {slaLabel(ticketDetalle.sla.firstResponse?.status)}
                                             </Tag>
                                         </div>
@@ -1225,10 +1280,7 @@ export default function TicketDetailPage() {
                                                         : "-"}
                                                 </div>
                                             </div>
-                                            <Tag
-                                                color={slaColor(ticketDetalle.sla.resolution?.status)}
-                                                className="m-0"
-                                            >
+                                            <Tag color={slaColor(ticketDetalle.sla.resolution?.status)} className="m-0">
                                                 {slaLabel(ticketDetalle.sla.resolution?.status)}
                                             </Tag>
                                         </div>

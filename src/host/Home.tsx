@@ -245,19 +245,21 @@ function colorForTech(id: number, name: string) {
 
 /* =================== Tooltip visitas =================== */
 
-type TooltipProps = {
+type CustomTooltipProps = {
   active?: boolean;
   label?: string | number;
-  payload?: Array<{
-    value: number;
-    payload: VisitaMetricRow;
+  payload?: ReadonlyArray<{
+    value?: number;
+    payload?: VisitaMetricRow;
   }>;
 };
 
-const CustomTooltip: FC<TooltipProps> = ({ active, label, payload }) => {
+const CustomTooltip: FC<CustomTooltipProps> = ({ active, label, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
 
-  const row = payload[0].payload as VisitaMetricRow;
+  const row = payload[0]?.payload;
+
+  if (!row) return null;
 
   const empresas = (row.empresas ?? [])
     .filter((e) => (e?.cantidad ?? 0) > 0)
@@ -351,20 +353,23 @@ function useMediaQuery(query: string) {
 /* =================== Tick responsive =================== */
 
 const ResponsiveTick: FC<{
-  x?: number;
-  y?: number;
-  payload?: { value: string };
+  x?: string | number;
+  y?: string | number;
+  payload?: { value?: string | number };
   isMobile: boolean;
   isTablet: boolean;
 }> = ({ x = 0, y = 0, payload, isMobile, isTablet }) => {
-  const full = payload?.value ?? "";
+  const xNum = Number(x) || 0;
+  const yNum = Number(y) || 0;
+
+  const full = String(payload?.value ?? "");
   const max = isMobile ? 7 : isTablet ? 10 : 16;
   const text = truncate(full, max);
   const fontSize = isMobile ? 10 : isTablet ? 11 : 12;
   const dy = isMobile ? 10 : 12;
 
   return (
-    <g transform={`translate(${x},${y})`}>
+    <g transform={`translate(${xNum},${yNum})`}>
       <text
         dy={dy}
         textAnchor="middle"
@@ -1077,7 +1082,7 @@ const Home: FC = () => {
 
                     <YAxis allowDecimals={false} />
 
-                    <Tooltip content={(props) => <CustomTooltip {...props} />} />
+                    <Tooltip content={(props: any) => <CustomTooltip {...props} />} />
 
                     <Bar dataKey="cantidad">
                       {visitasByTech.map((row) => (

@@ -1,5 +1,5 @@
-// ModalOrden.tsx
-import React, { useMemo, useState, useEffect } from "react";
+// src/components/modals-gestioo/ModalOrden.tsx
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
     PlusOutlined,
@@ -18,13 +18,21 @@ import type {
     Prioridad,
     Area,
     OrigenGestioo,
+    OrigenGestiooFiltro,
+    EstadoEquipo,
+    DestinoEquipoTaller,
 } from "./types";
 
 import {
     TipoEquipoLabel,
+    EstadoEquipoLabel,
+    DestinoEquipoTallerOptions,
 } from "./types";
 
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
+
+const antdSelectInputClass =
+    "w-full [&_.ant-select-selector]:!min-h-[42px] [&_.ant-select-selector]:!rounded-xl [&_.ant-select-selector]:!border-cyan-200 [&_.ant-select-selector]:!bg-white [&_.ant-select-selector]:!px-2 [&_.ant-select-selection-item]:!flex [&_.ant-select-selection-item]:!items-center [&_.ant-select-selection-placeholder]:!flex [&_.ant-select-selection-placeholder]:!items-center";
 
 export interface ModalOrdenProps {
     title: string;
@@ -61,7 +69,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     tecnicos,
     loading,
     buttonLabel,
+    setShowNewEntidadModal,
     setShowNuevoEquipoModal,
+    setShowEditEntidadModal,
     setShowEditEquipoModal,
     setEntidades,
     setEquipoEditando,
@@ -110,6 +120,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         formData.entidadId,
         formData.equipoId,
         formData.tecnicoId,
+        formData.estadoEquipo,
+        formData.destinoEquipo,
+        formData.destinoEquipoNota,
     ]);
 
     // Filtrar entidades según búsqueda
@@ -135,6 +148,75 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         }
     }, [entidadesFiltradas, setFormData]);
 
+    useEffect(() => {
+        const params: Record<string, string> = {
+            tipo: formData.tipoEntidad,
+        };
+
+        if (
+            formData.tipoEntidad === "EMPRESA" &&
+            formData.origenEntidad &&
+            formData.origenEntidad !== "TODOS"
+        ) {
+            params.origen = formData.origenEntidad;
+        }
+
+        http.get("/entidades", { params })
+            .then(({ data }) => {
+                const lista = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.data)
+                        ? data.data
+                        : Array.isArray(data?.items)
+                            ? data.items
+                            : [];
+
+                setEntidades(lista);
+            })
+            .catch((err) => {
+                console.error("Error cargando entidades:", err);
+                setEntidades([]);
+            });
+    }, [
+        formData.tipoEntidad,
+        formData.origenEntidad,
+        setEntidades,
+    ]);
+
+    const isFirstRender = useRef(true);
+    const prevEquipoId = useRef(formData.equipoId);
+
+    // Añadir setFormData a las dependencias para evitar el warning de exhaustive-deps
+    // y evitar stale closures
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            prevEquipoId.current = formData.equipoId;
+            return;
+        }
+
+        if (prevEquipoId.current === formData.equipoId) return;
+        prevEquipoId.current = formData.equipoId;
+
+        if (!formData.equipoId) {
+            setFormData((prev) => ({ ...prev, estadoEquipo: "" }));
+            return;
+        }
+
+        const equipoSeleccionado = equipos.find(
+            (eq) => String(eq.id_equipo) === String(formData.equipoId)
+        );
+
+        if (equipoSeleccionado?.estado) {
+            setFormData((prev) => ({
+                ...prev,
+                estadoEquipo: equipoSeleccionado.estado as EstadoEquipo,
+            }));
+        } else {
+            setFormData((prev) => ({ ...prev, estadoEquipo: "" }));
+        }
+    }, [formData.equipoId, equipos, setFormData]); // ← añadir setFormData
+
     // Función para validar y enviar el formulario
     const handleSubmitWithValidation = () => {
         if (!formData.descripcion.trim()) {
@@ -149,6 +231,11 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
         if (!formData.entidadId) {
             setErrorMsg("Debe seleccionar una entidad.");
+            return;
+        }
+
+        if (formData.equipoId && !formData.estadoEquipo) {
+            setErrorMsg("Debe seleccionar el estado del equipo.");
             return;
         }
 
@@ -233,6 +320,48 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         rows={3}
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Destino del equipo <span className="text-rose-500">*</span>
+                                    </label>
+
+                                    <Select
+                                        value={formData.destinoEquipo}
+                                        onChange={(value) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipo: value as DestinoEquipoTaller,
+                                            }))
+                                        }
+                                        style={{ width: "100%" }}
+                                        options={DestinoEquipoTallerOptions}
+                                        placeholder="Seleccionar destino..."
+                                    />
+
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Indica si el equipo queda para venta, RIDS, cliente o baja.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Nota destino equipo
+                                    </label>
+
+                                    <textarea
+                                        value={formData.destinoEquipoNota}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipoNota: e.target.value,
+                                            }))
+                                        }
+                                        className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400 resize-none"
+                                        rows={2}
+                                        placeholder="Ej: Equipo destinado a venta luego de cambio de SSD..."
+                                    />
+                                </div>
                             </div>
 
                             {/* Columna Derecha */}
@@ -266,7 +395,6 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             >
                                                 <option value="pendiente"> Pendiente</option>
-                                                <option value="en progreso"> En progreso</option>
                                                 <option value="completada"> Completada</option>
                                                 <option value="cancelada"> Cancelada</option>
                                             </select>
@@ -286,13 +414,13 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                             nuevaArea === "salida"
                                                                 ? prev.fechaIngreso ?? prev.fecha
                                                                 : prev.fechaIngreso,
+
                                                     }));
                                                 }}
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             >
                                                 <option value="entrada"> Entrada</option>
                                                 <option value="domicilio"> Domicilio</option>
-                                                <option value="reparacion"> Reparación</option>
                                                 <option value="salida"> Salida</option>
                                             </select>
                                         </div>
@@ -313,7 +441,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             />
 
-                                            {/* 👇 AQUÍ VA EXACTAMENTE */}
+                                            {/* AQUÍ VA EXACTAMENTE */}
                                             {formData.area === "salida" && (
                                                 <p className="text-xs text-amber-700 mt-1">
                                                     Se creará una nueva orden de salida para mantener el historial
@@ -323,7 +451,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                         <div className="mt-4">
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Técnico Responsable
+                                                Técnico Responsable <span className="text-rose-500">*</span>
                                             </label>
 
                                             <select
@@ -367,17 +495,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         ...formData,
                                                         tipoEntidad: tipo,
                                                         entidadId: "",
-                                                        origenEntidad: "",
+                                                        equipoId: "",
+                                                        estadoEquipo: "",
+                                                        origenEntidad: tipo === "EMPRESA" ? "TODOS" : "",
                                                     });
-
-                                                    if (tipo === "PERSONA") {
-                                                        http.get("/entidades", { params: { tipo: "PERSONA" } })
-                                                            .then(({ data }) => {
-                                                                setEntidades(Array.isArray(data) ? data : data.data);
-                                                            })
-                                                    } else {
-                                                        setEntidades([]);
-                                                    }
                                                 }}
                                                 className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                             >
@@ -389,51 +510,74 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         {/* Origen (solo si es empresa) */}
                                         {formData.tipoEntidad === "EMPRESA" && (
                                             <div>
-                                                <label className="block text-xs font-medium text-slate-600 mb-1">Origen de la Empresa</label>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                    Filtrar por origen
+                                                </label>
 
                                                 <select
-                                                    required
-                                                    value={formData.origenEntidad}
+                                                    value={formData.origenEntidad || "TODOS"}
                                                     onChange={(e) => {
-                                                        const origen = e.target.value as OrigenGestioo | "";
+                                                        const origen = e.target.value as OrigenGestiooFiltro;
 
                                                         setFormData({
                                                             ...formData,
                                                             origenEntidad: origen,
                                                             entidadId: "",
                                                         });
-
-                                                        http.get("/entidades", {
-                                                            params: { tipo: "EMPRESA", origen }
-                                                        })
-                                                            .then(({ data }) => {
-                                                                setEntidades(Array.isArray(data) ? data : data.data);
-                                                            })
                                                     }}
                                                     className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                                 >
-                                                    <option value="">Seleccionar origen…</option>
+                                                    <option value="TODOS">Todos los orígenes</option>
                                                     <option value="RIDS">RIDS</option>
                                                     <option value="ECONNET">ECONNET</option>
                                                     <option value="OTRO">OTRO</option>
                                                 </select>
+
+                                                <div className="mt-2 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs text-cyan-700">
+                                                    Puedes seleccionar empresas de todos los orígenes. El origen solo sirve para filtrar la lista, no para crear empresas separadas.
+                                                </div>
                                             </div>
                                         )}
 
                                         {/* Entidad */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Entidad
-                                            </label>
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <label className="block text-sm font-semibold text-slate-700">
+                                                    Entidad <span className="text-rose-500">*</span>
+                                                </label>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowNewEntidadModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                                    >
+                                                        <PlusOutlined />
+                                                        Nueva {formData.tipoEntidad === "EMPRESA" ? "empresa" : "persona"}
+                                                    </button>
+
+                                                    {formData.entidadId && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setShowEditEntidadModal(true);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100"
+                                                        >
+                                                            <EditOutlined />
+                                                            Editar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
                                             <Select
                                                 showSearch
                                                 placeholder="Seleccione entidad…"
                                                 value={formData.entidadId || undefined}
-                                                disabled={
-                                                    entidades.length === 0 ||
-                                                    (formData.tipoEntidad === "EMPRESA" && !formData.origenEntidad)
-                                                }
+                                                disabled={entidades.length === 0}
                                                 className="w-full"
                                                 optionFilterProp="label"
                                                 onChange={(value) =>
@@ -460,16 +604,21 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 }}
                                                 options={entidades.map((ent) => ({
                                                     value: String(ent.id),
-                                                    label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}`,
-                                                    rut: ent.rut, // 👈 permite búsqueda por RUT
+                                                    label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}${ent.origen ? ` · ${ent.origen}` : ""}`,
+                                                    rut: ent.rut,
+                                                    origen: ent.origen,
                                                 }))}
                                             />
 
                                             {formData.tipoEntidad === "EMPRESA" && (
                                                 <p className="text-xs text-slate-500 mt-1">
                                                     Mostrando {entidades.length} empresas
+                                                    {formData.origenEntidad && formData.origenEntidad !== "TODOS"
+                                                        ? ` del origen ${formData.origenEntidad}`
+                                                        : " de todos los orígenes"}
                                                 </p>
                                             )}
+
                                         </div>
 
                                     </div>
@@ -499,7 +648,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         </div>
 
                                         <div className="flex justify-between items-center">
-                                            <label className="block text-xs font-medium text-slate-600">Equipo</label>
+                                            <label className="block text-xs font-medium text-slate-600">Equipo <span className="text-rose-500">*</span></label>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -539,6 +688,46 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 </option>
                                             ))}
                                         </select>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Estado del equipo <span className="text-rose-500">*</span>
+                                            </label>
+
+                                            <select
+                                                value={formData.estadoEquipo ?? ""}
+                                                disabled={!formData.equipoId}  // ← deshabilitar sin equipo
+                                                onChange={(e) =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        estadoEquipo: e.target.value as EstadoEquipo,
+                                                    }))
+                                                }
+                                                className={`w-full border rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400 transition-colors ${!formData.equipoId
+                                                    ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                                                    : "border-emerald-200 focus:ring-emerald-400"
+                                                    }`}
+                                            >
+                                                <option value="">
+                                                    {formData.equipoId
+                                                        ? "Seleccionar estado..."
+                                                        : "Seleccione un equipo primero"}
+                                                </option>
+                                                <option value="ACTIVO">{EstadoEquipoLabel.ACTIVO}</option>
+                                                <option value="EN_STOCK">{EstadoEquipoLabel.EN_STOCK}</option>
+                                                <option value="EN_RIDS">{EstadoEquipoLabel.EN_RIDS}</option>
+                                                <option value="DADO_DE_BAJA">{EstadoEquipoLabel.DADO_DE_BAJA}</option>
+                                                <option value="EN_GARANTIA">{EstadoEquipoLabel.EN_GARANTIA}</option>
+                                                <option value="EN_TALLER_EXTERNO">{EstadoEquipoLabel.EN_TALLER_EXTERNO}</option>
+                                            </select>
+
+                                            {formData.equipoId && formData.estadoEquipo && (
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    {formData.area === "salida"
+                                                        ? "Para una salida, normalmente el equipo vuelve a quedar Activo."
+                                                        : "Para una entrada o trabajo, normalmente queda En RIDS."}
+                                                </p>
+                                            )}
+                                        </div>
                                         {/* Checkbox cargador */}
                                         <div className="flex items-center gap-3 mt-3">
                                             <input
@@ -594,7 +783,15 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                             <button
                                 onClick={handleSubmitWithValidation}
-                                disabled={loading || !formData.tipoTrabajo.trim() || !formData.equipoId || !formData.tecnicoId || !formData.entidadId || !formData.descripcion}
+                                disabled={
+                                    loading ||
+                                    !formData.tipoTrabajo.trim() ||
+                                    !formData.equipoId ||
+                                    !formData.estadoEquipo ||   // ← solo bloquea si hay equipo pero no estado
+                                    !formData.tecnicoId ||
+                                    !formData.entidadId ||
+                                    !formData.descripcion
+                                }
                                 className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"

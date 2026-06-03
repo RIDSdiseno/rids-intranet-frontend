@@ -1,3 +1,4 @@
+// src/components/modals-gestioo/pdf.tsx
 // PDF
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -12,10 +13,24 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
+import {
+    getPdfOrigenInfo,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "./pdfOrigen";
+
+import {
+    prepararContenedorPdf,
+    getHtml2CanvasPdfOptions,
+} from "../../utils/pdfLightExport";
+
 // ==============================
 //   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
-export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
+export const handlePrint = async (
+    orden: DetalleTrabajoGestioo,
+    origenPdf?: PdfOrigenKey
+) => {
     try {
         const fechaActual = new Date().toLocaleString("es-CL", {
             day: "2-digit",
@@ -29,31 +44,16 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         const codigo = String(orden.ordenGrupoId ?? orden.id).padStart(6, "0");
         const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
-        const ORIGEN_DATA = {
-            RIDS: {
-                nombre: "RIDS LTDA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "soporte@rids.cl",
-                telefono: "+56 9 8823 1976",
-                logo: "/img/splash.png",
-            },
-            ECONNET: {
-                nombre: "ECONNET SPA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "ventas@econnet.cl",
-                telefono: "+56 9 8807 6593",
-                logo: "/img/ecconetlogo.png",
-            },
-            OTRO: {
-                nombre: orden.entidad?.nombre ?? "Empresa",
-                direccion: orden.entidad?.direccion ?? "",
-                correo: orden.entidad?.correo ?? "",
-                telefono: orden.entidad?.telefono ?? "",
-                logo: "/img/splash.png",
-            },
-        };
+        const origenSeleccionado = origenPdf ?? normalizarPdfOrigen(orden.entidad?.origen ?? "RIDS");
 
-        const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
+        const origenInfo = getPdfOrigenInfo(origenSeleccionado, {
+            nombre: orden.entidad?.nombre,
+            direccion: orden.entidad?.direccion,
+            correo: orden.entidad?.correo,
+            telefono: orden.entidad?.telefono,
+            rut: orden.entidad?.rut,
+        });
+
         const tipoEquipoLabel =
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 
@@ -215,6 +215,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
 
         const container = document.createElement("div");
         container.innerHTML = html;
+        prepararContenedorPdf(container, "1700px");
         document.body.appendChild(container);
 
         // ✅ OPTIMIZAR SECCIONES
@@ -250,17 +251,20 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
             (el as HTMLElement).style.color = '#000000';
         });
 
-        // ✅ CONFIGURACIÓN OPTIMIZADA
-        const canvas = await html2canvas(container, {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: '#FFFFFF',
-            logging: false,
-            imageTimeout: 0,
-            width: container.scrollWidth,
-            height: container.scrollHeight,
-            windowWidth: container.scrollWidth,
-        });
+        // CONFIGURACIÓN OPTIMIZADA
+        const canvas = await html2canvas(
+            container,
+            getHtml2CanvasPdfOptions({
+                scale: 3,
+                useCORS: true,
+                backgroundColor: "#ffffff",
+                logging: false,
+                imageTimeout: 0,
+                width: container.scrollWidth,
+                height: container.scrollHeight,
+                windowWidth: container.scrollWidth,
+            })
+        );
 
         const pdf = new jsPDF("p", "mm", "a4", true);
         const img = canvas.toDataURL("image/jpeg", 1.0);
@@ -273,6 +277,11 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo) => {
         pdf.save(`Orden_${codigo}.pdf`);
 
         document.body.removeChild(container);
+
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
+        }
+        
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");

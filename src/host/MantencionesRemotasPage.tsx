@@ -16,12 +16,12 @@ import {
 } from "../lib/mantencionesRemotasApi";
 import { http } from "../service/http";
 
-import MantencionUpsertModal from "../components/modal-mantenciones/MantencionUpsert";
-import MantencionDetailsModal from "../components/modal-mantenciones/MantencionDetail";
-import MantencionFiltersBar from "../components/modal-mantenciones/MantencionFiltersBar";
-import MantencionMobileList from "../components/modal-mantenciones/MantencionMobileList";
-import MantencionDesktopTable from "../components/modal-mantenciones/MantencionDesktopTable";
-import MantencionesDashboardTab from "../components/modal-mantenciones/MantencionesDashboard";
+import MantencionUpsertModal from "../components/modals-mantenciones/MantencionUpsert";
+import MantencionDetailsModal from "../components/modals-mantenciones/MantencionDetail";
+import MantencionFiltersBar from "../components/modals-mantenciones/MantencionFiltersBar";
+import MantencionMobileList from "../components/modals-mantenciones/MantencionMobileList";
+import MantencionDesktopTable from "../components/modals-mantenciones/MantencionDesktopTable";
+import MantencionesDashboardTab from "../components/modals-mantenciones/MantencionesDashboard";
 
 type LoadState = "idle" | "loading" | "error";
 

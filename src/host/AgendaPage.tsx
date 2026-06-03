@@ -1,4 +1,14 @@
 // src/host/AgendaPage.tsx
+//
+// ─── Dark mode: usa variables CSS de index.css ───────────────────────────────
+//  Todos los colores inline anteriores (#0f172a, #64748b, "white", "#f8fafc",
+//  etc.) fueron reemplazados por tokens del sistema.
+//
+//  FullCalendar dark mode se resuelve por CSS (ya cubierto en index.css con
+//  las reglas .fc-*). El <style> de esta página añade solo los ajustes que
+//  FullCalendar no expone via tokens y que necesitan tema-awareness.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Alert, Button, message, Modal, Spin, Popconfirm, AutoComplete } from "antd";
 import type { Dayjs } from "dayjs";
@@ -18,13 +28,13 @@ import esLocale from "@fullcalendar/core/locales/es";
 
 dayjs.locale("es");
 
-/* ========= Config ========= */
+/* ====================== Config ====================== */
 type ViteEnv = { env?: { VITE_API_URL?: string } };
 const API_URL =
   ((import.meta as unknown) as ViteEnv).env?.VITE_API_URL ||
   "http://localhost:4000/api";
 
-/* ========= Auth helpers ========= */
+/* ====================== Auth helpers ====================== */
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("accessToken");
   return {
@@ -33,7 +43,7 @@ function authHeaders(): HeadersInit {
   };
 }
 
-/* ========= Helpers ========= */
+/* ====================== Helpers ====================== */
 function norm(s?: string | null): string {
   return (s ?? "").toLowerCase().trim();
 }
@@ -42,39 +52,32 @@ function isPastVisita(visita: Pick<AgendaVisita, "fecha">): boolean {
   return dayjs(visita.fecha).startOf("day").isBefore(dayjs().startOf("day"));
 }
 
-/** Devuelve la hora formateada o "" — reutilizable en futura vista semana/día */
 function fmtHora(s?: string | null): string {
   return s ?? "";
 }
-
-const OFICINA_COLOR = { bg: "#f1f5f9", border: "#94a3b8", text: "#475569" };
 
 function tecnicoColor(nombre?: string | null) {
   const key = norm(nombre);
   if (!key) {
     return {
-      backgroundColor: OFICINA_COLOR.bg,
-      borderColor: OFICINA_COLOR.border,
-      textColor: OFICINA_COLOR.text,
+      backgroundColor: "rgba(148,163,184,0.25)",
+      borderColor: "#94a3b8",
+      textColor: "var(--color-text-secondary)",
     };
   }
-
   let hash = 2166136261;
   for (let i = 0; i < key.length; i++) {
     hash ^= key.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-
   const hue = (hash >>> 0) % 360;
   return {
-    backgroundColor: `hsl(${hue}, 75%, 88%)`,
-    borderColor: `hsl(${hue}, 70%, 45%)`,
-    textColor: `hsl(${hue}, 55%, 20%)`,
+    backgroundColor: `hsl(${hue}, 55%, 32%)`,   // oscuro suficiente en dark, claro en light
+    borderColor: `hsl(${hue}, 65%, 50%)`,
+    textColor: `hsl(${hue}, 90%, 90%)`,
   };
 }
 
-
-/** Extrae el detalle de error del cuerpo JSON del response, o devuelve el fallback */
 async function errorMsg(res: Response, fallback: string): Promise<string> {
   try {
     const json = await res.json();
@@ -83,7 +86,7 @@ async function errorMsg(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
-/* ========= Component ========= */
+/* ====================== Componente ====================== */
 export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
   const [visitas, setVisitas] = useState<AgendaVisita[]>([]);
@@ -94,11 +97,9 @@ export default function AgendaPage() {
   const [selectedEmpresaIds, setSelectedEmpresaIds] = useState<number[]>([]);
   const [includeOficina, setIncludeOficina] = useState(false);
 
-  // Modal detalle de visita
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [detalleVisita, setDetalleVisita] = useState<AgendaVisita | null>(null);
 
-  // Modal edición de visita
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedVisita, setSelectedVisita] = useState<AgendaVisita | null>(null);
   const [tecnicosDisponibles, setTecnicosDisponibles] = useState<Tecnico[]>([]);
@@ -111,13 +112,11 @@ export default function AgendaPage() {
   const [sendingNota, setSendingNota] = useState(false);
   const [deletingVisitaId, setDeletingVisitaId] = useState(false);
 
-  // Modal detalle del día
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [dayModalDate, setDayModalDate] = useState("");
-  const [dayModalDateKey, setDayModalDateKey] = useState(""); // YYYY-MM-DD para refresco
+  const [dayModalDateKey, setDayModalDateKey] = useState("");
   const [dayModalVisitas, setDayModalVisitas] = useState<AgendaVisita[]>([]);
 
-  // Modal creación manual
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [calendarError, setCalendarError] = useState("");
@@ -130,13 +129,12 @@ export default function AgendaPage() {
   const [manualNotas, setManualNotas] = useState("");
   const [empresasDisponibles, setEmpresasDisponibles] = useState<Empresa[]>([]);
 
-  // ← NUEVO: estados de filtros
   const [filtroTecnico, setFiltroTecnico] = useState("");
   const [filtroEmpresa, setFiltroEmpresa] = useState("");
   const [filtroTecnicoDebounced, setFiltroTecnicoDebounced] = useState("");
   const [filtroEmpresaDebounced, setFiltroEmpresaDebounced] = useState("");
 
-  /* ---- fetch visitas del mes ---- */
+  /* ---- fetch ---- */
   const fetchVisitas = useCallback(async (date: Dayjs) => {
     setLoading(true);
     try {
@@ -146,10 +144,9 @@ export default function AgendaPage() {
       });
       if (filtroTecnicoDebounced) params.set("tecnico", filtroTecnicoDebounced);
       if (filtroEmpresaDebounced) params.set("empresa", filtroEmpresaDebounced);
-      const res = await fetch(
-        `${API_URL}/agenda?${params.toString()}`,
-        { headers: authHeaders(), credentials: "include" }
-      );
+      const res = await fetch(`${API_URL}/agenda?${params.toString()}`, {
+        headers: authHeaders(), credentials: "include",
+      });
       if (!res.ok) throw new Error("Error al cargar agenda");
       const data: AgendaVisita[] = await res.json();
       setVisitas(Array.isArray(data) ? data : []);
@@ -160,58 +157,44 @@ export default function AgendaPage() {
     }
   }, [filtroTecnicoDebounced, filtroEmpresaDebounced]);
 
-  /* ---- fetch técnicos ---- */
   const fetchTecnicos = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/tecnicos`, {
-        headers: authHeaders(),
-        credentials: "include",
-      });
+      const res = await fetch(`${API_URL}/tecnicos`, { headers: authHeaders(), credentials: "include" });
       if (!res.ok) return;
       const data = await res.json();
       setTecnicosDisponibles(Array.isArray(data) ? data : (data.items ?? []));
-    } catch {
-      // silencioso
-    }
+    } catch { /* silencioso */ }
   }, []);
 
-  /* ---- fetch empresas (catálogo de agenda desde /agenda/empresas) ---- */
   const fetchEmpresas = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/agenda/empresas`, {
-        headers: authHeaders(),
-        credentials: "include",
-      });
+      const res = await fetch(`${API_URL}/agenda/empresas`, { headers: authHeaders(), credentials: "include" });
       if (!res.ok) return;
       const data: Empresa[] = await res.json();
       setEmpresasDisponibles(Array.isArray(data) ? data : []);
-    } catch {
-      // silencioso
-    }
+    } catch { /* silencioso */ }
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setFiltroTecnicoDebounced(filtroTecnico);
       setFiltroEmpresaDebounced(filtroEmpresa);
     }, 400);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [filtroTecnico, filtroEmpresa]);
 
   useEffect(() => { fetchVisitas(currentDate); }, [currentDate, fetchVisitas]);
   useEffect(() => { fetchTecnicos(); }, [fetchTecnicos]);
   useEffect(() => { fetchEmpresas(); }, [fetchEmpresas]);
 
-  /* ---- agrupa visitas por fecha (alimenta calendario y modal del día) ---- */
   const visitasByDate = useMemo(() =>
     visitas.reduce<Record<string, AgendaVisita[]>>((acc, v) => {
       const key = dayjs(v.fecha).format("YYYY-MM-DD");
       (acc[key] = acc[key] || []).push(v);
       return acc;
     }, {}),
-  [visitas]);
+    [visitas]);
 
-  /* ---- mapea visitas a eventos de FullCalendar ---- */
   const fcEvents = useMemo(() =>
     visitas.map((v) => {
       const isPast = isPastVisita(v);
@@ -238,16 +221,15 @@ export default function AgendaPage() {
         ...tecnicoColor(v.tecnicos[0]?.tecnico?.nombre),
       };
     }),
-  [visitas]);
+    [visitas]);
 
-  /* ---- refresca el modal del día cuando visitas/filtros cambian ---- */
   useEffect(() => {
     if (dayModalOpen && dayModalDateKey) {
       setDayModalVisitas(visitasByDate[dayModalDateKey] || []);
     }
   }, [visitasByDate, dayModalDateKey, dayModalOpen]);
 
-  /* ---- generar malla ---- */
+  /* ---- acciones ---- */
   const handleGenerar = async () => {
     setGenerando(true);
     try {
@@ -258,9 +240,7 @@ export default function AgendaPage() {
         ...(includeOficina && { includeOficina: true }),
       };
       const res = await fetch(`${API_URL}/agenda/generar`, {
-        method: "POST",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "POST", headers: authHeaders(), credentials: "include",
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
@@ -274,14 +254,11 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- eliminar malla ---- */
   const handleEliminarMalla = async () => {
     setEliminando(true);
     try {
       const res = await fetch(`${API_URL}/agenda/malla`, {
-        method: "DELETE",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "DELETE", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({ year: currentDate.year(), month: currentDate.month() + 1 }),
       });
       if (!res.ok) throw new Error();
@@ -294,14 +271,12 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- click en visita → abrir detalle ---- */
   const handleVisitaClick = (visita: AgendaVisita) => {
     setDetalleVisita(visita);
     setSelectedVisita(visita);
     setDetalleOpen(true);
   };
 
-  /* ---- desde detalle → abrir edición ---- */
   const handleOpenEditar = (visita: AgendaVisita) => {
     setSelectedVisita(visita);
     setSelectedTecnicos(visita.tecnicos.map((t) => t.tecnico.id_tecnico));
@@ -314,15 +289,12 @@ export default function AgendaPage() {
     setModalOpen(true);
   };
 
-  /* ---- guardar empresa + técnicos ---- */
   const handleSaveVisita = async () => {
     if (!selectedVisita) return;
     setSaving(true);
     try {
       const resPatch = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
-        method: "PATCH",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "PATCH", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
           empresaId: selectedEmpresaId === -1 ? null : selectedEmpresaId,
           ...(selectedHoraInicio && { horaInicio: selectedHoraInicio }),
@@ -333,9 +305,7 @@ export default function AgendaPage() {
       if (!resPatch.ok) throw new Error(await errorMsg(resPatch, "Error al guardar la visita"));
 
       const resTecnicos = await fetch(`${API_URL}/agenda/${selectedVisita.id}/tecnicos`, {
-        method: "PUT",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "PUT", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({ nuevosTecnicoIds: selectedTecnicos }),
       });
       if (!resTecnicos.ok) throw new Error(await errorMsg(resTecnicos, "Error al guardar la visita"));
@@ -343,19 +313,11 @@ export default function AgendaPage() {
       const updatedEmpresa =
         selectedEmpresaId === null || selectedEmpresaId === -1
           ? null
-          : empresasDisponibles.find((empresa) => empresa.id_empresa === selectedEmpresaId)
-            ?? (selectedVisita.empresa?.id_empresa === selectedEmpresaId ? selectedVisita.empresa : null);
+          : empresasDisponibles.find((e) => e.id_empresa === selectedEmpresaId) ??
+          (selectedVisita.empresa?.id_empresa === selectedEmpresaId ? selectedVisita.empresa : null);
 
       setSelectedVisita((prev) =>
-        prev
-          ? {
-            ...prev,
-            empresa: updatedEmpresa,
-            horaInicio: selectedHoraInicio || null,
-            horaFin: selectedHoraFin || null,
-            notas: selectedNotas,
-          }
-          : prev
+        prev ? { ...prev, empresa: updatedEmpresa, horaInicio: selectedHoraInicio || null, horaFin: selectedHoraFin || null, notas: selectedNotas } : prev
       );
 
       message.success("Visita actualizada");
@@ -370,7 +332,6 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- enviar nota por correo ---- */
   const handleEnviarNota = async () => {
     if (!selectedVisita || !Number.isFinite(selectedVisita.id) || selectedVisita.id <= 0) return;
     if (sendingNota) return;
@@ -378,19 +339,14 @@ export default function AgendaPage() {
       message.warning("Guarda los cambios de la nota antes de enviarla por correo.");
       return;
     }
-
     setSendingNota(true);
     try {
       const res = await fetch(`${API_URL}/agenda/${selectedVisita.id}/enviar-nota`, {
-        method: "POST",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "POST", headers: authHeaders(), credentials: "include",
       });
       if (!res.ok) throw new Error(await errorMsg(res, "Error al enviar la nota por correo"));
-
       const data: { ok?: boolean; enviados?: number } = await res.json();
-      const enviados = typeof data?.enviados === "number" ? data.enviados : 0;
-      message.success(`Nota enviada por correo a ${enviados} técnico(s)`);
+      message.success(`Nota enviada por correo a ${data?.enviados ?? 0} técnico(s)`);
     } catch (e) {
       message.error(e instanceof Error ? e.message : "Error al enviar la nota por correo");
     } finally {
@@ -398,15 +354,12 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- eliminar visita individual ---- */
   const handleEliminarVisita = async () => {
     if (!selectedVisita) return;
     setDeletingVisitaId(true);
     try {
       const res = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "DELETE", headers: authHeaders(), credentials: "include",
       });
       if (!res.ok) throw new Error();
       message.success("Visita eliminada");
@@ -420,15 +373,12 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- crear visita manual ---- */
   const handleCrearManual = async () => {
     if (!manualFecha || manualEmpresaId === null || manualTecnicoId === null) return;
     setCreating(true);
     try {
       const res = await fetch(`${API_URL}/agenda/manual`, {
-        method: "POST",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "POST", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
           fecha: manualFecha,
           empresaId: manualEmpresaId === -1 ? null : manualEmpresaId,
@@ -443,7 +393,6 @@ export default function AgendaPage() {
       setCreateError("");
       setCreateModalOpen(false);
       fetchVisitas(currentDate);
-      // dayModalVisitas se actualiza via useEffect([visitasByDate, dayModalDateKey, dayModalOpen])
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Error al crear la visita");
     } finally {
@@ -451,7 +400,6 @@ export default function AgendaPage() {
     }
   };
 
-  /* ---- mover visita (drag & drop) ---- */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEventDrop = async (info: any) => {
     const visita: AgendaVisita = info.event.extendedProps.visita;
@@ -464,15 +412,11 @@ export default function AgendaPage() {
     const allDay: boolean = info.event.allDay;
     try {
       const res = await fetch(`${API_URL}/agenda/${visita.id}`, {
-        method: "PATCH",
-        headers: authHeaders(),
-        credentials: "include",
+        method: "PATCH", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
           fecha: newStart.format("YYYY-MM-DD"),
           ...(!allDay && { horaInicio: newStart.format("HH:mm") }),
-          ...(!allDay && info.event.end && {
-            horaFin: dayjs(info.event.end as Date).format("HH:mm"),
-          }),
+          ...(!allDay && info.event.end && { horaFin: dayjs(info.event.end as Date).format("HH:mm") }),
         }),
       });
       if (!res.ok) throw new Error(await errorMsg(res, "Error al mover la visita"));
@@ -481,12 +425,10 @@ export default function AgendaPage() {
       fetchVisitas(currentDate);
     } catch (e) {
       info.revert();
-      const msg = e instanceof Error ? e.message : "Error al mover la visita";
-      setCalendarError(msg);
+      setCalendarError(e instanceof Error ? e.message : "Error al mover la visita");
     }
   };
 
-  /* ---- redimensionar duración ---- */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEventResize = async (info: any) => {
     const visita: AgendaVisita = info.event.extendedProps.visita;
@@ -497,12 +439,8 @@ export default function AgendaPage() {
     }
     try {
       const res = await fetch(`${API_URL}/agenda/${visita.id}`, {
-        method: "PATCH",
-        headers: authHeaders(),
-        credentials: "include",
-        body: JSON.stringify({
-          horaFin: dayjs(info.event.end as Date).format("HH:mm"),
-        }),
+        method: "PATCH", headers: authHeaders(), credentials: "include",
+        body: JSON.stringify({ horaFin: dayjs(info.event.end as Date).format("HH:mm") }),
       });
       if (!res.ok) throw new Error(await errorMsg(res, "Error al actualizar duración"));
       setCalendarError("");
@@ -510,42 +448,137 @@ export default function AgendaPage() {
       fetchVisitas(currentDate);
     } catch (e) {
       info.revert();
-      const msg = e instanceof Error ? e.message : "Error al actualizar duración";
-      setCalendarError(msg);
+      setCalendarError(e instanceof Error ? e.message : "Error al actualizar duración");
     }
   };
 
-  /* ---- render ---- */
+  /* ====================== RENDER ====================== */
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #f0fdf4 100%)",
+        // Usa el token de fondo del sistema — cambia automáticamente en dark mode
+        background: "var(--color-bg)",
+        padding: "0 0 24px",
       }}
     >
+      {/*
+        ── Estilos FullCalendar para dark mode ──────────────────────────────────
+        Las reglas .fc-* en index.css cubren el cuerpo del calendario.
+        Estas reglas complementarias ajustan lo que FullCalendar aplica
+        inline o con clases específicas que no captura el selector genérico.
+      */}
       <style>{`
+        /* Eventos compactos */
         .agenda-calendar-compact .fc-event {
           font-size: 11px;
           padding: 1px 3px;
+          border-radius: 4px;
         }
-
         .agenda-calendar-compact .fc-daygrid-event {
           margin-top: 1px;
         }
-
         .agenda-calendar-compact .fc-daygrid-day-frame {
           min-height: 90px;
+        }
+
+        /* ── Dark mode: sobreescribe lo que FullCalendar pone inline ── */
+        html.a11y-theme-dark .fc {
+          color: var(--color-text-primary) !important;
+        }
+        html.a11y-theme-dark .fc-theme-standard td,
+        html.a11y-theme-dark .fc-theme-standard th,
+        html.a11y-theme-dark .fc-theme-standard .fc-scrollgrid {
+          border-color: var(--color-border) !important;
+        }
+        html.a11y-theme-dark .fc-col-header-cell {
+          background-color: var(--color-surface-2) !important;
+        }
+        html.a11y-theme-dark .fc-daygrid-day {
+          background-color: var(--color-surface) !important;
+        }
+        html.a11y-theme-dark .fc-daygrid-day:hover {
+          background-color: var(--color-surface-2) !important;
+        }
+        html.a11y-theme-dark .fc-day-other .fc-daygrid-day-top {
+          opacity: 0.4;
+        }
+        html.a11y-theme-dark .fc-daygrid-day-number,
+        html.a11y-theme-dark .fc-col-header-cell-cushion {
+          color: var(--color-text-secondary) !important;
+        }
+        html.a11y-theme-dark .fc-day-today {
+          background-color: rgba(8,145,178,0.10) !important;
+        }
+        html.a11y-theme-dark .fc-day-today .fc-daygrid-day-number {
+          color: var(--color-accent) !important;
+          font-weight: 700;
+        }
+        html.a11y-theme-dark .fc-more-link {
+          color: var(--color-accent) !important;
+          background: var(--color-surface-2) !important;
+          border-radius: 4px;
+          padding: 1px 4px;
+        }
+        /* Toolbar (prev/next/today/title/views) */
+        html.a11y-theme-dark .fc-toolbar-title {
+          color: var(--color-text-primary) !important;
+        }
+        html.a11y-theme-dark .fc-button,
+        html.a11y-theme-dark .fc-button-group .fc-button {
+          background-color: var(--color-surface-2) !important;
+          border-color: var(--color-border) !important;
+          color: var(--color-text-primary) !important;
+        }
+        html.a11y-theme-dark .fc-button:hover {
+          background-color: var(--color-surface-3) !important;
+        }
+        html.a11y-theme-dark .fc-button-active,
+        html.a11y-theme-dark .fc-button-primary:not(:disabled).fc-button-active {
+          background-color: var(--color-accent) !important;
+          border-color: var(--color-accent) !important;
+          color: #fff !important;
+        }
+        /* Popover "ver más" */
+        html.a11y-theme-dark .fc-popover {
+          background-color: var(--color-surface) !important;
+          border-color: var(--color-border) !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+        }
+        html.a11y-theme-dark .fc-popover-header {
+          background-color: var(--color-surface-2) !important;
+          color: var(--color-text-primary) !important;
+        }
+        html.a11y-theme-dark .fc-popover-body {
+          background-color: var(--color-surface) !important;
+        }
+        /* Timegrid */
+        html.a11y-theme-dark .fc-timegrid-slot,
+        html.a11y-theme-dark .fc-timegrid-axis {
+          background-color: var(--color-surface) !important;
+          border-color: var(--color-border-light) !important;
+        }
+        html.a11y-theme-dark .fc-timegrid-slot-label-cushion {
+          color: var(--color-text-muted) !important;
+        }
+        html.a11y-theme-dark .fc-timegrid-now-indicator-line {
+          border-color: var(--color-accent) !important;
+        }
+        html.a11y-theme-dark .fc-timegrid-now-indicator-arrow {
+          border-top-color: var(--color-accent) !important;
+          border-bottom-color: var(--color-accent) !important;
         }
       `}</style>
 
       {/* ── Cabecera ── */}
       <div
         style={{
-          background: "white",
+          background: "var(--color-surface)",
           borderRadius: 12,
           padding: "12px 20px",
           marginBottom: 12,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          border: "0.5px solid var(--color-border)",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -554,10 +587,10 @@ export default function AgendaPage() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#0f172a" }}>
+          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--color-text-primary)" }}>
             Calendario visitas
           </h1>
-          <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 14, textTransform: "capitalize" }}>
+          <p style={{ margin: "4px 0 0", color: "var(--color-text-secondary)", fontSize: 14, textTransform: "capitalize" }}>
             {currentDate.format("MMMM YYYY")}
           </p>
         </div>
@@ -567,11 +600,7 @@ export default function AgendaPage() {
             type="primary"
             size="middle"
             loading={generando}
-            onClick={() => {
-              setSelectedEmpresaIds([]);
-              setIncludeOficina(false);
-              setGenerateModalOpen(true);
-            }}
+            onClick={() => { setSelectedEmpresaIds([]); setIncludeOficina(false); setGenerateModalOpen(true); }}
             style={{ borderRadius: 8 }}
           >
             Generar Malla Mensual
@@ -582,11 +611,8 @@ export default function AgendaPage() {
             onClick={() => {
               setCreateError("");
               setManualFecha(dayjs().format("YYYY-MM-DD"));
-              setManualEmpresaId(null);
-              setManualTecnicoId(null);
-              setManualHoraInicio("");
-              setManualHoraFin("");
-              setManualNotas("");
+              setManualEmpresaId(null); setManualTecnicoId(null);
+              setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
               setCreateModalOpen(true);
             }}
             style={{ borderRadius: 8 }}
@@ -602,26 +628,22 @@ export default function AgendaPage() {
             okButtonProps={{ danger: true }}
             placement="bottomRight"
           >
-            <Button
-              danger
-              size="middle"
-              loading={eliminando}
-              style={{ borderRadius: 8 }}
-            >
+            <Button danger size="middle" loading={eliminando} style={{ borderRadius: 8 }}>
               Eliminar Malla Mensual
             </Button>
           </Popconfirm>
         </div>
       </div>
 
-      {/* ── NUEVO: Filtros ── */}
+      {/* ── Filtros ── */}
       <div
         style={{
-          background: "white",
+          background: "var(--color-surface)",
           borderRadius: 12,
           padding: "10px 16px",
           marginBottom: 12,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          border: "0.5px solid var(--color-border)",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
           display: "flex",
           alignItems: "center",
           flexWrap: "wrap",
@@ -635,8 +657,9 @@ export default function AgendaPage() {
           allowClear
           filterOption={false}
           style={{ width: 220, borderRadius: 8 }}
-          options={[...new Map(tecnicosDisponibles.map(t => [t.nombre, t])).values()]
-            .map((t) => ({ value: t.nombre, label: t.nombre }))}
+          options={[...new Map(tecnicosDisponibles.map((t) => [t.nombre, t])).values()].map((t) => ({
+            value: t.nombre, label: t.nombre,
+          }))}
         />
         <AutoComplete
           placeholder="Filtrar por empresa"
@@ -646,31 +669,34 @@ export default function AgendaPage() {
           style={{ width: 220, borderRadius: 8 }}
           options={[
             { value: "OFICINA", label: "OFICINA" },
-            ...empresasDisponibles.map((e) => ({ value: e.nombre.replace(/\s+/g, " ").trim(), label: e.nombre }))
+            ...empresasDisponibles.map((e) => ({
+              value: e.nombre.replace(/\s+/g, " ").trim(), label: e.nombre,
+            })),
           ]}
         />
         {(filtroTecnico || filtroEmpresa) && (
           <Button
             size="small"
             onClick={() => { setFiltroTecnico(""); setFiltroEmpresa(""); }}
-            style={{ borderRadius: 6, color: "#64748b" }}
+            style={{ borderRadius: 6 }}
           >
             Limpiar filtros
           </Button>
         )}
-        <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 4 }}>
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)", marginLeft: 4 }}>
           {visitas.length} visitas
         </span>
       </div>
 
-      {/* ── Calendario FullCalendar ── */}
+      {/* ── Calendario ── */}
       <div
         className="agenda-calendar-compact"
         style={{
-          background: "white",
+          background: "var(--color-surface)",
           borderRadius: 12,
-          padding: "6px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          padding: 6,
+          border: "0.5px solid var(--color-border)",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
         }}
       >
         {calendarError && (
@@ -698,17 +724,13 @@ export default function AgendaPage() {
             eventDisplay="block"
             editable
             droppable
-            eventClick={(info) =>
-              handleVisitaClick(info.event.extendedProps.visita as AgendaVisita)
-            }
+            eventClick={(info) => handleVisitaClick(info.event.extendedProps.visita as AgendaVisita)}
             eventDrop={handleEventDrop}
             eventResize={handleEventResize}
             datesSet={(dateInfo) => {
               const next = dayjs(dateInfo.view.currentStart);
               setCurrentDate((prev) =>
-                prev.month() !== next.month() || prev.year() !== next.year()
-                  ? next
-                  : prev
+                prev.month() !== next.month() || prev.year() !== next.year() ? next : prev
               );
             }}
             dateClick={(info) => {
@@ -729,6 +751,7 @@ export default function AgendaPage() {
         </Spin>
       </div>
 
+      {/* ── Modales ── */}
       <CrearVisitaAutomatica
         open={generateModalOpen}
         generando={generando}
@@ -739,11 +762,7 @@ export default function AgendaPage() {
         onEmpresaIdsChange={setSelectedEmpresaIds}
         onIncludeOficinaChange={setIncludeOficina}
         onOk={handleGenerar}
-        onCancel={() => {
-          setGenerateModalOpen(false);
-          setSelectedEmpresaIds([]);
-          setIncludeOficina(false);
-        }}
+        onCancel={() => { setGenerateModalOpen(false); setSelectedEmpresaIds([]); setIncludeOficina(false); }}
       />
 
       <DiaAgenda
@@ -754,17 +773,11 @@ export default function AgendaPage() {
           setDayModalOpen(false);
           setCreateError("");
           setManualFecha(dayModalDateKey);
-          setManualEmpresaId(null);
-          setManualTecnicoId(null);
-          setManualHoraInicio("");
-          setManualHoraFin("");
-          setManualNotas("");
+          setManualEmpresaId(null); setManualTecnicoId(null);
+          setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
           setCreateModalOpen(true);
         }}
-        onVisitaClick={(v) => {
-          setDayModalOpen(false);
-          handleVisitaClick(v);
-        }}
+        onVisitaClick={(v) => { setDayModalOpen(false); handleVisitaClick(v); }}
         onCancel={() => setDayModalOpen(false)}
       />
 
@@ -787,10 +800,7 @@ export default function AgendaPage() {
         onHoraFinChange={setManualHoraFin}
         onNotasChange={setManualNotas}
         onOk={handleCrearManual}
-        onCancel={() => {
-          setCreateError("");
-          setCreateModalOpen(false);
-        }}
+        onCancel={() => { setCreateError(""); setCreateModalOpen(false); }}
       />
 
       <DetalleVisita

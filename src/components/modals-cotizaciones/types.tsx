@@ -34,14 +34,18 @@ export type EstadoCotizacionGestioo = typeof EstadoCotizacionGestioo[keyof typeo
 export type TipoCotizacionGestioo = typeof TipoCotizacionGestioo[keyof typeof TipoCotizacionGestioo];
 export type ItemTipoGestioo = typeof ItemTipoGestioo[keyof typeof ItemTipoGestioo];
 
+export type TipoEntidadGestioo = "EMPRESA" | "PERSONA";
+export type OrigenEntidadGestioo = "RIDS" | "ECONNET" | "OTRO";
+
 export interface EntidadGestioo {
   id: number;
   nombre: string;
-  rut?: string;
-  correo?: string;
-  telefono?: string;
-  direccion?: string;
-  origen?: string;
+  rut?: string | null;
+  correo?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  origen?: OrigenEntidadGestioo | null;
+  tipo: TipoEntidadGestioo;
   createdAt?: string;
 }
 
@@ -146,7 +150,7 @@ export interface EmpresaForm {
 }
 
 export interface FormData {
-  tipoEntidad: "EMPRESA" | "PERSONA";
+  tipoEntidad: TipoEntidadGestioo;
   origenEntidad: string;
   entidadId: string;
   moneda: MonedaCotizacion;

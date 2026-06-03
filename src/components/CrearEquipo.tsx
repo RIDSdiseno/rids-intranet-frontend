@@ -31,6 +31,9 @@ import {
   MARCAS_EQUIPO,
   MODELOS_POR_MARCA,
   PROCESADORES,
+  TipoEquipo,
+  TipoEquipoLabel,
+  type TipoEquipoValue,
 } from "../components/modals-gestioo/types";
 
 /* =================== Tipos =================== */
@@ -66,10 +69,13 @@ export type EquipoDTO = {
   serial: string;
   marca: string;
   modelo: string;
+  anioPc?: number | null;
+  anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
   procesador: string;
   ram: string;
   disco: string;
   propiedad: string;
+  estado: EstadoEquipo;
   idSolicitante: number;
   solicitante: SolicitanteDTO | null;
 };
@@ -77,6 +83,8 @@ export type EquipoDTO = {
 type SolicitanteLite = {
   id_solicitante: number;
   nombre: string;
+  email?: string | null;
+  rut?: string | null;
   empresa?: { id_empresa: number; nombre: string } | null;
 };
 
@@ -88,6 +96,8 @@ type ListSolicitantesResponse = {
   items: Array<{
     id_solicitante: number;
     nombre: string;
+    email?: string | null;
+    rut?: string | null;
     empresaId: number | null;
     empresa: { id_empresa: number; nombre: string } | null;
   }>;
@@ -99,15 +109,19 @@ type AntdValidateError = { errorFields: AntdFieldError[] };
 type CreateEquipoPayload = {
   empresaId: number;
   idSolicitante: number | null;
+  tipo: TipoEquipoValue;
   serial: string;
   marca: string;
   modelo: string;
+  anioPc?: number | null;
   procesador: string;
   ram: string;
   disco: string;
   propiedad: string;
 
-  // 🔥 DETALLE
+  estado: EstadoEquipo;
+
+  // DETALLE
   macWifi?: string;
   redEthernet?: string;
   so?: string;
@@ -135,7 +149,7 @@ type CrearEquipoModalProps = {
   onCreated?: (nuevoEquipo: EquipoDTO) => void;
   brand?: "rids" | "econnet";
   logoUrl?: string;
-  // 🔥 NUEVO
+
   defaultValues?: {
     serial?: string;
     marca?: string;
@@ -155,6 +169,118 @@ type CreateEquipoResponse = {
     serial?: string;
     error: string;
   }>;
+};
+
+type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS" | "EN_GARANTIA" | "EN_TALLER_EXTERNO";
+
+const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
+  { value: "ACTIVO", label: "Activo" },
+  { value: "EN_STOCK", label: "En stock" },
+  { value: "DADO_DE_BAJA", label: "Dado de baja" },
+  { value: "EN_RIDS", label: "En RIDS" },
+  { value: "EN_GARANTIA", label: "En garantía" },
+  { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
+];
+
+type RequiredEquipoFields = {
+  procesador: boolean;
+  ram: boolean;
+  disco: boolean;
+};
+
+const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
+  [TipoEquipo.GENERICO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.NOTEBOOK]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.ALL_IN_ONE]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.DESKTOP]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.CPU]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.EQUIPO_ARMADO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+
+  [TipoEquipo.IMPRESORA]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.SCANNER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LASER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LED]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.MONITOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.ROUTER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.CARGADOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.INSUMOS_COMPUTACIONALES]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.RELOJ_CONTROL]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.OTRO]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+
+  [TipoEquipo.NAS]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+  [TipoEquipo.DISCO_DURO_EXTERNO]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
 };
 
 /* =================== Branding =================== */
@@ -213,9 +339,16 @@ async function fetchSolicitantesByEmpresa(
   if (search?.trim()) params.set("q", search.trim());
 
   const res = await http.get(`/solicitantes/by-empresa?${params.toString()}`);
-  return res.data.items.map((it: { id: number; nombre: string }) => ({
+  return res.data.items.map((it: {
+    id: number;
+    nombre: string;
+    email?: string | null;
+    rut?: string | null;
+  }) => ({
     id_solicitante: it.id,
     nombre: it.nombre,
+    email: it.email ?? null,
+    rut: it.rut ?? null,
     empresa: null,
   }));
 }
@@ -255,6 +388,22 @@ async function postEquipo(payload: CreateEquipoPayload): Promise<CreateEquipoRes
 function getModelosPorMarca(marca: string): readonly string[] {
   const key = marca.toUpperCase() as keyof typeof MODELOS_POR_MARCA;
   return MODELOS_POR_MARCA[key] ?? [];
+}
+
+function formatRut(value?: string | null) {
+  if (!value) return "Sin RUT";
+
+  const clean = String(value)
+    .replace(/[^0-9kK]/g, "")
+    .toUpperCase();
+
+  if (!clean) return "Sin RUT";
+  if (clean.length <= 1) return clean;
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
 }
 
 const ADICIONAL_TIPOS = [
@@ -304,6 +453,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const empresaId = Form.useWatch("empresaId", form);
   const marcaValue = Form.useWatch("marca", form);
 
+  const tipoEquipoValue =
+    (Form.useWatch("tipo", form) as TipoEquipoValue | undefined) ??
+    TipoEquipo.GENERICO;
+
+  const requiredFields =
+    REQUIRED_FIELDS_BY_TIPO[tipoEquipoValue] ??
+    REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+  const requiresProcesador = requiredFields.procesador;
+  const requiresRam = requiredFields.ram;
+  const requiresDisco = requiredFields.disco;
+
   // --- solicitantes ---
   const [solSearch, setSolSearch] = useState("");
   const debSearch = useDebounce(solSearch, 400);
@@ -321,7 +482,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     setLoadingSolicitantes(true);
     try {
       if (empresaId) {
-        // ✅ NO pasamos debSearch - cargamos TODOS los solicitantes de la empresa
+        // NO pasamos debSearch - cargamos TODOS los solicitantes de la empresa
         const solicitantes = await fetchSolicitantesByEmpresa(empresaId); // ← Sin search
         setSolOpts(solicitantes.map(s => ({ ...s, empresa: { id_empresa: empresaId, nombre: "" } })));
       } else {
@@ -330,6 +491,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         setSolOpts(items.map(it => ({
           id_solicitante: it.id_solicitante,
           nombre: it.nombre,
+          email: it.email ?? null,
+          rut: it.rut ?? null,
           empresa: it.empresa,
         })));
       }
@@ -394,11 +557,46 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
     prevEmpresaId.current = empresaId;
   }, [empresaId, open, form]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const currentRequired =
+      REQUIRED_FIELDS_BY_TIPO[tipoEquipoValue] ??
+      REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+    if (!currentRequired.procesador) {
+      form.setFields([
+        { name: "procesador", errors: [] },
+      ]);
+      form.setFieldsValue({ procesador: undefined });
+    }
+
+    if (!currentRequired.ram) {
+      form.setFields([
+        { name: "ramGb", errors: [] },
+      ]);
+      form.setFieldsValue({ ramGb: undefined });
+    }
+
+    if (!currentRequired.disco) {
+      form.setFields([
+        { name: "disco", errors: [] },
+      ]);
+      form.setFieldsValue({ disco: undefined });
+    }
+  }, [tipoEquipoValue, open, form]);
+
   const handleOk = async () => {
     setSubmitError(null);
     try {
       const values = await form.validateFields();
       setLoading(true);
+
+      const tipoEquipo = (values.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue;
+
+      const currentRequired =
+        REQUIRED_FIELDS_BY_TIPO[tipoEquipo] ??
+        REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
 
       const payload: CreateEquipoPayload = {
         empresaId: values.empresaId,
@@ -407,15 +605,30 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             ? null
             : values.idSolicitante,
 
+        tipo: tipoEquipo,
         serial: (values.serial || "").trim().toUpperCase(),
         marca: values.marca.trim(),
         modelo: values.modelo.trim(),
-        procesador: values.procesador.trim(),
-        ram: `${Number(values.ramGb)}GB`,
-        disco: values.disco.trim(),
+
+        // El backend actual exige estos 3 campos.
+        // Si no aplican para el tipo seleccionado, se envía "N/A".
+        procesador: currentRequired.procesador
+          ? values.procesador.trim()
+          : "N/A",
+
+        ram: currentRequired.ram
+          ? `${Number(values.ramGb)}GB`
+          : "N/A",
+
+        disco: currentRequired.disco
+          ? values.disco.trim()
+          : "N/A",
+
         propiedad: values.propiedad.trim(),
 
-        // 🔥 detalle
+        estado: values.estado ?? "ACTIVO",
+
+        // detalle
         macWifi: values.macWifi,
         redEthernet: values.redEthernet,
         so: values.so,
@@ -442,6 +655,10 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
             serialAdicional: a.serialAdicional?.trim() || null,
           })),
       };
+
+      if (values.anioPc !== undefined && values.anioPc !== null && values.anioPc !== "") {
+        payload.anioPc = Number(values.anioPc);
+      }
 
       const resp = await postEquipo(payload);
 
@@ -479,12 +696,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           setTimeout(() => setShakeField(null), 500);
         }
       } else {
-        // ✅ Captura el error de serial duplicado desde la respuesta del backend
+        // Captura el error de serial duplicado desde la respuesta del backend
         const axiosData = (err as any)?.response?.data;
 
         if (axiosData?.errors?.length > 0) {
           const primerError = axiosData.errors[0];
-          message.error(primerError.error || "Error al crear el equipo");
+
+          setSubmitError(
+            primerError?.serial
+              ? `Serial duplicado: ${primerError.serial} ya está registrado en el sistema`
+              : primerError?.error || "Error al crear el equipo"
+          );
+
           return;
         }
 
@@ -659,7 +882,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           initialValues={{
             propiedad: "Empresa",
             idSolicitante: undefined,
-            // 🔥 Pre-poblar desde cotización si vienen valores
+            tipo: TipoEquipo.GENERICO,
+            // Pre-poblar desde cotización si vienen valores
             serial: defaultValues?.serial,
             marca: defaultValues?.marca,
             modelo: defaultValues?.modelo,
@@ -741,10 +965,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                         const filtered = empresaId
                           ? solOpts.filter((s) => s.empresa?.id_empresa === empresaId)
                           : [];
-                        const opts = filtered.map((s) => ({
-                          label: s.empresa?.nombre ? `${s.nombre} — ${s.empresa.nombre}` : s.nombre,
-                          value: s.id_solicitante,
-                        }));
+                        const opts = filtered.map((s) => {
+                          const rutTexto = s.rut ? `RUT: ${formatRut(s.rut)}` : "Sin RUT";
+                          const emailTexto = s.email ? ` — ${s.email}` : "";
+                          const empresaTexto = s.empresa?.nombre ? ` — ${s.empresa.nombre}` : "";
+
+                          return {
+                            label: `${s.nombre} — ${rutTexto}${emailTexto}${empresaTexto}`,
+                            value: s.id_solicitante,
+                          };
+                        });
                         return [{ label: "— Sin solicitante —", value: undefined }, ...opts];
                       }, [solOpts, empresaId]) as { label: string; value: number | null }[]
                     }
@@ -776,124 +1006,255 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
               </Tooltip>
             </div>
 
+            <motion.div
+              animate={shakeField === "tipo" ? shakeKeyframes : { x: 0 }}
+              transition={shakeTransition}
+              className={`rounded-lg ${hasError("tipo") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+            >
+              <Form.Item
+                name="tipo"
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Tipo de equipo <Tag color="processing">Requerido</Tag>
+                  </span>
+
+                }
+                rules={[{ required: true, message: "Selecciona el tipo de equipo" }]}
+              >
+                <Select
+                  placeholder="Selecciona tipo"
+                  options={Object.values(TipoEquipo).map((t) => ({
+                    value: t,
+                    label: TipoEquipoLabel[t],
+                  }))}
+                  onChange={() => {
+                    setSubmitError(null);
+                    form.setFields([
+                      { name: "procesador", errors: [] },
+                      { name: "ramGb", errors: [] },
+                      { name: "disco", errors: [] },
+                    ]);
+                  }}
+                  className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                />
+              </Form.Item>
+              {tipoEquipoValue && (
+                <div className="text-xs text-slate-500 -mt-2 mb-2 md:col-span-2">
+                  {requiresProcesador || requiresRam || requiresDisco
+                    ? "Este tipo de equipo requiere datos técnicos específicos."
+                    : "Este tipo de equipo no requiere procesador, RAM ni disco. Se guardarán como N/A."}
+                </div>
+              )}
+            </motion.div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                {
-                  name: "serial",
-                  label: "Serial",
-                  placeholder: "Ej: PF2X3ABC123",
-                  max: 60,
-                },
-                {
-                  name: "marca",
-                  label: "Marca",
-                  placeholder: "Ej: Lenovo, HP, Dell…",
-                  max: 60,
-                },
-                {
-                  name: "modelo",
-                  label: "Modelo",
-                  placeholder: "Ej: ThinkPad T14 Gen3",
-                  max: 80,
-                },
-                {
-                  name: "procesador",
-                  label: "Procesador",
-                  placeholder: "Ej: Intel i5-1240P / Ryzen 5 5600U",
-                  max: 80,
-                },
-              ].map((f) => (
-                <motion.div
-                  key={f.name}
-                  animate={shakeField === f.name ? shakeKeyframes : { x: 0 }}
-                  transition={shakeTransition}
-                  className={`rounded-lg ${hasError(f.name) ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              {/* SERIAL */}
+              <motion.div
+                key="serial-field"
+                animate={shakeField === "serial" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("serial") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="serial"
+                  label="Serial"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa serial"),
+                    },
+                  ]}
                 >
+                  <Input
+                    allowClear
+                    placeholder="Ej: PF2X3ABC123"
+                    maxLength={60}
+                    className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    onBlur={(e) => {
+                      form.setFieldsValue({
+                        serial: (e.target.value || "").toUpperCase(),
+                      });
+                    }}
+                  />
+                </Form.Item>
+              </motion.div>
 
-                  <Form.Item
-                    name={f.name}
-                    label={f.label}
-                    rules={[
-                      {
-                        validator: (_, v) =>
-                          v && v.trim()
-                            ? Promise.resolve()
-                            : Promise.reject(
-                              `Ingresa ${f.label.toLowerCase()}`
-                            ),
-                      },
-                    ]}
+              {/* MARCA */}
+              <motion.div
+                key="marca-field"
+                animate={shakeField === "marca" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("marca") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="marca"
+                  label="Marca"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa marca"),
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={MARCAS_EQUIPO.map((m) => ({ value: m }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toUpperCase()
+                        .includes(input.toUpperCase())
+                    }
+                    onChange={() => {
+                      form.setFieldsValue({ modelo: undefined });
+                    }}
                   >
-                    {f.name === "marca" ? (
+                    <Input
+                      allowClear
+                      placeholder="Ej: Lenovo, HP, Dell…"
+                      maxLength={60}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
 
-                      <AutoComplete
-                        options={MARCAS_EQUIPO.map((m) => ({ value: m }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toUpperCase()
-                            .includes(input.toUpperCase())
+              {/* MODELO */}
+              <motion.div
+                key={`modelo-field-${marcaValue || "sin-marca"}`}
+                animate={shakeField === "modelo" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("modelo") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="modelo"
+                  label="Modelo"
+                  rules={[
+                    {
+                      validator: (_, v) =>
+                        v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa modelo"),
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={getModelosPorMarca(marcaValue || "").map((m: string) => ({
+                      value: m,
+                    }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    disabled={!marcaValue}
+                  >
+                    <Input
+                      allowClear
+                      placeholder={
+                        marcaValue
+                          ? "Ej: ThinkPad T14 Gen3"
+                          : "Selecciona una marca primero"
+                      }
+                      maxLength={80}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
+
+              {/* PROCESADOR */}
+              <motion.div
+                key="procesador-field"
+                animate={shakeField === "procesador" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("procesador") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+              >
+                <Form.Item
+                  name="procesador"
+                  label={requiresProcesador ? "Procesador" : "Procesador (no aplica)"}
+                  rules={[
+                    {
+                      validator: (_, v) => {
+                        if (!requiresProcesador) return Promise.resolve();
+
+                        return v && String(v).trim()
+                          ? Promise.resolve()
+                          : Promise.reject("Ingresa procesador");
+                      },
+                    },
+                  ]}
+                >
+                  <AutoComplete
+                    options={PROCESADORES.map((p) => ({ value: p }))}
+                    filterOption={(input, option) =>
+                      String(option?.value ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                    }
+                    disabled={!requiresProcesador}
+                  >
+                    <Input
+                      allowClear
+                      placeholder={
+                        requiresProcesador
+                          ? "Ej: Intel i5-1240P / Ryzen 5 5600U"
+                          : "No aplica para este tipo de equipo"
+                      }
+                      maxLength={80}
+                      className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    />
+                  </AutoComplete>
+                </Form.Item>
+              </motion.div>
+
+              <motion.div
+                animate={shakeField === "anioPc" ? shakeKeyframes : { x: 0 }}
+                transition={shakeTransition}
+                className={`rounded-lg ${hasError("anioPc") ? "ring-2 ring-red-300/70" : ""
+                  } transition-all`}
+              >
+                <Form.Item
+                  name="anioPc"
+                  label="Año PC"
+                  tooltip="Si lo dejas vacío, el sistema intentará calcularlo automáticamente desde el número de serie."
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (value === undefined || value === null || value === "") {
+                          return Promise.resolve();
                         }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
 
-                    ) : f.name === "modelo" ? (
+                        const anio = Number(value);
+                        const anioActual = new Date().getFullYear();
 
-                      <AutoComplete
-                        options={getModelosPorMarca(marcaValue || "").map((m: string) => ({ value: m }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toLowerCase()
-                            .includes(input.toLowerCase())
+                        if (!Number.isInteger(anio)) {
+                          return Promise.reject(
+                            new Error("El año debe ser un número entero")
+                          );
                         }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
 
-                    ) : f.name === "procesador" ? (
-
-                      <AutoComplete
-                        options={PROCESADORES.map((p) => ({ value: p }))}
-                        filterOption={(input, option) =>
-                          (option?.value ?? "")
-                            .toLowerCase()
-                            .includes(input.toLowerCase())
+                        if (anio < 2000 || anio > anioActual + 1) {
+                          return Promise.reject(
+                            new Error(`El año debe estar entre 2000 y ${anioActual + 1}`)
+                          );
                         }
-                      >
-                        <Input
-                          allowClear
-                          placeholder={f.placeholder}
-                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        />
-                      </AutoComplete>
 
-                    ) : (
-
-                      <Input
-                        allowClear
-                        placeholder={f.placeholder}
-                        className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
-                        onBlur={(e) => {
-                          if (f.name === "serial") {
-                            form.setFieldsValue({
-                              serial: (e.target.value || "").toUpperCase(),
-                            });
-                          }
-                        }}
-                      />
-
-                    )}
-                  </Form.Item>
-                </motion.div>
-              ))}
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                >
+                  <InputNumber
+                    style={{ width: "100%" }}
+                    min={2000}
+                    max={new Date().getFullYear() + 1}
+                    placeholder="Automático si lo dejas vacío"
+                  />
+                </Form.Item>
+              </motion.div>
 
               <motion.div
                 animate={shakeField === "ramGb" ? shakeKeyframes : { x: 0 }}
@@ -902,14 +1263,21 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
               >
                 <Form.Item
                   name="ramGb"
-                  label="RAM"
-                  tooltip="Solo el número; se agregará 'GB' automáticamente"
+                  label={requiresRam ? "RAM" : "RAM (no aplica)"}
+                  tooltip={
+                    requiresRam
+                      ? "Solo el número; se agregará 'GB' automáticamente"
+                      : "Este tipo de equipo no requiere RAM"
+                  }
                   rules={[
                     {
-                      validator: (_, v) =>
-                        typeof v === "number" && v > 0
+                      validator: (_, v) => {
+                        if (!requiresRam) return Promise.resolve();
+
+                        return typeof v === "number" && v > 0
                           ? Promise.resolve()
-                          : Promise.reject("Ingresa la cantidad en GB (ej: 16)"),
+                          : Promise.reject("Ingresa la cantidad en GB (ej: 16)");
+                      },
                     },
                   ]}
                 >
@@ -920,6 +1288,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     step={1}
                     placeholder="Ej: 16"
                     addonAfter="GB"
+                    disabled={!requiresRam}
                   />
                 </Form.Item>
               </motion.div>
@@ -932,13 +1301,16 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
 
                 <Form.Item
                   name="disco"
-                  label="Disco"
+                  label={requiresDisco ? "Disco" : "Disco (no aplica)"}
                   rules={[
                     {
-                      validator: (_, v) =>
-                        v && v.trim()
+                      validator: (_, v) => {
+                        if (!requiresDisco) return Promise.resolve();
+
+                        return v && String(v).trim()
                           ? Promise.resolve()
-                          : Promise.reject("Ingresa el almacenamiento"),
+                          : Promise.reject("Ingresa el almacenamiento");
+                      },
                     },
                   ]}
                 >
@@ -947,6 +1319,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     placeholder="Ej: 512GB NVMe"
                     maxLength={40}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                    disabled={!requiresDisco}
                   />
                 </Form.Item>
               </motion.div>
@@ -972,6 +1345,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                       { label: "Equipo Personal", value: "Equipo Personal" }, // 👈 AQUÍ
                     ]}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  name="estado"
+                  label="Estado del equipo"
+                  initialValue="ACTIVO"
+                  rules={[{ required: true, message: "Selecciona el estado del equipo" }]}
+                >
+                  <Select
+                    options={ESTADO_EQUIPO_OPTIONS}
+                    placeholder="Selecciona estado"
                   />
                 </Form.Item>
               </motion.div>

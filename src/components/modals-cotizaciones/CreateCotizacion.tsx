@@ -1,3 +1,4 @@
+// src/components/modals-cotizaciones/CreateCotizacion.tsx
 import React, { useState } from "react";
 import { Select } from "antd";
 import { motion } from "framer-motion";
@@ -224,6 +225,28 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
         setItems(prev => [...prev, newItem]);
         message.success("Servicio agregado a la cotización");
     };
+
+    // ===============================
+    // FILTRO DE ENTIDADES POR TIPO
+    // ===============================
+    const entidadesFiltradas = entidades.filter((entidad) => {
+        if (entidad.tipo !== formData.tipoEntidad) {
+            return false;
+        }
+
+        if (
+            formData.tipoEntidad === "EMPRESA" &&
+            filtroOrigen !== "TODOS"
+        ) {
+            return entidad.origen === filtroOrigen;
+        }
+
+        return true;
+    });
+
+    const totalEntidadesPorTipo = entidades.filter(
+        (entidad) => entidad.tipo === formData.tipoEntidad
+    ).length;
 
     // Renderizar item individual
     const renderItem = (item: any, index: number) => {
@@ -564,20 +587,27 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                         <select
                                             value={formData.tipoEntidad}
                                             onChange={(e) => {
+                                                const tipo = e.target.value as "EMPRESA" | "PERSONA";
+
                                                 setFormData({
                                                     ...formData,
-                                                    tipoEntidad: e.target.value as "EMPRESA" | "PERSONA",
-                                                    entidadId: ""
+                                                    tipoEntidad: tipo,
+                                                    entidadId: "",
+                                                    personaResponsable: "",
                                                 });
+
+                                                if (tipo === "PERSONA") {
+                                                    setFiltroOrigen("TODOS");
+                                                }
                                             }}
                                             className="
-        w-full px-3 py-2 text-sm
-        rounded-xl bg-white
-        border border-cyan-200
-        text-slate-700
-        focus:outline-none focus:ring-2 focus:ring-cyan-400
-        transition
-    "
+                                             w-full px-3 py-2 text-sm
+                                             rounded-xl bg-white
+                                             border border-cyan-200
+                                             text-slate-700
+                                             focus:outline-none focus:ring-2 focus:ring-cyan-400
+                                             transition
+                                             "
                                         >
                                             <option value="EMPRESA">Empresa</option>
                                             <option value="PERSONA">Persona</option>
@@ -653,9 +683,13 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                                         <Select
                                             showSearch
-                                            placeholder="Seleccione…"
+                                            placeholder={
+                                                formData.tipoEntidad === "PERSONA"
+                                                    ? "Seleccione una persona…"
+                                                    : "Seleccione una empresa…"
+                                            }
                                             value={formData.entidadId || undefined}
-                                            disabled={entidades.length === 0}
+                                            disabled={entidadesFiltradas.length === 0}
                                             className="w-full"
                                             optionFilterProp="label"
                                             onChange={(value) =>
@@ -672,7 +706,6 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                     rut.replace(/\./g, "").replace(/-/g, "");
 
                                                 const search = normalizeText(input);
-
                                                 const label = normalizeText(String(option?.label ?? ""));
                                                 const rut = normalizeRut(String(option?.rut ?? ""));
 
@@ -681,35 +714,18 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                     rut.includes(normalizeRut(input))
                                                 );
                                             }}
-                                            options={entidades
-                                                .filter(entidad => {
-                                                    if (
-                                                        formData.tipoEntidad === "EMPRESA" &&
-                                                        filtroOrigen !== "TODOS"
-                                                    ) {
-                                                        return entidad.origen === filtroOrigen;
-                                                    }
-                                                    return true;
-                                                })
-                                                .map(ent => ({
-                                                    value: String(ent.id),
-                                                    label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}`,
-                                                    rut: ent.rut, // 👈 CLAVE para buscar por RUT
-                                                }))}
+                                            options={entidadesFiltradas.map((ent) => ({
+                                                value: String(ent.id),
+                                                label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}`,
+                                                rut: ent.rut ?? "",
+                                            }))}
                                         />
 
-                                        {formData.tipoEntidad === "EMPRESA" && (
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                Mostrando {
-                                                    entidades.filter(ent => {
-                                                        if (filtroOrigen !== "TODOS") {
-                                                            return ent.origen === filtroOrigen;
-                                                        }
-                                                        return true;
-                                                    }).length
-                                                } de {entidades.length} empresas
-                                            </p>
-                                        )}
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Mostrando {entidadesFiltradas.length} de{" "}
+                                            {totalEntidadesPorTipo}{" "}
+                                            {formData.tipoEntidad === "PERSONA" ? "personas" : "empresas"}
+                                        </p>
                                     </div>
 
                                     {/* Persona Responsable */}

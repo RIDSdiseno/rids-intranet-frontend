@@ -1,4 +1,4 @@
-// OrdenesTaller.tsx
+// src/host/OrdenesTaller.tsx
 import React, { useEffect, useMemo, useState } from "react";
 
 // ICONS
@@ -17,7 +17,9 @@ import {
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
-import { Select } from "antd";
+import { DatePicker, Select } from "antd";
+
+import dayjs from "dayjs";
 
 // TYPES    
 import type {
@@ -30,6 +32,8 @@ import type {
     EquipoGestioo,
     DetalleTrabajoGestioo,
     Tecnico,
+    EstadoEquipo,
+    DestinoEquipoTaller,
 } from "../components/modals-gestioo/types";
 
 // TYPES
@@ -38,6 +42,11 @@ import {
     normalizeEstado,
     TipoEquipo,
     TipoEquipoLabel,
+    EstadoEquipoLabel,
+    EstadoEquipoColor,
+    DestinoEquipoTallerLabel,
+    DestinoEquipoTallerColor,
+    DestinoEquipoTallerOptions,
 } from "../components/modals-gestioo/types";
 
 // PDF
@@ -53,9 +62,17 @@ import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrde
 
 import { http } from "../service/http";
 
+import { useAuth } from "../components/hooks/useAuth"
+
+import {
+    PDF_ORIGEN_DATA,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "../components/modals-gestioo/pdfOrigen";
+
 /* ===== Helpers de mapeo ===== */
 const areaToApi = (a: Area) =>
-    a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : a === "reparacion" ? "REPARACION" : "SALIDA";
+    a === "entrada" ? "ENTRADA" : a === "domicilio" ? "DOMICILIO" : "SALIDA";
 
 const prioridadToApi = (p: Prioridad) => (p === "baja" ? "BAJA" : p === "alta" ? "ALTA" : "NORMAL");
 
@@ -63,8 +80,6 @@ const estadoToApi = (e: string) => {
     switch (e) {
         case "pendiente":
             return "PENDIENTE";
-        case "en progreso":
-            return "EN_PROCESO";
         case "completada":
             return "FINALIZADO";
         case "cancelada":
@@ -72,6 +87,24 @@ const estadoToApi = (e: string) => {
         default:
             return "PENDIENTE";
     }
+};
+
+const estadoEquipoDefaultPorArea = (area: Area): EstadoEquipo => {
+    if (area === "salida") return "ACTIVO";
+    return "EN_RIDS";
+};
+
+const obtenerEstadoEquipoSeleccionado = (
+    equipoId: string,
+    equipos: EquipoGestioo[]
+): EstadoEquipo | "" => {
+    if (!equipoId) return "";
+
+    const equipo = equipos.find(
+        (eq) => String(eq.id_equipo) === String(equipoId)
+    );
+
+    return equipo?.estado ?? "";
 };
 
 const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
@@ -101,8 +134,30 @@ const toDateTimeLocal = (date: string | Date) => {
     return local.toISOString().slice(0, 16);
 };
 
+const toStartOfDay = (value: string) => {
+    const date = new Date(`${value}T00:00:00`);
+    date.setHours(0, 0, 0, 0);
+    return date;
+};
+
+const toEndOfDay = (value: string) => {
+    const date = new Date(`${value}T23:59:59`);
+    date.setHours(23, 59, 59, 999);
+    return date;
+};
+
 // Componente principal
 const OrdenesTaller: React.FC = () => {
+
+    const { isCliente } = useAuth();
+
+    const [origenPdf, setOrigenPdf] = useState<PdfOrigenKey>("RIDS");
+
+    const [printOrigenOpen, setPrintOrigenOpen] = useState(false);
+    const [ordenPendientePrint, setOrdenPendientePrint] =
+        useState<DetalleTrabajoGestioo | null>(null);
+
+    const [generandoPdf, setGenerandoPdf] = useState(false);
 
     // Función para duplicar orden a SALIDA
     const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
@@ -128,6 +183,8 @@ const OrdenesTaller: React.FC = () => {
                 equipoId: orden.equipo?.id_equipo ?? null,
                 tecnicoId: orden.tecnico?.id_tecnico ?? null,
                 incluyeCargador: orden.incluyeCargador ?? false,
+                destinoEquipo: orden.destinoEquipo ?? "SIN_DEFINIR",
+                destinoEquipoNota: orden.destinoEquipoNota ?? null,
             };
 
             await http.post("/detalle-trabajo-gestioo", payload);
@@ -177,14 +234,21 @@ const OrdenesTaller: React.FC = () => {
         origenEntidad: "",
         entidadId: "",
         equipoId: "",
+        estadoEquipo: "",
         incluyeCargador: false,
+        destinoEquipo: "SIN_DEFINIR",
+        destinoEquipoNota: "",
     });
 
-    const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "en progreso" | "completada" | "cancelada">("todas");
+    const [estadoFiltro, setEstadoFiltro] = useState<"todas" | "pendiente" | "completada" | "cancelada">("todas");
     const [areaFiltro, setAreaFiltro] = useState<"todas" | Area>("todas");
     const [origenFiltro, setOrigenFiltro] = useState<"todas" | OrigenGestioo>("todas");
     const [empresaFiltro, setEmpresaFiltro] = useState<string>("todas");
     const [tecnicoFiltro, setTecnicoFiltro] = useState<number | "todos">("todos");
+    const [destinoFiltro, setDestinoFiltro] = useState<"todos" | DestinoEquipoTaller>("todos");
+    const [fechaRangoFiltro, setFechaRangoFiltro] = useState<
+        [dayjs.Dayjs | null, dayjs.Dayjs | null] | null
+    >(null);
 
     /* ======= Fetch ======= */
     const fetchOrdenes = async () => {
@@ -218,13 +282,13 @@ const OrdenesTaller: React.FC = () => {
         fetchSelectData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    
+
     // Cargar equipos con normalización de tipo para evitar problemas en el select
     useEffect(() => {
         const cargarEquipos = async () => {
             try {
                 const { data } = await http.get("/equipos", {
-                    params: { pageSize: 700 }
+                    params: { pageSize: 1000 }
                 });
 
                 const list = Array.isArray(data) ? data : data.items ?? [];
@@ -293,8 +357,12 @@ const OrdenesTaller: React.FC = () => {
                 fecha: formData.fecha ? new Date(formData.fecha).toISOString() : undefined,
                 entidadId: Number(formData.entidadId),
                 equipoId: Number(formData.equipoId),
+                estadoEquipo: formData.estadoEquipo || null,
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
                 incluyeCargador: formData.incluyeCargador,
+
+                destinoEquipo: formData.destinoEquipo,
+                destinoEquipoNota: formData.destinoEquipoNota.trim() || null,
             };
 
             await http.post("/detalle-trabajo-gestioo", payload);
@@ -310,10 +378,14 @@ const OrdenesTaller: React.FC = () => {
                 area: "entrada",
                 fecha: getDateTimeLocalCL(),
                 tipoEntidad: "EMPRESA",
-                origenEntidad: "",
+                origenEntidad: "TODOS",
                 entidadId: "",
                 equipoId: "",
+                estadoEquipo: "",
+                tecnicoId: "",
                 incluyeCargador: false,
+                destinoEquipo: "SIN_DEFINIR",
+                destinoEquipoNota: "",
             });
 
             setModalOpen(false);
@@ -346,10 +418,13 @@ const OrdenesTaller: React.FC = () => {
             origenEntidad: o.entidad?.origen ?? "",
             entidadId: String(o.entidad?.id ?? ""),
             equipoId: String(o.equipo?.id_equipo ?? ""),
-
+            estadoEquipo:
+                o.equipo?.estado ??
+                estadoEquipoDefaultPorArea(normalizeArea(o.area) as Area),
             tecnicoId: o.tecnico?.id_tecnico ? String(o.tecnico.id_tecnico) : "",
             incluyeCargador: o.incluyeCargador ?? false,
-
+            destinoEquipo: (o.destinoEquipo ?? "SIN_DEFINIR") as DestinoEquipoTaller,
+            destinoEquipoNota: o.destinoEquipoNota ?? "",
         });
         setEditOpen(true);
     };
@@ -386,11 +461,14 @@ const OrdenesTaller: React.FC = () => {
                     : undefined,
                 entidadId: formData.entidadId ? Number(formData.entidadId) : null,
                 equipoId: formData.equipoId ? Number(formData.equipoId) : null,
+                estadoEquipo: formData.estadoEquipo || estadoEquipoDefaultPorArea(formData.area),
                 tecnicoId: formData.tecnicoId ? Number(formData.tecnicoId) : null,
                 incluyeCargador: formData.incluyeCargador,
+                destinoEquipo: formData.destinoEquipo,
+                destinoEquipoNota: formData.destinoEquipoNota.trim() || null,
             };
 
-            // 🔁 DUPLICAR (ENTRADA → SALIDA)
+            // DUPLICAR (ENTRADA → SALIDA)
             if (debeDuplicar) {
                 await http.post("/detalle-trabajo-gestioo", payload);
 
@@ -434,24 +512,26 @@ const OrdenesTaller: React.FC = () => {
         }
     };
 
-    /* ======= Filtrado ======= */
-    const filtered = useMemo(() => {
+    /* ======= Filtrado base: empresa, técnico, origen y búsqueda ======= */
+    const filteredBase = useMemo(() => {
         const q = safeLower(busquedaEquipo);
-
         const qNumber = Number(busquedaEquipo);
 
         return ordenes.filter((o) => {
-            const matchesEstado = estadoFiltro === "todas" || normalizeEstado(o.estado) === estadoFiltro;
-            const matchesArea = areaFiltro === "todas" || normalizeArea(o.area) === areaFiltro;
-            const matchesOrigen = origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
+            const matchesOrigen =
+                origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
 
-            const matchesEmpresa = empresaFiltro === "todas" || o.entidad?.nombre === empresaFiltro;
+            const matchesEmpresa =
+                empresaFiltro === "todas" || o.entidad?.nombre === empresaFiltro;
 
             const matchesTecnico =
                 tecnicoFiltro === "todos" ||
                 o.tecnico?.id_tecnico === tecnicoFiltro;
 
-            const tipoLabel = o.equipo?.tipo ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue]) : "";
+            const tipoLabel = o.equipo?.tipo
+                ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue])
+                : "";
+
             const matchesEquipo =
                 !q ||
                 safeLower(o.equipo?.marca).includes(q) ||
@@ -460,13 +540,11 @@ const OrdenesTaller: React.FC = () => {
                 tipoLabel.includes(q);
 
             const matchesOrdenId =
-                busquedaEquipo &&
-                !isNaN(qNumber) &&
+                Boolean(busquedaEquipo) &&
+                !Number.isNaN(qNumber) &&
                 (o.ordenGrupoId === qNumber || o.id === qNumber);
 
             return (
-                matchesEstado &&
-                matchesArea &&
                 matchesOrigen &&
                 matchesEmpresa &&
                 matchesTecnico &&
@@ -475,12 +553,54 @@ const OrdenesTaller: React.FC = () => {
         });
     }, [
         ordenes,
-        estadoFiltro,
-        areaFiltro,
         origenFiltro,
         empresaFiltro,
         tecnicoFiltro,
-        busquedaEquipo
+        busquedaEquipo,
+    ]);
+
+    /* ======= Filtrado final: estado y área sobre el filtro base ======= */
+    const filtered = useMemo(() => {
+        return filteredBase.filter((o) => {
+            const matchesEstado =
+                estadoFiltro === "todas" ||
+                normalizeEstado(o.estado) === estadoFiltro;
+
+            const matchesArea =
+                areaFiltro === "todas" ||
+                normalizeArea(o.area) === areaFiltro;
+
+            const matchesDestino =
+                destinoFiltro === "todos" ||
+                (o.destinoEquipo ?? "SIN_DEFINIR") === destinoFiltro;
+
+            const fechaOrden = o.fecha ? dayjs(o.fecha) : null;
+
+            const fechaDesde = fechaRangoFiltro?.[0]?.startOf("day") ?? null;
+            const fechaHasta = fechaRangoFiltro?.[1]?.endOf("day") ?? null;
+
+            const matchesFecha =
+                !fechaDesde ||
+                !fechaHasta ||
+                Boolean(
+                    fechaOrden &&
+                    fechaOrden.isAfter(fechaDesde.subtract(1, "millisecond")) &&
+                    fechaOrden.isBefore(fechaHasta.add(1, "millisecond"))
+                );
+
+            return (
+                matchesEstado &&
+                matchesArea &&
+                matchesDestino &&
+                matchesFecha
+            );
+        });
+    }, [
+        filteredBase,
+        estadoFiltro,
+        areaFiltro,
+        destinoFiltro,
+        fechaRangoFiltro,
     ]);
 
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
@@ -492,41 +612,41 @@ const OrdenesTaller: React.FC = () => {
 
     const conteoPorEstado = useMemo(() => {
         const base = {
-            todas: ordenes.length,
+            todas: filteredBase.length,
             pendiente: 0,
-            "en progreso": 0,
             completada: 0,
             cancelada: 0,
         };
 
-        ordenes.forEach((o) => {
+        filteredBase.forEach((o) => {
             const estado = normalizeEstado(o.estado) as keyof typeof base;
+
             if (base[estado] !== undefined) {
                 base[estado]++;
             }
         });
 
         return base;
-    }, [ordenes]);
+    }, [filteredBase]);
 
     const conteoPorArea = useMemo(() => {
         const base = {
-            todas: ordenes.length,
+            todas: filteredBase.length,
             entrada: 0,
             domicilio: 0,
-            reparacion: 0,
             salida: 0,
         };
 
-        ordenes.forEach((o) => {
+        filteredBase.forEach((o) => {
             const area = normalizeArea(o.area) as keyof typeof base;
+
             if (base[area] !== undefined) {
                 base[area]++;
             }
         });
 
         return base;
-    }, [ordenes]);
+    }, [filteredBase]);
 
     {/*
     const generarCotizacionDesdeOrden = async (orden: DetalleTrabajoGestioo) => {
@@ -580,7 +700,48 @@ const OrdenesTaller: React.FC = () => {
             });
         }
     }; */}
-    
+
+    const abrirModalImpresion = (orden: DetalleTrabajoGestioo) => {
+        const error = validarOrdenParaImprimir(orden);
+
+        if (error) {
+            setToast({
+                type: "error",
+                message: error,
+            });
+            return;
+        }
+
+        setOrdenPendientePrint(orden);
+        setOrigenPdf("RIDS");
+        setPrintOrigenOpen(true);
+    };
+
+    const confirmarImpresion = async () => {
+        if (!ordenPendientePrint || generandoPdf) return;
+
+        try {
+            setGenerandoPdf(true);
+
+            // Permite que React pinte el loading antes de iniciar la generación pesada
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            await Promise.resolve(handlePrint(ordenPendientePrint, origenPdf));
+
+            setPrintOrigenOpen(false);
+            setOrdenPendientePrint(null);
+        } catch (error) {
+            console.error("Error al generar PDF:", error);
+
+            setToast({
+                type: "error",
+                message: "No se pudo generar el PDF de la orden.",
+            });
+        } finally {
+            setGenerandoPdf(false);
+        }
+    };
+
     // incluye múltiples filtros, acciones y modales. Se han aplicado estilos modernos con Tailwind CSS para lograr una apariencia limpia y profesional, y se han añadido animaciones suaves para mejorar la experiencia del usuario. La tabla de órdenes es completamente responsive y permite un scroll horizontal en pantallas pequeñas sin perder la estructura ni la usabilidad. Además, se han implementado contadores dinámicos en los filtros para mostrar la cantidad de órdenes en cada categoría, lo que facilita la navegación y el análisis rápido de la información.
     return (
         <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -592,7 +753,7 @@ const OrdenesTaller: React.FC = () => {
             </div>
 
             {/* Contenido principal */}
-            <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mt-6">
+            <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
                 <div className="rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
@@ -605,28 +766,33 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Acciones principales */}
                         <div className="flex flex-wrap gap-3">
-                            <button
-                                onClick={() => {
-                                    setFormData({
-                                        tipoTrabajo: "",
-                                        descripcion: "",
-                                        prioridad: "normal",
-                                        estado: "pendiente",
-                                        notas: "",
-                                        area: "entrada",
-                                        fecha: getDateTimeLocalCL(),
-                                        tipoEntidad: "EMPRESA",
-                                        origenEntidad: "",
-                                        entidadId: "",
-                                        equipoId: "",
-                                        incluyeCargador: false,
-                                    });
-                                    setModalOpen(true);
-                                }}
-                                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 hover:brightness-110 transition shadow"
-                            >
-                                <PlusOutlined /> Nueva Orden
-                            </button>
+                            {!isCliente && (
+                                <button
+                                    onClick={() => {
+                                        setFormData({
+                                            tipoTrabajo: "",
+                                            descripcion: "",
+                                            prioridad: "normal",
+                                            estado: "pendiente",
+                                            notas: "",
+                                            area: "entrada",
+                                            fecha: getDateTimeLocalCL(),
+                                            tipoEntidad: "EMPRESA",
+                                            origenEntidad: "",
+                                            entidadId: "",
+                                            equipoId: "",
+                                            estadoEquipo: "",
+                                            incluyeCargador: false,
+                                            destinoEquipo: "SIN_DEFINIR",
+                                            destinoEquipoNota: "",
+                                        });
+                                        setModalOpen(true);
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-emerald-600 to-cyan-600 hover:brightness-110 transition shadow"
+                                >
+                                    <PlusOutlined /> Nueva Orden
+                                </button>
+                            )}
 
                             <button
                                 onClick={fetchOrdenes}
@@ -651,7 +817,7 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Estado */}
                         <div className="flex flex-wrap gap-2">
-                            {(["todas", "pendiente", "en progreso", "completada", "cancelada"] as const).map(
+                            {(["todas", "pendiente", "completada", "cancelada"] as const).map(
                                 (estado) => (
                                     <button
                                         key={estado}
@@ -682,7 +848,7 @@ const OrdenesTaller: React.FC = () => {
 
                         {/* Área */}
                         <div className="flex flex-wrap gap-2">
-                            {(["todas", "entrada", "domicilio", "reparacion", "salida"] as const).map(
+                            {(["todas", "entrada", "domicilio", "salida"] as const).map(
                                 (area) => (
                                     <button
                                         key={area}
@@ -712,48 +878,94 @@ const OrdenesTaller: React.FC = () => {
                         </div>
 
                         {/* Empresas*/}
-                        <div className="min-w-[250px]">
-                            <Select
-                                showSearch
-                                placeholder="Filtrar por empresa"
-                                value={empresaFiltro}
-                                onChange={(value) => setEmpresaFiltro(value)}
-                                style={{ width: 250 }}
-                                optionFilterProp="label"
-                                size="middle"
-                                className="custom-empresa-select"
-                                options={[
-                                    { value: "todas", label: "Todas las empresas" },
-                                    ...Array.from(
-                                        new Set(
-                                            ordenes
-                                                .map((o) => o.entidad?.nombre)
-                                                .filter(Boolean)
-                                        )
-                                    ).map((e) => ({
-                                        value: e,
-                                        label: e,
-                                    })),
-                                ]}
-                            />
-                        </div>
-                        
-                        {/* Técnicos */}
-                        <div className="min-w-[220px]">
-                            <Select
-                                placeholder="Todos los técnicos"
-                                value={tecnicoFiltro}
-                                onChange={(value) => setTecnicoFiltro(value)}
-                                style={{ width: 220 }}
-                                options={[
-                                    { value: "todos", label: "Todos los técnicos" },
-                                    ...tecnicos.map((t) => ({
-                                        value: t.id_tecnico,
-                                        label: t.nombre,
-                                    })),
-                                ]}
-                            />
-                        </div>
+                        {!isCliente && (
+                            <>
+                                <div className="min-w-[250px]">
+                                    <Select
+                                        showSearch
+                                        placeholder="Filtrar por empresa"
+                                        value={empresaFiltro}
+                                        onChange={(value) => setEmpresaFiltro(value)}
+                                        style={{ width: 250 }}
+                                        optionFilterProp="label"
+                                        size="middle"
+                                        className="custom-empresa-select"
+                                        options={[
+                                            { value: "todas", label: "Todas las empresas" },
+                                            ...Array.from(
+                                                new Set(
+                                                    ordenes
+                                                        .map((o) => o.entidad?.nombre)
+                                                        .filter(Boolean)
+                                                )
+                                            ).map((e) => ({
+                                                value: e,
+                                                label: e,
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+
+                                {/* Técnicos */}
+                                <div className="min-w-[220px]">
+                                    <Select
+                                        placeholder="Todos los técnicos"
+                                        value={tecnicoFiltro}
+                                        onChange={(value) => setTecnicoFiltro(value)}
+                                        style={{ width: 220 }}
+                                        options={[
+                                            { value: "todos", label: "Todos los técnicos" },
+                                            ...tecnicos.map((t) => ({
+                                                value: t.id_tecnico,
+                                                label: t.nombre,
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+
+                                {/* Destino */}
+                                <div className="min-w-[220px]">
+                                    <Select
+                                        placeholder="Todos los destinos"
+                                        value={destinoFiltro}
+                                        onChange={(value) => setDestinoFiltro(value)}
+                                        style={{ width: 220 }}
+                                        options={[
+                                            { value: "todos", label: "Todos los destinos" },
+                                            ...DestinoEquipoTallerOptions,
+                                        ]}
+                                    />
+                                </div>
+                                
+                                {/* Rango de fechas */}
+                                <div className="min-w-[280px]">
+                                    <DatePicker.RangePicker
+                                        value={fechaRangoFiltro}
+                                        onChange={(dates) => {
+                                            setFechaRangoFiltro(
+                                                dates
+                                                    ? [dates[0], dates[1]]
+                                                    : null
+                                            );
+                                        }}
+                                        format="DD/MM/YYYY"
+                                        placeholder={["Desde", "Hasta"]}
+                                        style={{ width: 280 }}
+                                        allowClear
+                                    />
+                                </div>
+
+                                {fechaRangoFiltro && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setFechaRangoFiltro(null)}
+                                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                                    >
+                                        Limpiar fechas
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -764,11 +976,23 @@ const OrdenesTaller: React.FC = () => {
                         <table className="min-w-full text-sm">
                             <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 border-b border-cyan-200 text-slate-800">
                                 <tr>
-                                    {["ID", "Tipo Trabajo", "Estado", "Área", "Equipo", "Empresa", "Técnico", "Fecha ingreso", "Acciones"].map((h) => (
+                                    {[
+                                        "ID",
+                                        "Tipo Trabajo",
+                                        "Estado",
+                                        "Área",
+                                        "Equipo",
+                                        "Estado equipo",
+                                        "Destino",
+                                        "Empresa",
+                                        "Técnico",
+                                        "Fecha ingreso",
+                                        "Acciones",
+                                    ].map((h) => (
                                         <th
                                             key={h}
                                             className={`text-left px-4 py-3 font-semibold whitespace-nowrap ${h === "Acciones" ? "w-40" :
-                                                h === "Tipo Trabajo" ? "w-48" :  // 🔥 NUEVO
+                                                h === "Tipo Trabajo" ? "w-48" :  // NUEVO
                                                     h === "ID" ? "w-12" :
                                                         h === "Prioridad" || h === "Estado" || h === "Área" ? "w-28" : ""
                                                 }`}
@@ -835,11 +1059,9 @@ const OrdenesTaller: React.FC = () => {
                                                     <span
                                                         className={`px-2 py-0.5 rounded-full text-sm font-semibold ring-1 ${normalizeEstado(o.estado) === "completada"
                                                             ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                                            : normalizeEstado(o.estado) === "en progreso"
-                                                                ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                                                : normalizeEstado(o.estado) === "cancelada"
-                                                                    ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                                    : "bg-amber-50 text-amber-700 ring-amber-200"
+                                                            : normalizeEstado(o.estado) === "cancelada"
+                                                                ? "bg-rose-50 text-rose-700 ring-rose-200"
+                                                                : "bg-amber-50 text-amber-700 ring-amber-200"
                                                             }`}
                                                     >
                                                         {normalizeEstado(o.estado)}
@@ -853,9 +1075,7 @@ const OrdenesTaller: React.FC = () => {
                                                             ? "bg-sky-50 text-sky-700 ring-sky-200"
                                                             : o.area === "DOMICILIO"
                                                                 ? "bg-amber-50 text-amber-700 ring-amber-200"
-                                                                : o.area === "REPARACION"
-                                                                    ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                                                                    : "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                                                : "bg-emerald-50 text-emerald-700 ring-emerald-200"
                                                             }`}
                                                     >
                                                         {normalizeArea(o.area)}
@@ -867,6 +1087,40 @@ const OrdenesTaller: React.FC = () => {
                                                     {o.equipo
                                                         ? `${o.equipo.marca} ${o.equipo.modelo}`
                                                         : "—"}
+                                                </td>
+
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.equipo?.estado ? (
+                                                        <span
+                                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${EstadoEquipoColor[o.equipo.estado] ??
+                                                                "bg-slate-50 text-slate-700 ring-slate-200"
+                                                                }`}
+                                                        >
+                                                            {EstadoEquipoLabel[o.equipo.estado] ?? o.equipo.estado}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic">Sin estado</span>
+                                                    )}
+                                                </td>
+
+                                                <td className="px-4 py-3 align-middle">
+                                                    {o.destinoEquipo ? (
+                                                        <span
+                                                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${DestinoEquipoTallerColor[o.destinoEquipo] ??
+                                                                "bg-slate-50 text-slate-600 ring-slate-200"
+                                                                }`}
+                                                        >
+                                                            {DestinoEquipoTallerLabel[o.destinoEquipo] ?? o.destinoEquipo}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic">Sin definir</span>
+                                                    )}
+
+                                                    {o.destinoEquipoNota && (
+                                                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">
+                                                            {o.destinoEquipoNota}
+                                                        </p>
+                                                    )}
                                                 </td>
 
                                                 {/* Empresa */}
@@ -947,39 +1201,32 @@ const OrdenesTaller: React.FC = () => {
                                                         >
                                                             <EyeOutlined />
                                                         </button>
+                                                        {!isCliente && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => openEditModal(o)}
+                                                                    className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50"
+                                                                    title="Editar orden"
+                                                                >
+                                                                    <EditOutlined />
+                                                                </button>
 
-                                                        <button
-                                                            onClick={() => openEditModal(o)}
-                                                            className="rounded-lg border border-cyan-200 bg-white/90 text-cyan-800 p-2 hover:bg-cyan-50"
-                                                            title="Editar orden"
-                                                        >
-                                                            <EditOutlined />
-                                                        </button>
-
-                                                        {o.area !== "SALIDA" && (
-                                                            <button
-                                                                onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
-                                                                className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
-                                                                title="Generar orden de salida"
-                                                            >
-                                                                <SwapOutlined />
-                                                            </button>
+                                                                {o.area !== "SALIDA" && (
+                                                                    <button
+                                                                        onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
+                                                                        className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
+                                                                        title="Generar orden de salida"
+                                                                    >
+                                                                        <SwapOutlined />
+                                                                    </button>
+                                                                )}
+                                                            </>
                                                         )}
 
                                                         <button
-                                                            onClick={() => {
-                                                                const error =
-                                                                    validarOrdenParaImprimir(o);
-                                                                if (error) {
-                                                                    setToast({
-                                                                        type: "error",
-                                                                        message: error,
-                                                                    });
-                                                                    return;
-                                                                }
-                                                                handlePrint(o);
-                                                            }}
-                                                            className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50"
+                                                            onClick={() => abrirModalImpresion(o)}
+                                                            disabled={generandoPdf}
+                                                            className="rounded-lg border border-indigo-200 text-indigo-700 p-2 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                                                             title="Imprimir orden"
                                                         >
                                                             <PrinterOutlined />
@@ -995,13 +1242,18 @@ const OrdenesTaller: React.FC = () => {
                                                             </button>
                                                         )} */}
 
-                                                        <button
-                                                            onClick={() => handleDelete(o.id)}
-                                                            className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50"
-                                                            title="Eliminar orden"
-                                                        >
-                                                            <DeleteOutlined />
-                                                        </button>
+                                                        {!isCliente && (
+                                                            <>
+
+                                                                <button
+                                                                    onClick={() => handleDelete(o.id)}
+                                                                    className="rounded-lg border border-rose-200 text-rose-700 p-2 hover:bg-rose-50"
+                                                                    title="Eliminar orden"
+                                                                >
+                                                                    <DeleteOutlined />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1022,12 +1274,113 @@ const OrdenesTaller: React.FC = () => {
                         setPreviewOpen(false);
                         setPreviewOrden(null);
                     }}
-                    onPrint={() => handlePrint(previewOrden)}
+                    onPrint={() => abrirModalImpresion(previewOrden)}
                 />
             )}
 
+            {printOrigenOpen && ordenPendientePrint && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900">
+                                    Seleccionar origen del PDF
+                                </h2>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Elige la empresa emisora antes de imprimir la orden.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    if (generandoPdf) return;
+
+                                    setPrintOrigenOpen(false);
+                                    setOrdenPendientePrint(null);
+                                }}
+                                disabled={generandoPdf}
+                                className="text-slate-400 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                title="Cerrar"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="mt-5">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Empresa emisora
+                            </label>
+
+                            <select
+                                value={origenPdf}
+                                onChange={(e) => setOrigenPdf(e.target.value as PdfOrigenKey)}
+                                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                            >
+                                <option value="RIDS">
+                                    {PDF_ORIGEN_DATA.RIDS.nombre}
+                                </option>
+
+                                <option value="ECONNET">
+                                    {PDF_ORIGEN_DATA.ECONNET.nombre}
+                                </option>
+
+                                <option value="OTRO">
+                                    Usar datos del cliente
+                                </option>
+                            </select>
+
+                            <p className="mt-2 text-xs text-slate-400">
+                                Esto solo cambia el encabezado y datos de empresa del PDF.
+                            </p>
+                            <p className="mt-2 text-xs text-slate-400">
+                                La generación del PDF puede tardar unos segundos, por favor espera sin cerrar esta ventana...
+                            </p>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    if (generandoPdf) return;
+
+                                    setPrintOrigenOpen(false);
+                                    setOrdenPendientePrint(null);
+                                }}
+                                disabled={generandoPdf}
+                                className={`rounded-xl border border-slate-200 px-4 py-2 text-sm ${generandoPdf
+                                    ? "text-slate-400 cursor-not-allowed opacity-60"
+                                    : "text-slate-700 hover:bg-slate-50"
+                                    }`}
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                onClick={confirmarImpresion}
+                                disabled={generandoPdf}
+                                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white transition ${generandoPdf
+                                    ? "bg-indigo-400 cursor-not-allowed opacity-70"
+                                    : "bg-indigo-600 hover:bg-indigo-700"
+                                    }`}
+                            >
+                                {generandoPdf ? (
+                                    <>
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        Generando PDF...
+                                    </>
+                                ) : (
+                                    <>
+                                        <PrinterOutlined />
+                                        Imprimir
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ===== Modal Crear ===== */}
-            {modalOpen && (
+            {!isCliente && modalOpen && (
                 <ModalOrden
                     key="create-modal"
                     title="Nueva Orden de Trabajo"
@@ -1051,7 +1404,7 @@ const OrdenesTaller: React.FC = () => {
             )}
 
             {/* ===== Modal Editar ===== */}
-            {editOpen && selectedOrden && (
+            {!isCliente && editOpen && selectedOrden && (
                 <ModalOrden
                     key={`edit-modal-${selectedOrden.id}`}
                     title={`Editar Orden #${selectedOrden.id}`}
@@ -1079,9 +1432,43 @@ const OrdenesTaller: React.FC = () => {
                 <ModalNuevaEntidad
                     tipoEntidad={formData.tipoEntidad}
                     onClose={() => setShowNewEntidadModal(false)}
-                    onSaved={(nuevoId) => {
-                        fetchSelectData();
-                        setFormData((prev) => ({ ...prev, entidadId: String(nuevoId) }));
+                    onSaved={async (nuevoId) => {
+                        setShowNewEntidadModal(false);
+
+                        try {
+                            const { data } = await http.get("/entidades", {
+                                params: {
+                                    tipo: formData.tipoEntidad,
+                                    ...(formData.tipoEntidad === "EMPRESA" &&
+                                        formData.origenEntidad &&
+                                        formData.origenEntidad !== "TODOS"
+                                        ? { origen: formData.origenEntidad }
+                                        : {}),
+                                },
+                            });
+
+                            const lista = Array.isArray(data)
+                                ? data
+                                : Array.isArray(data?.data)
+                                    ? data.data
+                                    : Array.isArray(data?.items)
+                                        ? data.items
+                                        : [];
+
+                            setEntidades(lista);
+
+                            setFormData((prev) => ({
+                                ...prev,
+                                entidadId: String(nuevoId),
+                            }));
+                        } catch (err) {
+                            console.error("Error recargando entidades:", err);
+
+                            setFormData((prev) => ({
+                                ...prev,
+                                entidadId: String(nuevoId),
+                            }));
+                        }
                     }}
                 />
             )}
@@ -1104,7 +1491,7 @@ const OrdenesTaller: React.FC = () => {
                     onSaved={async (nuevoId) => {
                         try {
                             const { data } = await http.get("/equipos", {
-                                params: { pageSize: 700 }
+                                params: { pageSize: 1000 }
                             });
                             const list = Array.isArray(data) ? data : data.items ?? [];
 
@@ -1142,7 +1529,7 @@ const OrdenesTaller: React.FC = () => {
 
                         const cargarEquipos = async () => {
                             const { data } = await http.get("/equipos", {
-                                params: { pageSize: 700 }
+                                params: { pageSize: 1000 }
                             });
                             const list = Array.isArray(data) ? data : data.items ?? [];
                             const normalized = (list as any[]).map((e) => ({

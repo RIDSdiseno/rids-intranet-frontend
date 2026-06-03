@@ -1,11 +1,72 @@
-
+// src/components/modals-gestioo/types.tsx
 /* =========================
    Tipos / Enums FRONT
 ========================= */
 
 export type OrigenGestioo = "RIDS" | "ECONNET" | "OTRO";
+export type OrigenGestiooFiltro = OrigenGestioo | "TODOS";
 export type Prioridad = "baja" | "normal" | "alta";
-export type Area = "entrada" | "domicilio" | "reparacion" | "salida";
+export type Area = "entrada" | "domicilio" | "salida";
+
+export type EstadoEquipo =
+    | "ACTIVO"
+    | "EN_STOCK"
+    | "EN_RIDS"
+    | "EN_GARANTIA"
+    | "EN_TALLER_EXTERNO"
+    | "DADO_DE_BAJA";
+
+export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
+    ACTIVO: "Activo",
+    EN_STOCK: "En stock",
+    EN_RIDS: "En RIDS",
+    EN_GARANTIA: "En garantía",
+    EN_TALLER_EXTERNO: "En taller externo",
+    DADO_DE_BAJA: "Dado de baja",
+};
+
+export type DestinoEquipoTaller =
+    | "SIN_DEFINIR"
+    | "VENTA"
+    | "RIDS"
+    | "CLIENTE"
+    | "BAJA";
+
+export const DestinoEquipoTallerLabel: Record<DestinoEquipoTaller, string> = {
+    SIN_DEFINIR: "Sin definir",
+    VENTA: "Venta",
+    RIDS: "RIDS",
+    CLIENTE: "Cliente",
+    BAJA: "Baja",
+};
+
+export const DestinoEquipoTallerColor: Record<DestinoEquipoTaller, string> = {
+    SIN_DEFINIR: "bg-slate-50 text-slate-600 ring-slate-200",
+    VENTA: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    RIDS: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    CLIENTE: "bg-blue-50 text-blue-700 ring-blue-200",
+    BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
+};
+
+export const DestinoEquipoTallerOptions: Array<{
+    value: DestinoEquipoTaller;
+    label: string;
+}> = [
+        { value: "SIN_DEFINIR", label: "Sin definir" },
+        { value: "VENTA", label: "Venta" },
+        { value: "RIDS", label: "RIDS" },
+        { value: "CLIENTE", label: "Cliente" },
+        { value: "BAJA", label: "Baja" },
+    ];
+
+export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
+    ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    EN_STOCK: "bg-sky-50 text-sky-700 ring-sky-200",
+    EN_RIDS: "bg-amber-50 text-amber-700 ring-amber-200",
+    EN_GARANTIA: "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    EN_TALLER_EXTERNO: "bg-purple-50 text-purple-700 ring-purple-200",
+    DADO_DE_BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
+};
 
 export const TipoEquipo = {
     GENERICO: "GENERICO",
@@ -68,18 +129,22 @@ export interface OrdenFormData {
     tipoTrabajo: string;
     descripcion: string;
     prioridad: Prioridad;
-    estado: "pendiente" | "en progreso" | "completada" | "cancelada";
+    estado: "pendiente" | "completada" | "cancelada";
     notas: string;
     area: Area;
     fecha: string;
     fechaIngreso?: string;
     tipoEntidad: "EMPRESA" | "PERSONA";
-    origenEntidad: OrigenGestioo | "";
+    origenEntidad: OrigenGestiooFiltro | "";
     entidadId: string;
     equipoId: string;
+    estadoEquipo?: EstadoEquipo | "";
 
     tecnicoId?: string;
     incluyeCargador: boolean;
+
+    destinoEquipo: DestinoEquipoTaller;
+    destinoEquipoNota: string;
 }
 
 export interface EntidadGestioo {
@@ -107,6 +172,7 @@ export interface EquipoGestioo {
     modelo: string;
     serial: string | null;
     tipo: TipoEquipoValue;
+    estado?: EstadoEquipo | null;
 
     // 🔹 Campos técnicos
     procesador?: string | null;
@@ -151,10 +217,12 @@ export interface DetalleTrabajoGestioo {
 
     incluyeCargador?: boolean;
 
-    // 🔥 AGREGAR ESTO
     numeroOrden?: string | null;
     cotizacionId?: number | null;
     origenTrabajo?: "INDEPENDIENTE" | "DESDE_COTIZACION";
+
+    destinoEquipo?: DestinoEquipoTaller | null;
+    destinoEquipoNota?: string | null;
 
     cotizacion?: {
         id: number;
@@ -323,8 +391,6 @@ export const normalizeEstado = (estado?: string) => {
     switch (estado) {
         case "PENDIENTE":
             return "pendiente";
-        case "EN_PROCESO":
-            return "en progreso";
         case "COMPLETADA":
         case "FINALIZADO":
             return "completada";

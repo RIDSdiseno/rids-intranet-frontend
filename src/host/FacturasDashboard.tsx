@@ -31,7 +31,7 @@ import {
   BarChartOutlined,
 } from "@ant-design/icons";
 
-import { generarFacturaPDF } from "../components/modal-factura/generarFacturaPDF";
+import { generarFacturaPDF } from "../components/modals-factura/generarFacturaPDF";
 
 // ============================================================
 // TIPOS

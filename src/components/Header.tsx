@@ -5,7 +5,6 @@ import {
   LogOut,
   Home,
   CalendarDays,
-  Ticket,
   Users,
   Building2,
   Laptop,
@@ -20,12 +19,13 @@ import {
   ClipboardList,
   ReceiptText,
   Headset,
-  FileSpreadsheet,
-  UserRoundCheck,
   Handshake,
+  FileText,
+  MapPin,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
+import { canViewMapaTecnicos } from "../utils/canViewMapaTecnicos";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -43,10 +43,13 @@ const ORDENESTALLER = "/OrdenesTaller";
 const COTIZACIONES = "/Cotizaciones";
 const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
-const TICKETS_PATH = "/tickets";
+//const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
-const COBRANZA_PATH = "/cobranza";
+// COBRANZA_PATH = "/cobranza";
+const FACTURAS_BASEAPI_PATH = "/facturas-baseapi";
 const CLIENTES_EXT_PATH = "/clientes-ext";
+const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
+const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
 
 type NavItem = {
   label: string;
@@ -74,13 +77,14 @@ type StoredUser = {
   rol?: string;
 };
 
+/*
 const USUARIOS_GESTION_TECNICOS_CLIENTES = [
   "dbravo@rids.cl",
   "carenas@rids.cl",
   "igonzalez@rids.cl",
   "rcalsin@rids.cl",
   "mahumada@rids.cl",
-];
+]; */
 
 const NAV: NavEntry[] = [
   {
@@ -96,10 +100,12 @@ const NAV: NavEntry[] = [
     items: [
       { label: "Clientes Externos", to: CLIENTES_EXT_PATH, icon: <Handshake size={20} /> },
       { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
+      { label: "Bitácora Técnico", to: BITACORA_TECNICO_PATH, icon: <FileText size={20} /> },
+      { label: "Mapa técnicos", to: MAPA_TECNICOS_PATH, icon: <MapPin size={20} /> },
       { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
       { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH],
   },
   {
     type: "group",
@@ -133,6 +139,15 @@ const NAV: NavEntry[] = [
   },
   {
     type: "group",
+    label: "Facturas",
+    items: [
+      { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
+    ],
+    match: [FACTURAS_BASEAPI_PATH],
+  },
+  /*
+  {
+    type: "group",
     label: "Freshdesk",
     items: [
       { label: "Tickets (Histórico)", to: TICKETS_PATH, icon: <Ticket size={20} /> },
@@ -146,7 +161,7 @@ const NAV: NavEntry[] = [
       { label: "Facturas SII", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
     ],
     match: [COBRANZA_PATH],
-  },
+  },*/
 ];
 
 function isActivePath(pathname: string, to: string) {
@@ -205,45 +220,49 @@ const Header = () => {
   const userRole = String(user?.rol ?? "").toUpperCase().trim();
   const userEmail = String(user?.email ?? "").toLowerCase().trim();
 
-  const canAccessCobranza =
-    userRole === "ADMIN" || userRole === "VENTAS";
+  const canAccessFacturas =
+    userRole === "ADMINISTRACION" || userRole === "VENTAS" || userRole === "CLIENTE";
 
-  const canSeeConciliacion = userRole === "ADMIN" || userRole === "VENTAS";
+  const canAccessTecnicos =
+    userRole === "ADMIN" ||
+    userRole === "ADMINISTRACION" ||
+    userRole === "TECNICO" ||
+    userRole === "VENTAS";
 
   const canAccessGestionTecnicosClientes =
-    USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail)
+    userRole === "ADMIN" || userRole === "ADMINISTRACION";
+
+  const canAccessMapaTecnicos = canViewMapaTecnicos(user);
+
+  /*
+  const canAccessGestionTecnicosClientes =
+    USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail) */
 
   const filteredNav: NavEntry[] = useMemo(() => {
     const nav = NAV
       .map((entry): NavEntry | null => {
-        if (entry.type === "group" && entry.label === "Cobranza") {
-          if (!canAccessCobranza) return null;
-
-          const baseItems = entry.items ?? [];
-          const items = canSeeConciliacion
-            ? [
-                ...baseItems,
-                { label: "Conciliación RIDS", to: "/cobranza/conciliacion-rids", icon: <UserRoundCheck size={20} /> },
-                { label: "Conciliación ECCONET", to: "/cobranza/conciliacion-ecconet", icon: <Handshake size={20} /> },
-              ]
-            : baseItems;
-
-          return {
-            ...entry,
-            items,
-            match: items.map((i) => i.to),
-          } as NavGroup;
+        if (entry.type === "group" && entry.label === "Facturas") {
+          if (!canAccessFacturas) return null;
+          return entry;
         }
 
         if (entry.type === "group" && entry.label === "Técnicos y Visitas") {
           const items = entry.items.filter((item) => {
-            const esRutaRestringida =
-              item.to === CLIENTES_EXT_PATH || item.to === TECNICOS_PATH;
+            // Técnicos: pueden ver ADMIN, ADMINISTRACION, TECNICO y VENTAS
+            if (item.to === TECNICOS_PATH) {
+              return canAccessTecnicos;
+            }
 
-            if (esRutaRestringida) {
+            // Clientes Externos: solo ADMIN y ADMINISTRACION
+            if (item.to === CLIENTES_EXT_PATH) {
               return canAccessGestionTecnicosClientes;
             }
 
+            if (item.to === MAPA_TECNICOS_PATH) {
+              return canAccessMapaTecnicos;
+            }
+
+            // Visitas, calendario, etc.
             return true;
           });
 
@@ -273,29 +292,37 @@ const Header = () => {
         type: "group" as const,
         label: "Mi Empresa",
         match: [
+          HELPDESK_PATH,
+          ORDENESTALLER,
+          COTIZACIONES,
           EMPRESAS_PATH,
           EQUIPOS_PATH,
           VISITAS_PATH,
           SOLICITANTES_PATH,
           MANTENCIONES_REMOTAS_PATH,
           REPORTES_PATH,
-          COBRANZA_PATH,
+          FACTURAS_BASEAPI_PATH,
         ],
         items: [
           { label: "Mi Empresa", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
           { label: "Mis Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
-          { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
           { label: "Listado de Usuarios", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
-          { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
+          { label: "Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
+          { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
+           { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
+          { label: "Tickets de Soporte", to: HELPDESK_PATH, icon: <Headset size={20} /> },
+          { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
           { label: "Informes Mensuales", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
-          { label: "Facturas SII", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
+          { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
         ],
       },
     ];
   }, [
     isCliente,
-    canAccessCobranza,
+    canAccessFacturas,
+    canAccessTecnicos,
     canAccessGestionTecnicosClientes,
+    canAccessMapaTecnicos,
   ]);
 
   const handleLogout = async () => {
@@ -395,9 +422,9 @@ const Header = () => {
                   `relative flex items-center gap-4 px-3 py-2.5 rounded-xl
                   transition-all duration-200 group
                   ${pathname === entry.to
-                      ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                      : "text-slate-700 hover:bg-slate-100"
-                    } ${sidebarCollapsed ? "justify-center" : ""}`
+                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                    : "text-slate-700 hover:bg-slate-100"
+                  } ${sidebarCollapsed ? "justify-center" : ""}`
                 }
                 title={sidebarCollapsed ? entry.label : undefined}
               >

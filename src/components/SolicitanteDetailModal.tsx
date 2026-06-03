@@ -42,6 +42,7 @@ export type MsLicense = {
 export type SolicitanteForDetail = {
   id_solicitante: number;
   nombre: string;
+  rut?: string | null;
   empresaId: number | null;
   empresa: Empresa;
   equipos: Equipo[];
@@ -49,7 +50,7 @@ export type SolicitanteForDetail = {
   /** NUEVO */
   accountType?: AccountType;
   msLicenses?: MsLicense[];
-  msLicensesCount?: number; // compat si el backend sólo devuelve el conteo
+  msLicensesCount?: number;
 };
 
 type DetailModalProps = {
@@ -255,7 +256,7 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
       /* noop */
     }
   };
-  
+
   // Función para determinar clases de estilo del chip de empresa, basada en un hash del ID o nombre para estabilidad de colores entre renders
   return (
     <div
@@ -340,6 +341,27 @@ const SolicitanteDetailModal: React.FC<DetailModalProps> = ({
                       <CopyOutlined />
                     </button>
                   </div>
+                }
+              />
+              <InfoRow
+                label="RUT"
+                value={
+                  solicitante.rut ? (
+                    <div className="flex items-center gap-2">
+                      <span>{solicitante.rut}</span>
+                      <button
+                        onClick={() => copy(solicitante.rut)}
+                        className="text-neutral-500 hover:text-neutral-700"
+                        title="Copiar RUT"
+                        aria-label="Copiar RUT"
+                        type="button"
+                      >
+                        <CopyOutlined />
+                      </button>
+                    </div>
+                  ) : (
+                    "—"
+                  )
                 }
               />
               <InfoRow

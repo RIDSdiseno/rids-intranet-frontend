@@ -12,6 +12,9 @@ import {
   DownloadOutlined,
   LoadingOutlined,
   PlusOutlined,
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import CrearEquipoModal from "../components/CrearEquipo";
 
@@ -26,6 +29,12 @@ import {
 import { DatePicker } from "antd";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
+
+import {
+  TipoEquipo,
+  TipoEquipoLabel,
+  type TipoEquipoValue,
+} from "../components/modals-gestioo/types";
 
 import { useAuth } from "../components/hooks/useAuth";
 
@@ -49,16 +58,24 @@ type EquipoAdicional = {
 type EquipoRow = {
   id_equipo: number;
   serial: string | null;
+  tipo?: TipoEquipoValue | null;
   marca: string | null;
   modelo: string | null;
+  anioPc?: number | null;
+  anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
   procesador: string | null;
   ram: string | null;
   disco: string | null;
   propiedad: string | null;
+
   solicitante: string | null;
+  solicitanteRut?: string | null;
+  solicitanteEmail?: string | null;
+
   empresa: string | null;
   idSolicitante: number | null;
   empresaId: number | null;
+
   createdAt: string;
   updatedAt: string;
   macWifi?: string | null;
@@ -93,6 +110,7 @@ type EquipoRow = {
   estadoAgente?: "SIN_AGENTE" | "ACTIVO" | "SIN_CONEXION" | "ADVERTENCIA" | "CRITICO";
 
   adicionales?: EquipoAdicional[];
+  estado?: EstadoEquipo | null;
 };
 
 type ApiList<T> = {
@@ -108,6 +126,8 @@ type EmpresaOpt = { id: number | null; nombre: string };
 type SolicitanteLite = {
   id_solicitante: number;
   nombre: string;
+  email?: string | null;
+  rut?: string | null;
   empresa?: { id_empresa: number; nombre: string } | null;
 };
 
@@ -205,6 +225,202 @@ type EquipoAgentFull = EquipoRow & {
 
 type ApiHistorial = { total: number; items: EquipoHistorialItem[] };
 
+type TecnicoOpt = {
+  id_tecnico: number;
+  nombre: string;
+  email?: string | null;
+};
+
+type TecnicoApiRow = {
+  id_tecnico?: number | string | null;
+  id?: number | string | null;
+  value?: number | string | null;
+  nombre?: string | null;
+  name?: string | null;
+  email?: string | null;
+  rol?: string | null;
+};
+
+type EstadoEquipo =
+  | "ACTIVO"
+  | "EN_STOCK"
+  | "DADO_DE_BAJA"
+  | "EN_RIDS"
+  | "EN_GARANTIA"
+  | "EN_TALLER_EXTERNO";
+
+const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
+  { value: "ACTIVO", label: "Activo" },
+  { value: "EN_STOCK", label: "En stock" },
+  { value: "DADO_DE_BAJA", label: "Dado de baja" },
+  { value: "EN_RIDS", label: "En RIDS" },
+  { value: "EN_GARANTIA", label: "En garantía" },
+  { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
+];
+
+type RequiredEquipoFields = {
+  procesador: boolean;
+  ram: boolean;
+  disco: boolean;
+};
+
+const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
+  [TipoEquipo.GENERICO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.NOTEBOOK]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.ALL_IN_ONE]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.DESKTOP]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.CPU]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+  [TipoEquipo.EQUIPO_ARMADO]: {
+    procesador: true,
+    ram: true,
+    disco: true,
+  },
+
+  [TipoEquipo.IMPRESORA]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.SCANNER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LASER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.LED]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.MONITOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.ROUTER]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.CARGADOR]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.INSUMOS_COMPUTACIONALES]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.RELOJ_CONTROL]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+  [TipoEquipo.OTRO]: {
+    procesador: false,
+    ram: false,
+    disco: false,
+  },
+
+  [TipoEquipo.NAS]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+  [TipoEquipo.DISCO_DURO_EXTERNO]: {
+    procesador: false,
+    ram: false,
+    disco: true,
+  },
+};
+
+function getEstadoEquipoLabel(value?: string | null) {
+  return (
+    ESTADO_EQUIPO_OPTIONS.find((opt) => opt.value === value)?.label ??
+    "Activo"
+  );
+}
+
+function getEstadoEquipoClass(value?: string | null) {
+  switch (value) {
+    case "ACTIVO":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+    case "EN_STOCK":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+
+    case "EN_RIDS":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+
+    case "EN_GARANTIA":
+      return "bg-cyan-50 text-cyan-700 border-cyan-200";
+
+    case "EN_TALLER_EXTERNO":
+      return "bg-purple-50 text-purple-700 border-purple-200";
+
+    case "DADO_DE_BAJA":
+      return "bg-rose-50 text-rose-700 border-rose-200";
+
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+}
+function getAnioPcOrigenLabel(value?: string | null) {
+  switch (value) {
+    case "AUTO":
+      return "Calculado automáticamente";
+    case "MANUAL":
+      return "Modificado manualmente";
+    case "NO_DETERMINADO":
+      return "No determinado";
+    default:
+      return "No determinado";
+  }
+}
+
+function getAnioPcClass(value?: string | null) {
+  switch (value) {
+    case "AUTO":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "MANUAL":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "NO_DETERMINADO":
+      return "bg-slate-50 text-slate-600 border-slate-200";
+    default:
+      return "bg-slate-50 text-slate-600 border-slate-200";
+  }
+}
+
+function calcularAntiguedadPc(anioPc?: number | null) {
+  if (!anioPc) return null;
+  return new Date().getFullYear() - anioPc;
+}
+
 function actorName(actor: ActorLite | null | undefined) {
   if (!actor) return "Sistema";
   if (typeof actor === "string") return actor;
@@ -220,10 +436,13 @@ const fieldLabels: Record<string, string> = {
   serial: "Serial",
   marca: "Marca",
   modelo: "Modelo",
+  anioPc: "Año PC",
+  anioPcOrigen: "Origen Año PC",
   procesador: "CPU",
   ram: "RAM",
   disco: "Disco",
   propiedad: "Propiedad",
+  estado: "Estado",
   empresaId: "Empresa",
   idSolicitante: "Solicitante",
   macWifi: "MAC WiFi",
@@ -262,8 +481,25 @@ function strHash(s: string) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
+
 function toUC(s?: string | null) {
   return s ? s.toUpperCase() : "";
+}
+
+function formatRut(value?: string | null) {
+  if (!value) return "Sin RUT";
+
+  const clean = String(value)
+    .replace(/[^0-9kK]/g, "")
+    .toUpperCase();
+
+  if (!clean) return "Sin RUT";
+  if (clean.length <= 1) return clean;
+
+  const cuerpo = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+
+  return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
 }
 
 /** Colores Excel por empresa */
@@ -333,6 +569,32 @@ function getErrorMessage(err: unknown): string {
   } catch {
     return String(err);
   }
+}
+
+function getApiErrorData(err: unknown): any {
+  return (err as any)?.response?.data ?? null;
+}
+
+function getApiErrorMessage(err: unknown): string {
+  const data = getApiErrorData(err);
+
+  return (
+    data?.message ||
+    data?.error ||
+    (err instanceof Error ? err.message : "") ||
+    "Ocurrió un error inesperado"
+  );
+}
+
+function isSerialDuplicadoError(err: unknown): boolean {
+  const data = getApiErrorData(err);
+  const msg = getApiErrorMessage(err).toLowerCase();
+
+  return (
+    data?.code === "SERIAL_DUPLICADO" ||
+    data?.field === "serial" ||
+    msg.includes("serial") && (msg.includes("existe") || msg.includes("duplic"))
+  );
 }
 
 function styleWorksheet(
@@ -484,6 +746,15 @@ const EquiposPage: React.FC = () => {
   const [updatedFrom, setUpdatedFrom] = useState<string>("");
   const [updatedTo, setUpdatedTo] = useState<string>("");
 
+  // filtro tecnico
+  const [tecnicoOptions, setTecnicoOptions] = useState<TecnicoOpt[]>([]);
+  const [tecnicoFilterId, setTecnicoFilterId] = useState<number | null>(null);
+  const [auditFrom, setAuditFrom] = useState<string>("");
+  const [auditTo, setAuditTo] = useState<string>("");
+  const [auditAction, setAuditAction] = useState<"ALL" | "CREATE" | "UPDATE">("ALL");
+  const [tecLoading, setTecLoading] = useState(false);
+  const [tecError, setTecError] = useState<string | null>(null);
+
   const [empLoading, setEmpLoading] = useState(false);
   const [empError, setEmpError] = useState<string | null>(null);
 
@@ -494,6 +765,13 @@ const EquiposPage: React.FC = () => {
 
   // Marca (clic en tag)
   const [marcaFilter, setMarcaFilter] = useState<string>("");
+  const [estadoFilter, setEstadoFilter] = useState<EstadoEquipo | "">("");
+
+  const [anioPcDesde, setAnioPcDesde] = useState<string>("");
+  const [anioPcHasta, setAnioPcHasta] = useState<string>("");
+  const [anioPcOrigenFilter, setAnioPcOrigenFilter] = useState<
+    "" | "AUTO" | "MANUAL" | "NO_DETERMINADO"
+  >("");
 
   // Datos / paginación
   const [page, setPage] = useState(1);
@@ -583,8 +861,19 @@ const EquiposPage: React.FC = () => {
           updatedFrom: updatedFrom || undefined,
           updatedTo: updatedTo || undefined,
 
-          _ts: Date.now()
-        }
+          auditTecnicoId: tecnicoFilterId || undefined,
+          auditFrom: auditFrom || undefined,
+          auditTo: auditTo || undefined,
+          auditAction: auditAction !== "ALL" ? auditAction : undefined,
+
+          estado: estadoFilter || undefined,
+
+          anioPcDesde: anioPcDesde || undefined,
+          anioPcHasta: anioPcHasta || undefined,
+          anioPcOrigen: anioPcOrigenFilter || undefined,
+
+          _ts: Date.now(),
+        },
       });
 
       setData(res.data);
@@ -652,17 +941,28 @@ const EquiposPage: React.FC = () => {
       const res = await http.get("/inventario/export", {
         params: {
           mes: mesExport,
-          empresaId: empresaFilterId || undefined
+
+          empresaId: empresaFilterId || undefined,
+
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
+
+          updatedFrom: updatedFrom || undefined,
+          updatedTo: updatedTo || undefined,
         },
-        responseType: "blob"
+        responseType: "blob",
       });
 
       const blob = res.data;
       const url = window.URL.createObjectURL(blob);
 
+      const filtroFecha = updatedFrom
+        ? `_editados_desde_${dayjs(updatedFrom).format("YYYY-MM-DD")}`
+        : "";
+
       const fileName = empresaFilterName
-        ? `Inventario_${empresaFilterName}_${mesExport}.xlsx`
-        : `Inventario_TODAS_${mesExport}.xlsx`;
+        ? `Inventario_${empresaFilterName}_${mesExport}${filtroFecha}.xlsx`
+        : `Inventario_TODAS_${mesExport}${filtroFecha}.xlsx`;
 
       const a = document.createElement("a");
       a.href = url;
@@ -707,13 +1007,85 @@ const EquiposPage: React.FC = () => {
     }
   }
 
+  // Fetch de tecnicos
+  async function fetchTecnicoOptions(signal?: AbortSignal) {
+    try {
+      setTecLoading(true);
+      setTecError(null);
+
+      const res = await http.get("/tecnicos/select", { signal });
+      const raw = res.data;
+
+      const list: TecnicoApiRow[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.items)
+            ? raw.items
+            : [];
+
+      const opts: TecnicoOpt[] = list
+        .filter((t: TecnicoApiRow) => {
+          const rol = String(t.rol ?? "").toUpperCase().trim();
+          return ["ADMIN", "TECNICO", "ADMINISTRACION", "VENTAS"].includes(rol);
+        })
+        .map((t: TecnicoApiRow): TecnicoOpt => ({
+          id_tecnico: Number(t.id_tecnico ?? t.id ?? t.value),
+          nombre: String(t.nombre ?? t.name ?? t.email ?? "Sin nombre"),
+          email: t.email ?? null,
+        }))
+        .filter((t: TecnicoOpt) => Number.isFinite(t.id_tecnico))
+        .sort((a: TecnicoOpt, b: TecnicoOpt) =>
+          a.nombre.localeCompare(b.nombre, "es")
+        );
+
+      setTecnicoOptions(opts);
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+
+      if (code === "ERR_CANCELED" || (err as Error).name === "AbortError") {
+        return;
+      }
+
+      setTecError((err as Error)?.message || "Error al cargar técnicos");
+      setTecnicoOptions([]);
+    } finally {
+      setTecLoading(false);
+    }
+  }
+
   /* ======== Effects ======== */
   useEffect(() => {
     const c = new AbortController();
     fetchList(c.signal);
     return () => c.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, qDebounced, empresaFilterId, marcaFilter, createdFrom, createdTo, updatedFrom, updatedTo]);
+  }, [
+    page,
+    pageSize,
+    qDebounced,
+    empresaFilterId,
+    marcaFilter,
+    createdFrom,
+    createdTo,
+    updatedFrom,
+    updatedTo,
+    tecnicoFilterId,
+    auditFrom,
+    auditTo,
+    auditAction,
+    estadoFilter,
+    anioPcDesde,
+    anioPcHasta,
+    anioPcOrigenFilter,
+  ]);
+
+  useEffect(() => {
+    const c = new AbortController();
+    fetchTecnicoOptions(c.signal);
+    return () => c.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const c = new AbortController();
@@ -734,6 +1106,17 @@ const EquiposPage: React.FC = () => {
     setCreatedTo("");
     setUpdatedFrom("");
     setUpdatedTo("");
+
+    setTecnicoFilterId(null);
+    setAuditFrom("");
+    setAuditTo("");
+    setAuditAction("ALL");
+
+    setEstadoFilter("");
+
+    setAnioPcDesde("");
+    setAnioPcHasta("");
+    setAnioPcOrigenFilter("");
 
     setPage(1);
   };
@@ -915,6 +1298,9 @@ const EquiposPage: React.FC = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [editRow, setEditRow] = useState<EquipoRow | null>(null);
 
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editFieldError, setEditFieldError] = useState<keyof EquipoForm | null>(null);
+
   /* ================== VER (VISTA PREVIA) ================== */
   const [viewOpen, setViewOpen] = useState(false);
   const [viewRow, setViewRow] = useState<EquipoRow | null>(null);
@@ -951,8 +1337,10 @@ const EquiposPage: React.FC = () => {
 
   type EquipoForm = {
     serial: string;
+    tipo: TipoEquipoValue;
     marca: string;
     modelo: string;
+    anioPc: string;
     procesador: string;
     ram: string;
     disco: string;
@@ -977,16 +1365,21 @@ const EquiposPage: React.FC = () => {
     usuarioPersonal: string;
     passwordPersonal: string;
 
+    estado: EstadoEquipo;
+
   };
 
   const [editForm, setEditForm] = useState<EquipoForm>({
     serial: "",
+    tipo: TipoEquipo.GENERICO,
     marca: "",
     modelo: "",
+    anioPc: "",
     procesador: "",
     ram: "",
     disco: "",
     propiedad: "",
+    estado: "ACTIVO",
 
     macWifi: "",
     redEthernet: "",
@@ -1005,6 +1398,8 @@ const EquiposPage: React.FC = () => {
     passwordPersonal: "",
 
   });
+
+  const [anioPcTouched, setAnioPcTouched] = useState(false);
 
   const [editAdicionales, setEditAdicionales] = useState<EquipoAdicional[]>([]);
 
@@ -1036,9 +1431,16 @@ const EquiposPage: React.FC = () => {
 
     const data = res.data;
 
-    return data.items.map((it: { id: number; nombre: string; email?: string | null }) => ({
+    return data.items.map((it: {
+      id: number;
+      nombre: string;
+      email?: string | null;
+      rut?: string | null;
+    }) => ({
       id_solicitante: it.id,
-      nombre: it.email ? `${it.nombre} — ${it.email}` : it.nombre,
+      nombre: it.nombre,
+      email: it.email ?? null,
+      rut: it.rut ?? null,
       empresa: { id_empresa: empresaId, nombre: "" },
     }));
   }
@@ -1076,12 +1478,15 @@ const EquiposPage: React.FC = () => {
 
     setEditForm({
       serial: row.serial || "",
+      tipo: row.tipo ?? TipoEquipo.GENERICO,
       marca: row.marca || "",
       modelo: row.modelo || "",
+      anioPc: row.anioPc ? String(row.anioPc) : "",
       procesador: row.procesador || "",
       ram: row.ram || "",
       disco: row.disco || "",
       propiedad: row.propiedad || "",
+      estado: (row.estado ?? "ACTIVO") as EstadoEquipo,
 
       macWifi: row.macWifi || "",
       redEthernet: row.redEthernet || "",
@@ -1106,7 +1511,9 @@ const EquiposPage: React.FC = () => {
     setEditSolicitanteId(row.idSolicitante ?? null);
     setSolSearchE("");
     setEditOpen(true);
-
+    setEditError(null);
+    setEditFieldError(null);
+    setAnioPcTouched(false);
   };
 
   const cancelEdit = () => {
@@ -1114,27 +1521,49 @@ const EquiposPage: React.FC = () => {
     setEditOpen(false);
     setEditRow(null);
     setEditAdicionales([]);
+    setEditError(null);
+    setEditFieldError(null);
   };
+
+  const editRequiredFields =
+    REQUIRED_FIELDS_BY_TIPO[editForm.tipo] ??
+    REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+  const editRequiresProcesador = editRequiredFields.procesador;
+  const editRequiresRam = editRequiredFields.ram;
+  const editRequiresDisco = editRequiredFields.disco;
 
   const saveEdit = async () => {
     if (!editRow) return;
 
     const requiredFields: (keyof typeof editForm)[] = [
       "serial",
+      "tipo",
       "marca",
       "modelo",
-      "procesador",
-      "ram",
-      "disco",
       "propiedad",
     ];
 
+    if (editRequiresProcesador) {
+      requiredFields.push("procesador");
+    }
+
+    if (editRequiresRam) {
+      requiredFields.push("ram");
+    }
+
+    if (editRequiresDisco) {
+      requiredFields.push("disco");
+    }
+
     for (const k of requiredFields) {
       if (!String(editForm[k] ?? "").trim()) {
-        alert(`El campo "${k.toUpperCase()}" es obligatorio.`);
+        setEditFieldError(k);
+        setEditError(`El campo "${String(k).toUpperCase()}" es obligatorio.`);
         return;
       }
     }
+
     if (editEmpresaId == null) {
       alert("Debes seleccionar una empresa.");
       return;
@@ -1146,8 +1575,36 @@ const EquiposPage: React.FC = () => {
 
     try {
       setEditSaving(true);
-      await http.patch(`/equipos/${editRow.id_equipo}`, {
-        ...editForm,
+
+      const hoy = dayjs().format("YYYY-MM-DD");
+
+      setEditForm((prev) => ({
+        ...prev,
+        revisado: hoy,
+      }));
+
+      const { anioPc, ...baseEditForm } = editForm;
+
+      const payload: any = {
+        ...baseEditForm,
+
+        tipo: editForm.tipo,
+
+        // Si el tipo no requiere estos campos, se guarda N/A
+        // porque tu backend todavía los espera como strings.
+        procesador: editRequiresProcesador
+          ? editForm.procesador.trim()
+          : "N/A",
+
+        ram: editRequiresRam
+          ? editForm.ram.trim()
+          : "N/A",
+
+        disco: editRequiresDisco
+          ? editForm.disco.trim()
+          : "N/A",
+
+        revisado: hoy,
         idSolicitante: editSolicitanteId,
         empresaId: editEmpresaId,
         adicionales: editAdicionales
@@ -1158,14 +1615,28 @@ const EquiposPage: React.FC = () => {
             cantidad: Number(a.cantidad) > 0 ? Number(a.cantidad) : 1,
             serialAdicional: a.serialAdicional?.trim() || null,
           })),
-      });
+      };
+
+      if (anioPcTouched) {
+        payload.anioPc = anioPc.trim() ? Number(anioPc) : null;
+      }
+
+      await http.patch(`/equipos/${editRow.id_equipo}`, payload);
 
       await reload();
       setEditOpen(false);
       setEditRow(null);
       setEditAdicionales([]);
     } catch (err: unknown) {
-      alert(getErrorMessage(err) || "No se pudo actualizar el equipo");
+      const msg = getApiErrorMessage(err);
+
+      if (isSerialDuplicadoError(err)) {
+        setEditFieldError("serial");
+        setEditError(msg || "Ya existe un equipo registrado con ese serial.");
+        return;
+      }
+
+      setEditError(msg || "No se pudo actualizar el equipo");
     } finally {
       setEditSaving(false);
     }
@@ -1190,7 +1661,9 @@ const EquiposPage: React.FC = () => {
     { key: "serial", label: "Serial", className: "min-w-[120px]" },
     { key: "marca", label: "Marca", className: "min-w-[100px]" },
     { key: "modelo", label: "Modelo", className: "min-w-[120px]" },
+    { key: "estado", label: "Estado", className: "min-w-[120px]" },
     { key: "solicitante", label: "Solicitante", className: "min-w-[120px]" },
+    { key: "solicitanteRut", label: "RUT Solicitante", className: "min-w-[140px]" },
     { key: "empresa", label: "Empresa", className: "min-w-[100px]" },
     { key: "createdAt", label: "Fecha ingreso", className: "min-w-[110px]" },
   ] as const;
@@ -1206,7 +1679,7 @@ const EquiposPage: React.FC = () => {
       </div>
 
       {/* Hero / Toolbar */}
-      <div className="px-3 sm:px-4 md:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto w-full">
+      <div className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-200 bg-white/80 backdrop-blur-xl shadow-sm">
           {/* Capa decorativa: no intercepta clics */}
           <div className="absolute inset-0 opacity-60 pointer-events-none bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)]" />
@@ -1246,7 +1719,7 @@ const EquiposPage: React.FC = () => {
                     setQ(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="serial, modelo, CPU…"
+                  placeholder="serial, modelo, CPU, solicitante, RUT…"
                   className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400"
                   aria-label="Buscar equipos"
                 />
@@ -1376,9 +1849,29 @@ const EquiposPage: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Estado del equipo
+                    </label>
+
+                    <select
+                      value={estadoFilter}
+                      onChange={(e) => {
+                        setEstadoFilter(e.target.value as EstadoEquipo | "");
+                        setPage(1);
+                      }}
+                      className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-200"
+                    >
+                      <option value="">Todos los estados</option>
+                      {ESTADO_EQUIPO_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              {/* Fechas en grid de 2 columnas */}
               {/* Fechas - agregar md:col-span-12 al wrapper */}
               <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
 
@@ -1453,6 +1946,102 @@ const EquiposPage: React.FC = () => {
                 </div>
 
               </div>
+              <div className="md:col-span-12 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+                <div className="flex flex-col gap-1 mb-3">
+                  <div className="text-sm font-semibold text-slate-800">
+                    Actividad por técnico
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Filtra equipos que fueron creados o editados por un técnico en una fecha determinada.
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Técnico</span>
+                    <select
+                      value={tecnicoFilterId ?? ""}
+                      onChange={(e) => {
+                        setTecnicoFilterId(e.target.value ? Number(e.target.value) : null);
+                        setPage(1);
+                      }}
+                      disabled={tecLoading}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      <option value="">
+                        {tecLoading ? "Cargando técnicos..." : "Todos los técnicos"}
+                      </option>
+
+                      {tecnicoOptions.map((t) => (
+                        <option key={t.id_tecnico} value={t.id_tecnico}>
+                          {t.nombre}
+                          {t.email ? ` — ${t.email}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    {tecError && (
+                      <div className="mt-1 text-xs text-rose-600">{tecError}</div>
+                    )}
+                  </label>
+
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Acción</span>
+                    <select
+                      value={auditAction}
+                      onChange={(e) => {
+                        setAuditAction(e.target.value as "ALL" | "CREATE" | "UPDATE");
+                        setPage(1);
+                      }}
+                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      <option value="ALL">Todos</option>
+                      <option value="CREATE">Solo creados</option>
+                      <option value="UPDATE">Solo editados</option>
+                    </select>
+                  </label>
+
+                  <label className="text-sm">
+                    <span className="block text-slate-700 mb-1">Rango actividad</span>
+                    <RangePicker
+                      value={[
+                        auditFrom ? dayjs(auditFrom) : null,
+                        auditTo ? dayjs(auditTo) : null,
+                      ]}
+                      onChange={(dates) => {
+                        setAuditFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
+                        setAuditTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
+                        setPage(1);
+                      }}
+                      format="DD/MM/YYYY"
+                      className="w-full"
+                      allowClear
+                      placeholder={["Desde", "Hasta"]}
+                      presets={[
+                        {
+                          label: "Hoy",
+                          value: [dayjs().startOf("day"), dayjs().endOf("day")],
+                        },
+                        {
+                          label: "Últimos 7 días",
+                          value: [dayjs().subtract(6, "day").startOf("day"), dayjs().endOf("day")],
+                        },
+                        {
+                          label: "Este mes",
+                          value: [dayjs().startOf("month"), dayjs().endOf("month")],
+                        },
+                        {
+                          label: "Mes anterior",
+                          value: [
+                            dayjs().subtract(1, "month").startOf("month"),
+                            dayjs().subtract(1, "month").endOf("month"),
+                          ],
+                        },
+                      ]}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Chips filtros activos */}
@@ -1491,6 +2080,70 @@ const EquiposPage: React.FC = () => {
                   </button>
                 </span>
               )}
+
+              {estadoFilter && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 text-blue-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Estado:</span>
+                  <strong className="truncate">
+                    {getEstadoEquipoLabel(estadoFilter)}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setEstadoFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-blue-700 shrink-0"
+                    aria-label="Quitar filtro de estado"
+                    title="Quitar filtro de estado"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+              {tecnicoFilterId && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Técnico:</span>
+                  <strong className="truncate">
+                    {tecnicoOptions.find((t) => t.id_tecnico === tecnicoFilterId)?.nombre ?? tecnicoFilterId}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setTecnicoFilterId(null);
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-700 shrink-0"
+                    aria-label="Quitar filtro de técnico"
+                    title="Quitar filtro de técnico"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+
+              {(auditFrom || auditTo) && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Actividad:</span>
+                  <strong className="truncate">
+                    {auditFrom ? dayjs(auditFrom).format("DD/MM/YYYY") : "Inicio"} -{" "}
+                    {auditTo ? dayjs(auditTo).format("DD/MM/YYYY") : "Hoy"}
+                  </strong>
+                  <button
+                    onClick={() => {
+                      setAuditFrom("");
+                      setAuditTo("");
+                      setPage(1);
+                    }}
+                    className="hover:text-indigo-700 shrink-0"
+                    aria-label="Quitar filtro de actividad"
+                    title="Quitar filtro de actividad"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
             </div>
 
             <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
@@ -1499,7 +2152,7 @@ const EquiposPage: React.FC = () => {
       </div>
 
       {/* Contenido */}
-      <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+      <main className="px-4 sm:px-6 lg:px-8 max-w-[1800px] mx-auto mt-6">
         {/* Cards (mobile) */}
         <section
           className="md:hidden space-y-3 mt-4"
@@ -1534,7 +2187,7 @@ const EquiposPage: React.FC = () => {
                     <div className="text-xs text-slate-500">#{e.id_equipo}</div>
                     <h3 className="text-base font-semibold text-slate-900">{e.modelo || "—"}</h3>
                     <p className="text-xs text-slate-600 mt-0.5">
-                      {toUC(e.serial)} • {e.procesador || "CPU —"} • {e.ram || "RAM —"} • {e.disco || "Disco —"}
+                      {toUC(e.serial)} • Año PC: {e.anioPc ?? "N/D"} • {e.procesador || "CPU —"} • {e.ram || "RAM —"} • {e.disco || "Disco —"}
                     </p>
                     {e.createdAt && (
                       <p className="text-[11px] text-slate-500 mt-1">
@@ -1565,9 +2218,22 @@ const EquiposPage: React.FC = () => {
                 </header>
 
                 <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={clsx(
+                      "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+                      getEstadoEquipoClass(e.estado)
+                    )}
+                  >
+                    {getEstadoEquipoLabel(e.estado)}
+                  </span>
                   {e.solicitante ? (
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
                       <LaptopOutlined className="opacity-80" /> {e.solicitante}
+                    </span>
+                  ) : null}
+                  {e.solicitanteRut ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-700">
+                      RUT: {formatRut(e.solicitanteRut)}
                     </span>
                   ) : null}
                   {e.empresa ? (
@@ -1674,7 +2340,7 @@ const EquiposPage: React.FC = () => {
                           <span>{col.label}</span>
                         </th>
                       ))}
-                      <th className="text-left px-4 py-3 font-semibold text-slate-800 select-none rounded-tr-xl w-[160px]">
+                      <th className="text-center px-4 py-3 font-semibold text-slate-800 select-none rounded-tr-xl w-[120px]">
                         Acciones
                       </th>
                     </tr>
@@ -1768,12 +2434,31 @@ const EquiposPage: React.FC = () => {
                             </td>
                             <td className="px-4 py-3">{e.modelo || <span className="text-slate-400">—</span>}</td>
                             <td className="px-4 py-3">
+                              <span
+                                className={clsx(
+                                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                                  getEstadoEquipoClass(e.estado)
+                                )}
+                              >
+                                {getEstadoEquipoLabel(e.estado)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
                               {e.solicitante ? (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
                                   <LaptopOutlined className="opacity-80" /> {e.solicitante}
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {e.solicitanteRut ? (
+                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700">
+                                  {formatRut(e.solicitanteRut)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Sin RUT</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
@@ -1826,14 +2511,17 @@ const EquiposPage: React.FC = () => {
                             </td>
 
                             <td className="px-4 py-3 rounded-r-xl whitespace-nowrap align-middle">
-                              <div className="flex items-center gap-2 h-full">
+                              <div className="flex items-center justify-center gap-2 h-full">
                                 <button
                                   type="button"
                                   onClick={() => startView(e)}
-                                  className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100"
+                                  title="Ver equipo"
+                                  aria-label={`Ver equipo ${e.serial ?? e.id_equipo}`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100 transition"
                                 >
-                                  Ver
+                                  <EyeOutlined />
                                 </button>
+
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1841,15 +2529,17 @@ const EquiposPage: React.FC = () => {
                                     startEdit(e);
                                   }}
                                   disabled={isCliente}
+                                  title={isCliente ? "Sin permisos para editar" : "Editar equipo"}
+                                  aria-label={`Editar equipo ${e.serial ?? e.id_equipo}`}
                                   className={clsx(
-                                    "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                                    "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition",
                                     "border-indigo-200 bg-indigo-50 text-indigo-900",
                                     isCliente
                                       ? "opacity-50 cursor-not-allowed pointer-events-none"
                                       : "hover:bg-indigo-100"
                                   )}
                                 >
-                                  Editar
+                                  <EditOutlined />
                                 </button>
 
                                 <button
@@ -1859,15 +2549,17 @@ const EquiposPage: React.FC = () => {
                                     deleteEquipo(e);
                                   }}
                                   disabled={isCliente}
+                                  title={isCliente ? "Sin permisos para eliminar" : "Eliminar equipo"}
+                                  aria-label={`Eliminar equipo ${e.serial ?? e.id_equipo}`}
                                   className={clsx(
-                                    "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                                    "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition",
                                     "border-rose-200 bg-rose-50 text-rose-900",
                                     isCliente
                                       ? "opacity-50 cursor-not-allowed pointer-events-none"
                                       : "hover:bg-rose-100"
                                   )}
                                 >
-                                  Eliminar
+                                  <DeleteOutlined />
                                 </button>
                               </div>
                             </td>
@@ -1972,11 +2664,24 @@ const EquiposPage: React.FC = () => {
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
             <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Editar equipo #{editRow?.id_equipo}</h3>
-              <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Editar equipo #{editRow?.id_equipo}
+              </h3>
+              <button
+                onClick={cancelEdit}
+                className="text-slate-500 hover:text-slate-700"
+                aria-label="Cerrar"
+              >
                 ✕
               </button>
             </div>
+
+            {editError && (
+              <div className="mx-5 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="font-semibold">No se pudo guardar el equipo</div>
+                <div>{editError}</div>
+              </div>
+            )}
 
             {/* Empresa -> Solicitante */}
             <div className="px-5 pt-4 grid grid-cols-1 gap-3">
@@ -2032,6 +2737,8 @@ const EquiposPage: React.FC = () => {
                   {solOptsE.map((s) => (
                     <option key={s.id_solicitante} value={s.id_solicitante}>
                       {s.nombre}
+                      {s.rut ? ` — RUT: ${formatRut(s.rut)}` : ""}
+                      {s.email ? ` — ${s.email}` : ""}
                     </option>
                   ))}
                 </select>
@@ -2054,43 +2761,183 @@ const EquiposPage: React.FC = () => {
               {(() => {
                 type FieldKey = keyof typeof editForm;
 
-                const FIELDS: Array<{ key: FieldKey; label: string; autoCap?: boolean }> = [
-                  { key: "serial", label: "Serial", autoCap: true },
-                  { key: "marca", label: "Marca", autoCap: true },
-                  { key: "modelo", label: "Modelo" },
-                  { key: "procesador", label: "CPU" },
-                  { key: "ram", label: "RAM" },
-                  { key: "disco", label: "Disco" },
-                  { key: "propiedad", label: "Propiedad" },
-                ];
+                const FIELDS: Array<{
+                  key: FieldKey;
+                  label: string;
+                  autoCap?: boolean;
+                  required?: boolean;
+                  disabled?: boolean;
+                }> = [
+                    { key: "serial", label: "Serial", autoCap: true, required: true },
+                    { key: "marca", label: "Marca", autoCap: true, required: true },
+                    { key: "modelo", label: "Modelo", required: true },
+                    {
+                      key: "procesador",
+                      label: editRequiresProcesador ? "CPU" : "CPU (no aplica)",
+                      required: editRequiresProcesador,
+                      disabled: !editRequiresProcesador,
+                    },
+                    {
+                      key: "ram",
+                      label: editRequiresRam ? "RAM" : "RAM (no aplica)",
+                      required: editRequiresRam,
+                      disabled: !editRequiresRam,
+                    },
+                    {
+                      key: "disco",
+                      label: editRequiresDisco ? "Disco" : "Disco (no aplica)",
+                      required: editRequiresDisco,
+                      disabled: !editRequiresDisco,
+                    },
+                    { key: "propiedad", label: "Propiedad", required: true },
+                  ];
 
-                return FIELDS.map((f) => (
-                  <label key={f.key} className="text-sm">
-                    <span className="block text-slate-700 mb-1">
-                      {f.label} <span className="text-rose-500">*</span>
-                    </span>
-                    <input
-                      required
-                      value={editForm[f.key]}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setEditForm((prev) => ({ ...prev, [f.key]: e.target.value }))
-                      }
-                      onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                        const v = e.target.value.trim();
-                        const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
-                        if (next !== editForm[f.key]) {
-                          setEditForm((prev) => ({ ...prev, [f.key]: next }));
-                        }
-                      }}
-                      placeholder={f.label}
-                      className={clsx(
-                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900",
-                        "border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                      )}
-                    />
-                  </label>
-                ));
+                return (
+                  <>
+                    <label className="text-sm sm:col-span-2">
+                      <span className="block text-slate-700 mb-1">
+                        Tipo de equipo <span className="text-rose-500">*</span>
+                      </span>
+
+                      <select
+                        value={editForm.tipo}
+                        onChange={(e) => {
+                          const tipo = e.target.value as TipoEquipoValue;
+
+                          const nextRequired =
+                            REQUIRED_FIELDS_BY_TIPO[tipo] ??
+                            REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+                          setEditForm((prev) => ({
+                            ...prev,
+                            tipo,
+                            procesador: nextRequired.procesador ? prev.procesador : "",
+                            ram: nextRequired.ram ? prev.ram : "",
+                            disco: nextRequired.disco ? prev.disco : "",
+                          }));
+
+                          setEditError(null);
+                          setEditFieldError(null);
+                        }}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      >
+                        {Object.values(TipoEquipo).map((tipo) => (
+                          <option key={tipo} value={tipo}>
+                            {TipoEquipoLabel[tipo]}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="mt-1 text-[11px] text-slate-500">
+                        {editRequiresProcesador || editRequiresRam || editRequiresDisco
+                          ? "Este tipo de equipo requiere datos técnicos específicos."
+                          : "Este tipo de equipo no requiere CPU, RAM ni Disco. Se guardarán como N/A."}
+                      </div>
+                    </label>
+
+                    {FIELDS.map((f) => (
+                      <label key={f.key} className="text-sm">
+                        <span className="block text-slate-700 mb-1">
+                          {f.label} {f.required && <span className="text-rose-500">*</span>}
+                        </span>
+
+                        <input
+                          required={f.required}
+                          disabled={f.disabled}
+                          value={editForm[f.key]}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            setEditForm((prev) => ({
+                              ...prev,
+                              [f.key]: e.target.value,
+                            }));
+
+                            if (editFieldError === f.key) {
+                              setEditFieldError(null);
+                              setEditError(null);
+                            }
+                          }}
+                          onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+                            const v = e.target.value.trim();
+                            const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
+
+                            if (next !== editForm[f.key]) {
+                              setEditForm((prev) => ({
+                                ...prev,
+                                [f.key]: next,
+                              }));
+                            }
+                          }}
+                          placeholder={f.label}
+                          className={clsx(
+                            "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                            f.disabled
+                              ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                              : editFieldError === f.key
+                                ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                : "border-cyan-200 focus:ring-cyan-500/30"
+                          )}
+                        />
+
+                        {editFieldError === f.key && editError && (
+                          <div className="mt-1 text-xs font-medium text-rose-600">
+                            {editError}
+                          </div>
+                        )}
+                      </label>
+                    ))}
+                  </>
+                );
               })()}
+
+              <label className="text-sm">
+                <span className="block text-slate-700 mb-1">
+                  Año PC
+                </span>
+
+                <input
+                  type="number"
+                  min={2000}
+                  max={new Date().getFullYear() + 1}
+                  value={editForm.anioPc}
+                  onChange={(e) => {
+                    setAnioPcTouched(true);
+                    setEditForm((prev) => ({
+                      ...prev,
+                      anioPc: e.target.value,
+                    }));
+                  }}
+                  placeholder="Ej: 2022"
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                />
+
+                <div className="mt-1 text-[11px] text-slate-500">
+                  Origen actual: {getAnioPcOrigenLabel(editRow?.anioPcOrigen)}.
+                  Si modificas este campo, quedará como manual.
+                </div>
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-slate-700 mb-1">
+                  Estado del equipo <span className="text-rose-500">*</span>
+                </span>
+
+                <select
+                  value={editForm.estado}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      estado: e.target.value as EstadoEquipo,
+                    }))
+                  }
+                  className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                >
+                  {ESTADO_EQUIPO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <div className="sm:col-span-2 text-[11px] text-slate-500 mt-1">
                 Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
@@ -2392,6 +3239,17 @@ const EquiposPage: React.FC = () => {
                   <div><strong>Serial:</strong> {toUC(viewRow.serial)}</div>
                   <div><strong>Marca:</strong> {viewRow.marca}</div>
                   <div><strong>Modelo:</strong> {viewRow.modelo}</div>
+                  <div>
+                    <strong>Estado:</strong>{" "}
+                    <span
+                      className={clsx(
+                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                        getEstadoEquipoClass(viewRow.estado)
+                      )}
+                    >
+                      {getEstadoEquipoLabel(viewRow.estado)}
+                    </span>
+                  </div>
                   <div><strong>CPU:</strong> {viewRow.procesador}</div>
                   <div><strong>RAM:</strong> {viewRow.ram}</div>
                   <div><strong>Disco:</strong> {viewRow.disco}</div>
@@ -2406,8 +3264,10 @@ const EquiposPage: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div><strong>Empresa:</strong> {viewRow.empresa}</div>
-                  <div><strong>Solicitante:</strong> {viewRow.solicitante}</div>
+                  <div><strong>Empresa:</strong> {viewRow.empresa || "—"}</div>
+                  <div><strong>Solicitante:</strong> {viewRow.solicitante || "—"}</div>
+                  <div><strong>RUT solicitante:</strong> {formatRut(viewRow.solicitanteRut)}</div>
+                  <div><strong>Email solicitante:</strong> {viewRow.solicitanteEmail || "—"}</div>
                 </div>
               </div>
 

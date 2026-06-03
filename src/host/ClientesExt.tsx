@@ -1,3 +1,4 @@
+// src/host/ClientesExt.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Button,
@@ -19,24 +20,7 @@ import {
     StopOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
-
-const api = axios.create({
-    baseURL: API_URL,
-    withCredentials: true,
-});
-
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("accessToken");
-
-    if (token) {
-        config.headers = config.headers ?? {};
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-});
+import { api } from "../api/api";
 
 type EmpresaOption = {
     id_empresa: number;
@@ -71,13 +55,29 @@ type ClienteFormValues = {
 };
 
 function getErrorMessage(error: unknown) {
+    console.error("❌ Error capturado en ClientesExt:", error);
+
     if (axios.isAxiosError(error)) {
-        return (
+        const status = error.response?.status;
+
+        const backendMessage =
             error.response?.data?.error ||
             error.response?.data?.message ||
-            error.message ||
-            "Error inesperado"
-        );
+            error.response?.data?.details;
+
+        if (backendMessage) return backendMessage;
+
+        if (status === 400) return "Solicitud inválida";
+        if (status === 401) return "No tienes sesión activa";
+        if (status === 403) return "No tienes permisos para realizar esta acción";
+        if (status === 404) return "Registro no encontrado";
+        if (status === 409) return "Conflicto con los datos enviados";
+
+        return error.message || "Error inesperado";
+    }
+
+    if (error instanceof Error) {
+        return error.message;
     }
 
     return "Error inesperado";
@@ -93,7 +93,16 @@ const Clientes: React.FC = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<ClienteRow | null>(null);
 
+    const [disableModalOpen, setDisableModalOpen] = useState(false);
+    const [clienteToDisable, setClienteToDisable] = useState<ClienteRow | null>(null);
+    const [disabling, setDisabling] = useState(false);
+
     const [form] = Form.useForm<ClienteFormValues>();
+
+    const [pagination, setPagination] = useState({
+        current: 1,
+        pageSize: 10,
+    });
 
     const filteredClientes = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -222,26 +231,34 @@ const Clientes: React.FC = () => {
         }
     };
 
-    const handleDisable = async (row: ClienteRow) => {
-        Modal.confirm({
-            title: "Desactivar cliente",
-            content: `¿Seguro que deseas desactivar a ${row.nombre}?`,
-            okText: "Desactivar",
-            cancelText: "Cancelar",
-            okButtonProps: {
-                danger: true,
-            },
-            async onOk() {
-                try {
-                    await api.delete(`/clientes-ext/${row.id_tecnico}`);
+    const handleDisable = (row: ClienteRow) => {
 
-                    message.success("Cliente desactivado correctamente");
-                    fetchClientes();
-                } catch (error) {
-                    message.error(getErrorMessage(error));
-                }
-            },
-        });
+        setClienteToDisable(row);
+        setDisableModalOpen(true);
+    };
+
+    const confirmDisableCliente = async () => {
+        if (!clienteToDisable) return;
+
+        try {
+            setDisabling(true);
+
+            const { data } = await api.delete(
+                `/clientes-ext/${clienteToDisable.id_tecnico}`
+            );
+
+            message.success(data?.message || "Cliente desactivado correctamente");
+
+            setDisableModalOpen(false);
+            setClienteToDisable(null);
+
+            await fetchClientes();
+        } catch (error) {
+            console.error("❌ Error al desactivar cliente:", error);
+            message.error(getErrorMessage(error));
+        } finally {
+            setDisabling(false);
+        }
     };
 
     const columns: ColumnsType<ClienteRow> = [
@@ -332,7 +349,13 @@ const Clientes: React.FC = () => {
                     allowClear
                     placeholder="Buscar por nombre, email o empresa"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPagination((prev) => ({
+                            ...prev,
+                            current: 1,
+                        }));
+                    }}
                     style={{ maxWidth: 420 }}
                 />
             </div>
@@ -344,8 +367,24 @@ const Clientes: React.FC = () => {
                     dataSource={filteredClientes}
                     loading={loading}
                     pagination={{
-                        pageSize: 10,
+                        current: pagination.current,
+                        pageSize: pagination.pageSize,
                         showSizeChanger: true,
+                        pageSizeOptions: ["5", "10", "20", "50", "100"],
+                        showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} de ${total} clientes`,
+                        onChange: (page, pageSize) => {
+                            setPagination({
+                                current: page,
+                                pageSize,
+                            });
+                        },
+                        onShowSizeChange: (_current, size) => {
+                            setPagination({
+                                current: 1,
+                                pageSize: size,
+                            });
+                        },
                     }}
                 />
             </div>
@@ -454,6 +493,32 @@ const Clientes: React.FC = () => {
                         </Form.Item>
                     )}
                 </Form>
+            </Modal>
+            <Modal
+                title="Desactivar cliente"
+                open={disableModalOpen}
+                onCancel={() => {
+                    if (disabling) return;
+                    setDisableModalOpen(false);
+                    setClienteToDisable(null);
+                }}
+                onOk={confirmDisableCliente}
+                okText="Desactivar"
+                cancelText="Cancelar"
+                confirmLoading={disabling}
+                okButtonProps={{
+                    danger: true,
+                }}
+                destroyOnHidden
+            >
+                <p>
+                    ¿Seguro que deseas desactivar a{" "}
+                    <strong>{clienteToDisable?.nombre}</strong>?
+                </p>
+
+                <p className="text-sm text-slate-500">
+                    El cliente no podrá seguir accediendo al portal mientras esté inactivo.
+                </p>
             </Modal>
         </div>
     );

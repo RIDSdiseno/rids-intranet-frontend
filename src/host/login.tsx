@@ -1,5 +1,5 @@
 // src/host/login.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LogIn, Eye, EyeOff, HelpCircle } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -38,11 +38,25 @@ const LoginRids: React.FC = () => {
     usuario: "",
     password: "",
   });
+  const [rememberMe, setRememberMe] = useState(false);
+
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("remember_email");
+
+    if (savedEmail) {
+      setForm((f) => ({
+        ...f,
+        usuario: savedEmail,
+      }));
+      setRememberMe(true);
+    }
+  }, []);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -67,12 +81,17 @@ const LoginRids: React.FC = () => {
       localStorage.setItem("user", JSON.stringify(data.tecnico));
 
       navigate("/home", { replace: true });
-    } catch (error) {
-
+    } catch (error: any) {
       console.error("Microsoft login error", error);
 
-      setError("No se pudo iniciar sesion con microsoft");
-      setLoading(true);
+      const apiError =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.response?.data?.details ||
+        error?.message ||
+        "No se pudo iniciar sesión con Microsoft";
+
+      setError(apiError);
     } finally {
       setLoading(false);
     }
@@ -97,25 +116,35 @@ const LoginRids: React.FC = () => {
     setLoading(true);
 
     try {
+      const email = form.usuario.trim();
+
       const { data } = await api.post<LoginResponse>("/auth/login", {
-        email: form.usuario.trim(),
+        email,
         password: form.password,
+        rememberMe,
       });
 
       setAccessToken(data.accessToken);
 
       localStorage.setItem("user", JSON.stringify(data.tecnico));
 
+      if (rememberMe) {
+        localStorage.setItem("remember_email", email);
+      } else {
+        localStorage.removeItem("remember_email");
+      }
+
       navigate("/home", { replace: true });
 
     } catch (err: any) {
-
       const apiError =
+        err?.response?.data?.message ||
         err?.response?.data?.error ||
+        err?.response?.data?.details ||
+        err?.message ||
         "Usuario o contraseña incorrectos";
 
       setError(apiError);
-
     } finally {
       setLoading(false);
     }
@@ -205,7 +234,7 @@ const LoginRids: React.FC = () => {
                 <input
                   id="usuario"
                   name="usuario"
-                  type="text"
+                  type="email"
                   value={form.usuario}
                   onChange={onChange}
                   className="
@@ -215,7 +244,7 @@ const LoginRids: React.FC = () => {
                     outline-none focus:border-cyan-600 focus:ring-4 focus:ring-cyan-100
                   "
                   placeholder="tu.usuario@correo.com"
-                  autoComplete="username"
+                  autoComplete="email"
                   inputMode="email"
                 />
               </div>
@@ -258,6 +287,16 @@ const LoginRids: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 text-sm text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                />
+                <span>Recordarme</span>
+              </label>
 
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
