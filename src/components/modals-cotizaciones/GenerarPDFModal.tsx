@@ -987,7 +987,6 @@ const generarPDF = async (
                             <p><b>Correo:</b> ${cot.entidad?.correo ?? "—"}</p>
                             <p><b>Teléfono:</b> ${cot.entidad?.telefono ?? "—"}</p>
                             <p><b>Dirección:</b> ${cot.entidad?.direccion ?? "—"}</p>
-                            <p><b>Origen:</b> ${cot.entidad?.origen ?? "—"}</p>
                         </div>
 
                         <div class="info-box company-info">

@@ -1,4 +1,4 @@
-// src/components/CrearEquipoModal.tsx
+// src/components/modals-equipos/CrearEquipo.tsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Modal,
@@ -25,7 +25,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import type { TargetAndTransition, Transition } from "framer-motion";
 
-import { http } from "../service/http";
+import { http } from "../../service/http";
 
 import {
   MARCAS_EQUIPO,
@@ -34,7 +34,7 @@ import {
   TipoEquipo,
   TipoEquipoLabel,
   type TipoEquipoValue,
-} from "../components/modals-gestioo/types";
+} from "../modals-gestioo/types";
 
 /* =================== Tipos =================== */
 type EmpresaOpt = { id: number; nombre: string };
@@ -76,6 +76,7 @@ export type EquipoDTO = {
   disco: string;
   propiedad: string;
   estado: EstadoEquipo;
+  observaciones?: string | null;
   idSolicitante: number;
   solicitante: SolicitanteDTO | null;
 };
@@ -120,6 +121,7 @@ type CreateEquipoPayload = {
   propiedad: string;
 
   estado: EstadoEquipo;
+  observaciones?: string | null;
 
   // DETALLE
   macWifi?: string;
@@ -627,6 +629,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         propiedad: values.propiedad.trim(),
 
         estado: values.estado ?? "ACTIVO",
+        observaciones: values.observaciones?.trim() || null,
 
         // detalle
         macWifi: values.macWifi,
@@ -936,7 +939,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                 </Form.Item>
               </motion.div>
 
-              {/* Solicitante (opcional) */}
+              {/* Solicitante */}
               <motion.div
                 animate={shakeField === "idSolicitante" ? { x: [0, -6, 6, -3, 3, 0] } : { x: 0 }}
                 transition={shakeTransition}
@@ -945,8 +948,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
               >
                 <Form.Item
                   name="idSolicitante"
-                  label="Solicitante (opcional)"
-                  tooltip="Primero selecciona una empresa para ver sus solicitantes. Puedes dejar '— Sin solicitante —'."
+                  label="Solicitante"
+                  tooltip="Primero selecciona una empresa para ver sus solicitantes. Si el solicitante no existe, puedes crear uno nuevo desde el módulo de Solicitantes."
                   rules={[
                     {
                       validator: (_, v) =>
@@ -1342,12 +1345,13 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   <Select
                     options={[
                       { label: "Empresa", value: "Empresa" },
-                      { label: "Equipo Personal", value: "Equipo Personal" }, // 👈 AQUÍ
+                      { label: "Equipo Personal", value: "Equipo Personal" }, // AQUÍ
                     ]}
                     className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
                   />
                 </Form.Item>
-
+              </motion.div>
+              <motion.div>
                 <Form.Item
                   name="estado"
                   label="Estado del equipo"
@@ -1357,6 +1361,18 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   <Select
                     options={ESTADO_EQUIPO_OPTIONS}
                     placeholder="Selecciona estado"
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="observaciones"
+                  label="Observaciones"
+                >
+                  <Input.TextArea
+                    rows={3}
+                    allowClear
+                    showCount
+                    maxLength={1000}
+                    placeholder="Ingrese observaciones generales del equipo..."
                   />
                 </Form.Item>
               </motion.div>
