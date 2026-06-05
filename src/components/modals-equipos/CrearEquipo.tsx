@@ -27,6 +27,24 @@ import type { TargetAndTransition, Transition } from "framer-motion";
 
 import { http } from "../../service/http";
 
+import type {
+  CreateEquipoPayload,
+  CreateEquipoResponse,
+  EquipoAdicionalInput,
+  EquipoDTO,
+  EmpresaOpt,
+  ListSolicitantesResponse,
+  SolicitanteLite,
+} from "./equipos.types";
+
+import {
+  ESTADO_EQUIPO_OPTIONS,
+  REQUIRED_FIELDS_BY_TIPO,
+  ADICIONAL_TIPOS,
+  ADICIONAL_TIPO_LABEL,
+  formatRut,
+} from "./equipos.helpers";
+
 import {
   MARCAS_EQUIPO,
   MODELOS_POR_MARCA,
@@ -37,112 +55,9 @@ import {
 } from "../modals-gestioo/types";
 
 /* =================== Tipos =================== */
-type EmpresaOpt = { id: number; nombre: string };
-
-type EquipoAdicionalInput = {
-  tipo: string;
-  descripcion?: string | null;
-  cantidad: number;
-  serialAdicional?: string | null;
-};
-
-// Añade esto cerca de tus otros tipos en el archivo
-type EquipoLite = { empresaId: number | null; empresa: string | null };
-type ApiList<T> = { items: T[]; totalPages?: number };
-
-
-// ==== DTOs devueltos por la API (para evitar "any") ====
-type EmpresaDTO = {
-  id_empresa: number;
-  nombre: string;
-};
-
-type SolicitanteDTO = {
-  id_solicitante: number;
-  nombre: string;
-  empresaId: number | null;
-  empresa: EmpresaDTO | null;
-};
-
-export type EquipoDTO = {
-  id_equipo: number;
-  serial: string;
-  marca: string;
-  modelo: string;
-  anioPc?: number | null;
-  anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
-  procesador: string;
-  ram: string;
-  disco: string;
-  propiedad: string;
-  estado: EstadoEquipo;
-  observaciones?: string | null;
-  idSolicitante: number;
-  solicitante: SolicitanteDTO | null;
-};
-
-type SolicitanteLite = {
-  id_solicitante: number;
-  nombre: string;
-  email?: string | null;
-  rut?: string | null;
-  empresa?: { id_empresa: number; nombre: string } | null;
-};
-
-type ListSolicitantesResponse = {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  items: Array<{
-    id_solicitante: number;
-    nombre: string;
-    email?: string | null;
-    rut?: string | null;
-    empresaId: number | null;
-    empresa: { id_empresa: number; nombre: string } | null;
-  }>;
-};
 
 type AntdFieldError = { name: Array<string | number>; errors: string[] };
 type AntdValidateError = { errorFields: AntdFieldError[] };
-
-type CreateEquipoPayload = {
-  empresaId: number;
-  idSolicitante: number | null;
-  tipo: TipoEquipoValue;
-  serial: string;
-  marca: string;
-  modelo: string;
-  anioPc?: number | null;
-  procesador: string;
-  ram: string;
-  disco: string;
-  propiedad: string;
-
-  estado: EstadoEquipo;
-  observaciones?: string | null;
-
-  // DETALLE
-  macWifi?: string;
-  redEthernet?: string;
-  so?: string;
-  tipoDd?: string;
-  estadoAlm?: string;
-  office?: string;
-  teamViewer?: string;
-  claveTv?: string;
-  revisado?: string;
-
-  adminRidsUsuario?: string;
-  adminRidsPassword?: string;
-  usuarioEmpresa?: string;
-  passwordEmpresa?: string;
-  usuarioPersonal?: string;
-  passwordPersonal?: string;
-
-  adicionales?: EquipoAdicionalInput[];
-};
 
 type CrearEquipoModalProps = {
   open: boolean;
@@ -159,130 +74,6 @@ type CrearEquipoModalProps = {
     precioVenta?: number;
     empresaId?: number;
   };
-};
-
-type CreateEquipoResponse = {
-  ok: boolean;
-  totalReceived: number;
-  totalCreated: number;
-  totalErrors: number;
-  created: EquipoDTO[];
-  errors: Array<{
-    serial?: string;
-    error: string;
-  }>;
-};
-
-type EstadoEquipo = "ACTIVO" | "EN_STOCK" | "DADO_DE_BAJA" | "EN_RIDS" | "EN_GARANTIA" | "EN_TALLER_EXTERNO";
-
-const ESTADO_EQUIPO_OPTIONS: Array<{ value: EstadoEquipo; label: string }> = [
-  { value: "ACTIVO", label: "Activo" },
-  { value: "EN_STOCK", label: "En stock" },
-  { value: "DADO_DE_BAJA", label: "Dado de baja" },
-  { value: "EN_RIDS", label: "En RIDS" },
-  { value: "EN_GARANTIA", label: "En garantía" },
-  { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
-];
-
-type RequiredEquipoFields = {
-  procesador: boolean;
-  ram: boolean;
-  disco: boolean;
-};
-
-const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
-  [TipoEquipo.GENERICO]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-  [TipoEquipo.NOTEBOOK]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-  [TipoEquipo.ALL_IN_ONE]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-  [TipoEquipo.DESKTOP]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-  [TipoEquipo.CPU]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-  [TipoEquipo.EQUIPO_ARMADO]: {
-    procesador: true,
-    ram: true,
-    disco: true,
-  },
-
-  [TipoEquipo.IMPRESORA]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.SCANNER]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.LASER]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.LED]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.MONITOR]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.ROUTER]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.CARGADOR]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.INSUMOS_COMPUTACIONALES]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.RELOJ_CONTROL]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-  [TipoEquipo.OTRO]: {
-    procesador: false,
-    ram: false,
-    disco: false,
-  },
-
-  [TipoEquipo.NAS]: {
-    procesador: false,
-    ram: false,
-    disco: true,
-  },
-  [TipoEquipo.DISCO_DURO_EXTERNO]: {
-    procesador: false,
-    ram: false,
-    disco: true,
-  },
 };
 
 /* =================== Branding =================== */
@@ -366,12 +157,6 @@ async function fetchSolicitantes(
   return res.data;
 }
 
-type EmpresasResponse = {
-  success: boolean;
-  data: Array<{ id_empresa: number; nombre: string }>;
-  total: number;
-};
-
 async function fetchEmpresas(): Promise<EmpresaOpt[]> {
   const res = await http.get("/empresas");
   const raw = res.data;
@@ -391,35 +176,6 @@ function getModelosPorMarca(marca: string): readonly string[] {
   const key = marca.toUpperCase() as keyof typeof MODELOS_POR_MARCA;
   return MODELOS_POR_MARCA[key] ?? [];
 }
-
-function formatRut(value?: string | null) {
-  if (!value) return "Sin RUT";
-
-  const clean = String(value)
-    .replace(/[^0-9kK]/g, "")
-    .toUpperCase();
-
-  if (!clean) return "Sin RUT";
-  if (clean.length <= 1) return clean;
-
-  const cuerpo = clean.slice(0, -1);
-  const dv = clean.slice(-1);
-
-  return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${dv}`;
-}
-
-const ADICIONAL_TIPOS = [
-  { value: "MONITOR", label: "Monitor" },
-  { value: "CARGADOR", label: "Cargador" },
-  { value: "MOUSE", label: "Mouse" },
-  { value: "TECLADO", label: "Teclado" },
-  { value: "DOCKING", label: "Docking" },
-  { value: "ADAPTADOR", label: "Adaptador" },
-  { value: "BOLSO", label: "Bolso" },
-  { value: "UPS", label: "UPS" },
-  { value: "AURICULARES", label: "Auriculares" },
-  { value: "OTRO", label: "Otro" },
-] as const;
 
 /* =================== Componente =================== */
 const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
@@ -978,7 +734,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                             value: s.id_solicitante,
                           };
                         });
-                        return [{ label: "— Sin solicitante —", value: undefined }, ...opts];
+                       return [{ label: "— Sin solicitante —", value: null }, ...opts];
                       }, [solOpts, empresaId]) as { label: string; value: number | null }[]
                     }
                     loading={loadingSolicitantes}
@@ -1503,9 +1259,9 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                           >
                             <Select
                               placeholder="Selecciona un tipo"
-                              options={ADICIONAL_TIPOS.map((item) => ({
-                                value: item.value,
-                                label: item.label,
+                              options={ADICIONAL_TIPOS.map((tipo) => ({
+                                value: tipo,
+                                label: ADICIONAL_TIPO_LABEL[tipo] ?? tipo,
                               }))}
                             />
                           </Form.Item>

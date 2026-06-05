@@ -5,6 +5,7 @@ import type {
     EquipoHistorialItem,
     EstadoEquipo,
     RequiredEquipoFields,
+    EquipoAgentFull,
 } from "./equipos.types";
 
 export const ESTADO_EQUIPO_OPTIONS: Array<{
@@ -166,4 +167,38 @@ export function actorName(actor: ActorLite | null | undefined) {
 
 export function getChanges(h: EquipoHistorialItem) {
     return h.changes ?? h.diff ?? null;
+}
+
+export function agenteEstadoClasses(estado?: string | null) {
+    switch (estado) {
+        case "ACTIVO":
+            return "border-emerald-200 bg-emerald-50 text-emerald-800";
+        case "ADVERTENCIA":
+            return "border-amber-200 bg-amber-50 text-amber-800";
+        case "CRITICO":
+            return "border-rose-200 bg-rose-50 text-rose-800";
+        case "SIN_CONEXION":
+            return "border-slate-300 bg-slate-100 text-slate-700";
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-600";
+    }
+}
+
+export function diskUsedPercent(equipo?: EquipoAgentFull | null) {
+    if (
+        !equipo?.diskTotalGb ||
+        equipo.diskFreeGb === null ||
+        equipo.diskFreeGb === undefined
+    ) {
+        return null;
+    }
+
+    const total = Number(equipo.diskTotalGb);
+    const free = Number(equipo.diskFreeGb);
+
+    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(free)) {
+        return null;
+    }
+
+    return Math.round(((total - free) / total) * 100);
 }

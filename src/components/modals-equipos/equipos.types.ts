@@ -142,3 +142,165 @@ export type TecnicoOpt = {
   nombre: string;
   email?: string | null;
 };
+
+export type EquipoSoftwareAgent = {
+  id: number;
+  equipoId: number;
+  nombre: string;
+  version?: string | null;
+  publisher?: string | null;
+  installDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type EquipoAgenteEvento = {
+  id: number;
+  equipoId: number;
+  tipo: string;
+  mensaje?: string | null;
+  metadata?: unknown;
+  createdAt: string;
+};
+
+export type EquipoDetalleAgent = {
+  so?: string | null;
+  macWifi?: string | null;
+  redEthernet?: string | null;
+  tipoDd?: string | null;
+  estadoAlm?: string | null;
+  office?: string | null;
+  teamViewer?: string | null;
+
+  antivirusNombre?: string | null;
+  antivirusActivo?: boolean | null;
+  firewallActivo?: boolean | null;
+  bitlockerEstado?: string | null;
+  windowsUpdate?: string | null;
+  observacionAgente?: string | null;
+};
+
+export type EstadoAgente =
+  | "SIN_AGENTE"
+  | "ACTIVO"
+  | "SIN_CONEXION"
+  | "ADVERTENCIA"
+  | "CRITICO";
+
+export type EquipoAgentFull = EquipoRow & {
+  hostname?: string | null;
+  usuarioActual?: string | null;
+  dominio?: string | null;
+  localIp?: string | null;
+  publicIp?: string | null;
+  macAddress?: string | null;
+  ramGb?: number | null;
+  diskTotalGb?: number | null;
+  diskFreeGb?: number | null;
+  lastBootAt?: string | null;
+  lastSeenAt?: string | null;
+  agenteVersion?: string | null;
+  agenteActivo?: boolean;
+  estadoAgente?: EstadoAgente;
+  detalle?: EquipoDetalleAgent | null;
+  softwares?: EquipoSoftwareAgent[];
+  agenteEventos?: EquipoAgenteEvento[];
+};
+
+export type EmpresaDTO = {
+  id_empresa: number;
+  nombre: string;
+};
+
+export type SolicitanteDTO = {
+  id_solicitante: number;
+  nombre: string;
+  empresaId: number | null;
+  empresa: EmpresaDTO | null;
+};
+
+export type EquipoDTO = {
+  id_equipo: number;
+  serial: string;
+  marca: string;
+  modelo: string;
+  anioPc?: number | null;
+  anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
+  procesador: string;
+  ram: string;
+  disco: string;
+  propiedad: string;
+  estado: EstadoEquipo;
+  observaciones?: string | null;
+  idSolicitante: number;
+  solicitante: SolicitanteDTO | null;
+};
+
+export type EquipoAdicionalInput = {
+  tipo: string;
+  descripcion?: string | null;
+  cantidad: number;
+  serialAdicional?: string | null;
+};
+
+export type CreateEquipoPayload = {
+  empresaId: number;
+  idSolicitante: number | null;
+  tipo: TipoEquipoValue;
+  serial: string;
+  marca: string;
+  modelo: string;
+  anioPc?: number | null;
+  procesador: string;
+  ram: string;
+  disco: string;
+  propiedad: string;
+  estado: EstadoEquipo;
+  observaciones?: string | null;
+
+  macWifi?: string;
+  redEthernet?: string;
+  so?: string;
+  tipoDd?: string;
+  estadoAlm?: string;
+  office?: string;
+  teamViewer?: string;
+  claveTv?: string;
+  revisado?: string;
+
+  adminRidsUsuario?: string;
+  adminRidsPassword?: string;
+  usuarioEmpresa?: string;
+  passwordEmpresa?: string;
+  usuarioPersonal?: string;
+  passwordPersonal?: string;
+
+  adicionales?: EquipoAdicionalInput[];
+};
+
+export type CreateEquipoResponse = {
+  ok: boolean;
+  totalReceived: number;
+  totalCreated: number;
+  totalErrors: number;
+  created: EquipoDTO[];
+  errors: Array<{
+    serial?: string;
+    error: string;
+  }>;
+};
+
+export type ListSolicitantesResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: Array<{
+    id_solicitante: number;
+    nombre: string;
+    email?: string | null;
+    rut?: string | null;
+    empresaId: number | null;
+    empresa: { id_empresa: number; nombre: string } | null;
+  }>;
+};
