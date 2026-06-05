@@ -981,6 +981,8 @@ export default function TicketDetailPage() {
                                                                         onChange={(e) => setReplyText(e.target.value)}
                                                                         placeholder="Escribe tu respuesta al cliente..."
                                                                         autoSize={false}
+                                                                        spellCheck={true}
+                                                                        lang="es-CL"
                                                                         style={{
                                                                             height: "100%",
                                                                             minHeight: "150px",
@@ -1057,6 +1059,8 @@ export default function TicketDetailPage() {
                                                                         onChange={(e) => setInternalNoteText(e.target.value)}
                                                                         placeholder="Escribe una nota interna (no visible para el cliente)..."
                                                                         autoSize={false}
+                                                                        spellCheck={true}
+                                                                        lang="es-CL"
                                                                         style={{
                                                                             height: "clamp(150px, 40vh, 400px)",
                                                                             minHeight: "150px",

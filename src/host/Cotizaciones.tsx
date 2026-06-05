@@ -54,8 +54,8 @@ import {
     normalizarItemCotizacion,
 } from "../components/modals-cotizaciones/utils";
 
-import CrearEquipoModal from "../components/CrearEquipo";
-import type { EquipoDTO } from "../components/CrearEquipo";
+import CrearEquipoModal from "../components/modals-equipos/CrearEquipo";
+import type { EquipoDTO } from "../components/modals-equipos/CrearEquipo";
 
 import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquipo";
 

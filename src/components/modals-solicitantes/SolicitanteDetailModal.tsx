@@ -1,4 +1,4 @@
-// src/components/SolicitanteDetailModal.tsx
+// src/components/modals-solicitantes/SolicitanteDetailModal.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CloseOutlined,

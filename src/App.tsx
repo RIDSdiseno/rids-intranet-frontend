@@ -92,7 +92,7 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rolNormalizado = String(rol ?? "").toUpperCase().trim();
 
   if (!rolNormalizado || !allowedRoles.includes(rolNormalizado)) {
-    const fallback = rolNormalizado === "CLIENTE" ? "/helpdesk" : "/home";
+    const fallback = rolNormalizado === "CLIENTE" ? "/empresas" : "/home";
     return <Navigate to={fallback} replace />;
   }
 
@@ -102,7 +102,7 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
 function MapaTecnicosRoute() {
   if (!canViewMapaTecnicos(getUser())) {
     const rol = String(getUserRol() ?? "").toUpperCase().trim();
-    const fallback = rol === "CLIENTE" ? "/helpdesk" : "/home";
+    const fallback = rol === "CLIENTE" ? "/empresas" : "/home";
     return <Navigate to={fallback} replace />;
   }
 
@@ -138,9 +138,7 @@ function GestionTecnicosClientesRoute() {
 function getRootRedirect(): string {
   const rol = String(getUserRol() ?? "").toUpperCase().trim();
 
-  if (rol === "CLIENTE") return "/facturas-baseapi";
-  if (rol === "ADMINISTRACION") return "/facturas-baseapi";
-  if (rol === "VENTAS") return "/facturas-baseapi";
+  if (rol === "CLIENTE") return "/empresas";
 
   return "/home";
 }
@@ -237,7 +235,8 @@ export default function App() {
 
             {/* ── Facturas ─────────────────────────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
-              <Route path="/facturas-baseapi" element={<FacturasBaseapiPage />} />
+              <Route path="/facturas" element={<FacturasBaseapiPage />} />
+              <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
             </Route>
 
           </Route>

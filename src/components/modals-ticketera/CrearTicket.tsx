@@ -10,8 +10,8 @@ interface SolicitanteOption { value: number; label: string; email?: string | nul
 interface Tecnico {
     id_tecnico: number;
     nombre: string;
-    cargo?: string;      // 🆕
-    email?: string;      // 🆕
+    cargo?: string;
+    email?: string;
 }
 
 interface TicketForm {
@@ -164,6 +164,8 @@ export function CrearTicketDrawer({
                     <Input
                         placeholder="Breve descripción del problema"
                         size="large"
+                        spellCheck={true}
+                        lang="es-CL"
                         value={form.subject}
                         onChange={(e) => onFormChange({ ...form, subject: e.target.value })}
                     />
@@ -208,6 +210,8 @@ export function CrearTicketDrawer({
                     <Input.TextArea
                         rows={6}
                         placeholder="Describe el problema en detalle..."
+                        spellCheck={true}
+                        lang="es-CL"
                         value={form.message}
                         onChange={(e) => onFormChange({ ...form, message: e.target.value })}
                         className="resize-none"
