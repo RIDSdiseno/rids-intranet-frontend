@@ -2,6 +2,7 @@ import React from "react";
 import { Modal, Select, DatePicker, Alert } from "antd";
 import dayjs from "dayjs";
 import type { Tecnico, Empresa } from "./tiposAgenda";
+import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
 
 export interface CrearVisitaManualProps {
   open: boolean;
@@ -83,13 +84,10 @@ export function CrearVisitaManual({
             placeholder="Seleccionar empresa"
             value={empresaId}
             onChange={onEmpresaChange}
-            options={[
-              { label: "OFICINA", value: -1 },
-              ...empresasDisponibles.map((e) => ({
-                label: e.nombre,
-                value: e.id_empresa,
-              })),
-            ]}
+            options={empresasDisponibles.map((e) => ({
+              label: getAgendaEmpresaOptionLabel(e),
+              value: e.id_empresa,
+            }))}
             showSearch
             filterOption={(input, option) =>
               (option?.label as string ?? "").toLowerCase().includes(input.toLowerCase())

@@ -1,7 +1,8 @@
 import React from "react";
-import { Modal, Select, Checkbox } from "antd";
+import { Modal, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import type { Empresa } from "./tiposAgenda";
+import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
 
 export interface CrearVisitaAutomaticaProps {
   open: boolean;
@@ -21,10 +22,8 @@ export function CrearVisitaAutomatica({
   generando,
   currentDate,
   selectedEmpresaIds,
-  includeOficina,
   empresasDisponibles,
   onEmpresaIdsChange,
-  onIncludeOficinaChange,
   onOk,
   onCancel,
 }: CrearVisitaAutomaticaProps) {
@@ -57,7 +56,7 @@ export function CrearVisitaAutomatica({
             value={selectedEmpresaIds}
             onChange={onEmpresaIdsChange}
             options={empresasDisponibles.map((e) => ({
-              label: e.nombre,
+              label: getAgendaEmpresaOptionLabel(e),
               value: e.id_empresa,
             }))}
             showSearch
@@ -68,19 +67,7 @@ export function CrearVisitaAutomatica({
           />
         </div>
 
-        <div>
-          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#94a3b8" }}>
-            OFICINA (se maneja por separado)
-          </p>
-          <Checkbox
-            checked={includeOficina}
-            onChange={(e) => onIncludeOficinaChange(e.target.checked)}
-          >
-            Incluir OFICINA
-          </Checkbox>
-        </div>
-
-        {selectedEmpresaIds.length === 0 && !includeOficina && (
+        {selectedEmpresaIds.length === 0 && (
           <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
             Sin selección → se generará la malla con la lógica automática del backend.
           </p>

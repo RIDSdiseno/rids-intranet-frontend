@@ -20,6 +20,10 @@ import { EditarVisita } from "../components/modals-agenda/EditarVisita";
 import { DiaAgenda } from "../components/modals-agenda/DiaAgenda";
 import { CrearVisitaAutomatica } from "../components/modals-agenda/CrearVisitaAutomatica";
 import { DetalleVisita } from "../components/modals-agenda/DetalleVisita";
+import {
+  getAgendaEmpresaNombreFromVisita,
+  getAgendaEmpresaOptionLabel,
+} from "../components/modals-agenda/agendaEmpresaLabel";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -198,10 +202,7 @@ export default function AgendaPage() {
   const fcEvents = useMemo(() =>
     visitas.map((v) => {
       const isPast = isPastVisita(v);
-      const empresa =
-        v.empresa?.nombre?.trim()?.toUpperCase() ||
-        v.empresaExternaNombre?.trim()?.toUpperCase() ||
-        "OFICINA";
+      const empresa = getAgendaEmpresaNombreFromVisita(v).toUpperCase();
       const tecs = v.tecnicos.slice(0, 2).map((tr) => tr.tecnico.nombre).join(", ");
       const tecExtra = v.tecnicos.length > 2 ? ` +${v.tecnicos.length - 2}` : "";
       const tecLabel = v.tecnicos.length === 0 ? "Sin técnico" : `${tecs}${tecExtra}`;
@@ -278,9 +279,10 @@ export default function AgendaPage() {
   };
 
   const handleOpenEditar = (visita: AgendaVisita) => {
+    const empresaRids = empresasDisponibles.find((e) => e.nombre.trim().toLowerCase() === "rids");
     setSelectedVisita(visita);
     setSelectedTecnicos(visita.tecnicos.map((t) => t.tecnico.id_tecnico));
-    setSelectedEmpresaId(visita.empresa?.id_empresa ?? -1);
+    setSelectedEmpresaId(visita.empresa?.id_empresa ?? empresaRids?.id_empresa ?? null);
     setSelectedHoraInicio(visita.horaInicio ?? "");
     setSelectedHoraFin(visita.horaFin ?? "");
     setSelectedNotas(visita.notas ?? "");
@@ -296,7 +298,7 @@ export default function AgendaPage() {
       const resPatch = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
         method: "PATCH", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
-          empresaId: selectedEmpresaId === -1 ? null : selectedEmpresaId,
+          empresaId: selectedEmpresaId,
           ...(selectedHoraInicio && { horaInicio: selectedHoraInicio }),
           ...(selectedHoraFin && { horaFin: selectedHoraFin }),
           notas: selectedNotas,
@@ -311,7 +313,7 @@ export default function AgendaPage() {
       if (!resTecnicos.ok) throw new Error(await errorMsg(resTecnicos, "Error al guardar la visita"));
 
       const updatedEmpresa =
-        selectedEmpresaId === null || selectedEmpresaId === -1
+        selectedEmpresaId === null
           ? null
           : empresasDisponibles.find((e) => e.id_empresa === selectedEmpresaId) ??
           (selectedVisita.empresa?.id_empresa === selectedEmpresaId ? selectedVisita.empresa : null);
@@ -381,7 +383,7 @@ export default function AgendaPage() {
         method: "POST", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
           fecha: manualFecha,
-          empresaId: manualEmpresaId === -1 ? null : manualEmpresaId,
+          empresaId: manualEmpresaId,
           tecnicoId: manualTecnicoId,
           ...(manualHoraInicio && { horaInicio: manualHoraInicio }),
           ...(manualHoraFin && { horaFin: manualHoraFin }),
@@ -667,12 +669,10 @@ export default function AgendaPage() {
           onChange={setFiltroEmpresa}
           allowClear
           style={{ width: 220, borderRadius: 8 }}
-          options={[
-            { value: "OFICINA", label: "OFICINA" },
-            ...empresasDisponibles.map((e) => ({
-              value: e.nombre.replace(/\s+/g, " ").trim(), label: e.nombre,
-            })),
-          ]}
+          options={empresasDisponibles.map((e) => ({
+            value: getAgendaEmpresaOptionLabel(e).replace(/\s+/g, " ").trim(),
+            label: getAgendaEmpresaOptionLabel(e),
+          }))}
         />
         {(filtroTecnico || filtroEmpresa) && (
           <Button
