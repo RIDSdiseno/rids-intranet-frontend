@@ -23,6 +23,10 @@ import type {
 } from "./equipos.types";
 import { http } from "../../service/http";
 
+import type { TipoEquipoValue } from "../modals-gestioo/types";
+import { TipoEquipo, TipoEquipoLabel } from "../modals-gestioo/types";
+
+
 type Props = {
     open: boolean;
     row: EquipoRow | null;
@@ -46,20 +50,26 @@ function formatDateTimeCL(value?: string | null) {
     }).format(new Date(value));
 }
 
+function getTipoEquipoLabel(tipo?: string | null) {
+    if (!tipo) return "—";
+
+    return TipoEquipoLabel[tipo as TipoEquipoValue] ?? tipo;
+}
+
 // ==== Helpers Agente ====
 function boolTag(value?: boolean | null) {
     if (value === true) {
         return (
-            <span className= "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800" >
-            Activo
+            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800" >
+                Activo
             </span>
         );
     }
 
     if (value === false) {
         return (
-            <span className= "inline-flex rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800" >
-            Inactivo
+            <span className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800" >
+                Inactivo
             </span>
         );
     }
@@ -199,6 +209,7 @@ export default function EquipoViewModal({
                         </h4>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div><strong>Tipo de equipo:</strong> {getTipoEquipoLabel(row.tipo)}</div>
                             <div><strong>Serial:</strong> {toUC(row.serial)}</div>
                             <div><strong>Marca:</strong> {row.marca}</div>
                             <div><strong>Modelo:</strong> {row.modelo}</div>

@@ -17,7 +17,7 @@ import {
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
-import { DatePicker, Select } from "antd";
+import { DatePicker, Select, Pagination } from "antd";
 
 import dayjs from "dayjs";
 
@@ -205,6 +205,10 @@ const OrdenesTaller: React.FC = () => {
 
     const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
     const [loading, setLoading] = useState(false);
+
+    const [paginaActual, setPaginaActual] = useState(1);
+    const [ordenesPorPagina, setOrdenesPorPagina] = useState(10);
+
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewOrden, setPreviewOrden] = useState<DetalleTrabajoGestioo | null>(null);
 
@@ -603,6 +607,26 @@ const OrdenesTaller: React.FC = () => {
         fechaRangoFiltro,
     ]);
 
+    const ordenesPaginadas = useMemo(() => {
+        const inicio = (paginaActual - 1) * ordenesPorPagina;
+        const fin = inicio + ordenesPorPagina;
+
+        return filtered.slice(inicio, fin);
+    }, [filtered, paginaActual, ordenesPorPagina]);
+
+    useEffect(() => {
+        setPaginaActual(1);
+    }, [
+        busquedaEquipo,
+        estadoFiltro,
+        areaFiltro,
+        origenFiltro,
+        empresaFiltro,
+        tecnicoFiltro,
+        destinoFiltro,
+        fechaRangoFiltro,
+    ]);
+
     const [showNewEntidadModal, setShowNewEntidadModal] = useState(false);
     const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
     const [showEditEntidadModal, setShowEditEntidadModal] = useState(false);
@@ -936,7 +960,7 @@ const OrdenesTaller: React.FC = () => {
                                         ]}
                                     />
                                 </div>
-                                
+
                                 {/* Rango de fechas */}
                                 <div className="min-w-[280px]">
                                     <DatePicker.RangePicker
@@ -1007,19 +1031,19 @@ const OrdenesTaller: React.FC = () => {
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={12} className="py-10 text-center text-slate-500">
+                                        <td colSpan={11} className="py-10 text-center text-slate-500">
                                             Cargando...
                                         </td>
                                     </tr>
                                 ) : filtered.length === 0 ? (
                                     <tr>
-                                        <td colSpan={12} className="py-10 text-center text-slate-500">
+                                        <td colSpan={11} className="py-10 text-center text-slate-500">
                                             Sin resultados.
                                         </td>
                                     </tr>
                                 ) : (
                                     // Listado de órdenes
-                                    filtered.map((o) => {
+                                    ordenesPaginadas.map((o) => {
 
                                         // Determinar fecha a mostrar según área
                                         const fechaMostrar = o.fecha;
@@ -1263,6 +1287,44 @@ const OrdenesTaller: React.FC = () => {
                             </tbody>
 
                         </table>
+                    </div>
+                    <div className="flex flex-col gap-3 border-t border-cyan-100 bg-slate-50/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-sm text-slate-500">
+                            Mostrando{" "}
+                            <span className="font-semibold text-slate-700">
+                                {filtered.length === 0
+                                    ? 0
+                                    : (paginaActual - 1) * ordenesPorPagina + 1}
+                            </span>{" "}
+                            a{" "}
+                            <span className="font-semibold text-slate-700">
+                                {Math.min(
+                                    paginaActual * ordenesPorPagina,
+                                    filtered.length
+                                )}
+                            </span>{" "}
+                            de{" "}
+                            <span className="font-semibold text-slate-700">
+                                {filtered.length}
+                            </span>{" "}
+                            órdenes
+                        </div>
+
+                        <Pagination
+                            current={paginaActual}
+                            pageSize={ordenesPorPagina}
+                            total={filtered.length}
+                            showSizeChanger
+                            pageSizeOptions={["10", "20", "50", "100"]}
+                            onChange={(page, pageSize) => {
+                                setPaginaActual(page);
+                                setOrdenesPorPagina(pageSize);
+                            }}
+                            onShowSizeChange={(_current, size) => {
+                                setPaginaActual(1);
+                                setOrdenesPorPagina(size);
+                            }}
+                        />
                     </div>
                 </section>
             </div>

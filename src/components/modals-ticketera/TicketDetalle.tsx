@@ -483,6 +483,45 @@ export default function TicketDetailPage() {
         }
     };
 
+    // Función para descargar un archivo adjunto, haciendo una llamada a la API para obtener el archivo y luego creando un enlace de descarga para el usuario.
+    const descargarAdjunto = async (att: {
+        id: number;
+        filename: string;
+        mimeType?: string;
+    }) => {
+        try {
+            const res = await api.get(
+                `/helpdesk/tickets/attachments/${att.id}/download`,
+                {
+                    responseType: "blob",
+                }
+            );
+
+            const blob = new Blob([res.data], {
+                type: res.headers["content-type"] || att.mimeType || "application/octet-stream",
+            });
+
+            const url = window.URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = att.filename || "adjunto";
+            document.body.appendChild(link);
+            link.click();
+
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error: any) {
+            console.error("Error descargando adjunto:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            message.error("No se pudo descargar el adjunto");
+        }
+    };
+
     // Función para actualizar campos del ticket, como estado, prioridad o asignado, con llamada a API y recarga del detalle después de la actualización. Maneja errores y muestra mensajes de éxito o error.
     const updateTicket = async (payload: {
         status?: string;
@@ -662,7 +701,7 @@ export default function TicketDetailPage() {
             >
                 <p>{permissionModal.message}</p>
             </Modal>
-            <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
+            <div className="w-full px-4 xl:px-6 py-4 h-[calc(110vh-0px)] flex flex-col">
                 <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-7 py-4">
                     <div className="flex items-center justify-between gap-4 mb-3">
                         <div className="flex items-center gap-3">
@@ -875,16 +914,15 @@ export default function TicketDetailPage() {
                                                                     {(m.attachments ?? [])
                                                                         .filter((a) => !a.isInline)
                                                                         .map((att) => (
-                                                                            <a
+                                                                            <button
                                                                                 key={att.id}
-                                                                                href={`${API_URL}/helpdesk/tickets/attachments/${att.id}/download`}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
+                                                                                type="button"
+                                                                                onClick={() => descargarAdjunto(att)}
                                                                                 className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 no-underline border border-gray-200"
                                                                             >
                                                                                 <PaperClipOutlined />
                                                                                 {att.filename}
-                                                                            </a>
+                                                                            </button>
                                                                         ))}
                                                                 </div>
                                                             </div>

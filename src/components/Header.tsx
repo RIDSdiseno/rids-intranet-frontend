@@ -39,7 +39,7 @@ const VISITAS_PATH = "/visitas";
 const MANTENCIONES_REMOTAS_PATH = "/mantenciones-remotas";
 const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
-const ORDENESTALLER = "/OrdenesTaller";
+const ORDENESTALLER = "/ordenes-taller";
 const COTIZACIONES = "/Cotizaciones";
 const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
@@ -47,7 +47,7 @@ const REPORTES_PATH = "/reportes";
 const HELPDESK_PATH = "/helpdesk";
 // COBRANZA_PATH = "/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
-const CLIENTES_EXT_PATH = "/clientes-ext";
+const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
 

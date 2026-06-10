@@ -28,8 +28,11 @@ import {
     SunOutlined,
     MoonOutlined,
     DesktopOutlined,
+    ZoomInOutlined
 } from "@ant-design/icons";
 import { useAccessibility } from "../../context/AccessibilityContext";
+
+import type { ContentZoom } from "../../context/AccessibilityContext";
 
 const { Text, Title } = Typography;
 
@@ -70,6 +73,34 @@ const THEME_OPTIONS = [
         icon: <DesktopOutlined />,
         swatch: { bg: "#6366f1", text: "#ffffff" },
         description: "Cambia automáticamente según la preferencia del dispositivo.",
+    },
+] as const;
+
+const ZOOM_OPTIONS = [
+    {
+        value: "80",
+        label: "80%",
+        description: "Más contenido visible en pantalla.",
+    },
+    {
+        value: "90",
+        label: "90% (recomendado)",
+        description: "Vista compacta predeterminada.",
+    },
+    {
+        value: "100",
+        label: "100%",
+        description: "Tamaño normal.",
+    },
+    {
+        value: "110",
+        label: "110%",
+        description: "Contenido un poco más grande.",
+    },
+    {
+        value: "120",
+        label: "120%",
+        description: "Contenido grande.",
     },
 ] as const;
 
@@ -185,6 +216,37 @@ export default function AccessibilityPanel() {
                     </div>
 
                     <Divider />
+
+                    <div>
+                        <Title level={5}>
+                            <ZoomInOutlined /> Zoom del contenido
+                        </Title>
+
+                        <Radio.Group
+                            value={settings.contentZoom}
+                            onChange={(e) =>
+                                setSetting("contentZoom", e.target.value as ContentZoom)
+                            }
+                            className="w-full"
+                        >
+                            <Space direction="vertical" className="w-full">
+                                {ZOOM_OPTIONS.map((opt) => (
+                                    <Radio key={opt.value} value={opt.value}>
+                                        <span className="flex flex-col">
+                                            <span className="font-medium">{opt.label}</span>
+                                            <Text type="secondary" style={{ fontSize: 11 }}>
+                                                {opt.description}
+                                            </Text>
+                                        </span>
+                                    </Radio>
+                                ))}
+                            </Space>
+                        </Radio.Group>
+
+                        <div className="mt-2 text-xs text-slate-500">
+                            Valor actual: {settings.contentZoom}%.
+                        </div>
+                    </div>
 
                     {/* ── Contraste ── */}
                     <div>

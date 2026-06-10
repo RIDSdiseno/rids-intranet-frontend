@@ -28,6 +28,8 @@
   --color-chart-axis: #94a3b8;
   --color-chart-tooltip-bg: #ffffff;
   --color-chart-tooltip-border: #e2e8f0;
+  --app-content-zoom: 0.9;
+  --app-content-zoom-width: 111.111%;
   font-size: 14px;
 }
 
@@ -3495,4 +3497,25 @@ html.a11y-theme-dark textarea.ant-input[style*="#fffbeb"] {
 html.a11y-theme-dark iframe {
   background-color: var(--color-surface-2) !important;
   border-radius: 10px !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ACCESIBILIDAD — Zoom del contenido del sistema
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.app-content-zoom {
+  zoom: var(--app-content-zoom);
+  /* Elimina las reglas anteriores de transform/width/min-height */
+}
+
+/* Evita que el zoom afecte overlays/portales globales */
+.ant-modal-root,
+.ant-picker-dropdown,
+.ant-select-dropdown,
+.ant-tooltip,
+.ant-popover,
+.ant-notification,
+.ant-message,
+.ant-drawer {
+  zoom: 1;
 }

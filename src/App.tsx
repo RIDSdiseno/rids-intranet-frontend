@@ -151,11 +151,14 @@ function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 min-w-0 bg-white overflow-y-auto">
-        <Suspense fallback={<div className="p-6">Cargando...</div>}>
-          <Outlet />
-        </Suspense>
-      </main>
+      {/* El scroll va en el wrapper externo, NO en el elemento con zoom */}
+      <div className="flex-1 min-w-0 overflow-y-auto bg-white">
+        <main className="app-content-zoom">
+          <Suspense fallback={<div className="p-6">Cargando...</div>}>
+            <Outlet />
+          </Suspense>
+        </main>
+      </div>
       <AccessibilityPanel />
     </div>
   );
@@ -194,7 +197,7 @@ export default function App() {
 
             {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
-              <Route path="/clientes-ext" element={<ClientesExtPage />} />
+              <Route path="/clientes-externos" element={<ClientesExtPage />} />
             </Route>
 
             {/* ── Supervisión Mapa Técnicos ────────────────────────────── */}
@@ -210,7 +213,7 @@ export default function App() {
               <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/visitas" element={<VisitasPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
-              <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+              <Route path="/ordenes-taller" element={<OrdenesTallerPage />} />
               <Route path="/Cotizaciones" element={<CotizacionesPage />} />
             </Route>
 
