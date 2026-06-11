@@ -23,6 +23,7 @@ import {
     MessageOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
+    ArrowsAltOutlined,
 } from "@ant-design/icons";
 import DOMPurify from "dompurify";
 import { notification } from "antd";
@@ -1013,20 +1014,32 @@ export default function TicketDetailPage() {
                                                                     )}
                                                                 </div>
 
-                                                                <div className="min-h-0 flex-1 overflow-hidden pr-1">
-                                                                    <Input.TextArea
-                                                                        value={replyText}
-                                                                        onChange={(e) => setReplyText(e.target.value)}
-                                                                        placeholder="Escribe tu respuesta al cliente..."
-                                                                        autoSize={false}
-                                                                        spellCheck={true}
-                                                                        lang="es-CL"
-                                                                        style={{
-                                                                            height: "100%",
-                                                                            minHeight: "150px",
-                                                                            resize: "none",
-                                                                        }}
-                                                                    />
+                                                                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                                                                    <div className="relative">
+                                                                        <Input.TextArea
+                                                                            value={replyText}
+                                                                            onChange={(e) => setReplyText(e.target.value)}
+                                                                            placeholder="Escribe tu respuesta al cliente..."
+                                                                            autoSize={false}
+                                                                            spellCheck={true}
+                                                                            lang="es-CL"
+                                                                            className="ticket-resizable-textarea"
+                                                                            style={{
+                                                                                minHeight: "150px",
+                                                                                maxHeight: "420px",
+                                                                                resize: "vertical",
+                                                                                paddingBottom: "32px",
+                                                                            }}
+                                                                        />
+
+                                                                        <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 shadow-sm">
+                                                                            <ArrowsAltOutlined className="text-xm" />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="mt-1 text-[11px] text-gray-400">
+                                                                        Puedes arrastrar la esquina inferior derecha para ampliar o reducir el área de respuesta.
+                                                                    </div>
                                                                 </div>
 
                                                                 <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
