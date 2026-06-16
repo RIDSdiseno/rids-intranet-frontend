@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Pagination, Input, DatePicker, notification } from "antd";
+import { Pagination, notification } from "antd";
+import { DeleteOutlined } from "@ant-design/icons";
 import { http } from "../service/http";
 import dayjs from "dayjs";
-
-const { RangePicker } = DatePicker;
 
 type SentEntry = {
   id: number;
@@ -14,12 +13,14 @@ type SentEntry = {
   jobId?: string | null;
   meta?: any;
   sentAt: string;
+  clienteNombre?: string | null;
+  creadoPor?: string | null;
+  fechaCreacion?: string | null;
 };
 
 const CotizacionesEnviadas: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<SentEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<[any, any] | null>(null);
@@ -29,60 +30,84 @@ const CotizacionesEnviadas: React.FC = () => {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
+  const [usuariosMap, setUsuariosMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchEntries();
+
     const onSent = () => fetchEntries();
-    window.addEventListener('cotizacion:enviada', onSent);
-    return () => { window.removeEventListener('cotizacion:enviada', onSent); };
+    const onSetFilters = (ev: any) => {
+      const d = ev?.detail || {};
+      if (typeof d.search !== "undefined") setSearch(d.search);
+      if (typeof d.filterCliente !== "undefined") setFilterCliente(d.filterCliente || null);
+      if (typeof d.filterGenero !== "undefined") setFilterGenero(d.filterGenero || null);
+      if (typeof d.filterEnviadoPor !== "undefined") setFilterEnviadoPor(d.filterEnviadoPor || null);
+      if (typeof d.dateRange !== "undefined") setDateRange(d.dateRange || null);
+      if (typeof d.page !== "undefined") setPage(d.page || 1);
+    };
+
+    const onRefresh = () => fetchEntries();
+
+    window.addEventListener("cotizacion:enviada", onSent);
+    window.addEventListener("cotizacionesEnviadas:setFilters", onSetFilters as EventListener);
+    window.addEventListener("cotizacionesEnviadas:refresh", onRefresh as EventListener);
+
+    return () => {
+      window.removeEventListener("cotizacion:enviada", onSent);
+      window.removeEventListener("cotizacionesEnviadas:setFilters", onSetFilters as EventListener);
+      window.removeEventListener("cotizacionesEnviadas:refresh", onRefresh as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchEntries() {
     try {
       setLoading(true);
-      setError(null);
 
-      // Intentamos primero la ruta debug pública (sin auth) para asegurar que la tabla muestre registros incluso si la sesión/token falla
+      // Cargar mapa de usuarios siempre (para resolver email → nombre en "Enviado por")
+      try {
+        const u = await http.get("/tecnicos/usuarios", { timeout: 8000 });
+        if (Array.isArray(u.data)) {
+          const map: Record<string, string> = {};
+          u.data.forEach((user: any) => {
+            if (user.email && user.nombre) map[String(user.email).toLowerCase()] = user.nombre;
+          });
+          setUsuariosMap(map);
+        }
+      } catch { /* ignore */ }
+
       try {
         const dbg = await http.get("/debug/cotizaciones/enviadas", { timeout: 7000 });
-        console.debug("cotizaciones enviadas (debug)", dbg.data);
         setEntries(Array.isArray(dbg.data) ? dbg.data : []);
         return;
-      } catch (dbgErr) {
-        console.warn("Debug endpoint failed, falling back to protected endpoint:", dbgErr);
-      }
+      } catch { /* fallback to protected route */ }
 
       const r = await http.get("/cotizaciones/enviadas", { timeout: 20000 });
-      console.debug("cotizaciones enviadas", r.data);
       setEntries(Array.isArray(r.data) ? r.data : []);
     } catch (e: any) {
-      console.error("Error fetching cotizaciones enviadas:", e);
       const msg = e?.response?.data?.error ?? e?.message ?? String(e);
-      setError(String(msg));
       notification.error({ message: "Error cargando cotizaciones enviadas", description: String(msg), duration: 6 });
     } finally {
       setLoading(false);
     }
   }
 
-  // Fetch cotizacion details for displayed items and build rows
   const displayed = useMemo(() => {
     const filtered = entries.filter((e) => {
-      // filtro por cliente
+      // Excluir envíos del Mailer masivo — solo mostrar envíos de cotizaciones específicas
+      if (e.cotizacionId === null || e.cotizacionId === undefined) return false;
       if (filterCliente) {
-        const cliente = (e.clienteNombre ?? e.meta?.clienteNombre ?? "").toLowerCase();
+        const cliente = String(e.clienteNombre ?? e.meta?.clienteNombre ?? e.meta?.cliente ?? "").toLowerCase();
         if (!cliente.includes(filterCliente.toLowerCase())) return false;
       }
 
-      // filtro por quien generó
       if (filterGenero) {
-        const genero = (e.creadoPor ?? "").toLowerCase();
+        const genero = String(e.creadoPor ?? e.meta?.creadoPor ?? e.meta?.generadoPor ?? "").toLowerCase();
         if (!genero.includes(filterGenero.toLowerCase())) return false;
       }
 
-      // filtro por quien envió
       if (filterEnviadoPor) {
-        const enviado = (e.sentBy ?? "").toLowerCase();
+        const enviado = String(e.sentBy ?? "").toLowerCase();
         if (!enviado.includes(filterEnviadoPor.toLowerCase())) return false;
       }
 
@@ -96,22 +121,30 @@ const CotizacionesEnviadas: React.FC = () => {
 
       if (dateRange && dateRange[0] && dateRange[1]) {
         const sent = dayjs(e.sentAt);
-        const from = dayjs(dateRange[0]);
+        const from = dayjs(dateRange[0]).startOf("day");
         const to = dayjs(dateRange[1]).endOf("day");
-        if (!sent.isBetween(from, to, null, "[]")) return false;
+        if (sent.isBefore(from) || sent.isAfter(to)) return false;
       }
 
       return true;
     });
 
     return filtered;
-  }, [entries, search, dateRange]);
+  }, [entries, search, dateRange, filterCliente, filterGenero, filterEnviadoPor]);
 
-  // listas únicas para selects
+  const displayedResolved = useMemo(() => {
+    return displayed.map((e) => {
+      const sent = String(e.sentBy ?? "");
+      const lower = sent.toLowerCase();
+      const resolved = usuariosMap[lower] ?? e.meta?.sentByName ?? e.sentBy ?? null;
+      return { ...e, sentByDisplay: resolved };
+    });
+  }, [displayed, usuariosMap]);
+
   const clientesList = useMemo(() => {
     const setC = new Set<string>();
     entries.forEach((e) => {
-      const v = e.clienteNombre ?? e.meta?.clienteNombre ?? null;
+      const v = e.clienteNombre ?? e.meta?.clienteNombre ?? e.meta?.cliente ?? null;
       if (v) setC.add(v);
     });
     return Array.from(setC).sort((a, b) => a.localeCompare(b));
@@ -120,7 +153,7 @@ const CotizacionesEnviadas: React.FC = () => {
   const generosList = useMemo(() => {
     const setG = new Set<string>();
     entries.forEach((e) => {
-      const v = e.creadoPor ?? null;
+      const v = e.creadoPor ?? e.meta?.creadoPor ?? e.meta?.generadoPor ?? null;
       if (v) setG.add(v);
     });
     return Array.from(setG).sort((a, b) => a.localeCompare(b));
@@ -135,108 +168,95 @@ const CotizacionesEnviadas: React.FC = () => {
     return Array.from(setE).sort((a, b) => a.localeCompare(b));
   }, [entries]);
 
+  useEffect(() => {
+    try {
+      const clientes = clientesList;
+      const generos = generosList;
+      const enviados = enviadosList;
+      window.dispatchEvent(new CustomEvent("cotizacionesEnviadas:lists", { detail: { clientes, generos, enviados } }));
+    } catch (e) {
+      // no crítico
+    }
+  }, [clientesList, generosList, enviadosList]);
+
+  async function handleDelete(id: number) {
+    if (!window.confirm("¿Eliminar este registro del historial de envíos?")) return;
+    try {
+      await http.delete(`/cotizaciones/enviadas/${id}`);
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+      notification.success({ message: "Registro eliminado", duration: 3 });
+    } catch (e: any) {
+      notification.error({ message: "No se pudo eliminar", description: e?.response?.data?.error ?? e?.message, duration: 5 });
+    }
+  }
+
   const total = displayed.length;
   const pageStart = (page - 1) * pageSize;
-  const pageSlice = displayed.slice(pageStart, pageStart + pageSize);
+  const pageSlice = displayedResolved.slice(pageStart, pageStart + pageSize);
 
   return (
-    <div className="p-6">
-      <div className="max-w-7xl mx-auto">
-        <header className="rounded-2xl border-2 border-cyan-100 p-6 bg-white shadow-sm mb-6">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900">Cotizaciones</h1>
-              <p className="text-sm text-slate-500">Gestión y seguimiento de cotizaciones.</p>
-
-              {/* tabs removed as not needed in this view */}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button onClick={() => fetchEntries()} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
-            </div>
-          </div>
-
-          <div className="mt-6 bg-cyan-50 border border-cyan-100 rounded-xl p-4">
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-              <Input.Search
-                placeholder="Buscar cotización, cliente o estado..."
-                allowClear
-                onSearch={(v) => setSearch(v)}
-                className="flex-1"
-                enterButton
-              />
-
-              <div className="flex items-center gap-3">
-                <select className="rounded-md border px-3 py-2 text-sm bg-white" value={filterCliente ?? ""} onChange={(e) => setFilterCliente(e.target.value || null)}>
-                  <option value="">Cliente</option>
-                  {clientesList.map((c) => (<option key={c} value={c}>{c}</option>))}
-                </select>
-
-                <select className="rounded-md border px-3 py-2 text-sm bg-white" value={filterGenero ?? ""} onChange={(e) => setFilterGenero(e.target.value || null)}>
-                  <option value="">Generado Por</option>
-                  {generosList.map((g) => (<option key={g} value={g}>{g}</option>))}
-                </select>
-
-                <select className="rounded-md border px-3 py-2 text-sm bg-white" value={filterEnviadoPor ?? ""} onChange={(e) => setFilterEnviadoPor(e.target.value || null)}>
-                  <option value="">Enviado Por</option>
-                  {enviadosList.map((s) => (<option key={s} value={s}>{s}</option>))}
-                </select>
-
-                <input type="month" className="rounded-md border px-3 py-2 text-sm bg-white" />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="bg-white rounded-xl shadow-sm border border-cyan-50 overflow-hidden">
-          <table className="min-w-full table-fixed border-separate" style={{ borderSpacing: 0 }}>
-            <thead className="bg-cyan-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Número de Cotización</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Cliente</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Generado Por</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Fecha creación</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Enviado por</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-cyan-800">Fecha y hora envío</th>
+    <div className="w-full">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full table-fixed divide-y divide-slate-100">
+            <colgroup>
+              <col style={{ width: '72px' }} />
+              <col style={{ width: '27%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '148px' }} />
+              <col style={{ width: '136px' }} />
+              <col style={{ width: '48px' }} />
+            </colgroup>
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">N°</th>
+                <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Cliente</th>
+                <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Generado por</th>
+                <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Fecha</th>
+                <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Enviado por</th>
+                <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Fecha de envío</th>
+                <th className="px-2 py-3" />
               </tr>
             </thead>
-            <tbody className="bg-white">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">Cargando...</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">Cargando...</td>
                 </tr>
               ) : pageSlice.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">No hay registros</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">No hay registros</td>
                 </tr>
               ) : (
                 pageSlice.map((row) => (
-                  <SentRow key={row.id} entry={row} />
+                  <SentRow key={row.id} entry={row} onDelete={handleDelete} />
                 ))
               )}
             </tbody>
           </table>
         </div>
+      </div>
 
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-slate-500">Mostrando {Math.min(total, pageSize)} de {total} registros</div>
-          <Pagination
-            current={page}
-            pageSize={pageSize}
-            total={total}
-            onChange={(p, ps) => {
-              setPage(p);
-              setPageSize(ps || pageSize);
-            }}
-            showSizeChanger
-          />
-        </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-xs text-slate-400">Mostrando {Math.min(total, pageSize)} de {total} registros</div>
+        <Pagination
+          current={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={(p, ps) => { setPage(p); setPageSize(ps || pageSize); }}
+          showSizeChanger
+          size="small"
+        />
       </div>
     </div>
   );
 };
 
-const SentRow: React.FC<{ entry: SentEntry }> = ({ entry }) => {
+const SentRow: React.FC<{
+  entry: SentEntry & { sentByDisplay?: string };
+  onDelete: (id: number) => void;
+}> = ({ entry, onDelete }) => {
   const [cot, setCot] = useState<any | null>(null);
 
   useEffect(() => {
@@ -247,27 +267,64 @@ const SentRow: React.FC<{ entry: SentEntry }> = ({ entry }) => {
         const r = await http.get(`/cotizaciones/${entry.cotizacionId}`);
         if (mounted) setCot(r.data?.data ?? null);
       } catch (e) {
-        // No necesario; la UI mostrará datos desde el registro si la consulta falla
+        // ignore
       }
     }
     load();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [entry.cotizacionId]);
 
-  const clienteDisplay = cot?.entidad?.nombre ?? entry.clienteNombre ?? entry.meta?.clienteNombre ?? "-";
-  const generoDisplay = cot?.tecnico?.nombre ?? entry.creadoPor ?? "-";
-  const fechaCreacionDisplay = cot?.fecha ? dayjs(cot.fecha).format("DD/MM/YYYY") : (entry.fechaCreacion ? dayjs(entry.fechaCreacion).format("DD/MM/YYYY") : "-");
+  // Prioridad: dato en vivo desde BD > campo raíz guardado al enviar > meta (legado)
+  const clienteDisplay = cot?.entidad?.nombre
+    ?? entry.clienteNombre
+    ?? entry.meta?.clienteNombre
+    ?? entry.meta?.cliente
+    ?? "-";
+  const generoDisplay = cot?.tecnico?.nombre
+    ?? entry.creadoPor
+    ?? entry.meta?.creadoPor
+    ?? entry.meta?.generadoPor
+    ?? "-";
+  const fechaRaw = cot?.fecha ?? entry.fechaCreacion ?? entry.meta?.fechaCreacion ?? null;
+  const fechaCreacionDisplay = fechaRaw ? dayjs(fechaRaw).format("DD/MM/YYYY") : "-";
+
+  const sentByName = (entry as any).sentByDisplay ?? entry.sentBy ?? "-";
+  const initials = clienteDisplay !== "-"
+    ? clienteDisplay.trim().split(/\s+/).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase()
+    : "?";
 
   return (
-    <tr>
-      <td className="px-4 py-3 text-sm text-gray-700">{entry.cotizacionId ?? "-"}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{clienteDisplay}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{generoDisplay}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{fechaCreacionDisplay}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{entry.sentBy ?? "-"}</td>
-      <td className="px-4 py-3 text-sm text-gray-700">{dayjs(entry.sentAt).format("DD/MM/YYYY HH:mm")}</td>
+    <tr className="group border-b border-slate-50 transition-colors hover:bg-cyan-50/40">
+      <td className="px-4 py-3">
+        <span className="inline-block rounded-lg bg-cyan-50 px-2.5 py-0.5 text-xs font-bold text-cyan-700 border border-cyan-100">
+          {entry.cotizacionId}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">
+            {initials}
+          </div>
+          <span className="text-sm font-medium text-slate-800 whitespace-normal break-words leading-tight">
+            {clienteDisplay}
+          </span>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-sm text-slate-600 whitespace-normal break-words">{generoDisplay}</td>
+      <td className="px-3 py-3 text-xs text-slate-500">{fechaCreacionDisplay}</td>
+      <td className="px-3 py-3">
+        <span className="text-sm text-slate-700">{sentByName}</span>
+      </td>
+      <td className="px-3 py-3 text-xs text-slate-500 tabular-nums">{dayjs(entry.sentAt).format("DD/MM/YYYY HH:mm")}</td>
+      <td className="px-2 py-3 text-center">
+        <button
+          onClick={() => onDelete(entry.id)}
+          title="Eliminar registro"
+          className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-400 border border-red-200 bg-red-50 hover:bg-red-100 hover:text-red-600 hover:border-red-300 transition-colors"
+        >
+          <DeleteOutlined />
+        </button>
+      </td>
     </tr>
   );
 };

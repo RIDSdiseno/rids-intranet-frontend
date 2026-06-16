@@ -428,8 +428,8 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 <meta charset="UTF-8">
 <title>Cotización ${codigo}</title>
 <style>
-    body { font-family: Arial, sans-serif; margin: 40px 20px 20px 20px; color: #000; }
-    .container { width: 874px; margin: 0 auto; padding-bottom: 40px; }
+    body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
+    .container { width: 760px; margin: 0 auto; padding-bottom: 30px; word-break: break-word; }
     .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #444; padding-bottom: 12px; margin-bottom: 25px; margin-top: 45px; }
     .info-section { display: flex; gap: 20px; margin-top: 25px; }
     .info-box { flex: 1; padding: 14px; border-radius: 10px; font-size: 12px; line-height: 1.45; }
@@ -439,8 +439,8 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
     .imagenes-contenedor img { max-height: 90px; object-fit: contain; }
     .imagenes-contenedor { page-break-inside: avoid !important; break-inside: avoid !important; }
     h3.section-title { font-size: 20px; font-weight: bold; margin-top: 15px; margin-bottom: 15px; color: #111; }
-    table { width: 90%; font-size: 9px; }
-    tbody td { border: 1px solid #d0d0d0; padding: 6px 4px; vertical-align: middle !important; text-align: center; }
+    table { width: 100%; font-size: 9px; table-layout: fixed; }
+    tbody td { border: 1px solid #d0d0d0; padding: 6px 4px; vertical-align: middle !important; text-align: center; word-break: break-word; white-space: normal; overflow-wrap: anywhere; }
     tbody td div { background: transparent; color: #302f2f; }
     th, td { border: 1px solid #d0d0d0; line-height: 1.2; font-size: 10px; }
     thead th { background: #e9ecef; border: 1px solid #d0d0d0; font-weight: bold; text-align: center; vertical-align: middle; }
@@ -456,7 +456,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
 <div class="container">
     <div class="header">
         <div style="display:flex;align-items:center;gap:12px;">
-            <img src="${origenInfo.logo}" style="height:55px;" />
+            <img src="${origenInfo.logo}" style="height:40px;" />
             <div>
                 <h2 style="margin:0;font-size:20px;">${origenInfo.nombre}</h2>
                 <p style="margin:0;font-size:12px;color:#555;line-height:1.4;">
@@ -518,7 +518,7 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
         ).join("")}
     </div>
 
-    <div style="height:60px;"></div>
+    <div style="height:40px;"></div>
     <div class="payment-info avoid-break">
         <p><b>Pago por transferencia electrónica o depósito</b></p>
         <p><b>Tiempo de validez:</b> 5 días</p>
@@ -576,8 +576,8 @@ const generarPDF = async (cot: CotizacionGestioo, returnAsBlob = false, mostrarT
         allowTaint: true,
         backgroundColor: "#FFFFFF",
         logging: false,
-        width: 874,
-        windowWidth: 874,
+        width: 760,
+        windowWidth: 760,
         scrollY: 0,
         scrollX: 0,
         onclone: (clonedDoc) => {

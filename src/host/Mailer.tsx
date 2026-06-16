@@ -1,8 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ReloadOutlined, CloseCircleOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  ReloadOutlined, CloseCircleOutlined, SearchOutlined,
+  MailOutlined, UserOutlined, BankOutlined, InfoCircleOutlined, WarningOutlined,
+} from "@ant-design/icons";
 import { http } from "../service/http";
 import { getCache, setCache } from "../lib/localCache";
 import { notification } from "antd";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type SolicitanteRow = {
   id_solicitante: number;
@@ -12,11 +17,113 @@ type SolicitanteRow = {
   isActive?: boolean | null;
 };
 
+type SendMode = "html" | "plain";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const isValidEmail = (e?: string | null) => typeof e === "string" && EMAIL_RE.test(e.trim());
+
+// Empresas excluidas del Mailer (ya no operativas)
+const EXCLUDED_EMPRESAS = /infinet|vprime|v\.?prime|t[-\s]?sales/i;
+
+const DEFAULT_CONTENT = "<p>Escribe aquí el contenido de tu mensaje...</p>";
+
+/** Igual al patrón de SendOrdenModal: convierte /img/splash.png a base64 para que funcione en emails externos */
+async function embedLogoInHtml(html: string): Promise<string> {
+  try {
+    if (!html.includes("/img/splash.png")) return html;
+    const resp = await fetch("/img/splash.png");
+    if (!resp.ok) return html;
+    const blob = await resp.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    return html.replace(/src=["']\/img\/splash\.png["']/g, `src="${dataUrl}"`);
+  } catch { return html; }
+}
+
+/** Template de email compatible con todos los clientes de correo (Outlook, Gmail, Apple Mail).
+ *  Usa tablas HTML en lugar de flexbox/grid, y color sólido en lugar de gradientes. */
+function wrapInTemplate(contentHtml: string): string {
+  const safeLogoUrl = "/img/splash.png";
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Mensaje RIDS</title></head>
+<body style="margin:0;padding:0;background-color:#f0f6f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f6f9;">
+  <tr>
+    <td align="center" style="padding:28px 16px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2f0f5;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background-color:#0891b2;padding:22px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="52" valign="middle">
+                  <img src="${safeLogoUrl}" alt="RIDS" width="44" height="44" style="display:block;width:44px;height:44px;object-fit:contain;border-radius:6px;background:#fff;padding:3px;" />
+                </td>
+                <td valign="middle" style="padding-left:12px;">
+                  <div style="font-size:17px;font-weight:700;color:#ffffff;line-height:1.2;">RIDS</div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:2px;">Plataforma de gestión</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Contenido -->
+        <tr>
+          <td style="padding:28px 28px 20px;color:#374151;font-size:14px;line-height:1.65;">
+            ${contentHtml}
+            <p style="margin:24px 0 4px;font-size:14px;color:#374151;">Saludos cordiales,</p>
+            <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a;">Equipo RIDS</p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="border-top:1px solid #e2f0f5;background-color:#f8fbfd;padding:14px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:11px;color:#94a3b8;">© RIDS · Plataforma de gestión</td>
+                <td align="right" style="font-size:11px;color:#cbd5e1;">Si no esperabas este mensaje, ignóralo.</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+}
+
+/** Extrae texto plano desde HTML */
+function htmlToPlain(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+// ─── Componente ──────────────────────────────────────────────────────────────
+
 export default function Mailer() {
   const [solicitantes, setSolicitantes] = useState<SolicitanteRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastErrorDetail, setLastErrorDetail] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const [selectAll, setSelectAll] = useState(false);
   const [empresas, setEmpresas] = useState<Array<{ id_empresa: number; nombre: string }>>([]);
@@ -24,9 +131,14 @@ export default function Mailer() {
   const [empresaId, setEmpresaId] = useState<number | null>(null);
   const [showTecnicos, setShowTecnicos] = useState(false);
   const [search, setSearch] = useState("");
+
+  // ── Composición del correo ──
   const [subject, setSubject] = useState("Mensaje desde RIDS");
-  const [body, setBody] = useState("<p>Hola,</p><p>Este es un mensaje masivo enviado desde RIDS.</p><p>Saludos.</p>");
+  /** Solo el contenido que escribe el usuario — sin template */
+  const [content, setContent] = useState(DEFAULT_CONTENT);
   const [editHtml, setEditHtml] = useState(false);
+  const [sendMode, setSendMode] = useState<SendMode>("html");
+
   const editorRef = useRef<HTMLDivElement | null>(null);
   const isTypingRef = useRef(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -34,55 +146,35 @@ export default function Mailer() {
   const [attachments, setAttachments] = useState<Array<{ name: string; contentType: string; contentBytes: string; size: number }>>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /** HTML final que se envía: template + contenido del usuario */
+  const fullHtml = useMemo(() => wrapInTemplate(content), [content]);
+
+  // ─── Data loading ──────────────────────────────────────────────────────────
+
   const loadSolicitantes = useCallback(async (empresaFilter?: number | null) => {
     setLoading(true);
     setError(null);
-    setLastErrorDetail(null);
     try {
-      const { data } = await http.get("/solicitantes/mailer", { params: { ...(empresaFilter ? { empresaId: empresaFilter } : {}) } });
-      const items: SolicitanteRow[] = Array.isArray(data?.items) ? data.items : data?.items ?? [];
-
-      // aplicar mismo saneamiento: isActive !== false, nombre no vacío, email presente
-      const active = items.filter((s) => s.isActive !== false);
-      const cleaned = active.filter((s) => typeof s.nombre === "string" && s.nombre.trim() !== "");
-      const withEmail = cleaned.filter((s) => typeof s.email === "string" && s.email.trim() !== "");
-
-      setSolicitantes(withEmail);
-
+      const { data } = await http.get("/solicitantes/mailer", { params: empresaFilter ? { empresaId: empresaFilter } : {} });
+      const items: SolicitanteRow[] = Array.isArray(data?.items) ? data.items : [];
+      const cleaned = items
+        .filter((s) => s.isActive !== false)
+        .filter((s) => typeof s.nombre === "string" && s.nombre.trim() !== "")
+        .filter((s) => isValidEmail(s.email))
+        .filter((s) => !EXCLUDED_EMPRESAS.test(s.empresa?.nombre ?? ""));
+      setSolicitantes(cleaned);
       const sel: Record<number, boolean> = {};
-      withEmail.forEach((s) => { sel[s.id_solicitante] = false; });
+      cleaned.forEach((s) => { sel[s.id_solicitante] = false; });
       setSelected(sel);
       setSelectAll(false);
     } catch (e: any) {
-      let msg = "Error inesperado";
-      try {
-        if (e?.response?.data) {
-          const d = e.response.data;
-          msg = d.error ?? d.message ?? JSON.stringify(d);
-        } else if (e?.message) {
-          msg = e.message;
-        } else {
-          msg = String(e);
-        }
-      } catch (_err) {
-        msg = String(e);
-      }
-
-      setError(msg);
-      try {
-        setLastErrorDetail(JSON.stringify(e.response?.data ?? e.response ?? e.message ?? String(e), null, 2));
-      } catch (_err) {
-        setLastErrorDetail(String(e));
-      }
-      // eslint-disable-next-line no-console
-      console.error("Mailer.loadSolicitantes error:", e);
+      setError(e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? String(e));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // load empresas once — use cache if available
     (async () => {
       try {
         const cached = getCache<Array<{ id_empresa: number; nombre: string }>>("empresas");
@@ -91,90 +183,66 @@ export default function Mailer() {
         } else {
           const { data } = await http.get("/empresas");
           const list = Array.isArray(data?.data) ? data.data : (data ?? []);
-          const mapped = list.map((e: any) => ({ id_empresa: e.id_empresa, nombre: e.nombre }));
+          const mapped = list
+            .map((e: any) => ({ id_empresa: e.id_empresa, nombre: e.nombre }))
+            .filter((e: { id_empresa: number; nombre: string }) => !EXCLUDED_EMPRESAS.test(e.nombre));
           setEmpresas(mapped);
-          // cache 24h
           setCache("empresas", mapped, 24 * 60 * 60 * 1000);
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch { /* ignore */ }
     })();
-
-    // load tecnicos (non-blocking)
     (async () => {
       try {
         const { data } = await http.get("/tecnicos", { params: { page: 1, pageSize: 500 } });
         const items = data?.data ?? data?.items ?? data ?? [];
         setTecnicos(Array.isArray(items) ? items : []);
-      } catch (e) {
-        // ignore
-      }
+      } catch { /* ignore */ }
     })();
-
     void loadSolicitantes(empresaId);
   }, [loadSolicitantes, empresaId]);
 
   const reload = async () => {
-    // recargar solicitantes y recursos auxiliares
-    try {
-      await loadSolicitantes(empresaId);
-    } catch (e) {
-      // loadSolicitantes maneja errores internamente
-    }
-
+    await loadSolicitantes(empresaId).catch(() => {});
     try {
       const { data } = await http.get("/empresas");
       const list = Array.isArray(data?.data) ? data.data : (data ?? []);
-      const mapped = list.map((e: any) => ({ id_empresa: e.id_empresa, nombre: e.nombre }));
+      const mapped = list
+        .map((e: any) => ({ id_empresa: e.id_empresa, nombre: e.nombre }))
+        .filter((e: { id_empresa: number; nombre: string }) => !EXCLUDED_EMPRESAS.test(e.nombre));
       setEmpresas(mapped);
       setCache("empresas", mapped, 24 * 60 * 60 * 1000);
-    } catch (e) {
-      // ignore
-    }
-
+    } catch { /* ignore */ }
     try {
       const { data } = await http.get("/tecnicos", { params: { page: 1, pageSize: 500 } });
       const items = data?.data ?? data?.items ?? data ?? [];
       setTecnicos(Array.isArray(items) ? items : []);
-    } catch (e) {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
+
+  // ─── Selección ─────────────────────────────────────────────────────────────
 
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return solicitantes;
-    return solicitantes.filter((s) => {
-      return (
-        String(s.nombre ?? "").toLowerCase().includes(q) ||
-        String(s.email ?? "").toLowerCase().includes(q) ||
-        String(s.empresa?.nombre ?? "").toLowerCase().includes(q)
-      );
-    });
+    return solicitantes.filter((s) =>
+      String(s.nombre ?? "").toLowerCase().includes(q) ||
+      String(s.email ?? "").toLowerCase().includes(q) ||
+      String(s.empresa?.nombre ?? "").toLowerCase().includes(q)
+    );
   }, [search, solicitantes]);
 
-  // rows: what to display in the table. If a tecnico is selected, show that tecnico only (mapped to row shape), otherwise show filtered solicitantes
   const rows = useMemo(() => {
     if (showTecnicos) {
-      return tecnicos.map((t) => ({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null, empresa: null, isActive: true }));
+      return tecnicos
+        .filter((t) => isValidEmail(t.email))
+        .map((t) => ({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null, empresa: null, isActive: true }));
     }
     return filtered.map((s) => ({ id: s.id_solicitante, nombre: s.nombre, email: s.email ?? null, empresa: s.empresa ?? null, isActive: s.isActive }));
   }, [showTecnicos, tecnicos, filtered]);
 
-  // keep editor DOM in sync with `body` only when user is not typing
-  React.useEffect(() => {
-    const el = editorRef.current;
-    if (!el) return;
-    if (isTypingRef.current) return;
-    if (el.innerHTML !== body) el.innerHTML = body;
-  }, [body]);
-
-  function toggleOne(id: number) {
-    setSelected((cur) => ({ ...cur, [id]: !cur[id] }));
-  }
+  function toggleOne(id: number) { setSelected((cur) => ({ ...cur, [id]: !cur[id] })); }
 
   function toggleAll() {
     setSelectAll((cur) => {
@@ -194,375 +262,395 @@ export default function Mailer() {
     setSelectAll(false);
   }
 
-  function handleSend() {
-    // collect all candidates (solicitantes + tecnicos mapped)
-    const allCandidates: Array<{ id: number; nombre: string; email?: string | null }> = [];
-    solicitantes.forEach((s) => allCandidates.push({ id: s.id_solicitante, nombre: s.nombre, email: s.email ?? null }));
-    tecnicos.forEach((t) => allCandidates.push({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null }));
+  // ─── Editor sync ───────────────────────────────────────────────────────────
 
-    const targets = allCandidates.filter((c) => selected[c.id] && c.email).map((c) => ({ id: c.id, nombre: c.nombre, email: c.email }));
+  // Mantiene el editor WYSIWYG sincronizado cuando `content` cambia externamente
+  React.useEffect(() => {
+    const el = editorRef.current;
+    if (!el || isTypingRef.current) return;
+    if (el.innerHTML !== content) el.innerHTML = content;
+  }, [content]);
+
+  // ─── Envío ─────────────────────────────────────────────────────────────────
+
+  function handleSend(mode: SendMode) {
+    const allCandidates = [
+      ...solicitantes.map((s) => ({ id: s.id_solicitante, nombre: s.nombre, email: s.email ?? null })),
+      ...tecnicos.map((t) => ({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null })),
+    ];
+    const targets = allCandidates.filter((c) => selected[c.id] && isValidEmail(c.email)).map((c) => ({ id: c.id, nombre: c.nombre, email: c.email }));
     if (targets.length === 0) {
-      try { alert("Selecciona al menos un destinatario con email"); } catch {}
+      notification.warning({ message: "Sin destinatarios", description: "Selecciona al menos un destinatario con email válido." });
       return;
     }
 
     (async () => {
       setIsSending(true);
       try {
-        const payload = { targets, subject, bodyHtml: body, attachments };
-        const { data } = await http.post("/correo/enviar-masivo", payload);
-        // eslint-disable-next-line no-console
-        console.log('Bulk send result:', data);
-
+        const rawHtml = mode === "html" ? fullHtml : `<p style="font-family:Arial,sans-serif;font-size:14px;color:#374151;line-height:1.65;">${content.replace(/\n/g, "<br/>")}</p>`;
+        const bodyHtml = mode === "html" ? await embedLogoInHtml(rawHtml) : rawHtml;
+        const { data } = await http.post("/correo/enviar-masivo", { targets, subject, bodyHtml, attachments });
         if (data?.ok && data?.queued) {
           const mins = Math.round((data.estimatedCompletionMs || 0) / 60000 * 100) / 100;
           notification.success({
-            message: `Envio en cola`,
-            description: `Job ${data.jobId} — ${data.queuedCount} destinatario(s) en cola. Tasa ${data.ratePerMin} por minuto. Est. ${mins} min.`,
+            message: "Envío en cola",
+            description: `${data.queuedCount} destinatario(s) encolados · ${data.ratePerMin} correos/min · ~${mins} min estimados.`,
             duration: 8,
           });
         } else if (data?.ok) {
-          notification.success({
-            message: `Envío completado`,
-            description: `Enviados: ${data.sent} / ${data.requested}`,
-            duration: 6,
-          });
-
+          notification.success({ message: "Envío completado", description: `Enviados: ${data.sent} / ${data.requested}`, duration: 6 });
           if (Array.isArray(data.failures) && data.failures.length > 0) {
-            const first = data.failures.slice(0, 3).map((f: any) => `${f.to} → ${f.error}`).join("\n");
-            notification.error({
-              message: `Algunos envíos fallaron (${data.failures.length})`,
-              description: first + (data.failures.length > 3 ? `\n...y ${data.failures.length - 3} más` : ""),
-              duration: 10,
-            });
+            const preview = data.failures.slice(0, 3).map((f: any) => `${f.to} → ${f.error}`).join("\n");
+            notification.error({ message: `${data.failures.length} envío(s) fallaron`, description: preview, duration: 10 });
           }
         } else {
-          notification.error({
-            message: `Error en envío`,
-            description: String(data?.message ?? "Respuesta inválida del servidor"),
-            duration: 8,
-          });
+          notification.error({ message: "Error en envío", description: String(data?.message ?? "Respuesta inválida"), duration: 8 });
         }
       } catch (err: any) {
-        // eslint-disable-next-line no-console
-        console.error('Bulk send error:', err);
-        const msg = err?.response?.data?.message ?? err?.message ?? String(err);
-        notification.error({ message: `Error al enviar`, description: msg, duration: 8 });
+        notification.error({ message: "Error al enviar", description: err?.response?.data?.message ?? err?.message ?? String(err), duration: 8 });
       } finally {
         setIsSending(false);
       }
     })();
   }
 
-  // Convertir File a base64 contentBytes sin prefijo data: (usar readAsDataURL)
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      try {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string | null;
-          if (!result) return resolve("");
-          const comma = result.indexOf(',');
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(file);
-      } catch (e) {
-        reject(e);
-      }
+  // ─── Adjuntos ──────────────────────────────────────────────────────────────
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string | null;
+        if (!result) return resolve("");
+        const comma = result.indexOf(",");
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
-  };
 
   const onFilesPicked = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const maxPerFile = 5 * 1024 * 1024; // 5MB límite por defecto
     const out = [...attachments];
     for (const f of Array.from(files)) {
-      if (f.size > maxPerFile) {
-        notification.warning({ message: 'Archivo omitido', description: `${f.name} excede el límite de ${Math.round(maxPerFile/1024/1024)}MB` });
+      if (f.size > 5 * 1024 * 1024) {
+        notification.warning({ message: "Archivo omitido", description: `${f.name} excede 5 MB` });
         continue;
       }
       try {
         const contentBytes = await fileToBase64(f);
-        out.push({ name: f.name, contentType: f.type || 'application/octet-stream', contentBytes, size: f.size });
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Error leyendo archivo', f.name, e);
-        notification.error({ message: 'Error leyendo archivo', description: f.name });
-      }
+        out.push({ name: f.name, contentType: f.type || "application/octet-stream", contentBytes, size: f.size });
+      } catch { notification.error({ message: "Error leyendo archivo", description: f.name }); }
     }
     setAttachments(out);
-    // limpiar input para poder volver a seleccionar mismos archivos
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  function removeAttachment(idx: number) {
-    setAttachments((cur) => cur.filter((_, i) => i !== idx));
-  }
+  // ─── Render ────────────────────────────────────────────────────────────────
 
-  const empresasCount = empresas.length;
-
-  const defaultLogo = 'https://res.cloudinary.com/dvqpmttci/image/upload/v1774008233/Logo_Firma_bcm1bs.gif';
-  const env = (typeof window !== 'undefined' && import.meta && import.meta.env) ? import.meta.env : {};
-  const envDataLogo = env.VITE_APP_LOGO_DATAURL || env.VITE_APP_LOGO_DATA_URL || '';
-  const envLogo = env.VITE_APP_LOGO_URL || '';
-  const logoUrl = (envDataLogo || envLogo) || ((typeof window !== 'undefined' && window.location && window.location.origin)
-    ? `${window.location.origin}/img/splash.png`
-    : defaultLogo);
+  const ratePerMin = 30;
+  const estimatedMinutes = selectedCount > 0 ? Math.ceil(selectedCount / ratePerMin) : 0;
+  const showSpamWarning = selectedCount > 80;
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
-        <header className="rounded-2xl border border-cyan-200 px-6 py-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-start gap-4">
-              <div className="bg-white p-2 rounded-md shadow-xs" style={{ display: 'inline-block' }}>
-                <img src={logoUrl} alt="RIDS" style={{ height: 42, objectFit: 'contain', display: 'block' }} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-extrabold text-slate-900">Mailer</h2>
-                <p className="text-sm text-slate-500">Envíos masivos y notificaciones</p>
-              </div>
+    <div className="flex flex-col gap-5 p-6">
+
+      {/* Header */}
+      <div className="rounded-3xl border border-cyan-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-col gap-4 px-6 pt-5 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600">
+              <MailOutlined style={{ fontSize: 18 }} />
             </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                title="Limpiar selección"
-                aria-label="Limpiar"
-                onClick={handleClear}
-                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 bg-white hover:bg-slate-50"
-              >
-                <CloseCircleOutlined />
-                Limpiar
-              </button>
-
-              <button
-                title="Recargar datos"
-                aria-label="Recargar"
-                onClick={reload}
-                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-cyan-800 border border-cyan-200 bg-white hover:bg-cyan-50"
-              >
-                <ReloadOutlined />
-                Recargar
-              </button>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 leading-tight">Mailer</h1>
+              <p className="text-xs text-slate-400">Envíos masivos y notificaciones</p>
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-4">
-            <div className="w-full md:w-72">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por nombre, email o empresa..."
-                  className="border border-cyan-200 rounded-xl pl-10 pr-4 py-2 text-sm w-full focus:ring-2 focus:ring-cyan-400"
-                />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <SearchOutlined />
-                </div>
-              </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleClear} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition">
+              <CloseCircleOutlined /> Limpiar
+            </button>
+            <button onClick={reload} disabled={loading} className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100 transition disabled:opacity-60">
+              <ReloadOutlined className={loading ? "animate-spin" : ""} /> Recargar
+            </button>
+          </div>
+        </div>
+        <div className="border-t border-slate-100 px-6 py-3 bg-slate-50/50">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div className="relative flex-1 sm:max-w-xs">
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, email o empresa..."
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100" />
+              <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
             </div>
-
-            <div className="flex-1 flex items-center justify-end gap-3">
-              <select
-                value={showTecnicos ? "tecnicos" : (empresaId ? `company:${empresaId}` : "")}
-                onChange={(e) => {
-                  const v = e.target.value || "";
-                  if (v === "tecnicos") {
-                    setShowTecnicos(true);
-                    setEmpresaId(null);
-                  } else if (v.startsWith("company:")) {
-                    setEmpresaId(Number(v.split(":")[1]));
-                    setShowTecnicos(false);
-                  } else {
-                    setEmpresaId(null);
-                    setShowTecnicos(false);
-                  }
-                }}
-                className="rounded-md border px-3 py-2 text-sm"
-              >
-                <option value="">Todas las empresas</option>
-                <optgroup label="Empresas">
-                  {empresas.map((em) => (
-                    <option key={`c-${em.id_empresa}`} value={`company:${em.id_empresa}`}>{em.nombre}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Técnicos RIDS">
-                  <option value="tecnicos">RIDS (ver todos)</option>
-                </optgroup>
-              </select>
-            </div>
+            <select
+              value={showTecnicos ? "tecnicos" : (empresaId ? `company:${empresaId}` : "")}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "tecnicos") { setShowTecnicos(true); setEmpresaId(null); }
+                else if (v.startsWith("company:")) { setEmpresaId(Number(v.split(":")[1])); setShowTecnicos(false); }
+                else { setEmpresaId(null); setShowTecnicos(false); }
+              }}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 sm:w-56"
+            >
+              <option value="">Todas las empresas</option>
+              <optgroup label="Empresas">
+                {empresas.map((em) => <option key={`c-${em.id_empresa}`} value={`company:${em.id_empresa}`}>{em.nombre}</option>)}
+              </optgroup>
+              <optgroup label="Técnicos RIDS">
+                <option value="tecnicos">RIDS (ver todos)</option>
+              </optgroup>
+            </select>
           </div>
-        </header>
-
-        {error && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold">Error cargando datos</div>
-                <div className="text-sm mt-1">{String(error)}</div>
-                <div className="text-xs text-slate-500 mt-1">Asegúrate de que el backend esté levantado en `VITE_API_URL`.</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={reload} className="rounded-full px-3 py-1.5 bg-white border border-slate-200 text-sm">Reintentar</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <section className="mt-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border p-4 text-center">
-            <div className="text-sm text-slate-500">Solicitantes</div>
-            <div className="mt-2 text-2xl fo
-            nt-bold text-slate-900">{solicitantes.length}</div>
-          </div>
-          <div className="rounded-lg border p-4 text-center">
-            <div className="text-sm text-slate-500">Empresas</div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">{empresasCount}</div>
-          </div>
-          <div className="rounded-lg border p-4 text-center">
-            <div className="text-sm text-slate-500">Seleccionados</div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">{selectedCount}</div>
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-2xl border border-cyan-100 bg-white px-4 py-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-600">Lista de destinatarios</div>
-            <div className="flex items-center gap-2">
-              <button onClick={toggleAll} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm">Seleccionar todos</button>
-              <button onClick={() => setShowPreview(true)} className="rounded-full bg-cyan-600 px-4 py-2 text-sm text-white">Ver Previsualización</button>
-            </div>
-          </div>
-
-          {/* Los campos de asunto y mensaje se muestran dentro del modal de previsualización */}
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr className="text-left text-xs text-slate-500">
-                  <th className="px-3 py-2"><input type="checkbox" checked={selectAll} onChange={toggleAll} /></th>
-                  <th className="px-3 py-2">#</th>
-                  <th className="px-3 py-2">Nombre</th>
-                  <th className="px-3 py-2">Empresa</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">Cargando...</td></tr>
-                ) : rows.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-400">Sin resultados</td></tr>
-                ) : (
-                  rows.map((r, i) => (
-                    <tr key={r.id} className="align-top">
-                      <td className="px-3 py-3 text-sm text-slate-700"><input type="checkbox" checked={!!selected[r.id]} onChange={() => toggleOne(r.id)} /></td>
-                      <td className="px-3 py-3 text-sm text-slate-700">{i + 1}</td>
-                      <td className="px-3 py-3 text-sm font-medium text-slate-800">{r.nombre}</td>
-                      <td className="px-3 py-3 text-sm text-slate-600">{r.empresa?.nombre ?? "-"}</td>
-                      <td className="px-3 py-3 text-sm text-slate-600">{r.email ?? "-"}</td>
-                      <td className="px-3 py-3 text-sm text-slate-600">{r.isActive !== false ? "Activo" : "Inactivo"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        {showPreview && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg max-h-[80vh] overflow-auto">
-              <h3 className="text-lg font-bold">Previsualización de correo</h3>
-                <div className="mt-3 text-sm text-slate-700">
-                <div>
-                  <label className="text-sm font-medium">Asunto</label>
-                  <input value={subject} onChange={(e) => setSubject(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
-                </div>
-
-                <div className="mt-3">
-                  <div className="text-sm font-medium">Para ({Object.values(selected).filter(Boolean).length})</div>
-                  <div className="mt-2 max-h-36 overflow-auto rounded-md border p-2 bg-slate-50 text-sm">
-                    {(() => {
-                      const allCandidates: Array<{ id: number; nombre: string; email?: string | null }> = [];
-                      solicitantes.forEach((s) => allCandidates.push({ id: s.id_solicitante, nombre: s.nombre, email: s.email ?? null }));
-                      tecnicos.forEach((t) => allCandidates.push({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null }));
-                      return allCandidates.filter((c) => selected[c.id]).map((r) => (
-                        <div key={r.id} className="text-sm">{r.nombre} &lt;{r.email ?? "-"}&gt;</div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Mensaje</label>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setEditHtml((v) => !v)} className="rounded-full border px-2 py-1 text-sm">{editHtml ? "WYSIWYG" : "HTML"}</button>
-                    </div>
-                  </div>
-
-                  {editHtml ? (
-                    <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={10} className="mt-2 w-full rounded-md border px-3 py-2 text-sm" />
-                  ) : (
-                    <div className="mt-2">
-                      <div className="mb-3">
-                        <div className="rounded-md border bg-slate-50 px-2 py-2 flex items-center gap-2 shadow-sm">
-                          <button type="button" onClick={() => document.execCommand('bold')} title="Negrita" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M11.5 7a2.5 2.5 0 010 5H8V7h3.5zM7 4h4a4 4 0 010 8H7V4z"/></svg>
-                          </button>
-                          <button type="button" onClick={() => document.execCommand('italic')} title="Cursiva" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 4v2h2.21l-2.12 8H4v2h6v-2H8.79l2.12-8H14V4H7z"/></svg>
-                          </button>
-                          <button type="button" onClick={() => document.execCommand('underline')} title="Subrayado" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3v6a5 5 0 0010 0V3h-2v6a3 3 0 11-6 0V3H5zM4 16h12v2H4v-2z"/></svg>
-                          </button>
-                          <div className="border-l h-6" />
-                          <button type="button" onClick={() => document.execCommand('insertUnorderedList')} title="Lista" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">•</button>
-                          <button type="button" onClick={() => document.execCommand('insertOrderedList')} title="Lista numerada" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">1.</button>
-                          <div className="border-l h-6" />
-                          <button type="button" onClick={() => { const url = prompt('URL de enlace'); if (url) document.execCommand('createLink', false, url); }} title="Insertar enlace" className="flex h-8 w-8 items-center justify-center rounded hover:bg-white text-slate-700 hover:shadow-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M12.59 7.41a3 3 0 114.24 4.24l-1.42 1.42a3 3 0 11-4.24-4.24l.71-.71zM6.34 13.66a3 3 0 01-4.24-4.24l1.42-1.42a3 3 0 014.24 4.24l-.71.71z"/></svg>
-                          </button>
-                          <div className="flex-1" />
-                          <button type="button" onClick={() => { document.execCommand('removeFormat'); }} title="Limpiar formato" className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-white">Limpiar</button>
-                        </div>
-                          <div className="mt-2">
-                            <div
-                              ref={editorRef}
-                              contentEditable
-                              suppressContentEditableWarning
-                              onInput={() => { if (editorRef.current) setBody(editorRef.current.innerHTML); }}
-                              onFocus={() => { isTypingRef.current = true; }}
-                              onBlur={() => { isTypingRef.current = false; if (editorRef.current) setBody(editorRef.current.innerHTML); }}
-                              className="min-h-[180px] rounded-md border px-4 py-3 text-sm shadow-sm focus-within:ring-2 focus-within:ring-cyan-200"
-                            />
-                          </div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-
-                <div className="mt-3">
-                  <div className="text-sm font-semibold">Previsualización</div>
-                  <div className="mt-2 rounded-md border p-3 bg-white text-sm text-slate-800 overflow-auto max-h-[45vh]">
-                    <div dangerouslySetInnerHTML={{ __html: body }} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-end gap-2">
-                <button onClick={() => setShowPreview(false)} className="rounded-full border border-slate-200 px-4 py-2 text-sm">Cerrar</button>
-                <button disabled={isSending} onClick={() => { setShowPreview(false); handleSend(); }} className={`rounded-full px-4 py-2 text-sm text-white ${isSending ? 'bg-slate-400' : 'bg-cyan-600'}`}>
-                  {isSending ? 'Enviando...' : 'Enviar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
+
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <span className="font-semibold">Error cargando datos:</span> {error}
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Solicitantes", value: solicitantes.length, icon: <UserOutlined />, iconBg: "bg-slate-100 text-slate-500", bar: "bg-slate-200" },
+          { label: "Empresas", value: empresas.length, icon: <BankOutlined />, iconBg: "bg-cyan-100 text-cyan-600", bar: "bg-cyan-300" },
+          { label: "Seleccionados", value: selectedCount, icon: <MailOutlined />, iconBg: selectedCount > 0 ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400", bar: selectedCount > 0 ? "bg-emerald-400" : "bg-slate-200" },
+        ].map(({ label, value, icon, iconBg, bar }) => (
+          <div key={label} className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs ${iconBg}`}>{icon}</div>
+            </div>
+            <p className="text-3xl font-black text-slate-900 leading-none">{value.toLocaleString()}</p>
+            <div className="mt-3 h-1 w-full rounded-full bg-slate-100">
+              <div className={`h-1 rounded-full transition-all ${bar}`} style={{ width: value > 0 ? "100%" : "0%" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Anti-spam info */}
+      <div className={`rounded-2xl border px-4 py-3 text-sm flex items-center gap-3 ${showSpamWarning ? "border-amber-200 bg-amber-50 text-amber-800" : "border-cyan-100 bg-cyan-50/60 text-cyan-800"}`}>
+        <span className="shrink-0">{showSpamWarning ? <WarningOutlined className="text-amber-500" /> : <InfoCircleOutlined className="text-cyan-500" />}</span>
+        <span>
+          {showSpamWarning
+            ? <><span className="font-semibold">Precaución:</span> Más de 80 destinatarios puede aumentar el riesgo de spam. Segmenta por empresa. Tasa: {ratePerMin}/min, ~{estimatedMinutes} min.</>
+            : <>Envíos a <strong>{ratePerMin}/min</strong> en cola asíncrona. Solo contactos activos con correo válido.{selectedCount > 0 && <span className="ml-1 font-semibold text-cyan-700">{selectedCount} seleccionados · ~{estimatedMinutes} min.</span>}</>
+          }
+        </span>
+      </div>
+
+      {/* Tabla de destinatarios */}
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/60">
+          <div>
+            <p className="text-sm font-bold text-slate-800">Lista de destinatarios</p>
+            <p className="text-xs text-slate-400">
+              {loading ? "Cargando..." : `${rows.length.toLocaleString()} contactos activos`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleAll} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">
+              {selectAll ? "Deseleccionar" : "Seleccionar todos"}
+            </button>
+            <button onClick={() => setShowPreview(true)} disabled={selectedCount === 0}
+              className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-500 transition disabled:cursor-not-allowed disabled:opacity-40 shadow-sm">
+              Ver previsualización {selectedCount > 0 && <span className="ml-1 rounded-full bg-white/25 px-1.5">{selectedCount}</span>}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <th className="px-4 py-3 w-10"><input type="checkbox" checked={selectAll} onChange={toggleAll} className="rounded accent-cyan-600" /></th>
+                <th className="px-3 py-3 w-10">#</th>
+                <th className="px-3 py-3">Nombre</th>
+                <th className="px-3 py-3">Empresa</th>
+                <th className="px-3 py-3">Email</th>
+                <th className="px-3 py-3 text-right">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading
+                ? <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Cargando contactos...</td></tr>
+                : rows.length === 0
+                  ? <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">Sin resultados para esta búsqueda</td></tr>
+                  : rows.map((r, i) => {
+                    const initials = r.nombre.trim().split(/\s+/).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+                    const isSelected = !!selected[r.id];
+                    return (
+                      <tr key={r.id} onClick={() => toggleOne(r.id)}
+                        className={`cursor-pointer border-b border-slate-50 transition-colors ${isSelected ? "bg-cyan-50/70" : "hover:bg-slate-50/80"}`}>
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" checked={isSelected} onChange={() => toggleOne(r.id)} className="rounded accent-cyan-600" />
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-slate-400 tabular-nums">{i + 1}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-[10px] font-bold text-cyan-700">
+                              {initials}
+                            </div>
+                            <span className="font-medium text-slate-800 text-sm">{r.nombre}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {r.empresa?.nombre
+                            ? <span className="inline-block rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{r.empresa.nombre}</span>
+                            : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-slate-500">{r.email ?? "—"}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span className="inline-block rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 tracking-wide">Activo</span>
+                        </td>
+                      </tr>
+                    );
+                  })
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal previsualización */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl max-h-[92vh]">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h3 className="text-base font-black text-slate-900">Previsualización de correo</h3>
+              <button onClick={() => setShowPreview(false)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50 transition">
+                Cerrar
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto px-6 py-5 flex flex-col gap-4">
+
+              {/* Asunto */}
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Asunto</label>
+                <input value={subject} onChange={(e) => setSubject(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-cyan-200 px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+              </div>
+
+              {/* Destinatarios */}
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  Para ({selectedCount} destinatario{selectedCount !== 1 ? "s" : ""})
+                </label>
+                <div className="max-h-28 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  {[
+                    ...solicitantes.map((s) => ({ id: s.id_solicitante, nombre: s.nombre, email: s.email ?? null })),
+                    ...tecnicos.map((t) => ({ id: -t.id_tecnico, nombre: t.nombre, email: t.email ?? null })),
+                  ].filter((c) => selected[c.id]).map((r) => (
+                    <div key={r.id}>{r.nombre} &lt;{r.email ?? "—"}&gt;</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Adjuntos */}
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Adjuntos</label>
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((a, idx) => (
+                    <div key={idx} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-sm">
+                      <span>{a.name} ({Math.round(a.size / 1024)} KB)</span>
+                      <button onClick={() => setAttachments((cur) => cur.filter((_, i) => i !== idx))} className="font-bold text-red-400 hover:text-red-600">×</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="rounded-xl border border-dashed border-cyan-300 px-3 py-1.5 text-xs font-medium text-cyan-600 hover:bg-cyan-50 transition">
+                    + Adjuntar archivo
+                  </button>
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => onFilesPicked(e.target.files)} />
+                </div>
+              </div>
+
+              {/* Editor de contenido */}
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Mensaje</label>
+                  <button type="button" onClick={() => setEditHtml((v) => !v)}
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 transition">
+                    {editHtml ? "WYSIWYG" : "HTML"}
+                  </button>
+                </div>
+
+                {editHtml ? (
+                  <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={8}
+                    className="w-full rounded-xl border border-cyan-200 px-3 py-2 font-mono text-xs text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+                ) : (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 shadow-sm">
+                      {[
+                        { cmd: "bold", title: "Negrita", label: <b>B</b> },
+                        { cmd: "italic", title: "Cursiva", label: <i>I</i> },
+                        { cmd: "underline", title: "Subrayado", label: <u>U</u> },
+                      ].map(({ cmd, title, label }) => (
+                        <button key={cmd} type="button" title={title} onClick={() => document.execCommand(cmd)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">{label}</button>
+                      ))}
+                      <div className="mx-1 h-5 border-l border-slate-200" />
+                      <button type="button" title="Lista" onClick={() => document.execCommand("insertUnorderedList")}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">•</button>
+                      <button type="button" title="Lista numerada" onClick={() => document.execCommand("insertOrderedList")}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">1.</button>
+                      <div className="flex-1" />
+                      <button type="button" title="Limpiar formato" onClick={() => document.execCommand("removeFormat")}
+                        className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-white transition">Limpiar</button>
+                    </div>
+                    <div
+                      ref={editorRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={() => { if (editorRef.current) setContent(editorRef.current.innerHTML); }}
+                      onFocus={() => { isTypingRef.current = true; }}
+                      onBlur={() => { isTypingRef.current = false; if (editorRef.current) setContent(editorRef.current.innerHTML); }}
+                      className="min-h-[120px] rounded-xl border border-cyan-200 px-4 py-3 text-sm outline-none transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Vista previa con template */}
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Vista previa del correo</label>
+                <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-60">
+                  <div dangerouslySetInnerHTML={{ __html: fullHtml }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal footer — dos botones de envío */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+              <button onClick={() => setShowPreview(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
+                Cancelar
+              </button>
+              <button
+                disabled={isSending}
+                onClick={() => { setSendMode("plain"); setShowPreview(false); handleSend("plain"); }}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-60"
+                title="Envía solo el texto, sin diseño HTML"
+              >
+                Enviar texto plano
+              </button>
+              <button
+                disabled={isSending}
+                onClick={() => { setSendMode("html"); setShowPreview(false); handleSend("html"); }}
+                className="rounded-xl bg-cyan-600 px-5 py-2 text-sm font-bold text-white hover:bg-cyan-500 transition disabled:cursor-not-allowed disabled:opacity-60"
+                title="Envía con el diseño HTML de marca RIDS"
+              >
+                {isSending ? "Enviando..." : `Enviar con diseño HTML`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
