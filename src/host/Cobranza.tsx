@@ -19,7 +19,7 @@ import { Pagination } from "antd";
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000/api";
 
-export default function Cobranza() {
+export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
     const now = new Date();
     const user = useMemo(() => safeParseUser(), []);
     const isCliente = user?.rol === "CLIENTE";
@@ -601,7 +601,8 @@ export default function Cobranza() {
     };
 
     return (
-        <div className="p-6">
+        <div className={embedded ? "" : "p-6"}>
+            {!embedded && (
             <div className="rounded-2xl border border-cyan-100 bg-white p-4 mb-4 shadow-sm">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
@@ -623,8 +624,14 @@ export default function Cobranza() {
                 {respuesta && (
                     <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">Datos cargados desde cache si estaban disponibles</div>
                 )}
+            </div>
+            )}
 
-                <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5 overflow-visible">
+            {embedded && respuesta && (
+                <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">Datos cargados desde cache si estaban disponibles</div>
+            )}
+
+            <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5 overflow-visible">
                     <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <h2 className="text-sm font-bold text-slate-900">Filtros de consulta</h2>
@@ -699,7 +706,6 @@ export default function Cobranza() {
                         </div>
                     </div>
                 </div>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-4">
                 <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">

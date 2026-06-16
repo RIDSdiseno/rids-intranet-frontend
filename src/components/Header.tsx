@@ -124,7 +124,6 @@ const NAV: NavEntry[] = [
     label: "ECONNET",
     items: [
       { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
-      { label: "Cotizaciones Enviadas", to: `${COTIZACIONES}/enviadas`, icon: <FileText size={20} /> },
       { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
       // Facturas SII removido de aquí — ahora solo en Cobranza (acceso restringido)
@@ -143,7 +142,6 @@ const NAV: NavEntry[] = [
     label: "Facturas",
     items: [
       { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
-      { label: "Cobranza", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
     ],
     match: [FACTURAS_BASEAPI_PATH, COBRANZA_PATH],
   },

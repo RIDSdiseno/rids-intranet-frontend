@@ -34,6 +34,7 @@ import {
 import { generarPDF } from "../components/modals-cotizaciones/GenerarPDFModal";
 import { http } from '../service/http';
 import SendCotizacionModal from "../components/modals-cotizaciones/SendCotizacionModal";
+import CotizacionesEnviadas from "./CotizacionesEnviadas";
 import type {
     CotizacionGestioo,
     EntidadGestioo,
@@ -47,6 +48,7 @@ import type {
     CotizacionItemGestioo
 } from "../components/modals-cotizaciones/types";
 import { notification } from 'antd';
+import { escapeHtml, formatCurrency, buildCotizacionHtml } from '../lib/emailTemplates';
 import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
@@ -310,21 +312,61 @@ const Cotizaciones: React.FC = () => {
         setToast({ type: "error", message: msg });
     };
 
+    // escapeHtml and formatCurrency moved to src/lib/emailTemplates
+
         function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
-                const nombre = cot.entidad?.nombre || '';
-                return `
-                <div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-                    <div style="background:#0891b2;padding:20px;border-radius:8px 8px 0 0;text-align:center;color:#fff;">
-                        <img src="/img/splash.png" alt="RIDS" style="height:46px;display:block;margin:0 auto 6px;" />
-                        <div style="font-size:16px;margin-top:4px;opacity:0.95">Cotización</div>
-                    </div>
-                    <div style="background:#fff;border:1px solid #e6eef0;padding:22px;border-top:0;border-radius:0 0 8px 8px;max-width:760px;margin:0 auto;">
-                        <p style="margin:0 0 12px;font-size:14px;">Estimado/a ${nombre},</p>
-                        <p style="margin:0 0 16px;font-size:14px;">Adjuntamos la cotización solicitada (ID: ${cot.id}).</p>
-                        <p style="margin:0 0 16px;font-size:14px;">En el archivo PDF adjuntado, encontrará el detalle, que podrá revisar antes de su confirmación o corrección.</p>
-                        <p>Saludos cordiales,<br/>Equipo RIDS</p>
-                    </div>
-                </div>`;
+                                const nombre = cot.entidad?.nombre || '';
+                                const total = Array.isArray(cot.items) ? cot.items.reduce((s: number, it: any) => s + ((Number(it.precio) || 0) * (Number(it.cantidad) || 1)), 0) : cot.total || 0;
+                                return `
+                                <div style="font-family:Arial,Helvetica,sans-serif;background:#eef2f7;padding:32px 16px;">
+                                  <div style="max-width:600px;margin:0 auto;">
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0c4a6e;border-radius:12px 12px 0 0;overflow:hidden;">
+                                      <tr><td style="padding:20px 28px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                                          <td><img src="/img/splash.png" alt="RIDS" style="height:36px;display:block;border-radius:5px;background:#ffffff;padding:4px;" /></td>
+                                          <td align="right">
+                                            <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Cotización</span>
+                                            <span style="display:block;font-size:13px;font-weight:600;color:#7dd3fc;margin-top:2px;text-align:right;">#${cot.id}</span>
+                                          </td>
+                                        </tr></table>
+                                      </td></tr>
+                                      <tr><td style="background:linear-gradient(90deg,#0ea5e9,#38bdf8);height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+                                    </table>
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
+                                      <tr><td style="padding:28px 28px 20px;">
+                                        <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.08em;">Nueva cotización</p>
+                                        <p style="margin:0 0 16px;font-size:17px;font-weight:700;color:#0f172a;">Estimado/a ${escapeHtml(nombre)},</p>
+                                        <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.7;">Adjuntamos la cotización solicitada. En el archivo adjunto encontrarás el detalle completo. Si deseas realizar cambios, responde a este correo indicando lo que necesitas modificar.</p>
+
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+                                          <tr>
+                                            <td width="47%" style="background:#f0f9ff;border-radius:10px;padding:16px 18px;vertical-align:top;">
+                                              <div style="font-size:10px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Total</div>
+                                              <div style="font-size:24px;font-weight:800;color:#0c4a6e;line-height:1;">${formatCurrency(total)}</div>
+                                            </td>
+                                            <td width="6%"></td>
+                                            <td width="47%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;vertical-align:top;">
+                                              <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Ítems incluidos</div>
+                                              <div style="font-size:24px;font-weight:800;color:#0f172a;line-height:1;">${Array.isArray(cot.items) ? cot.items.length : '-'}</div>
+                                            </td>
+                                          </tr>
+                                        </table>
+
+                                      </td></tr>
+                                    </table>
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;border-top:1px solid #e2e8f0;border-radius:0 0 12px 12px;">
+                                      <tr><td style="padding:18px 28px;">
+                                        <p style="margin:0 0 4px;font-size:13px;color:#334155;">Saludos cordiales,</p>
+                                        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#0c4a6e;">Equipo RIDS</p>
+                                        <p style="margin:0;font-size:11px;color:#94a3b8;">Si no solicitaste esta cotización, puedes ignorar este mensaje. Para asistencia, responde a este correo.</p>
+                                      </td></tr>
+                                    </table>
+
+                                  </div>
+                                </div>`;
         }
 
     const fetchTecnicos = async () => {
@@ -998,8 +1040,12 @@ const Cotizaciones: React.FC = () => {
                 };
 
                 const sendResp = await http.post('/correo/enviar-masivo', payload);
-                if (sendResp.data?.ok) {
-                    notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${created.entidad?.correo}` });
+                if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
+                    const queued = !!sendResp.data?.queued;
+                    const jobId = sendResp.data?.jobId ?? null;
+                    const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${created.entidad?.correo}`;
+                    try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                    notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
                                         // Registrar envío en cotizaciones-enviadas (no bloquear)
                                         (async () => {
                                             try {
@@ -1084,9 +1130,13 @@ const Cotizaciones: React.FC = () => {
                 attachments: [{ name: `Cotizacion_${cot.id}.pdf`, contentType, contentBytes: base64 }]
             };
 
-            const sendResp = await http.post('/correo/enviar-masivo', payload);
-            if (sendResp.data?.ok) {
-                notification.success({ message: 'Correo enviado', description: `Cotización enviada a ${cot.entidad?.correo}` });
+                const sendResp = await http.post('/correo/enviar-masivo', payload);
+            if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
+                const queued = !!sendResp.data?.queued;
+                const jobId = sendResp.data?.jobId ?? null;
+                const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${cot.entidad?.correo}`;
+                try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
                                 // Registrar envío en cotizaciones-enviadas (no bloquear)
                                 (async () => {
                                     try {
@@ -1871,7 +1921,54 @@ const Cotizaciones: React.FC = () => {
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
     const [showSendMailModal, setShowSendMailModal] = useState(false);
-    const [showSentModal, setShowSentModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<'list'|'enviadas'>('list');
+
+    // Estados para filtros de la vista "Cotizaciones Enviadas" (se envían por evento)
+    const [envSearch, setEnvSearch] = useState("");
+    const [envFilterCliente, setEnvFilterCliente] = useState("");
+    const [envFilterGenero, setEnvFilterGenero] = useState("");
+    const [envFilterEnviadoPor, setEnvFilterEnviadoPor] = useState("");
+    const [envMonth, setEnvMonth] = useState("");
+    const [envClientesOptions, setEnvClientesOptions] = useState<string[]>([]);
+    const [envGenerosOptions, setEnvGenerosOptions] = useState<string[]>([]);
+    const [envEnviadosOptions, setEnvEnviadosOptions] = useState<string[]>([]);
+
+    const dispatchCotEnviadasFilters = (partial: any) => {
+        const detail = {
+            search: envSearch,
+            filterCliente: envFilterCliente || null,
+            filterGenero: envFilterGenero || null,
+            filterEnviadoPor: envFilterEnviadoPor || null,
+            dateRange: envMonth ? [envMonth, envMonth] : null,
+            ...partial,
+        };
+        window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:setFilters', { detail }));
+    };
+
+    // Al cambiar de pestaña: ocultar cabecera interna de CotizacionesEnviadas cuando está embebida
+    useEffect(() => {
+        if (activeTab === 'enviadas') {
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:showHeader', { detail: { show: false } }));
+            // enviar filtros iniciales
+            dispatchCotEnviadasFilters({});
+            // pedir recarga
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'));
+        } else {
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:showHeader', { detail: { show: true } }));
+        }
+    }, [activeTab]);
+
+    // Escuchar listas que envía CotizacionesEnviadas para poblar selects del header embebido
+    useEffect(() => {
+        const onLists = (ev: any) => {
+            const d = ev?.detail || {};
+            setEnvClientesOptions(Array.isArray(d.clientes) ? d.clientes : []);
+            setEnvGenerosOptions(Array.isArray(d.generos) ? d.generos : []);
+            setEnvEnviadosOptions(Array.isArray(d.enviados) ? d.enviados : []);
+        };
+        window.addEventListener('cotizacionesEnviadas:lists', onLists as EventListener);
+        return () => window.removeEventListener('cotizacionesEnviadas:lists', onLists as EventListener);
+    }, []);
 
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
         try {
@@ -2207,15 +2304,15 @@ const Cotizaciones: React.FC = () => {
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={() => { /* permanece en la vista actual */ }}
-                                            className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 text-sm"
+                                            onClick={() => setActiveTab('list')}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             Cotizaciones
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShowSentModal(true)}
-                                            className="px-3 py-1 rounded-full bg-white border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+                                            onClick={() => setActiveTab('enviadas')}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             Cotizaciones Enviadas
                                         </button>
@@ -2266,104 +2363,151 @@ const Cotizaciones: React.FC = () => {
                     </div>
 
                     {/* Filtros */}
-                    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Origen
-                            </label>
-                            <select
-                                value={filtrosHistorial.origen}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los orígenes</option>
-                                <option value="RIDS">RIDS</option>
-                                <option value="ECONNET">ECONNET</option>
-                                <option value="OTRO">OTRO</option>
-                            </select>
-                        </div>
+                    <div className="mt-5">
+                        {activeTab === 'list' ? (
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Origen
+                                    </label>
+                                    <select
+                                        value={filtrosHistorial.origen}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los orígenes</option>
+                                        <option value="RIDS">RIDS</option>
+                                        <option value="ECONNET">ECONNET</option>
+                                        <option value="OTRO">OTRO</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Estado
-                            </label>
-                            <select
-                                value={filtrosHistorial.estado}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los estados</option>
-                                <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
-                                <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
-                            </select>
-                        </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Estado
+                                    </label>
+                                    <select
+                                        value={filtrosHistorial.estado}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los estados</option>
+                                        <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
+                                        <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
+                                        <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
+                                        <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Técnico
-                            </label>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Técnico
+                                    </label>
 
-                            <select
-                                value={filtrosHistorial.tecnico || ""}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({
-                                        ...prev,
-                                        tecnico: e.target.value
-                                    }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los técnicos</option>
-                                {tecnicos.map(t => (
-                                    <option key={t.id_tecnico} value={t.id_tecnico}>
-                                        {t.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                    <select
+                                        value={filtrosHistorial.tecnico || ""}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({
+                                                ...prev,
+                                                tecnico: e.target.value
+                                            }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los técnicos</option>
+                                        {tecnicos.map(t => (
+                                            <option key={t.id_tecnico} value={t.id_tecnico}>
+                                                {t.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Mes
-                            </label>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Mes
+                                    </label>
 
-                            <input
-                                type="month"
-                                value={filtroMes}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    setFiltroMes(value);
-                                    setPage(1);
+                                    <input
+                                        type="month"
+                                        value={filtroMes}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setFiltroMes(value);
+                                            setPage(1);
 
-                                    if (!value) {
-                                        fetchCotizaciones(1);
-                                        return;
-                                    }
-                                }}
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            />
-                        </div>
+                                            if (!value) {
+                                                fetchCotizaciones(1);
+                                                return;
+                                            }
+                                        }}
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
+                                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                        <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar cotización, cliente o estado..."
+                                                className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
+                                                value={envSearch}
+                                                onChange={(e) => {
+                                                    setEnvSearch(e.target.value);
+                                                    dispatchCotEnviadasFilters({ search: e.target.value });
+                                                }}
+                                            />
+                                            <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
+                                                <option value="">Cliente</option>
+                                                {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                                            </select>
+
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
+                                                <option value="">Generado Por</option>
+                                                {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
+                                            </select>
+
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
+                                                <option value="">Enviado Por</option>
+                                                {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
+                                            </select>
+
+                                            <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
+
+                                            <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
+                                        </div>
+                                    </div>
+                            </div>
+                        )}
                     </div>
                 </section>
+                
 
                 <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
 
-                <Modal open={showSentModal} onCancel={() => setShowSentModal(false)} footer={null} title="Cotizaciones Enviadas">
-                    <div style={{ padding: 20, minHeight: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <div className="text-center">
-                            <h3 className="text-lg font-semibold mb-2">El apartado está siendo creado</h3>
-                            <p>El apartado está siendo creado, agradecemos su paciencia</p>
-                        </div>
-                    </div>
-                </Modal>
+                {/* Mostrar la vista de Cotizaciones Enviadas dentro de la misma página cuando esté activa */}
+                {activeTab === 'enviadas' && (
+                    <section className="mt-6">
+                        <CotizacionesEnviadas />
+                    </section>
+                )}
 
                 {/* LISTADO */}
+                {activeTab === 'list' && (
                 <section className="mt-6">
                     <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
                         {/* MOBILE */}
@@ -2584,6 +2728,7 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
                 </section>
+                )}
             </div>
 
             {/* Agregar el nuevo modal */}
@@ -2633,7 +2778,6 @@ const Cotizaciones: React.FC = () => {
                     onUpdateItem={handleUpdateItem}
                     onRemoveItem={handleRemoveItem}
                     onCrearCotizacion={handleCreateCotizacion}
-                    onCrearYEnviarCotizacion={handleCreateAndSendCotizacion}
                     onCrearEmpresa={() => setShowNewEmpresaModal(true)}
                     onCrearProducto={() => {
                         setShowNewProductoModal(true);
@@ -2681,7 +2825,7 @@ const Cotizaciones: React.FC = () => {
                     onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
                     onVincularEquipo={handleVincularEquipoAItem}
                     onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
-                        onGuardarYEnviar={handleGuardarYEnviarCotizacion}
+                        
                 />)}
 
             <SelectProductoModal
