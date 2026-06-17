@@ -227,7 +227,7 @@ export default function EquipoViewModal({
                             </div>
 
                             <div><strong>CPU:</strong> {row.procesador}</div>
-                            <div><strong>RAM:</strong> {row.ram}</div>
+                            <div><strong>RAM:</strong> {row.ram || "—"}</div>
                             <div><strong>Disco:</strong> {row.disco}</div>
                             <div><strong>Propiedad:</strong> {row.propiedad}</div>
 
@@ -397,7 +397,19 @@ export default function EquipoViewModal({
                                 </div>
 
                                 <div>
-                                    <strong>MAC:</strong> {viewAgent.macAddress || viewAgent.detalle?.macWifi || "—"}
+                                    <strong>MAC principal:</strong> {viewAgent.macAddress || "—"}
+                                </div>
+
+                                <div>
+                                    <strong>MAC WiFi:</strong> {viewAgent.detalle?.macWifi || row?.macWifi || "—"}
+                                </div>
+
+                                <div>
+                                    <strong>MAC Ethernet:</strong> {viewAgent.detalle?.redEthernet || row?.redEthernet || "—"}
+                                </div>
+
+                                <div>
+                                    <strong>RAM detectada:</strong> {viewAgent.ram || row?.ram || "—"}
                                 </div>
 
                                 <div>

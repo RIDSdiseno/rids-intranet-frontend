@@ -26,6 +26,10 @@ import {
   CloseOutlined,
   CheckCircleOutlined,
   StopOutlined,
+  KeyOutlined,
+  ExclamationCircleOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
@@ -137,6 +141,19 @@ const TecnicosPage: React.FC = () => {
   const [horasError, setHorasError] = useState<string | null>(null);
   const [horasMonth, setHorasMonth] = useState(getCurrentMonthKey());
 
+  const [notice, setNotice] = useState<{
+    type: "success" | "error" | "warning";
+    message: string;
+  } | null>(null);
+
+  const [passwordTecnico, setPasswordTecnico] = useState<Tecnico | null>(null);
+  const [passwordNueva, setPasswordNueva] = useState("");
+  const [passwordConfirmacion, setPasswordConfirmacion] = useState("");
+  const [guardandoPassword, setGuardandoPassword] = useState(false);
+
+  const [mostrarPasswordNueva, setMostrarPasswordNueva] = useState(false);
+  const [mostrarPasswordConfirmacion, setMostrarPasswordConfirmacion] = useState(false);
+
   const horasRange = useMemo(() => getMonthRangeFromKey(horasMonth), [horasMonth]);
 
   const tecnicosFiltrados = useMemo(
@@ -187,19 +204,62 @@ const TecnicosPage: React.FC = () => {
 
   const onGuardar = async () => {
     if (!editando) return;
+
     try {
       setGuardando(true);
-      await http.put(`/tecnicos/${editando.id_tecnico}`, { nombre: formNombre, email: formEmail, status: formStatus, rol: formRol });
-      setEditando(null); await fetchTecnicos();
-    } catch (err: any) { alert(err?.message || "Error al actualizar técnico"); }
-    finally { setGuardando(false); }
+
+      await http.put(`/tecnicos/${editando.id_tecnico}`, {
+        nombre: formNombre,
+        email: formEmail,
+        status: formStatus,
+        rol: formRol,
+      });
+
+      setEditando(null);
+      await fetchTecnicos();
+
+      showNotice("success", "Técnico actualizado correctamente");
+    } catch (err: any) {
+      showNotice("error", getErrorMessage(err, "Error al actualizar técnico"));
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const onClickDelete = async (t: Tecnico) => {
-    if (!window.confirm(`¿Eliminar a ${t.nombre}? Esta acción no se puede deshacer.`)) return;
-    try { setDeletingId(t.id_tecnico); await http.delete(`/tecnicos/${t.id_tecnico}`); await fetchTecnicos(); }
-    catch (err: any) { alert(err?.message || "Error al eliminar técnico"); }
-    finally { setDeletingId(null); }
+    const confirmar = window.confirm(
+      `¿Eliminar definitivamente a ${t.nombre}?\n\n` +
+      "Esta acción solo funcionará si el técnico no tiene registros asociados.\n" +
+      "Si tiene tickets, órdenes, visitas o historial, deberás desactivarlo en lugar de eliminarlo."
+    );
+
+    if (!confirmar) return;
+
+    try {
+      setDeletingId(t.id_tecnico);
+
+      await http.delete(`/tecnicos/${t.id_tecnico}`);
+
+      await fetchTecnicos();
+
+      showNotice("success", "Técnico eliminado definitivamente");
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg = getErrorMessage(err, "Error al eliminar técnico");
+
+      if (status === 409) {
+        showNotice(
+          "warning",
+          msg ||
+          "No se puede eliminar porque el técnico tiene registros asociados. Puedes desactivarlo."
+        );
+        return;
+      }
+
+      showNotice("error", msg);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const onCrearTecnico = async () => {
@@ -208,7 +268,10 @@ const TecnicosPage: React.FC = () => {
       await http.post("/tecnicos", { nombre: newNombre, email: newEmail, password: newPassword, rol: newRol, status: newStatus });
       setCreando(false); setNewNombre(""); setNewEmail(""); setNewPassword(""); setNewRol("TECNICO"); setNewStatus(true);
       await fetchTecnicos();
-    } catch (err: any) { alert(err?.response?.data?.error || "Error al crear técnico"); }
+      showNotice("success", "Técnico creado correctamente");
+    } catch (err: any) {
+      showNotice("error", getErrorMessage(err, "Error al crear técnico"));
+    }
     finally { setGuardandoNuevo(false); }
   };
 
@@ -221,6 +284,70 @@ const TecnicosPage: React.FC = () => {
       return acc;
     }, []);
   }, [totalPages, page]);
+
+  const getErrorMessage = (err: any, fallback: string) => {
+    return (
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      err?.response?.data?.detail ||
+      err?.message ||
+      fallback
+    );
+  };
+
+  const showNotice = (
+    type: "success" | "error" | "warning",
+    message: string
+  ) => {
+    setNotice({ type, message });
+
+    window.setTimeout(() => {
+      setNotice(null);
+    }, 5000);
+  };
+
+  const onCambiarPassword = async () => {
+    if (!passwordTecnico) return;
+
+    const cleanPassword = passwordNueva.trim();
+    const cleanConfirmacion = passwordConfirmacion.trim();
+
+    if (!cleanPassword || !cleanConfirmacion) {
+      showNotice("warning", "Debes ingresar y confirmar la nueva contraseña");
+      return;
+    }
+
+    if (cleanPassword.length < 8) {
+      showNotice("warning", "La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
+    if (cleanPassword !== cleanConfirmacion) {
+      showNotice("warning", "Las contraseñas no coinciden");
+      return;
+    }
+
+    try {
+      setGuardandoPassword(true);
+
+      await http.put(`/tecnicos/${passwordTecnico.id_tecnico}/password`, {
+        password: cleanPassword,
+      });
+
+      setPasswordTecnico(null);
+      setPasswordNueva("");
+      setPasswordConfirmacion("");
+
+      showNotice("success", "Contraseña actualizada correctamente");
+    } catch (err: any) {
+      showNotice(
+        "error",
+        getErrorMessage(err, "Error al actualizar la contraseña")
+      );
+    } finally {
+      setGuardandoPassword(false);
+    }
+  };
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
 
@@ -257,8 +384,8 @@ const TecnicosPage: React.FC = () => {
               type="button"
               onClick={() => setActiveTab(tab)}
               className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${activeTab === tab
-                  ? "bg-cyan-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-cyan-50"
+                ? "bg-cyan-600 text-white shadow-sm"
+                : "text-slate-600 hover:bg-cyan-50"
                 }`}
             >
               {tab === "lista" ? "Lista de técnicos" : "Horas hombre"}
@@ -372,9 +499,34 @@ const TecnicosPage: React.FC = () => {
                           <button onClick={() => onClickEdit(t)} className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-200 px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition">
                             <EditOutlined /> Editar
                           </button>
-                          <button onClick={() => onClickDelete(t)} disabled={deletingId === t.id_tecnico} className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50 transition disabled:opacity-50">
-                            <DeleteOutlined />
-                            {deletingId === t.id_tecnico ? "Eliminando…" : "Eliminar"}
+                          <button
+                            onClick={() => {
+                              setPasswordTecnico(t);
+                              setPasswordNueva("");
+                              setPasswordConfirmacion("");
+                            }}
+                            className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 hover:bg-amber-50"
+                            title="Cambiar contraseña"
+                          >
+                            <KeyOutlined />
+                          </button>
+                          <button
+                            onClick={() => onClickDelete(t)}
+                            disabled={deletingId === t.id_tecnico}
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 transition disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Eliminar definitivamente"
+                          >
+                            {deletingId === t.id_tecnico ? (
+                              <>
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-rose-600 border-t-transparent" />
+                                Eliminando...
+                              </>
+                            ) : (
+                              <>
+                                <DeleteOutlined />
+                                Eliminar
+                              </>
+                            )}
                           </button>
                         </div>
                       )}
@@ -437,9 +589,33 @@ const TecnicosPage: React.FC = () => {
                                 <button onClick={() => onClickEdit(t)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 transition">
                                   <EditOutlined /> Editar
                                 </button>
-                                <button onClick={() => onClickDelete(t)} disabled={deletingId === t.id_tecnico} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 transition disabled:opacity-50">
-                                  <DeleteOutlined />
-                                  {deletingId === t.id_tecnico ? "…" : "Eliminar"}
+                                <button
+                                  onClick={() => {
+                                    setPasswordTecnico(t);
+                                    setPasswordNueva("");
+                                    setPasswordConfirmacion("");
+                                  }}
+                                  className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 hover:bg-amber-50"
+                                  title="Cambiar contraseña"
+                                >
+                                  <KeyOutlined />
+                                </button>
+                                <button
+                                  onClick={() => onClickDelete(t)}
+                                  disabled={deletingId === t.id_tecnico}
+                                  className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl border border-rose-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50 transition disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {deletingId === t.id_tecnico ? (
+                                    <>
+                                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-rose-600 border-t-transparent" />
+                                      Eliminando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <DeleteOutlined />
+                                      Eliminar
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </td>
@@ -473,8 +649,8 @@ const TecnicosPage: React.FC = () => {
                       key={n}
                       onClick={() => setPage(Number(n))}
                       className={`rounded-xl border px-3 py-1.5 text-xs transition ${page === n
-                          ? "border-cyan-600 bg-cyan-600 font-semibold text-white"
-                          : "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50"
+                        ? "border-cyan-600 bg-cyan-600 font-semibold text-white"
+                        : "border-cyan-200 bg-white text-cyan-800 hover:bg-cyan-50"
                         }`}
                     >
                       {n}
@@ -603,6 +779,140 @@ const TecnicosPage: React.FC = () => {
             </button>
           </div>
         </Modal>
+      )}
+      {passwordTecnico && (
+        <Modal
+          title={`Cambiar contraseña - ${passwordTecnico.nombre}`}
+          onClose={() => {
+            if (guardandoPassword) return;
+
+            setPasswordTecnico(null);
+            setPasswordNueva("");
+            setPasswordConfirmacion("");
+          }}
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="flex gap-2">
+                <ExclamationCircleOutlined className="mt-0.5" />
+                <div>
+                  <p className="font-semibold">Cambio de contraseña</p>
+                  <p className="mt-1">
+                    Se actualizará la clave de acceso del técnico y se cerrarán sus sesiones activas.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Nueva contraseña
+              </label>
+              <input
+                type="password"
+                value={passwordNueva}
+                onChange={(e) => setPasswordNueva(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                placeholder="Mínimo 8 caracteres"
+                disabled={guardandoPassword}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Confirmar contraseña
+              </label>
+              <input
+                type="password"
+                value={passwordConfirmacion}
+                onChange={(e) => setPasswordConfirmacion(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                placeholder="Repite la nueva contraseña"
+                disabled={guardandoPassword}
+              />
+            </div>
+
+            {passwordNueva &&
+              passwordConfirmacion &&
+              passwordNueva !== passwordConfirmacion && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  Las contraseñas no coinciden.
+                </div>
+              )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (guardandoPassword) return;
+
+                  setPasswordTecnico(null);
+                  setPasswordNueva("");
+                  setPasswordConfirmacion("");
+                }}
+                disabled={guardandoPassword}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={onCambiarPassword}
+                disabled={guardandoPassword}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {guardandoPassword ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <KeyOutlined />
+                    Cambiar contraseña
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {notice && (
+        <div
+          className={`fixed right-5 top-5 z-[9999] flex max-w-md items-start gap-3 rounded-xl px-4 py-3 text-sm text-white shadow-lg ${notice.type === "success"
+            ? "bg-emerald-600"
+            : notice.type === "warning"
+              ? "bg-amber-600"
+              : "bg-rose-600"
+            }`}
+        >
+          {notice.type === "success" ? (
+            <CheckCircleOutlined className="mt-0.5" />
+          ) : (
+            <ExclamationCircleOutlined className="mt-0.5" />
+          )}
+
+          <div>
+            <p className="font-semibold">
+              {notice.type === "success"
+                ? "Operación exitosa"
+                : notice.type === "warning"
+                  ? "Atención"
+                  : "Error"}
+            </p>
+            <p className="mt-0.5">{notice.message}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="ml-2 rounded p-1 text-white/80 hover:bg-white/10 hover:text-white"
+            aria-label="Cerrar aviso"
+          >
+            <CloseOutlined />
+          </button>
+        </div>
       )}
     </div>
   );
