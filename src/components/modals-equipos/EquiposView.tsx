@@ -86,6 +86,60 @@ function splitAgentText(value?: string | null) {
         .filter(Boolean);
 }
 
+type AgentEventMetadata = {
+    lastBootAt?: string | null;
+    uptimeText?: string | null;
+    uptimeSeconds?: number | string | null;
+};
+
+function getAgentEventMetadata(value: unknown): AgentEventMetadata {
+    if (!value) return {};
+
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            return typeof parsed === "object" && parsed !== null
+                ? (parsed as AgentEventMetadata)
+                : {};
+        } catch {
+            return {};
+        }
+    }
+
+    if (typeof value === "object") {
+        return value as AgentEventMetadata;
+    }
+
+    return {};
+}
+
+function formatUptimeFromSeconds(value?: number | string | null) {
+    if (value === undefined || value === null || value === "") return "";
+
+    const totalSeconds = Number(value);
+
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "";
+
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+
+    return `${days} días ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatUptimeFromLastBoot(value?: string | null) {
+    if (!value) return "";
+
+    const bootDate = new Date(value);
+
+    if (Number.isNaN(bootDate.getTime())) return "";
+
+    const totalSeconds = Math.floor((Date.now() - bootDate.getTime()) / 1000);
+
+    return formatUptimeFromSeconds(totalSeconds);
+}
+
 function InfoLine({
     label,
     value,
@@ -186,6 +240,17 @@ export default function EquipoViewModal({
     }, [open, row?.id_equipo]);
 
     if (!open || !row) return null;
+
+    const latestAgentEvent = viewAgent?.agenteEventos?.[0] as
+        | { metadata?: unknown }
+        | undefined;
+
+    const latestAgentMetadata = getAgentEventMetadata(latestAgentEvent?.metadata);
+
+    const uptimeValue =
+        latestAgentMetadata.uptimeText ||
+        formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
+        formatUptimeFromLastBoot(viewAgent?.lastBootAt);
 
     return (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -418,6 +483,10 @@ export default function EquipoViewModal({
 
                                 <div>
                                     <strong>Último arranque:</strong> {formatDateTimeCL(viewAgent.lastBootAt)}
+                                </div>
+
+                                <div>
+                                    <strong>Tiempo activo:</strong> {uptimeValue || "—"}
                                 </div>
 
                                 <div>
