@@ -184,3 +184,143 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+/* ===============================
+   EQUIPOS - AGENTE WINDOWS
+================================ */
+
+export type EstadoAgenteEquipo =
+    | "SIN_AGENTE"
+    | "ACTIVO"
+    | "SIN_CONEXION"
+    | "ADVERTENCIA"
+    | "CRITICO";
+
+export type EquipoAgentEmpresa = {
+    id_empresa: number;
+    nombre: string;
+    razonSocial?: string | null;
+};
+
+export type EquipoAgentSolicitante = {
+    id_solicitante: number;
+    nombre: string;
+    email?: string | null;
+    telefono?: string | null;
+};
+
+export type EquipoAgentDetalle = {
+    id?: number;
+    idEquipo?: number;
+    macWifi?: string | null;
+    so?: string | null;
+    tipoDd?: string | null;
+    estadoAlm?: string | null;
+    office?: string | null;
+    teamViewer?: string | null;
+    claveTv?: string | null;
+    revisado?: string | null;
+    adminRidsPassword?: string | null;
+    adminRidsUsuario?: string | null;
+    passwordEmpresa?: string | null;
+    passwordPersonal?: string | null;
+    usuarioEmpresa?: string | null;
+    usuarioPersonal?: string | null;
+    redEthernet?: string | null;
+
+    antivirusNombre?: string | null;
+    antivirusActivo?: boolean | null;
+    firewallActivo?: boolean | null;
+    bitlockerEstado?: string | null;
+    windowsUpdate?: string | null;
+    observacionAgente?: string | null;
+};
+
+export type EquipoSoftware = {
+    id: number;
+    equipoId: number;
+    nombre: string;
+    version?: string | null;
+    publisher?: string | null;
+    installDate?: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type EquipoAgenteEvento = {
+    id: number;
+    equipoId: number;
+    tipo: string;
+    mensaje?: string | null;
+    metadata?: unknown;
+    createdAt: string;
+};
+
+export type EquipoAgentItem = {
+    id_equipo: number;
+    idSolicitante?: number | null;
+    empresaId?: number | null;
+
+    serial?: string | null;
+    marca: string;
+    modelo: string;
+    procesador?: string | null;
+    ram?: string | null;
+    disco?: string | null;
+    propiedad?: string | null;
+    tipo?: string | null;
+
+    hostname?: string | null;
+    usuarioActual?: string | null;
+    dominio?: string | null;
+    localIp?: string | null;
+    publicIp?: string | null;
+    macAddress?: string | null;
+
+    ramGb?: number | null;
+    diskTotalGb?: number | null;
+    diskFreeGb?: number | null;
+
+    lastBootAt?: string | null;
+    lastSeenAt?: string | null;
+    agenteVersion?: string | null;
+    agenteActivo: boolean;
+    estadoAgente: EstadoAgenteEquipo;
+
+    createdAt?: string;
+    updatedAt?: string;
+    deletedAt?: string | null;
+
+    empresa?: EquipoAgentEmpresa | null;
+    solicitante?: EquipoAgentSolicitante | null;
+    detalle?: EquipoAgentDetalle | null;
+
+    softwares?: EquipoSoftware[];
+    agenteEventos?: EquipoAgenteEvento[];
+
+    _count?: {
+        softwares?: number;
+        agenteEventos?: number;
+    };
+};
+
+export type GetEquiposAgentParams = {
+    search?: string;
+    empresaId?: number;
+    estadoAgente?: EstadoAgenteEquipo;
+    soloConAgente?: boolean;
+};
+
+export async function getEquiposAgent(params?: GetEquiposAgentParams) {
+    const { data } = await api.get("/equipos/agent", {
+        params,
+    });
+
+    return data.equipos as EquipoAgentItem[];
+}
+
+export async function getEquipoAgentById(id: number) {
+    const { data } = await api.get(`/equipos/agent/${id}`);
+
+    return data.equipo as EquipoAgentItem;
+}

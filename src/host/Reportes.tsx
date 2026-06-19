@@ -1,4 +1,4 @@
-// pages/ReportesPage.tsx
+// src/host/Reportes.tsx
 import React, { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -13,7 +13,7 @@ import {
   EyeInvisibleOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { Input, message } from "antd";
+import { Input, message, DatePicker } from "antd";
 
 // Types
 import type { ReporteGeneralData, HistorialReporteRow } from "../components/modals-reportes/typesReportes";
@@ -37,6 +37,42 @@ import {
 } from "../components/modals-reportes/UtilsReportes";
 
 import { http } from "../service/http";
+
+import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
+import "dayjs/locale/es";
+
+dayjs.locale("es");
+
+const { RangePicker } = DatePicker;
+
+const DATE_RANGE_PRESETS: {
+  label: string;
+  value: [Dayjs, Dayjs];
+}[] = [
+    {
+      label: "Hoy",
+      value: [dayjs().startOf("day"), dayjs().endOf("day")],
+    },
+    {
+      label: "Últimos 7 días",
+      value: [
+        dayjs().subtract(6, "day").startOf("day"),
+        dayjs().endOf("day"),
+      ],
+    },
+    {
+      label: "Mes actual",
+      value: [dayjs().startOf("month"), dayjs().endOf("month")],
+    },
+    {
+      label: "Mes anterior",
+      value: [
+        dayjs().subtract(1, "month").startOf("month"),
+        dayjs().subtract(1, "month").endOf("month"),
+      ],
+    },
+  ];
 
 // ─── Config ───────────────────────────────────────────────────────────────
 
@@ -87,7 +123,7 @@ const ReportesPage: React.FC = () => {
   const [historialReportes, setHistorialReportes] = useState<HistorialReporteRow[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [historialVisible, setHistorialVisible] = useState(true);
-  const [filtroFecha, setFiltroFecha] = useState({ desde: "", hasta: "" });
+  const [filtroFecha, setFiltroFecha] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
   // ── Derived ──
   const empresaNombre = useMemo(
@@ -336,7 +372,7 @@ const ReportesPage: React.FC = () => {
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <RobotOutlined className="mr-2" /> Descargar Word IA (Beta)
+                <RobotOutlined className="mr-2" /> Descargar Word IA
               </button>
 
               <button
@@ -351,7 +387,7 @@ const ReportesPage: React.FC = () => {
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <EyeOutlined className="mr-2" /> Ver PDF (modal)
+                <EyeOutlined className="mr-2" /> Ver PDF
               </button>
             </div>
 
@@ -385,28 +421,29 @@ const ReportesPage: React.FC = () => {
             <>
               {/* ── Filtros de fecha ── */}
               <div className="flex flex-wrap items-end gap-4 mb-6">
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Desde</label>
-                  <input
-                    type="date"
-                    value={filtroFecha.desde}
-                    onChange={(e) => setFiltroFecha((f) => ({ ...f, desde: e.target.value }))}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                <div className="w-full sm:w-auto">
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Rango de fechas
+                  </label>
+
+                  <RangePicker
+                    value={filtroFecha}
+                    onChange={(dates) => {
+                      setFiltroFecha(dates as [Dayjs | null, Dayjs | null] | null);
+                    }}
+                    presets={DATE_RANGE_PRESETS}
+                    format="DD-MM-YYYY"
+                    placeholder={["Desde", "Hasta"]}
+                    allowClear
+                    className="w-full sm:w-[320px]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Hasta</label>
-                  <input
-                    type="date"
-                    value={filtroFecha.hasta}
-                    onChange={(e) => setFiltroFecha((f) => ({ ...f, hasta: e.target.value }))}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                {(filtroFecha.desde || filtroFecha.hasta) && (
+
+                {filtroFecha && (
                   <button
-                    onClick={() => setFiltroFecha({ desde: "", hasta: "" })}
+                    onClick={() => setFiltroFecha(null)}
                     className="text-sm text-red-500 hover:text-red-700 py-2"
+                    type="button"
                   >
                     Limpiar filtros
                   </button>
@@ -414,11 +451,17 @@ const ReportesPage: React.FC = () => {
                 <span className="text-xs text-slate-400 py-2">
                   {(() => {
                     const filtrados = historialReportes.filter((item) => {
-                      const fecha = new Date(item.createdAt);
-                      if (filtroFecha.desde && fecha < new Date(filtroFecha.desde)) return false;
-                      if (filtroFecha.hasta && fecha > new Date(filtroFecha.hasta + "T23:59:59")) return false;
+                      const fecha = dayjs(item.createdAt);
+
+                      const desde = filtroFecha?.[0] ?? null;
+                      const hasta = filtroFecha?.[1] ?? null;
+
+                      if (desde && fecha.isBefore(desde.startOf("day"))) return false;
+                      if (hasta && fecha.isAfter(hasta.endOf("day"))) return false;
+
                       return true;
                     });
+
                     return `${filtrados.length} registro${filtrados.length !== 1 ? "s" : ""}`;
                   })()}
                 </span>
@@ -446,24 +489,34 @@ const ReportesPage: React.FC = () => {
                     <tbody>
                       {historialReportes
                         .filter((item) => {
-                          const fecha = new Date(item.createdAt);
-                          if (filtroFecha.desde && fecha < new Date(filtroFecha.desde)) return false;
-                          if (filtroFecha.hasta && fecha > new Date(filtroFecha.hasta + "T23:59:59")) return false;
+                          const fecha = dayjs(item.createdAt);
+
+                          const desde = filtroFecha?.[0] ?? null;
+                          const hasta = filtroFecha?.[1] ?? null;
+
+                          if (desde && fecha.isBefore(desde.startOf("day"))) return false;
+                          if (hasta && fecha.isAfter(hasta.endOf("day"))) return false;
+
                           return true;
                         })
                         .map((item) => (
                           <tr key={item.id} className="border-t border-slate-200 text-sm">
                             <td className="px-4 py-3">
-                              {new Date(item.createdAt).toLocaleString("es-CL", { hour12: false })}
+                              {new Date(item.createdAt).toLocaleString("es-CL", {
+                                hour12: false,
+                              })}
                             </td>
+
                             <td className="px-4 py-3">{item.empresaNombre}</td>
                             <td className="px-4 py-3">{item.periodo}</td>
                             <td className="px-4 py-3">{item.tipo}</td>
+
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 <span className={item.urlArchivo ? "text-slate-800" : "text-slate-500"}>
                                   {item.nombreArchivo}
                                 </span>
+
                                 {item.urlArchivo ? (
                                   item.tipo === "PDF" ? (
                                     <a
@@ -490,6 +543,7 @@ const ReportesPage: React.FC = () => {
                                 )}
                               </div>
                             </td>
+
                             <td className="px-4 py-3">{item.generadoPor || "—"}</td>
                             <td className="px-4 py-3">{item.estado}</td>
                           </tr>

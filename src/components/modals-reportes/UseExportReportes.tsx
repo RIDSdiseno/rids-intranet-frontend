@@ -1,4 +1,4 @@
-// hooks/useExportReportes.ts
+// src/components/modals-reportes/UseExportReportes.tsx
 import { useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import {
@@ -12,7 +12,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 import type {
-  ExportStatus, ReporteGeneralData, VisitaRow, EquipoRow, SolicitanteRow, TicketRow,
+  ExportStatus, ReporteGeneralData
 } from "../modals-reportes/typesReportes";
 import {
   TEXTO_FIJO, CHART_CONFIG,
@@ -599,22 +599,23 @@ export const useExportReportes = ({
           lectura:
             "Entrega visibilidad sobre la composición del parque tecnológico por fabricante.",
         },
-        {
-          tipo: "bar",
-          titulo: "Top 5 solicitantes con más tickets",
-          dataset_key: "tickets_top_solicitantes",
-          lectura:
-            "Permite identificar los solicitantes que generaron mayor volumen de tickets durante el periodo.",
-        },
       ];
 
       const graficosCombinados = [
         ...graficosOperacionalesFijos,
         ...(iaPayload.graficos_sugeridos || []),
-      ].filter((grafico, index, arr) => {
-        const key = grafico?.dataset_key || `idx-${index}`;
-        return arr.findIndex((x) => (x?.dataset_key || `idx-${index}`) === key) === index;
-      });
+      ]
+        // Eliminar duplicados por dataset_key
+        .filter((grafico, index, arr) => {
+          const key = grafico?.dataset_key || `idx-${index}`;
+          return arr.findIndex((x) => (x?.dataset_key || `idx-${index}`) === key) === index;
+        })
+        // Eliminar gráficos cuyo dataset_key no existe en datasetMap o no tiene datos
+        .filter((grafico) => {
+          if (!grafico?.dataset_key) return false;
+          const ds = datasetMap[grafico.dataset_key];
+          return ds && ds.labels.length > 0 && ds.values.length > 0;
+        });
 
       const chartImages = [];
 
@@ -674,7 +675,60 @@ export const useExportReportes = ({
       }
 
       const extras = contarExtras(dataBase.visitas || []);
+      
+      // Para el detalle de equipos, se prioriza dataBase (que es la que se muestra en el preview
+      const dataWord = data?.data ?? data;
 
+      const inventarioFuente =
+        dataBase.inventario?.detalle ??
+        dataBase.inventario?.equipos ??
+        dataWord.inventario?.detalle ??
+        dataWord.inventario?.equipos ??
+        dataWord.equipos ??
+        dataBase.equipos ??
+        [];
+      
+      // Se mapean los equipos para el detalle, priorizando los campos de dataBase y usando dataWord como respaldo para campos faltantes
+      const equiposDetalleReporte = inventarioFuente.map((equipo: any, index: number) => ({
+        codigo: equipo.codigo ?? index + 1,
+
+        usuario:
+          equipo.usuario ??
+          equipo.solicitante?.nombre ??
+          equipo.solicitante ??
+          "",
+
+        correo:
+          equipo.correo ??
+          equipo.solicitante?.email ??
+          equipo.solicitanteEmail ??
+          "",
+
+        estadoEquipo:
+          equipo.estadoEquipo ??
+          equipo.estado ??
+          "",
+
+        serial: equipo.serial ?? "",
+        marca: equipo.marca ?? "",
+        modelo: equipo.modelo ?? "",
+
+        cpu:
+          equipo.cpu ??
+          equipo.procesador ??
+          "",
+
+        ram: equipo.ram ?? "",
+        disco: equipo.disco ?? "",
+
+        sistemaOperativo:
+          equipo.sistemaOperativo ??
+          equipo.detalle?.so ??
+          equipo.so ??
+          "",
+      }));
+      
+      // Finalmente, se construye y descarga el reporte usando la función especializada para el formato IA Beta
       await buildAndDownloadReporteIABetaDocx({
         payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
         empresaNombre,
@@ -686,7 +740,8 @@ export const useExportReportes = ({
         extrasTotales: extras.totales || [],
         extrasDetalle: extras.detalles || [],
         solicitantesDetalle: dataBase.solicitantes || [],
-        equiposDetalle: dataBase.equipos || [],
+        equiposDetalle: equiposDetalleReporte,
+        licencias: dataBase.licencias,
         logoBytes,
         headerLogoBytes,
       });
@@ -696,7 +751,7 @@ export const useExportReportes = ({
       console.error(e);
       setExportStatus({
         exporting: false,
-        error: "No se pudo generar el Word IA (Beta).",
+        error: "No se pudo generar el Word IA.",
       });
     }
   };
@@ -887,17 +942,17 @@ export const useExportReportes = ({
       const visitasAgrupadas = Array.from(
         new Map(
           (data.visitas ?? []).map((v) => {
+            const fechaDia = v.inicio
+              ? new Date(v.inicio).toISOString().slice(0, 10)
+              : "sin-fecha";
             const key = [
               v.tecnico?.nombre?.trim() || "sin-tecnico",
-              v.inicio || "sin-inicio",
-              v.fin || "sin-fin",
+              fechaDia,
             ].join("|");
-
             return [key, v];
           })
         ).values()
       );
-
 
       const totalHorasRemotas = totalMinutosRemotas / 60;
       const totalHorasVisitas = totalMinutosVisitas / 60;
@@ -1182,7 +1237,7 @@ export const useExportReportes = ({
           r.readAsDataURL(b);
         });
       const base64Docx = await blobToBase64(blob);
-      
+
       // Sube a SharePoint + Supabase y crea UN registro
       await http.post("/reportes-upload/upload-docx", {
         fileName,

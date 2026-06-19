@@ -1,3 +1,4 @@
+// src/components/modals-gestioo/pdf.tsx
 // PDF
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -12,10 +13,24 @@ import {
     TipoEquipoLabel,
 } from "./types";
 
+import {
+    getPdfOrigenInfo,
+    normalizarPdfOrigen,
+    type PdfOrigenKey,
+} from "./pdfOrigen";
+
+import {
+    prepararContenedorPdf,
+    getHtml2CanvasPdfOptions,
+} from "../../utils/pdfLightExport";
+
 // ==============================
 //   PDF ORDEN DE TALLER - CON LOGO OPTIMIZADO
 // ==============================
-export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { download?: boolean }) => {
+export const handlePrint = async (
+    orden: DetalleTrabajoGestioo,
+    origenPdf?: PdfOrigenKey
+) => {
     try {
         const fechaActual = new Date().toLocaleString("es-CL", {
             day: "2-digit",
@@ -29,31 +44,16 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { down
         const codigo = String(orden.ordenGrupoId ?? orden.id).padStart(6, "0");
         const tecnicoNombre = orden.tecnico?.nombre ?? "—";
 
-        const ORIGEN_DATA = {
-            RIDS: {
-                nombre: "RIDS LTDA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "soporte@rids.cl",
-                telefono: "+56 9 8823 1976",
-                logo: "/img/splash.png",
-            },
-            ECONNET: {
-                nombre: "ECONNET SPA",
-                direccion: "Santiago - Providencia, La Concepción 65",
-                correo: "ventas@econnet.cl",
-                telefono: "+56 9 8807 6593",
-                logo: "/img/ecconetlogo.png",
-            },
-            OTRO: {
-                nombre: orden.entidad?.nombre ?? "Empresa",
-                direccion: orden.entidad?.direccion ?? "",
-                correo: orden.entidad?.correo ?? "",
-                telefono: orden.entidad?.telefono ?? "",
-                logo: "/img/splash.png",
-            },
-        };
+        const origenSeleccionado = origenPdf ?? normalizarPdfOrigen(orden.entidad?.origen ?? "RIDS");
 
-        const origenInfo = ORIGEN_DATA[orden.entidad?.origen ?? "OTRO"];
+        const origenInfo = getPdfOrigenInfo(origenSeleccionado, {
+            nombre: orden.entidad?.nombre,
+            direccion: orden.entidad?.direccion,
+            correo: orden.entidad?.correo,
+            telefono: orden.entidad?.telefono,
+            rut: orden.entidad?.rut,
+        });
+
         const tipoEquipoLabel =
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 
@@ -215,6 +215,7 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { down
 
         const container = document.createElement("div");
         container.innerHTML = html;
+        prepararContenedorPdf(container, "1700px");
         document.body.appendChild(container);
 
         // ✅ OPTIMIZAR SECCIONES
@@ -250,35 +251,20 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { down
             (el as HTMLElement).style.color = '#000000';
         });
 
-        // ✅ CONFIGURACIÓN OPTIMIZADA
-        // Intentar con una escala reducida para evitar consumo excesivo de memoria.
-        const targetWidth = Math.min(container.scrollWidth || 1000, 1000);
-        let canvas;
-        try {
-            canvas = await html2canvas(container, {
-                scale: 2,
+        // CONFIGURACIÓN OPTIMIZADA
+        const canvas = await html2canvas(
+            container,
+            getHtml2CanvasPdfOptions({
+                scale: 3,
                 useCORS: true,
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "#ffffff",
                 logging: false,
                 imageTimeout: 0,
-                width: targetWidth,
+                width: container.scrollWidth,
                 height: container.scrollHeight,
-                windowWidth: targetWidth,
-            });
-        } catch (e) {
-            console.warn('html2canvas scale 2 failed, retrying with scale 1', e);
-            // Fallback a escala 1 en caso de OOM o errores
-            canvas = await html2canvas(container, {
-                scale: 1,
-                useCORS: true,
-                backgroundColor: '#FFFFFF',
-                logging: false,
-                imageTimeout: 0,
-                width: targetWidth,
-                height: container.scrollHeight,
-                windowWidth: targetWidth,
-            });
-        }
+                windowWidth: container.scrollWidth,
+            })
+        );
 
         const pdf = new jsPDF("p", "mm", "a4", true);
         const img = canvas.toDataURL("image/jpeg", 1.0);
@@ -288,12 +274,14 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { down
 
         pdf.addImage(img, "JPEG", 0, 0, pdfWidth, proportionalHeight, undefined, 'FAST');
 
-        if (options?.download !== false) {
-            pdf.save(`Orden_${codigo}.pdf`);
+        pdf.save(`Orden_${codigo}.pdf`);
+
+        if (container.parentNode) {
+            container.parentNode.removeChild(container);
         }
 
-        document.body.removeChild(container);
         return pdf;
+
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");
@@ -301,5 +289,5 @@ export const handlePrint = async (orden: DetalleTrabajoGestioo, options?: { down
 };
 // Generar PDF y retornar el objeto jsPDF (no descargar)
 export const generarOrdenPDF = async (orden: DetalleTrabajoGestioo) => {
-    return await handlePrint(orden, { download: false });
+    return await handlePrint(orden);
 };

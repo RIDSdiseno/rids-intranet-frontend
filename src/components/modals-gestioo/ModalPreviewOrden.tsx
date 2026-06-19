@@ -12,6 +12,7 @@ import type {
 import {
     TipoEquipoLabel,
     EstadoEquipoLabel,
+    DestinoEquipoTallerLabel,
 } from "./types";
 
 interface ModalPreviewOrdenProps {
@@ -84,6 +85,13 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                                         ? EstadoEquipoLabel[orden.equipo.estado]
                                         : "—",
                                 ],
+                                [
+                                    "Destino",
+                                    orden.destinoEquipo
+                                        ? DestinoEquipoTallerLabel[orden.destinoEquipo]
+                                        : "Sin definir",
+                                ],
+                                ["Nota destino", orden.destinoEquipoNota ?? "—"],
                                 [
                                     orden.area === "SALIDA"
                                         ? "Fecha salida"

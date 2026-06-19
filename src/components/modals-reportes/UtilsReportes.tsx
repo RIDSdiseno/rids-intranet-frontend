@@ -1,4 +1,4 @@
-// utils/reportes.utils.ts
+// src/components/modals-reportes/UtilsReportes.tsx
 import {
     Chart,
     CategoryScale,

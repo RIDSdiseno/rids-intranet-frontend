@@ -1,4 +1,4 @@
-// components/reportes/WizardSelector.tsx
+// src/components/modals-reportes/WizardSelector.tsx
 import React from "react";
 import {
     ApartmentOutlined,

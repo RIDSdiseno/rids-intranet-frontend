@@ -1,7 +1,45 @@
+// src/components/modals-visitas/VisitasDashboard.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { Modal } from "antd";
+import { DatePicker, Modal } from "antd";
 import Chart from "chart.js/auto";
 import { api } from "../../api/api";
+
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+
+dayjs.locale("es");
+
+const DATE_RANGE_PRESETS: {
+    label: string;
+    value: [Dayjs, Dayjs];
+}[] = [
+        {
+            label: "Hoy",
+            value: [dayjs().startOf("day"), dayjs().endOf("day")],
+        },
+        {
+            label: "Últimos 7 días",
+            value: [
+                dayjs().subtract(6, "day").startOf("day"),
+                dayjs().endOf("day"),
+            ],
+        },
+        {
+            label: "Mes actual",
+            value: [
+                dayjs().startOf("month"),
+                dayjs().endOf("month"),
+            ],
+        },
+        {
+            label: "Mes anterior",
+            value: [
+                dayjs().subtract(1, "month").startOf("month"),
+                dayjs().subtract(1, "month").endOf("month"),
+            ],
+        },
+    ];
 
 type DashboardData = {
     kpis: {
@@ -80,8 +118,7 @@ function DashboardContent() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [fromDate, setFromDate] = useState("");
-    const [toDate, setToDate] = useState("");
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
     const [vistaGrafico, setVistaGrafico] = useState<"mes" | "dia">("mes");
     const [triggerLoad, setTriggerLoad] = useState(0);
 
@@ -95,20 +132,29 @@ function DashboardContent() {
     const chartInstanceDia = useRef<Chart | null>(null);
 
     async function load() {
-        if (fromDate && toDate && fromDate > toDate) {
+        const fromDate = dateRange?.[0] ?? null;
+        const toDate = dateRange?.[1] ?? null;
+
+        if (fromDate && toDate && fromDate.isAfter(toDate, "day")) {
             setError("La fecha 'Desde' no puede ser mayor que 'Hasta'.");
             return;
         }
 
         setLoading(true);
         setError(null);
+
         try {
             const { data: resp } = await api.get("/visitas/dashboard", {
                 params: {
-                    ...(fromDate ? { fromDate: new Date(fromDate).toISOString() } : {}),
-                    ...(toDate ? { toDate: new Date(toDate + "T23:59:59").toISOString() } : {}),
+                    ...(fromDate
+                        ? { fromDate: fromDate.startOf("day").toISOString() }
+                        : {}),
+                    ...(toDate
+                        ? { toDate: toDate.endOf("day").toISOString() }
+                        : {}),
                 },
             });
+
             setData(resp);
         } catch (e) {
             console.error(e);
@@ -213,40 +259,38 @@ function DashboardContent() {
     return (
         <>
             {/* Filtros */}
-            <div className="flex flex-wrap items-end gap-3 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500">Desde</label>
-                    <input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex flex-col gap-1 w-full sm:w-auto">
+                    <label className="text-xs text-slate-500">Rango de fechas</label>
+
+                    <DatePicker.RangePicker
+                        value={dateRange}
+                        onChange={(dates) => {
+                            setDateRange(dates as [Dayjs | null, Dayjs | null] | null);
+                        }}
+                        presets={DATE_RANGE_PRESETS}
+                        format="DD-MM-YYYY"
+                        placeholder={["Desde", "Hasta"]}
+                        allowClear
+                        className="w-full sm:w-[320px]"
                     />
                 </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-500">Hasta</label>
-                    <input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-                    />
-                </div>
+
                 <button
                     onClick={() => setTriggerLoad((t) => t + 1)}
                     disabled={loading}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                     {loading ? "Cargando..." : "Aplicar"}
                 </button>
-                {(fromDate || toDate) && (
+
+                {dateRange && (
                     <button
                         onClick={() => {
-                            setFromDate("");
-                            setToDate("");
+                            setDateRange(null);
                             setTriggerLoad((t) => t + 1);
                         }}
-                        className="text-xs text-slate-400 hover:text-slate-600 underline"
+                        className="w-full sm:w-auto text-xs text-slate-400 hover:text-slate-600 underline"
                     >
                         Limpiar
                     </button>

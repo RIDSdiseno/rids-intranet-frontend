@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Button } from "antd";
 import type { AgendaVisita } from "./tiposAgenda";
+import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
 
 export interface DiaAgendaProps {
   open: boolean;
@@ -79,8 +80,8 @@ export function DiaAgenda({
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {grupo.visitas
                     .sort((a, b) => {
-                      const nombreA = a.empresa?.nombre?.trim() || a.empresaExternaNombre?.trim() || "OFICINA";
-                      const nombreB = b.empresa?.nombre?.trim() || b.empresaExternaNombre?.trim() || "OFICINA";
+                      const nombreA = getAgendaEmpresaNombreFromVisita(a);
+                      const nombreB = getAgendaEmpresaNombreFromVisita(b);
                       return nombreA.localeCompare(nombreB);
                     })
                     .map((v) => (
@@ -101,7 +102,7 @@ export function DiaAgenda({
                         onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
                       >
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
-                          {v.empresa?.nombre?.trim()?.toUpperCase() || v.empresaExternaNombre?.trim()?.toUpperCase() || "OFICINA"}
+                          {getAgendaEmpresaNombreFromVisita(v).toUpperCase()}
                         </span>
                         {(v.horaInicio || v.horaFin) && (
                           <span style={{ fontSize: 12, color: "#475569" }}>

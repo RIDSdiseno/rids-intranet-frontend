@@ -1,4 +1,4 @@
-// src/components/SyncGoogleModal.tsx
+// src/components/modals-solicitantes/SyncGoogleModal.tsx
 import React, { useEffect, useState } from "react";
 
 type Empresa = { id_empresa: number; nombre: string };

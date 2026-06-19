@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Button, Popconfirm } from "antd";
 import type { AgendaVisita } from "./tiposAgenda";
+import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
 
 export interface DetalleVisitaProps {
   open: boolean;
@@ -20,10 +21,11 @@ export function DetalleVisita({
   onCancel,
 }: DetalleVisitaProps) {
   if (!visita) return null;
+  const nombreEmpresa = getAgendaEmpresaNombreFromVisita(visita).toUpperCase();
 
   return (
     <Modal
-      title={visita.empresa?.nombre?.trim()?.toUpperCase() || visita.empresaExternaNombre?.trim()?.toUpperCase() || "OFICINA"}
+      title={nombreEmpresa}
       open={open}
       onCancel={onCancel}
       footer={
@@ -53,7 +55,7 @@ export function DetalleVisita({
         <div>
           <span style={{ color: "#94a3b8" }}>Empresa: </span>
           <strong style={{ color: "#dc2626" }}>
-            {visita.empresa?.nombre?.trim()?.toUpperCase() || visita.empresaExternaNombre?.trim()?.toUpperCase() || "OFICINA"}
+            {nombreEmpresa}
           </strong>
         </div>
 
