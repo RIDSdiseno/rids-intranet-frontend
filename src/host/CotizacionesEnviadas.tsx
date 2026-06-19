@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Pagination, notification } from "antd";
-import { DeleteOutlined } from "@ant-design/icons";
+import { Pagination, Modal, notification } from "antd";
+import { DeleteOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
 import { http } from "../service/http";
 import dayjs from "dayjs";
 
@@ -19,6 +19,7 @@ type SentEntry = {
 };
 
 const CotizacionesEnviadas: React.FC = () => {
+  const [modalApi, modalContextHolder] = Modal.useModal();
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<SentEntry[]>([]);
 
@@ -179,15 +180,23 @@ const CotizacionesEnviadas: React.FC = () => {
     }
   }, [clientesList, generosList, enviadosList]);
 
-  async function handleDelete(id: number) {
-    if (!window.confirm("¿Eliminar este registro del historial de envíos?")) return;
-    try {
-      await http.delete(`/cotizaciones/enviadas/${id}`);
-      setEntries((prev) => prev.filter((e) => e.id !== id));
-      notification.success({ message: "Registro eliminado", duration: 3 });
-    } catch (e: any) {
-      notification.error({ message: "No se pudo eliminar", description: e?.response?.data?.error ?? e?.message, duration: 5 });
-    }
+  function handleDelete(id: number) {
+    modalApi.confirm({
+      title: "¿Eliminar este registro del historial de envíos?",
+      icon: <ExclamationCircleOutlined />,
+      okText: "Aceptar",
+      cancelText: "Cancelar",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await http.delete(`/cotizaciones/enviadas/${id}`);
+          setEntries((prev) => prev.filter((e) => e.id !== id));
+          notification.success({ message: "Registro eliminado", duration: 3 });
+        } catch (e: any) {
+          notification.error({ message: "No se pudo eliminar", description: e?.response?.data?.error ?? e?.message, duration: 5 });
+        }
+      },
+    });
   }
 
   const total = displayed.length;
@@ -196,6 +205,7 @@ const CotizacionesEnviadas: React.FC = () => {
 
   return (
     <div className="w-full">
+      {modalContextHolder}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="w-full overflow-x-auto">
           <table className="w-full table-fixed divide-y divide-slate-100">
