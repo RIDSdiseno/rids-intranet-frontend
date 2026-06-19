@@ -1,7 +1,7 @@
 // src/components/modals-visitas/CreateVisitaModal.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import CrearSolicitante from "../CrearSolicitante";
+import CrearSolicitante from "../modals-solicitantes/CrearSolicitante";
 
 type ViteEnv = { env?: { VITE_API_URL?: string } };
 const API_URL =

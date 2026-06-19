@@ -20,14 +20,32 @@ import type {
     OrigenGestioo,
     OrigenGestiooFiltro,
     EstadoEquipo,
+    DestinoEquipoTaller,
 } from "./types";
 
 import {
     TipoEquipoLabel,
     EstadoEquipoLabel,
+    DestinoEquipoTallerOptions,
 } from "./types";
 
-const safeLower = (v: unknown) => String(v ?? "").toLowerCase();
+// Orden explícito de los estados que se muestran en el selector de estado del equipo.
+// Generamos las <option> a partir de aquí para no desincronizarnos de EstadoEquipoLabel.
+const ESTADOS_EQUIPO: EstadoEquipo[] = [
+    "ACTIVO",
+    "EN_STOCK",
+    "EN_RIDS",
+    "DADO_DE_BAJA",
+    "EN_GARANTIA",
+    "EN_TALLER_EXTERNO",
+];
+
+// Normaliza texto para búsquedas: minúsculas y sin tildes.
+const normalizeSearch = (value: unknown) =>
+    String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 
 export interface ModalOrdenProps {
     title: string;
@@ -64,30 +82,33 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     tecnicos,
     loading,
     buttonLabel,
+    setShowNewEntidadModal,
     setShowNuevoEquipoModal,
+    setShowEditEntidadModal,
     setShowEditEquipoModal,
     setEntidades,
     setEquipoEditando,
 }) => {
-    const [busquedaEquipo, setBusquedaEquipo] = useState("");
-
-    const equiposFiltrados = useMemo(() => {
-        const q = safeLower(busquedaEquipo);
+    // Equipos que se ofrecen en el selector. Si hay una entidad seleccionada,
+    // mostramos solo sus equipos; si no, mostramos todos.
+    const equiposParaSelect = useMemo(() => {
+        if (!formData.entidadId) return equipos;
 
         return equipos.filter((eq) => {
-            const tipoLabel = eq?.tipo
-                ? safeLower(TipoEquipoLabel[eq.tipo])
-                : "";
+            // ⚠️ AJUSTA "entidadId"/"id_entidad" al nombre real del campo que
+            // relaciona el equipo con su entidad en EquipoGestioo.
+            const rel = eq as Partial<
+                Record<"entidadId" | "id_entidad", string | number>
+            >;
+            const equipoEntidadId = rel.entidadId ?? rel.id_entidad;
 
-            return (
-                !q ||
-                safeLower(eq.marca).includes(q) ||
-                safeLower(eq.modelo).includes(q) ||
-                safeLower(eq.serial).includes(q) ||
-                tipoLabel.includes(q)
-            );
+            // Si el equipo no trae relación con entidad, no lo ocultamos
+            // (evita listas vacías por un campo ausente).
+            if (equipoEntidadId == null) return true;
+
+            return String(equipoEntidadId) === String(formData.entidadId);
         });
-    }, [equipos, busquedaEquipo]);
+    }, [equipos, formData.entidadId]);
 
     const normalizeText = (value: unknown) =>
         String(value ?? "")
@@ -114,6 +135,8 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
         formData.equipoId,
         formData.tecnicoId,
         formData.estadoEquipo,
+        formData.destinoEquipo,
+        formData.destinoEquipoNota,
     ]);
 
     // Filtrar entidades según búsqueda
@@ -140,13 +163,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     }, [entidadesFiltradas, setFormData]);
 
     useEffect(() => {
-        if (formData.tipoEntidad !== "EMPRESA") return;
-
         const params: Record<string, string> = {
-            tipo: "EMPRESA",
+            tipo: formData.tipoEntidad,
         };
 
         if (
+            formData.tipoEntidad === "EMPRESA" &&
             formData.origenEntidad &&
             formData.origenEntidad !== "TODOS"
         ) {
@@ -159,15 +181,21 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                     ? data
                     : Array.isArray(data?.data)
                         ? data.data
-                        : [];
+                        : Array.isArray(data?.items)
+                            ? data.items
+                            : [];
 
                 setEntidades(lista);
             })
             .catch((err) => {
-                console.error("Error cargando entidades iniciales:", err);
+                console.error("Error cargando entidades:", err);
                 setEntidades([]);
             });
-    }, [formData.tipoEntidad, formData.origenEntidad, setEntidades]);
+    }, [
+        formData.tipoEntidad,
+        formData.origenEntidad,
+        setEntidades,
+    ]);
 
     const isFirstRender = useRef(true);
     const prevEquipoId = useRef(formData.equipoId);
@@ -241,20 +269,23 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-0 sm:p-4">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl relative flex flex-col max-h-[90vh]"
+                transition={{ duration: 0.25 }}
+                className="bg-white shadow-2xl w-full relative flex flex-col
+                    h-[100dvh] sm:h-auto sm:max-h-[90vh]
+                    max-w-none sm:max-w-5xl lg:max-w-6xl
+                    rounded-none sm:rounded-3xl"
             >
-                {/* Header */}
-                <div className="border-b border-cyan-100 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
+                {/* Header (fijo) */}
+                <div className="shrink-0 border-b border-cyan-100 px-4 sm:px-6 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 truncate">{title}</h2>
                         <button
                             onClick={onClose}
-                            className="text-slate-400 hover:text-slate-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                            className="shrink-0 text-slate-400 hover:text-slate-600 text-xl w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
                             aria-label="Cerrar modal"
                         >
                             ✕
@@ -264,10 +295,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                 {/* Contenido principal - Scrollable */}
                 <div className="flex-1 overflow-y-auto">
-                    <div className="p-6 space-y-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                             {/* Columna Izquierda */}
-                            <div className="space-y-6">
+                            <div className="space-y-5 sm:space-y-6">
                                 {/* Descripción */}
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción del Estado<span className="text-rose-500">*</span></label>
@@ -306,12 +337,54 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         rows={3}
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Destino del equipo <span className="text-rose-500">*</span>
+                                    </label>
+
+                                    <Select
+                                        value={formData.destinoEquipo}
+                                        onChange={(value) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipo: value as DestinoEquipoTaller,
+                                            }))
+                                        }
+                                        style={{ width: "100%" }}
+                                        options={DestinoEquipoTallerOptions}
+                                        placeholder="Seleccionar destino..."
+                                    />
+
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Indica si el equipo queda para venta, RIDS, cliente o baja.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Nota destino equipo
+                                    </label>
+
+                                    <textarea
+                                        value={formData.destinoEquipoNota}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                destinoEquipoNota: e.target.value,
+                                            }))
+                                        }
+                                        className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400 resize-none"
+                                        rows={2}
+                                        placeholder="Ej: Equipo destinado a venta luego de cambio de SSD..."
+                                    />
+                                </div>
                             </div>
 
                             {/* Columna Derecha */}
-                            <div className="space-y-6">
+                            <div className="space-y-5 sm:space-y-6">
                                 {/* Configuración Rápida */}
-                                <div className="bg-cyan-50 rounded-2xl p-4 border border-cyan-200">
+                                <div className="bg-cyan-50 rounded-2xl p-4 sm:p-5 border border-cyan-200">
                                     <h3 className="text-sm font-semibold text-cyan-800 mb-3 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
                                         Configuración Rápida
@@ -385,7 +458,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                 className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
                                             />
 
-                                            {/* 👇 AQUÍ VA EXACTAMENTE */}
+                                            {/* AQUÍ VA EXACTAMENTE */}
                                             {formData.area === "salida" && (
                                                 <p className="text-xs text-amber-700 mt-1">
                                                     Se creará una nueva orden de salida para mantener el historial
@@ -393,9 +466,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                             )}
                                         </div>
 
-                                        <div className="mt-4">
+                                        <div className="mt-4 sm:col-span-2">
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Técnico Responsable
+                                                Técnico Responsable <span className="text-rose-500">*</span>
                                             </label>
 
                                             <select
@@ -419,7 +492,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                 </div>
 
                                 {/* Información del Cliente */}
-                                <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-200">
+                                <div className="bg-indigo-50 rounded-2xl p-4 sm:p-5 border border-indigo-200">
                                     <h3 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
                                         Información del Cliente
@@ -439,27 +512,10 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         ...formData,
                                                         tipoEntidad: tipo,
                                                         entidadId: "",
+                                                        equipoId: "",
+                                                        estadoEquipo: "",
                                                         origenEntidad: tipo === "EMPRESA" ? "TODOS" : "",
                                                     });
-
-                                                    http.get("/entidades", {
-                                                        params: {
-                                                            tipo,
-                                                        },
-                                                    })
-                                                        .then(({ data }) => {
-                                                            const lista = Array.isArray(data)
-                                                                ? data
-                                                                : Array.isArray(data?.data)
-                                                                    ? data.data
-                                                                    : [];
-
-                                                            setEntidades(lista);
-                                                        })
-                                                        .catch((err) => {
-                                                            console.error("Error cargando entidades:", err);
-                                                            setEntidades([]);
-                                                        });
                                                 }}
                                                 className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm"
                                             >
@@ -502,12 +558,41 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                         {/* Entidad */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Entidad
-                                            </label>
+                                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                                <label className="block text-sm font-semibold text-slate-700">
+                                                    Entidad <span className="text-rose-500">*</span>
+                                                </label>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowNewEntidadModal(true);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                                    >
+                                                        <PlusOutlined />
+                                                        Nueva {formData.tipoEntidad === "EMPRESA" ? "empresa" : "persona"}
+                                                    </button>
+
+                                                    {formData.entidadId && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setShowEditEntidadModal(true);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100"
+                                                        >
+                                                            <EditOutlined />
+                                                            Editar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
                                             <Select
                                                 showSearch
+                                                popupMatchSelectWidth={false}
                                                 placeholder="Seleccione entidad…"
                                                 value={formData.entidadId || undefined}
                                                 disabled={entidades.length === 0}
@@ -551,78 +636,84 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         : " de todos los orígenes"}
                                                 </p>
                                             )}
+
                                         </div>
 
                                     </div>
                                 </div>
 
                                 {/* Información del Equipo */}
-                                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
+                                <div className="bg-emerald-50 rounded-2xl p-4 sm:p-5 border border-emerald-200">
                                     <h3 className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
                                         Información del Equipo
                                     </h3>
 
                                     <div className="space-y-3">
-                                        {/* Buscar Equipo */}
+                                        {/* Equipo (búsqueda integrada en el Select) */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">Buscar Equipo</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Marca, modelo, serie o tipo..."
-                                                value={busquedaEquipo}
-                                                onChange={(e) => setBusquedaEquipo(e.target.value)}
-                                                className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-xs font-medium text-slate-600">
+                                                    Equipo <span className="text-rose-500">*</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (!formData.equipoId) {
+                                                            setShowNuevoEquipoModal(true);
+                                                        } else {
+                                                            const equipo = equipos.find(
+                                                                (e) => String(e.id_equipo) === formData.equipoId
+                                                            );
+                                                            if (!equipo) {
+                                                                setErrorMsg("El equipo seleccionado ya no está disponible.");
+                                                                return;
+                                                            }
+                                                            setEquipoEditando(equipo);
+                                                            setShowEditEquipoModal(true);
+                                                        }
+                                                    }}
+                                                    className={`p-2 rounded-xl text-white transition-all duration-200 ${formData.equipoId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
+                                                        }`}
+                                                    title={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
+                                                >
+                                                    {formData.equipoId ? <EditOutlined /> : <PlusOutlined />}
+                                                </button>
+                                            </div>
+
+                                            <Select
+                                                showSearch
+                                                popupMatchSelectWidth={false}
+                                                placeholder="Buscar por marca, modelo, serie o tipo…"
+                                                value={formData.equipoId || undefined}
+                                                className="w-full"
+                                                optionFilterProp="label"
+                                                notFoundContent="No hay equipos disponibles"
+                                                onChange={(value) =>
+                                                    setFormData((prev) => ({ ...prev, equipoId: value }))
+                                                }
+                                                filterOption={(input, option) =>
+                                                    normalizeSearch(option?.label).includes(
+                                                        normalizeSearch(input)
+                                                    )
+                                                }
+                                                options={equiposParaSelect.map((eq) => ({
+                                                    value: String(eq.id_equipo),
+                                                    label: `${eq.marca} ${eq.modelo} · ${TipoEquipoLabel[eq.tipo] ?? "Sin tipo"
+                                                        }${eq.serial ? ` — S/N: ${eq.serial}` : " — S/N: N/A"}`,
+                                                }))}
                                             />
+
                                             {!formData.entidadId && (
-                                                <p className="text-xs text-amber-600 mt-1">Mostrando equipos de todas las empresas</p>
+                                                <p className="text-xs text-amber-600 mt-1">
+                                                    Mostrando equipos de todas las empresas
+                                                </p>
                                             )}
                                         </div>
 
-                                        <div className="flex justify-between items-center">
-                                            <label className="block text-xs font-medium text-slate-600">Equipo</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    if (!formData.equipoId) {
-                                                        setShowNuevoEquipoModal(true);
-                                                    } else {
-                                                        const equipo = equipos.find((e) => String(e.id_equipo) === formData.equipoId);
-                                                        if (!equipo) {
-                                                            setErrorMsg("El equipo seleccionado ya no está disponible.");
-                                                            return;
-                                                        }
-                                                        setEquipoEditando(equipo);
-                                                        setShowEditEquipoModal(true);
-                                                    }
-                                                }}
-                                                className={`p-2 rounded-xl text-white transition-all duration-200 ${formData.equipoId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-600 hover:bg-emerald-700"
-                                                    }`}
-                                                title={formData.equipoId ? "Editar equipo" : "Nuevo equipo"}
-                                            >
-                                                {formData.equipoId ? <EditOutlined /> : <PlusOutlined />}
-                                            </button>
-                                        </div>
-
-                                        <select
-                                            value={formData.equipoId}
-                                            onChange={(e) => setFormData((prev) => ({ ...prev, equipoId: e.target.value }))}
-                                            className="w-full border border-emerald-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-emerald-400"
-                                        >
-                                            <option value="">
-                                                {equiposFiltrados.length === 0 ? "No hay equipos disponibles" : "Seleccionar equipo…"}
-                                            </option>
-
-                                            {equiposFiltrados.map((eq) => (
-                                                <option key={eq.id_equipo} value={eq.id_equipo}>
-                                                    {eq.marca} {eq.modelo} · {TipoEquipoLabel[eq.tipo]}
-                                                    {eq.serial ? ` — S/N: ${eq.serial}` : " — S/N: N/A"}
-                                                </option>
-                                            ))}
-                                        </select>
                                         <div>
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                                                Estado del equipo
+                                                Estado del equipo <span className="text-rose-500">*</span>
                                             </label>
 
                                             <select
@@ -644,10 +735,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                         ? "Seleccionar estado..."
                                                         : "Seleccione un equipo primero"}
                                                 </option>
-                                                <option value="ACTIVO">{EstadoEquipoLabel.ACTIVO}</option>
-                                                <option value="EN_STOCK">{EstadoEquipoLabel.EN_STOCK}</option>
-                                                <option value="EN_RIDS">{EstadoEquipoLabel.EN_RIDS}</option>
-                                                <option value="DADO_DE_BAJA">{EstadoEquipoLabel.DADO_DE_BAJA}</option>
+
+                                                {ESTADOS_EQUIPO.map((estado) => (
+                                                    <option key={estado} value={estado}>
+                                                        {EstadoEquipoLabel[estado]}
+                                                    </option>
+                                                ))}
                                             </select>
 
                                             {formData.equipoId && formData.estadoEquipo && (
@@ -689,24 +782,26 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                     </div>
                 </div>
 
-                {/* Mensaje de error */}
+                {/* Mensaje de error (fijo, con padding consistente) */}
                 {errorMsg && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
-                        {errorMsg}
+                    <div className="shrink-0 px-4 sm:px-6 pb-3">
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+                            {errorMsg}
+                        </div>
                     </div>
                 )}
 
-                {/* Footer */}
-                <div className="border-t border-cyan-100 px-6 py-4 bg-slate-50 rounded-b-3xl">
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                {/* Footer (fijo) */}
+                <div className="shrink-0 border-t border-cyan-100 px-4 sm:px-6 py-4 bg-slate-50 rounded-b-none sm:rounded-b-3xl">
+                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                         <p className="text-xs text-slate-500 text-center sm:text-left">
                             Los campos marcados con <span className="text-rose-500">*</span> son obligatorios
                         </p>
 
-                        <div className="flex gap-3">
+                        <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
+                                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all duration-200 font-medium"
                             >
                                 Cancelar
                             </button>
@@ -722,13 +817,13 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                     !formData.entidadId ||
                                     !formData.descripcion
                                 }
-                                className={`px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
+                                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
                                     : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 shadow-lg hover:shadow-xl"
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                                 {loading ? (
-                                    <span className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center gap-2">
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         Procesando...
                                     </span>

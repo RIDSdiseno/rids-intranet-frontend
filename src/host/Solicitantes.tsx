@@ -16,7 +16,7 @@ import {
   InfoCircleFilled,
 } from "@ant-design/icons";
 import { AnimatePresence, motion } from "framer-motion";
-import SyncGoogleModal from "../components/SyncGoogleModal";
+import SyncGoogleModal from "../components/modals-solicitantes/SyncGoogleModal";
 
 import { useAuth } from "../components/hooks/useAuth";
 import { http as api } from "../service/http";
@@ -442,8 +442,8 @@ const validateUpsert = (v: UpsertState) => {
 };
 
 // ========= Modal de Detalle (lazy) =========
-const SolicitanteDetailModal = React.lazy(() => import("../components/SolicitanteDetailModal"));
-import type { SolicitanteForDetail } from "../components/SolicitanteDetailModal";
+const SolicitanteDetailModal = React.lazy(() => import("../components/modals-solicitantes/SolicitanteDetailModal"));
+import type { SolicitanteForDetail } from "../components/modals-solicitantes/SolicitanteDetailModal";
 
 // ========= Página =========
 export default function SolicitantesPage() {

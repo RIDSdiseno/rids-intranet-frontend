@@ -23,8 +23,10 @@ import {
     MessageOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
+    ArrowsAltOutlined,
 } from "@ant-design/icons";
 import DOMPurify from "dompurify";
+import { notification } from "antd";
 
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -482,6 +484,45 @@ export default function TicketDetailPage() {
         }
     };
 
+    // Función para descargar un archivo adjunto, haciendo una llamada a la API para obtener el archivo y luego creando un enlace de descarga para el usuario.
+    const descargarAdjunto = async (att: {
+        id: number;
+        filename: string;
+        mimeType?: string;
+    }) => {
+        try {
+            const res = await api.get(
+                `/helpdesk/tickets/attachments/${att.id}/download`,
+                {
+                    responseType: "blob",
+                }
+            );
+
+            const blob = new Blob([res.data], {
+                type: res.headers["content-type"] || att.mimeType || "application/octet-stream",
+            });
+
+            const url = window.URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = att.filename || "adjunto";
+            document.body.appendChild(link);
+            link.click();
+
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error: any) {
+            console.error("Error descargando adjunto:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            message.error("No se pudo descargar el adjunto");
+        }
+    };
+
     // Función para actualizar campos del ticket, como estado, prioridad o asignado, con llamada a API y recarga del detalle después de la actualización. Maneja errores y muestra mensajes de éxito o error.
     const updateTicket = async (payload: {
         status?: string;
@@ -570,8 +611,26 @@ export default function TicketDetailPage() {
 
             setReplyFiles([]);
             await loadTicket();
-        } catch {
-            message.error("Error al enviar mensaje");
+        } catch (error: any) {
+            console.error("❌ Error respondiendo ticket:", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
+
+            const errorMessage =
+                error?.response?.data?.detail ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Error al responder ticket";
+
+            notification.error({
+                message: "No se pudo responder el ticket",
+                description: errorMessage,
+                placement: "topRight",
+                duration: 6,
+            });
         } finally {
             setSendingReply(false);
         }
@@ -643,7 +702,7 @@ export default function TicketDetailPage() {
             >
                 <p>{permissionModal.message}</p>
             </Modal>
-            <div className="w-full px-4 xl:px-6 py-4 h-[calc(100vh-24px)] flex flex-col">
+            <div className="w-full px-4 xl:px-6 py-4 h-[calc(110vh-0px)] flex flex-col">
                 <div className="shrink-0 border-b border-gray-200 bg-white rounded-t-2xl px-7 py-4">
                     <div className="flex items-center justify-between gap-4 mb-3">
                         <div className="flex items-center gap-3">
@@ -856,16 +915,15 @@ export default function TicketDetailPage() {
                                                                     {(m.attachments ?? [])
                                                                         .filter((a) => !a.isInline)
                                                                         .map((att) => (
-                                                                            <a
+                                                                            <button
                                                                                 key={att.id}
-                                                                                href={`${API_URL}/helpdesk/tickets/attachments/${att.id}/download`}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
+                                                                                type="button"
+                                                                                onClick={() => descargarAdjunto(att)}
                                                                                 className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs text-gray-700 no-underline border border-gray-200"
                                                                             >
                                                                                 <PaperClipOutlined />
                                                                                 {att.filename}
-                                                                            </a>
+                                                                            </button>
                                                                         ))}
                                                                 </div>
                                                             </div>
@@ -897,7 +955,7 @@ export default function TicketDetailPage() {
                                     </div>
 
                                     {showReplyPanel && (
-                                        <div className="px-6 pb-4 h-[min(720px,65vh)] overflow-hidden">
+                                        <div className="px-6 pb-4 h-[min(720px,65vh)] min-h-[420px] overflow-hidden">
                                             <Tabs
                                                 className="h-full"
                                                 items={[
@@ -909,7 +967,7 @@ export default function TicketDetailPage() {
                                                             </span>
                                                         ),
                                                         children: (
-                                                            <div className="flex h-full min-h-0 flex-col gap-3">
+                                                            <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
                                                                 <div className="shrink-0">
                                                                     <div className="flex justify-between items-center mb-1">
                                                                         <span className="text-xs text-gray-500">Para:</span>
@@ -957,17 +1015,31 @@ export default function TicketDetailPage() {
                                                                 </div>
 
                                                                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                                                                    <Input.TextArea
-                                                                        value={replyText}
-                                                                        onChange={(e) => setReplyText(e.target.value)}
-                                                                        placeholder="Escribe tu respuesta al cliente..."
-                                                                        autoSize={false}
-                                                                        style={{
-                                                                            height: "clamp(150px, 40vh, 400px)",
-                                                                            minHeight: "150px",
-                                                                            resize: "vertical",
-                                                                        }}
-                                                                    />
+                                                                    <div className="relative">
+                                                                        <Input.TextArea
+                                                                            value={replyText}
+                                                                            onChange={(e) => setReplyText(e.target.value)}
+                                                                            placeholder="Escribe tu respuesta al cliente..."
+                                                                            autoSize={false}
+                                                                            spellCheck={true}
+                                                                            lang="es-CL"
+                                                                            className="ticket-resizable-textarea"
+                                                                            style={{
+                                                                                minHeight: "150px",
+                                                                                maxHeight: "420px",
+                                                                                resize: "vertical",
+                                                                                paddingBottom: "32px",
+                                                                            }}
+                                                                        />
+
+                                                                        <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-600 shadow-sm">
+                                                                            <ArrowsAltOutlined className="text-xm" />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="mt-1 text-[11px] text-gray-400">
+                                                                        Puedes arrastrar la esquina inferior derecha para ampliar o reducir el área de respuesta.
+                                                                    </div>
                                                                 </div>
 
                                                                 <div className="shrink-0 border-t border-gray-200 bg-gray-50 pt-3 flex items-center gap-2 flex-wrap">
@@ -1038,6 +1110,8 @@ export default function TicketDetailPage() {
                                                                         onChange={(e) => setInternalNoteText(e.target.value)}
                                                                         placeholder="Escribe una nota interna (no visible para el cliente)..."
                                                                         autoSize={false}
+                                                                        spellCheck={true}
+                                                                        lang="es-CL"
                                                                         style={{
                                                                             height: "clamp(150px, 40vh, 400px)",
                                                                             minHeight: "150px",

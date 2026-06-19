@@ -8,6 +8,43 @@ import {
 } from "../../lib/mantencionesRemotasApi";
 import Chart from "chart.js/auto";
 
+import { DatePicker } from "antd";
+import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
+import "dayjs/locale/es";
+
+dayjs.locale("es");
+
+const { RangePicker } = DatePicker;
+
+const DATE_RANGE_PRESETS: {
+    label: string;
+    value: [Dayjs, Dayjs];
+}[] = [
+        {
+            label: "Hoy",
+            value: [dayjs().startOf("day"), dayjs().endOf("day")],
+        },
+        {
+            label: "Últimos 7 días",
+            value: [
+                dayjs().subtract(6, "day").startOf("day"),
+                dayjs().endOf("day"),
+            ],
+        },
+        {
+            label: "Mes actual",
+            value: [dayjs().startOf("month"), dayjs().endOf("month")],
+        },
+        {
+            label: "Mes anterior",
+            value: [
+                dayjs().subtract(1, "month").startOf("month"),
+                dayjs().subtract(1, "month").endOf("month"),
+            ],
+        },
+    ];
+
 type LoadState = "idle" | "loading" | "error";
 
 function formatMinutesToHours(minutes: number) {
@@ -42,8 +79,7 @@ export default function MantencionesDashboardTab({
         totalMinutos: 0,
         totalHoras: 0,
     });
-    const [fromDate, setFromDate] = useState("");
-    const [toDate, setToDate] = useState("");
+    const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
     const [selectedEmpresa, setSelectedEmpresa] = useState<string>("TODAS");
 
     const [expandedEmpresa, setExpandedEmpresa] = useState<string | null>(null);
@@ -51,17 +87,24 @@ export default function MantencionesDashboardTab({
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
-    async function load() {
+    async function load(rangeOverride?: [Dayjs | null, Dayjs | null] | null) {
         setState("loading");
         setErr(null);
 
         try {
-            const params = {
-                fromDate: fromDate || undefined,
-                toDate: toDate || undefined,
+            const currentRange =
+                rangeOverride !== undefined ? rangeOverride : dateRange;
 
-                // Si es cliente, enviamos su empresaId.
-                // Además el backend igual debería validar esto con el token.
+            const fromDate = currentRange?.[0] ?? null;
+            const toDate = currentRange?.[1] ?? null;
+
+            const params = {
+                fromDate: fromDate
+                    ? fromDate.startOf("day").toISOString()
+                    : undefined,
+                toDate: toDate
+                    ? toDate.endOf("day").toISOString()
+                    : undefined,
                 empresaId: isCliente && clienteEmpresaId ? clienteEmpresaId : undefined,
             };
 
@@ -264,32 +307,43 @@ export default function MantencionesDashboardTab({
 
             {/* ── Filtros ── */}
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs text-gray-500">Desde</label>
-                        <input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => setFromDate(e.target.value)}
-                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+                    <div className="flex flex-col gap-1 w-full sm:w-auto">
+                        <label className="text-xs text-gray-500">Rango de fechas</label>
+
+                        <RangePicker
+                            value={dateRange}
+                            onChange={(dates) => {
+                                setDateRange(dates as [Dayjs | null, Dayjs | null] | null);
+                            }}
+                            presets={DATE_RANGE_PRESETS}
+                            format="DD-MM-YYYY"
+                            placeholder={["Desde", "Hasta"]}
+                            allowClear
+                            className="w-full sm:w-[320px]"
                         />
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs text-gray-500">Hasta</label>
-                        <input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => setToDate(e.target.value)}
-                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
+
                     <button
                         onClick={() => void load()}
                         disabled={state === "loading"}
-                        className="rounded-lg border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                         {state === "loading" ? "Cargando..." : "Aplicar"}
                     </button>
+
+                    {dateRange && (
+                        <button
+                            onClick={() => {
+                                setDateRange(null);
+                                void load(null);
+                            }}
+                            className="w-full sm:w-auto text-xs text-gray-400 hover:text-gray-700 underline"
+                            type="button"
+                        >
+                            Limpiar
+                        </button>
+                    )}
                 </div>
             </div>
 

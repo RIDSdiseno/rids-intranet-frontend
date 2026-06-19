@@ -2,6 +2,8 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Header from "./components/Header";
+import AccessibilityPanel from "./components/modals-accesibilidad/AccessibilityPanel";
+import { canViewMapaTecnicos } from "./utils/canViewMapaTecnicos";
 
 /* =========================
    Lazy Pages (HOST)
@@ -46,6 +48,9 @@ const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 
+const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
+const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
+
 /* =========================
    Auth helpers
 ========================= */
@@ -67,14 +72,10 @@ function getUserRol(): string | null {
   }
 }
 
-function getUserEmail(): string | null {
+function getUser(): Record<string, unknown> | null {
   try {
     const raw = localStorage.getItem("user");
-    if (!raw) return null;
-
-    const email = JSON.parse(raw)?.email;
-
-    return email ? String(email).toLowerCase().trim() : null;
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
@@ -94,7 +95,17 @@ function RoleRoute({ allowedRoles }: { allowedRoles: string[] }) {
   const rolNormalizado = String(rol ?? "").toUpperCase().trim();
 
   if (!rolNormalizado || !allowedRoles.includes(rolNormalizado)) {
-    const fallback = rolNormalizado === "CLIENTE" ? "/helpdesk" : "/home";
+    const fallback = rolNormalizado === "CLIENTE" ? "/empresas" : "/home";
+    return <Navigate to={fallback} replace />;
+  }
+
+  return <Outlet />;
+}
+
+function MapaTecnicosRoute() {
+  if (!canViewMapaTecnicos(getUser())) {
+    const rol = String(getUserRol() ?? "").toUpperCase().trim();
+    const fallback = rol === "CLIENTE" ? "/empresas" : "/home";
     return <Navigate to={fallback} replace />;
   }
 
@@ -130,9 +141,7 @@ function GestionTecnicosClientesRoute() {
 function getRootRedirect(): string {
   const rol = String(getUserRol() ?? "").toUpperCase().trim();
 
-  if (rol === "CLIENTE") return "/facturas-baseapi";
-  if (rol === "ADMINISTRACION") return "/facturas-baseapi";
-  if (rol === "VENTAS") return "/facturas-baseapi";
+  if (rol === "CLIENTE") return "/empresas";
 
   return "/home";
 }
@@ -145,11 +154,15 @@ function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Header />
-      <main className="flex-1 min-w-0 bg-white overflow-y-auto">
-        <Suspense fallback={<div className="p-6">Cargando...</div>}>
-          <Outlet />
-        </Suspense>
-      </main>
+      {/* El scroll va en el wrapper externo, NO en el elemento con zoom */}
+      <div className="flex-1 min-w-0 overflow-y-auto bg-white">
+        <main className="app-content-zoom">
+          <Suspense fallback={<div className="p-6">Cargando...</div>}>
+            <Outlet />
+          </Suspense>
+        </main>
+      </div>
+      <AccessibilityPanel />
     </div>
   );
 }
@@ -182,11 +195,17 @@ export default function App() {
               <Route path="/tickets" element={<TicketsPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/productos" element={<ProductosPage />} />
+              <Route path="/bitacora-tecnico" element={<BitacoraTecnicoPage />} />
             </Route>
 
             {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
-              <Route path="/clientes-ext" element={<ClientesExtPage />} />
+              <Route path="/clientes-externos" element={<ClientesExtPage />} />
+            </Route>
+
+            {/* ── Supervisión Mapa Técnicos ────────────────────────────── */}
+            <Route element={<MapaTecnicosRoute />}>
+              <Route path="/mapa-tecnicos" element={<MapaTecnicosPage />} />
             </Route>
 
             {/* ── Internos + CLIENTE (backend filtra por empresa) ─────── */}
@@ -197,7 +216,7 @@ export default function App() {
               <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/visitas" element={<VisitasPage />} />
               <Route path="/reportes" element={<ReportesPage />} />
-              <Route path="/OrdenesTaller" element={<OrdenesTallerPage />} />
+              <Route path="/ordenes-taller" element={<OrdenesTallerPage />} />
               <Route path="/Cotizaciones" element={<CotizacionesPage />} />
               <Route path="/rids/mailer" element={<MailerPage />} />
               <Route path="/Cotizaciones/enviadas" element={<CotizacionesEnviadasPage />} />
@@ -224,7 +243,8 @@ export default function App() {
 
             {/* ── Facturas ─────────────────────────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
-              <Route path="/facturas-baseapi" element={<FacturasBaseapiPage />} />
+              <Route path="/facturas" element={<FacturasBaseapiPage />} />
+              <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
             </Route>
 
             {/* ── Cobranza (acceso restringido) ───────────────────────────── */}

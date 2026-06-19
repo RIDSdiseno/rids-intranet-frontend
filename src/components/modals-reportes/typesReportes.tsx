@@ -1,4 +1,4 @@
-// types/reportes.types.ts
+// src/components/modals-reportes/typesReportes.tsx
 
 export interface ExportStatus {
   exporting: boolean;
@@ -12,15 +12,48 @@ export interface Empresa {
 }
 
 export interface EquipoRow {
-  id_equipo: number;
+  id_equipo?: number;
+  codigo?: number | string | null;
+
+  usuario?: string | null;
+  correo?: string | null;
+  estadoEquipo?: string | null;
+
   serial?: string | null;
   marca?: string | null;
   modelo?: string | null;
+
+  cpu?: string | null;
   procesador?: string | null;
+
   ram?: string | null;
   disco?: string | null;
+
+  sistemaOperativo?: string | null;
+
   propiedad?: string | null;
   idSolicitante?: number | null;
+
+  estado?: string | null;
+
+  solicitante?: {
+    nombre?: string | null;
+    email?: string | null;
+  } | string | null;
+
+  detalle?: {
+    so?: string | null;
+  } | null;
+}
+
+export interface InventarioReporte {
+  total?: number;
+  porMarca?: Array<{
+    marca: string;
+    cantidad: number;
+  }>;
+  detalle?: EquipoRow[];
+  equipos?: EquipoRow[];
 }
 
 export interface VisitaRow {
@@ -157,6 +190,17 @@ export interface ReporteGeneralData {
   teamViewerMonthlyAverages?: TeamViewerMonthlyAverageRow[];
   teamViewerMonthlyBreakdown?: TeamViewerMonthlyBreakdownRow[];
   teamViewerMonthlySummary?: TeamViewerMonthlySummary | null;
+  inventario?: InventarioReporte | null;
+  licencias?: {
+    total?: number;
+    totalUsuariosConLicencia?: number;
+    porTipo?: Array<{
+      skuId?: string | null;
+      skuPartNumber?: string | null;
+      displayName?: string | null;
+      cantidad?: number | string | null;
+    }>;
+  };
 }
 
 export interface SolicitanteRow {

@@ -1,3 +1,4 @@
+// src/components/modals-solicitantes/SolicitantesDashboardTab.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 import { api } from "../../api/api";

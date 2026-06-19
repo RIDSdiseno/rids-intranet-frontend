@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/CrearTicket.tsx
 import { useRef } from "react";
 import { Drawer, Button, Input, Select, Row, Col, Tag } from "antd";
 import { PaperClipOutlined } from "@ant-design/icons";
@@ -9,8 +10,8 @@ interface SolicitanteOption { value: number; label: string; email?: string | nul
 interface Tecnico {
     id_tecnico: number;
     nombre: string;
-    cargo?: string;      // 🆕
-    email?: string;      // 🆕
+    cargo?: string;
+    email?: string;
 }
 
 interface TicketForm {
@@ -142,7 +143,7 @@ export function CrearTicketDrawer({
                     />
                     <div className="mt-3">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Correo manual
+                            Correo manual (Solo si no se selecciona un contacto, o es un contacto externo)
                         </label>
                         <Input
                             placeholder="correo@cliente.com"
@@ -163,6 +164,8 @@ export function CrearTicketDrawer({
                     <Input
                         placeholder="Breve descripción del problema"
                         size="large"
+                        spellCheck={true}
+                        lang="es-CL"
                         value={form.subject}
                         onChange={(e) => onFormChange({ ...form, subject: e.target.value })}
                     />
@@ -207,6 +210,8 @@ export function CrearTicketDrawer({
                     <Input.TextArea
                         rows={6}
                         placeholder="Describe el problema en detalle..."
+                        spellCheck={true}
+                        lang="es-CL"
                         value={form.message}
                         onChange={(e) => onFormChange({ ...form, message: e.target.value })}
                         className="resize-none"

@@ -18,6 +18,10 @@ import {
     ReloadOutlined,
     EditOutlined,
     StopOutlined,
+    UserOutlined,
+    TeamOutlined,
+    SafetyCertificateOutlined,
+    BankOutlined,
 } from "@ant-design/icons";
 import axios from "axios";
 import { api } from "../api/api";
@@ -55,13 +59,29 @@ type ClienteFormValues = {
 };
 
 function getErrorMessage(error: unknown) {
+    console.error("❌ Error capturado en ClientesExt:", error);
+
     if (axios.isAxiosError(error)) {
-        return (
+        const status = error.response?.status;
+
+        const backendMessage =
             error.response?.data?.error ||
             error.response?.data?.message ||
-            error.message ||
-            "Error inesperado"
-        );
+            error.response?.data?.details;
+
+        if (backendMessage) return backendMessage;
+
+        if (status === 400) return "Solicitud inválida";
+        if (status === 401) return "No tienes sesión activa";
+        if (status === 403) return "No tienes permisos para realizar esta acción";
+        if (status === 404) return "Registro no encontrado";
+        if (status === 409) return "Conflicto con los datos enviados";
+
+        return error.message || "Error inesperado";
+    }
+
+    if (error instanceof Error) {
+        return error.message;
     }
 
     return "Error inesperado";
@@ -77,12 +97,34 @@ const Clientes: React.FC = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState<ClienteRow | null>(null);
 
+    const [disableModalOpen, setDisableModalOpen] = useState(false);
+    const [clienteToDisable, setClienteToDisable] = useState<ClienteRow | null>(null);
+    const [disabling, setDisabling] = useState(false);
+
     const [form] = Form.useForm<ClienteFormValues>();
 
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
     });
+
+    const totalClientes = clientes.length;
+
+    const clientesActivos = useMemo(() => {
+        return clientes.filter((c) => c.status).length;
+    }, [clientes]);
+
+    const totalEmpresasVinculadas = useMemo(() => {
+        const ids = new Set<number>();
+
+        clientes.forEach((cliente) => {
+            if (cliente.empresaId) {
+                ids.add(cliente.empresaId);
+            }
+        });
+
+        return ids.size;
+    }, [clientes]);
 
     const filteredClientes = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -211,26 +253,34 @@ const Clientes: React.FC = () => {
         }
     };
 
-    const handleDisable = async (row: ClienteRow) => {
-        Modal.confirm({
-            title: "Desactivar cliente",
-            content: `¿Seguro que deseas desactivar a ${row.nombre}?`,
-            okText: "Desactivar",
-            cancelText: "Cancelar",
-            okButtonProps: {
-                danger: true,
-            },
-            async onOk() {
-                try {
-                    await api.delete(`/clientes-ext/${row.id_tecnico}`);
+    const handleDisable = (row: ClienteRow) => {
 
-                    message.success("Cliente desactivado correctamente");
-                    fetchClientes();
-                } catch (error) {
-                    message.error(getErrorMessage(error));
-                }
-            },
-        });
+        setClienteToDisable(row);
+        setDisableModalOpen(true);
+    };
+
+    const confirmDisableCliente = async () => {
+        if (!clienteToDisable) return;
+
+        try {
+            setDisabling(true);
+
+            const { data } = await api.delete(
+                `/clientes-ext/${clienteToDisable.id_tecnico}`
+            );
+
+            message.success(data?.message || "Cliente desactivado correctamente");
+
+            setDisableModalOpen(false);
+            setClienteToDisable(null);
+
+            await fetchClientes();
+        } catch (error) {
+            console.error("❌ Error al desactivar cliente:", error);
+            message.error(getErrorMessage(error));
+        } finally {
+            setDisabling(false);
+        }
     };
 
     const columns: ColumnsType<ClienteRow> = [
@@ -295,49 +345,131 @@ const Clientes: React.FC = () => {
         },
     ];
 
-    return (
-        <div className="p-4 md:p-6">
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
-                    <p className="text-sm text-slate-500">
-                        Usuarios cliente con acceso limitado al portal.
-                    </p>
+    const HeaderClientesExternos = (
+        <section className="mb-6 overflow-hidden rounded-[28px] border border-cyan-200 bg-white/90 shadow-sm">
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-50 via-white to-sky-50" />
+
+                <div className="relative px-6 py-5">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                                    Clientes externos
+                                </span>
+
+                                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                    Portal cliente
+                                </span>
+                            </div>
+
+                            <h1 className="text-2xl font-black tracking-tight text-slate-950">
+                                Clientes externos
+                            </h1>
+
+                            <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                                Gestión de accesos externos asociados a empresas clientes de la intranet.
+                            </p>
+                        </div>
+
+                        <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:min-w-[360px]">
+                                <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 shadow-sm">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-700">
+                                        <UserOutlined />
+                                        Total
+                                    </div>
+                                    <div className="mt-1 text-sm font-black text-slate-950">
+                                        {totalClientes}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 shadow-sm">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-700">
+                                        <SafetyCertificateOutlined />
+                                        Activos
+                                    </div>
+                                    <div className="mt-1 text-sm font-black text-slate-950">
+                                        {clientesActivos}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 shadow-sm">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-700">
+                                        <BankOutlined />
+                                        Empresas
+                                    </div>
+                                    <div className="mt-1 text-sm font-black text-slate-950">
+                                        {totalEmpresasVinculadas}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <Button
+                                    icon={<ReloadOutlined />}
+                                    onClick={fetchClientes}
+                                    loading={loading}
+                                    className="h-11 rounded-2xl border-cyan-200"
+                                />
+
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={openCreate}
+                                    className="h-11 rounded-2xl bg-cyan-600 px-5 font-semibold"
+                                >
+                                    Nuevo cliente
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <Space>
-                    <Button icon={<ReloadOutlined />} onClick={fetchClientes}>
-                        Refrescar
-                    </Button>
+                <div className="relative border-t border-cyan-100 bg-white/80 px-6 py-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <h2 className="text-xs text-slate-500">
+                            Busca, crea, edita o desactiva accesos externos.
+                        </h2>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
 
-                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                        Nuevo cliente
-                    </Button>
-                </Space>
+    return (
+        <div className="p-4 md:p-6">
+            {HeaderClientesExternos}
+
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <Input.Search
+                        allowClear
+                        placeholder="Buscar por nombre, email o empresa"
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPagination((prev) => ({
+                                ...prev,
+                                current: 1,
+                            }));
+                        }}
+                        className="w-full md:max-w-[420px]"
+                    />
+
+                    <div className="text-xs text-slate-500">
+                        {filteredClientes.length} cliente(s) encontrados
+                    </div>
+                </div>
             </div>
 
-            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <Input.Search
-                    allowClear
-                    placeholder="Buscar por nombre, email o empresa"
-                    value={search}
-                    onChange={(e) => {
-                        setSearch(e.target.value);
-                        setPagination((prev) => ({
-                            ...prev,
-                            current: 1,
-                        }));
-                    }}
-                    style={{ maxWidth: 420 }}
-                />
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                 <Table
                     rowKey="id_tecnico"
                     columns={columns}
                     dataSource={filteredClientes}
                     loading={loading}
+                    scroll={{ x: 900 }}
                     pagination={{
                         current: pagination.current,
                         pageSize: pagination.pageSize,
@@ -465,6 +597,32 @@ const Clientes: React.FC = () => {
                         </Form.Item>
                     )}
                 </Form>
+            </Modal>
+            <Modal
+                title="Desactivar cliente"
+                open={disableModalOpen}
+                onCancel={() => {
+                    if (disabling) return;
+                    setDisableModalOpen(false);
+                    setClienteToDisable(null);
+                }}
+                onOk={confirmDisableCliente}
+                okText="Desactivar"
+                cancelText="Cancelar"
+                confirmLoading={disabling}
+                okButtonProps={{
+                    danger: true,
+                }}
+                destroyOnHidden
+            >
+                <p>
+                    ¿Seguro que deseas desactivar a{" "}
+                    <strong>{clienteToDisable?.nombre}</strong>?
+                </p>
+
+                <p className="text-sm text-slate-500">
+                    El cliente no podrá seguir accediendo al portal mientras esté inactivo.
+                </p>
             </Modal>
         </div>
     );

@@ -1,4 +1,4 @@
-// components/reportes/PdfModal.tsx
+// src/components/modals-reportes/PdfModal.tsx
 import React, { useRef } from "react";
 import {
     CloseOutlined,
