@@ -1,3 +1,4 @@
+// src/components/modals/facturasBaseapi/RcvConcilacionTable.tsx
 import React from "react";
 import {
     CheckCircleOutlined,

@@ -161,12 +161,86 @@ export function getAnioPcOrigenLabel(value?: string | null) {
 
 export function actorName(actor: ActorLite | null | undefined) {
     if (!actor) return "Sistema";
-    if (typeof actor === "string") return actor;
-    return actor.nombre ?? "Sistema";
+
+    if (typeof actor === "string") {
+        return actor.trim() || "Sistema";
+    }
+
+    return actor.nombre?.trim() || actor.email?.trim() || "Sistema";
 }
 
 export function getChanges(h: EquipoHistorialItem) {
     return h.changes ?? h.diff ?? null;
+}
+
+export function getAgentEventMetadata(metadata: unknown) {
+    if (!metadata) {
+        return {};
+    }
+
+    if (typeof metadata === "string") {
+        try {
+            const parsed = JSON.parse(metadata);
+
+            if (
+                parsed &&
+                typeof parsed === "object" &&
+                !Array.isArray(parsed)
+            ) {
+                return parsed as {
+                    source?: string | null;
+                    ejecutadoPor?: string | null;
+
+                    tecnicoInstaladorId?: number | null;
+                    tecnicoInstaladorNombre?: string | null;
+                    tecnicoInstaladorEmail?: string | null;
+
+                    usuarioWindowsEjecutor?: string | null;
+                    taskUserConfigurado?: string | null;
+
+                    agenteVersion?: string | null;
+                    lastBootAt?: string | null;
+                    uptimeText?: string | null;
+                    uptimeSeconds?: number | string | null;
+                };
+            }
+
+            return {};
+        } catch {
+            return {};
+        }
+    }
+
+    if (typeof metadata !== "object" || Array.isArray(metadata)) {
+        return {};
+    }
+
+    return metadata as {
+        source?: string | null;
+        ejecutadoPor?: string | null;
+
+        tecnicoInstaladorId?: number | null;
+        tecnicoInstaladorNombre?: string | null;
+        tecnicoInstaladorEmail?: string | null;
+
+        usuarioWindowsEjecutor?: string | null;
+        taskUserConfigurado?: string | null;
+
+        agenteVersion?: string | null;
+        lastBootAt?: string | null;
+        uptimeText?: string | null;
+        uptimeSeconds?: number | string | null;
+    };
+}
+
+export function getTecnicoInstaladorLabel(metadata: unknown) {
+    const meta = getAgentEventMetadata(metadata);
+
+    return (
+        meta.tecnicoInstaladorNombre?.trim() ||
+        meta.tecnicoInstaladorEmail?.trim() ||
+        null
+    );
 }
 
 export function agenteEstadoClasses(estado?: string | null) {

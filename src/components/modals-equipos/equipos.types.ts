@@ -83,9 +83,12 @@ export type HistChange = {
   after: unknown;
 };
 
-export type ActorLite = {
-  nombre: string;
-} | string;
+export type ActorLite =
+  | {
+      nombre?: string | null;
+      email?: string | null;
+    }
+  | string;
 
 export type EquipoHistorialItem = {
   id?: string | number;

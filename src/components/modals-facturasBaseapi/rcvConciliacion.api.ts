@@ -1,7 +1,28 @@
-import { api } from "./api";
+// src/api/rcvConciliacion.ts
+import { api } from "../../api/api";
 
 export type EmpresaKey = "econnet" | "rids";
 export type TipoRcv = "ventas" | "compras";
+
+export type ConciliarRcvPayload = {
+    empresa: EmpresaKey;
+    tipoRcv: TipoRcv;
+    tipoDoc: string;
+    folio: string;
+    rutContraparte: string;
+    razonSocial?: string | null;
+    fechaDocto?: string | null;
+    montoNeto?: number;
+    montoIva?: number;
+    montoTotal?: number;
+    estadoRcv?: string | null;
+    origenRcv?: string | null;
+    formaPago?: string | null;
+    observacion?: string | null;
+    conciliadoAt?: string | null;
+    enviarCorreo?: boolean;
+    correoDestino?: string[] | null;
+};
 
 export async function fetchConciliacionRcv(params: {
     empresa: EmpresaKey;
@@ -23,22 +44,7 @@ export async function fetchConciliacionRcv(params: {
     return res.data;
 }
 
-export async function conciliarRcv(payload: {
-    empresa: EmpresaKey;
-    tipoRcv: TipoRcv;
-    tipoDoc: string;
-    folio: string;
-    rutContraparte: string;
-    razonSocial?: string | null;
-    fechaDocto?: string | null;
-    montoNeto?: number;
-    montoIva?: number;
-    montoTotal?: number;
-    estadoRcv?: string | null;
-    origenRcv?: string | null;
-    formaPago?: string | null;
-    observacion?: string | null;
-}) {
+export async function conciliarRcv(payload: ConciliarRcvPayload) {
     const res = await api.post("/baseapi/rcv/conciliacion/conciliar", payload);
     return res.data;
 }
