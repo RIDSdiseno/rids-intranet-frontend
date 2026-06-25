@@ -2322,6 +2322,7 @@ const Cotizaciones: React.FC = () => {
                         </div>
 
                         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+                            {activeTab === 'list' && (
                             <button
                                 type="button"
                                 onClick={() => fetchCotizaciones(page)}
@@ -2330,6 +2331,7 @@ const Cotizaciones: React.FC = () => {
                                 <ReloadOutlined className="text-xs" />
                                 <span>Recargar</span>
                             </button>
+                            )}
                             {!isCliente && (
                                 <button
                                     type="button"
@@ -2346,7 +2348,8 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Buscador */}
+                    {/* Buscador — solo visible en tab de cotizaciones */}
+                    {activeTab === 'list' && (
                     <div className="mt-2">
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -2361,6 +2364,7 @@ const Cotizaciones: React.FC = () => {
                             />
                         </div>
                     </div>
+                    )}
 
                     {/* Filtros */}
                     <div className="mt-5">

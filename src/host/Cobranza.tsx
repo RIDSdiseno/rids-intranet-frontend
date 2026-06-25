@@ -16,6 +16,13 @@ import {
 } from "../components/modals-facturasBaseapi/utils";
 import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
 import { Pagination } from "antd";
+import {
+    FileTextOutlined,
+    ClockCircleOutlined,
+    ExclamationCircleOutlined,
+    CheckCircleOutlined,
+    DollarOutlined,
+} from "@ant-design/icons";
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000/api";
 
@@ -707,36 +714,60 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
                     </div>
                 </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-4">
-                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
-                    <div className="text-xs uppercase text-cyan-800 tracking-wide">DOCUMENTOS</div>
-                    <div className="mt-1 text-3xl md:text-4xl font-semibold">{documentosFiltrados.length}</div>
-                    <div className="text-xs text-slate-500 mt-1">Registros encontrados</div>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 text-sm">
+                            <FileTextOutlined />
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Documentos</span>
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900">{documentosFiltrados.length}</div>
+                    <div className="text-xs text-slate-400 mt-1">Registros encontrados</div>
                 </div>
 
-                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
-                    <div className="text-xs uppercase text-amber-600 tracking-wide">PENDIENTES</div>
-                    <div className="mt-1 text-3xl md:text-4xl font-semibold">{pendienteCount}</div>
-                    <div className="text-xs text-slate-500 mt-1">Documentos pendientes</div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600 text-sm">
+                            <ClockCircleOutlined />
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-amber-600">Pendientes</span>
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900">{pendienteCount}</div>
+                    <div className="text-xs text-slate-400 mt-1">Documentos pendientes</div>
                 </div>
 
-                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
-                    <div className="text-xs uppercase text-rose-500 tracking-wide">VENCIDAS</div>
-                    <div className="mt-1 text-3xl md:text-4xl font-semibold">{vencidaCount}</div>
-                    <div className="text-xs text-slate-500 mt-1">Documentos vencidos</div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-red-50 text-red-600 text-sm">
+                            <ExclamationCircleOutlined />
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-red-500">Vencidas</span>
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900">{vencidaCount}</div>
+                    <div className="text-xs text-slate-400 mt-1">Documentos vencidos</div>
                 </div>
 
-                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 flex flex-col justify-center shadow-sm">
-                    <div className="text-xs uppercase text-emerald-600 tracking-wide">CONFIRMADOS</div>
-                    <div className="mt-1 text-3xl md:text-4xl font-semibold">{pagadaCount}</div>
-                    <div className="text-xs text-slate-500 mt-1">Documentos confirmados/ pagados</div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 text-sm">
+                            <CheckCircleOutlined />
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Confirmados</span>
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900">{pagadaCount}</div>
+                    <div className="text-xs text-slate-400 mt-1">Confirmados / pagados</div>
                 </div>
 
-                <div className="rounded-2xl border border-cyan-200 p-5 md:p-6 bg-white min-h-24 relative flex flex-col justify-center shadow-sm">
-                    <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-cyan-900 flex items-center justify-center text-white text-sm">⋯</div>
-                    <div className="text-xs uppercase text-slate-500 tracking-wide">TOTAL</div>
-                    <div className="mt-1 text-3xl md:text-4xl font-semibold">{formatCLP(totalImporte)}</div>
-                    <div className="text-xs text-slate-500 mt-1">Suma bruta del periodo</div>
+                <div className="rounded-3xl border border-slate-200 bg-slate-900 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white text-sm">
+                            <DollarOutlined />
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-300">Total</span>
+                    </div>
+                    <div className="text-3xl font-bold text-white">{formatCLP(totalImporte)}</div>
+                    <div className="text-xs text-slate-400 mt-1">Suma bruta del periodo</div>
                 </div>
             </div>
 
@@ -993,166 +1024,19 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
 
 // Componente interno para el contenido del modal, separado para mantener Cobranza claro
 function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empresa, mes, ano }: { reminderDoc: any; onClose: () => void; fetchDetalleDte: (doc:any, force?:boolean)=>Promise<any>; activeTab: any; empresa: any; mes:string; ano:string }) {
-    const [canal, setCanal] = React.useState<string>("");
+    const [canal, setCanal] = React.useState<string>("email");
     const [tipo, setTipo] = React.useState<string>("");
-    const [contactos, setContactos] = React.useState<any[]>([]);
-    const [selectedContacto, setSelectedContacto] = React.useState<any | null>(null);
+    const [manualEmail, setManualEmail] = React.useState<string>("");
+    const [manualNombre, setManualNombre] = React.useState<string>("");
     const [observacion, setObservacion] = React.useState<string>("");
     const [generando, setGenerando] = React.useState(false);
     const [showPreviewHtml, setShowPreviewHtml] = React.useState(false);
     const [previewHtml, setPreviewHtml] = React.useState<string>("");
 
-    React.useEffect(() => {
-        let mounted = true;
-        (async () => {
-            try {
-                // Helper para normalizar contactos y extraer emails/teléfonos
-                const normalizeContact = (c: any) => {
-                    const nombre = c?.nombre || c?.name || c?.nombreContacto || c?.fullName || c?.contacto || c?.razonSocial || c?.razon || "Contacto";
-                    const email = c?.email || c?.correo || c?.mail || c?.eMail || c?.contactoEmail || null;
-                    const cargo = c?.cargo || c?.position || c?.puesto || c?.role || null;
-                    const phones: string[] = [];
-                    const phoneCandidates = [
-                        'telefono', 'telefonoFijo', 'telefono1', 'telefono_celular', 'celular', 'movil', 'fono', 'phone', 'tel', 'telefono2', 'telefono_movil'
-                    ];
-                    for (const k of phoneCandidates) {
-                        const v = c?.[k];
-                        if (v && String(v).trim()) phones.push(String(v).trim());
-                    }
-                    // también buscar en keys dinámicas
-                    for (const k of Object.keys(c || {})) {
-                        if (/tel|fono|movil|cel|phone/i.test(k) && !phoneCandidates.includes(k)) {
-                            const v = c?.[k];
-                            if (v && String(v).trim()) phones.push(String(v).trim());
-                        }
-                    }
-
-                    return { raw: c, nombre, email, cargo, telefonos: Array.from(new Set(phones)) };
-                };
-
-                // Intentar extraer contactos desde el documento abierto (heurística)
-                const maybe = reminderDoc?.contactos ?? reminderDoc?.empresa?.contactos ?? reminderDoc?.contactosEmpresa ?? reminderDoc?.data?.contactos ?? [];
-                if (Array.isArray(maybe) && maybe.length > 0) {
-                    const norm = maybe.map(normalizeContact);
-                    if (!mounted) return;
-                    setContactos(norm);
-                    setSelectedContacto(norm[0]);
-                    return;
-                }
-
-                // Si no hay contactos en el payload, intentar buscar un email simple en campos comunes
-                const possibleEmail = reminderDoc ? (
-                    reminderDoc?.email || reminderDoc?.correo || reminderDoc?.contacto?.email || reminderDoc?.raw?.correo || reminderDoc?.raw?.email
-                ) : null;
-                // También intentar extraer posibles teléfonos en campos comunes
-                const possiblePhone = reminderDoc ? (
-                    reminderDoc?.telefono || reminderDoc?.fono || reminderDoc?.phone || reminderDoc?.celular || reminderDoc?.movil || reminderDoc?.raw?.telefono
-                ) : null;
-                if (possibleEmail || possiblePhone) {
-                    if (!mounted) return;
-                    const cObj: any = { nombre: reminderDoc?.razonSocial || "Contacto", email: possibleEmail };
-                    if (possiblePhone) cObj.telefono = possiblePhone;
-                    const norm = [normalizeContact(cObj)];
-                    setContactos(norm);
-                    setSelectedContacto(norm[0]);
-                    return;
-                }
-
-                // Intentar obtener contactos desde backend usando id de empresa o claves varias
-                const empresaObj = reminderDoc?.empresa ?? reminderDoc?.empresaData ?? reminderDoc?.empresaInfo ?? reminderDoc?.empresa_origen ?? null;
-                let empresaId: number | null = null;
-                if (empresaObj && typeof empresaObj === 'object') {
-                    empresaId = Number(empresaObj?.id_empresa ?? empresaObj?.empresaId ?? empresaObj?.empresa_id ?? empresaObj?.id ?? null) || null;
-                }
-                if (!empresaId) {
-                    empresaId = Number(reminderDoc?.empresaId || reminderDoc?.id_empresa || reminderDoc?.empresa_id || reminderDoc?.empresa || null) || null;
-                }
-
-                const tryFetchFicha = async (keyOrId: string | number) => {
-                    try {
-                        const token = localStorage.getItem('accessToken') ?? '';
-                        const headers: any = { 'Content-Type': 'application/json' };
-                        if (token) headers.Authorization = `Bearer ${token}`;
-
-                        console.debug('ReminderBody: intentando fetch ficha-empresa por', keyOrId);
-                        const resp = await fetch(`${BASE_URL}/ficha-empresa/${keyOrId}/completa`, { headers });
-                        if (resp.ok) {
-                            const json = await resp.json();
-                            console.debug('ReminderBody: respuesta ficha-empresa:', json);
-                            const remoteContacts = Array.isArray(json?.contactos) ? json.contactos : Array.isArray(json?.data?.contactos) ? json.data.contactos : Array.isArray(json?.empresa?.contactos) ? json.empresa.contactos : [];
-                            if (remoteContacts.length > 0) {
-                                if (!mounted) return true;
-                                const norm = remoteContacts.map(normalizeContact);
-                                setContactos(norm);
-                                setSelectedContacto(norm[0]);
-                                return true;
-                            }
-                        }
-                    } catch (e) { /* ignore */ }
-                    return false;
-                };
-
-                if (empresaId) {
-                    const ok = await tryFetchFicha(empresaId);
-                    if (ok) return;
-                }
-
-                // Si no hay empresaId, intentar por clave/slug/empresaKey u otros campos
-                const empresaKey = reminderDoc?.empresa?.empresaKey || reminderDoc?.empresaKey || reminderDoc?.empresa_slug || reminderDoc?.empresa || reminderDoc?.empresa_data || null;
-                if (empresaKey) {
-                    const ok2 = await tryFetchFicha(empresaKey);
-                    if (ok2) return;
-                }
-
-                // Si aún no hay coincidencias, intentar buscar en /empresas por RUT o razón social
-                try {
-                    const token = localStorage.getItem('accessToken') ?? '';
-                    const headers: any = { 'Content-Type': 'application/json' };
-                    if (token) headers.Authorization = `Bearer ${token}`;
-
-                    const possibleRut = String(getValue(reminderDoc, ['Rut cliente', 'RUT Cliente', 'rutCliente', 'rutReceptor', 'RUT Proveedor', 'Rut Proveedor', 'rutProveedor'], '')).replace(/\s+/g, '');
-                    const possibleName = String(getValue(reminderDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).trim();
-
-                    if (possibleRut || possibleName) {
-                        console.debug('ReminderBody: buscando empresa por rut/nombre', possibleRut, possibleName);
-                        // obtener lista de empresas (cached)
-                        const resp = await fetch(`${BASE_URL}/empresas`, { headers });
-                        if (resp.ok) {
-                            const json = await resp.json();
-                            const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-                            let found: any = null;
-                            if (possibleRut) {
-                                found = list.find((e: any) => String(e.rut ?? '').replace(/\s+/g, '') === possibleRut.replace(/\s+/g, ''));
-                            }
-                            if (!found && possibleName) {
-                                const lower = possibleName.toLowerCase();
-                                found = list.find((e: any) => String(e.nombre ?? '').toLowerCase().includes(lower));
-                            }
-
-                            if (found && found.id_empresa) {
-                                const ok3 = await tryFetchFicha(found.id_empresa);
-                                if (ok3) return;
-                            }
-                        }
-                    }
-                } catch (e) { /* ignore */ }
-            } catch (e) { /* ignore */ }
-        })();
-
-        return () => { mounted = false; };
-    }, [reminderDoc]);
-
-    const hasContacts = contactos && contactos.length > 0;
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualEmail.trim());
 
     return (
         <div className="mt-4">
-            {!hasContacts && (
-                <div className="rounded border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 mb-4 flex items-center justify-between">
-                    <div>⚠️ Cliente sin contactos. Crea al menos uno para continuar</div>
-                    <a href="/empresas" className="text-sm font-semibold text-cyan-700">Ir a contactos</a>
-                </div>
-            )}
-
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <div>
                     <div className="mb-3 flex items-center gap-3">
@@ -1162,7 +1046,6 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
 
                     <label className="block text-xs font-medium text-slate-600 mb-2">Canal</label>
                     <select value={canal} onChange={(e) => setCanal(e.target.value)} className="mb-3 h-10 w-full rounded border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100">
-                        <option value="">Seleccionar canal</option>
                         <option value="email">Correo electrónico</option>
                         <option value="sms">Mensaje SMS</option>
                         <option value="whatsapp">Mensaje WhatsApp</option>
@@ -1177,44 +1060,33 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                         <option value="pago_recibido">Pago Recibido</option>
                         <option value="nuevo_doc_nc">Nuevo Documento Nota Crédito/Débito</option>
                     </select>
-
-                    <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        <div className="flex items-start gap-2">
-                            <div className="text-cyan-700 font-semibold">Tipos de recordatorios disponibles</div>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-500">Solo se muestran los recordatorios ya configurados. Si no encuentras el que necesitas, puedes crear uno nuevo en la sección Recordatorios. <a href="/recordatorios" className="font-semibold text-cyan-700">Ir a recordatorios</a></div>
-                    </div>
                 </div>
 
                 <div>
                     <div className="mb-3 flex items-center gap-3">
                         <div className="rounded-full bg-slate-200 px-3 py-1 text-slate-700 font-bold">2</div>
-                        <h3 className="text-sm font-semibold">Contactos</h3>
+                        <h3 className="text-sm font-semibold">Destinatario</h3>
                     </div>
 
-                    {hasContacts ? (
-                        <div className="space-y-2">
-                            {contactos.map((c, idx) => (
-                                <label key={idx} className={`flex items-start gap-3 rounded border p-3 ${selectedContacto === c ? 'border-cyan-300 bg-cyan-50' : 'border-slate-100 bg-white'}`}>
-                                    <input className="mt-1" type="radio" name="contacto" checked={selectedContacto === c} onChange={() => setSelectedContacto(c)} />
-                                    <div className="flex-1">
-                                        <div className="flex items-center justify-between">
-                                            <div className="font-semibold text-sm">{c.nombre}</div>
-                                            {c.cargo && <div className="text-xs text-slate-500">{c.cargo}</div>}
-                                        </div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre (opcional)</label>
+                    <input
+                        type="text"
+                        value={manualNombre}
+                        onChange={(e) => setManualNombre(e.target.value)}
+                        placeholder="Ej: Juan Pérez"
+                        className="mb-3 h-10 w-full rounded border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100"
+                    />
 
-                                        <div className="mt-1 text-xs text-slate-500">
-                                            {c.email ? (<div><strong>Email:</strong> <span className="ml-1">{c.email}</span></div>) : null}
-                                            {c.telefonos && c.telefonos.length > 0 ? (
-                                                <div className="mt-1"><strong>Teléfono{c.telefonos.length>1? 's':''}:</strong> <span className="ml-1">{c.telefonos.join(' · ')}</span></div>
-                                            ) : null}
-                                        </div>
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-sm text-slate-500">No hay contactos disponibles para este cliente.</div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Correo de destino <span className="text-red-500">*</span></label>
+                    <input
+                        type="email"
+                        value={manualEmail}
+                        onChange={(e) => setManualEmail(e.target.value)}
+                        placeholder="correo@ejemplo.com"
+                        className={`h-10 w-full rounded border px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100 ${manualEmail && !emailValido ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}
+                    />
+                    {manualEmail && !emailValido && (
+                        <p className="mt-1 text-xs text-red-500">Ingresa un correo válido</p>
                     )}
                 </div>
             </div>
@@ -1227,7 +1099,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
             <div className="mt-6 flex items-center justify-end gap-3">
                 <button onClick={onClose} className="rounded border px-4 py-2 text-sm">Cerrar</button>
                 <button onClick={async ()=>{
-                    if (!hasContacts || !canal || !tipo || !selectedContacto) return;
+                    if (!emailValido || !canal || !tipo) return;
                     try {
                             setGenerando(true);
                             // obtener detalle DTE si es necesario
@@ -1243,7 +1115,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                             const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
                             const titulo = tipo === 'vencida' ? 'Factura Vencida' : tipo === 'por_vencer' ? 'Factura por vencer' : 'Recordatorio';
 
-                            const saludo = selectedContacto?.nombre ? `Estimado(a) ${selectedContacto.nombre}:` : 'Estimado(a):';
+                            const saludo = manualNombre.trim() ? `Estimado(a) ${manualNombre.trim()}:` : 'Estimado(a):';
 
                             const html = `
                             <div style="font-family: Arial, Helvetica, sans-serif; color:#111; padding:18px;">
@@ -1282,7 +1154,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                             console.error(e);
                             alert('Error generando previsualización');
                         } finally { setGenerando(false); }
-                }} disabled={!hasContacts || !canal || !tipo || !selectedContacto || generando} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!hasContacts || !canal || !tipo || !selectedContacto) ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                }} disabled={!emailValido || !canal || !tipo || generando} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!emailValido || !canal || !tipo) ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     {generando ? 'Generando...' : 'Previsualizar'}
                 </button>
             </div>
@@ -1310,18 +1182,15 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                                 }} className="rounded bg-cyan-600 px-4 py-2 text-sm text-white">Descargar en PDF</button>
                                 <button onClick={async ()=>{
                                     try {
-                                        // Enviar el recordatorio por el canal seleccionado usando el endpoint de envío masivo
-                                        if (!selectedContacto || !selectedContacto.email) { alert('Contacto sin email disponible'); return; }
+                                        if (!emailValido) { alert('Ingresa un correo válido'); return; }
                                         setGenerando(true);
 
                                         const token = localStorage.getItem('accessToken') ?? '';
                                         const headers: any = { 'Content-Type': 'application/json' };
                                         if (token) headers.Authorization = `Bearer ${token}`;
 
-                                        const targets = [{ email: selectedContacto.email, nombre: selectedContacto.nombre }];
+                                        const targets = [{ email: manualEmail.trim(), nombre: manualNombre.trim() || manualEmail.trim() }];
                                         const folio = String(getValue(reminderDoc, ["Folio","folio","Nro","numero"], "—"));
-                                        const fechaVenc_local = String(getValue(reminderDoc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], getValue(await fetchDetalleDte(reminderDoc, false), ["fechaVencimiento","FchVenc","vencimiento"], "—")));
-                                        const montoPagar_local = formatCLP(getMontoTotalDoc(reminderDoc));
                                         const subject = tipo === 'vencida' ? 'Factura Vencida' : tipo === 'por_vencer' ? 'Factura por vencer' : 'Recordatorio';
                                         const bodyHtml = previewHtml;
 
@@ -1335,14 +1204,14 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                                         // Registrar en audit logs que se envió un recordatorio
                                         try {
                                             const empresaId = Number(getValue(reminderDoc, ['empresaId','empresa_id','id_empresa'], '') ) || null;
-                                            const folio = String(getValue(reminderDoc, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'') || null;
+                                            const folioAudit = String(getValue(reminderDoc, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'') || null;
                                             const auditBody = {
-                                                entity: folio ? 'Documento' : 'Recordatorio',
-                                                entityId: folio || null,
+                                                entity: folioAudit ? 'Documento' : 'Recordatorio',
+                                                entityId: folioAudit || null,
                                                 empresaId: empresaId,
                                                 action: 'REMINDER',
-                                                description: `Recordatorio enviado a ${selectedContacto.email} vía ${canal}`,
-                                                changes: { canal, tipo, contacto: selectedContacto.email, observacion }
+                                                description: `Recordatorio enviado a ${manualEmail.trim()} vía ${canal}`,
+                                                changes: { canal, tipo, contacto: manualEmail.trim(), observacion }
                                             };
 
                                             await fetch(`${BASE_URL}/audit`, { method: 'POST', headers, body: JSON.stringify(auditBody) });
