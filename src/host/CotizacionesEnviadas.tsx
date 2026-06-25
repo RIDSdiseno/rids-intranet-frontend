@@ -120,10 +120,11 @@ const CotizacionesEnviadas: React.FC = () => {
         if (!(inTo || inSubject || inId)) return false;
       }
 
-      if (dateRange && dateRange[0] && dateRange[1]) {
+      if (dateRange && dateRange[0]) {
         const sent = dayjs(e.sentAt);
-        const from = dayjs(dateRange[0]).startOf("day");
-        const to = dayjs(dateRange[1]).endOf("day");
+        const isMonthStr = /^\d{4}-\d{2}$/.test(String(dateRange[0]));
+        const from = isMonthStr ? dayjs(dateRange[0]).startOf("month") : dayjs(dateRange[0]).startOf("day");
+        const to = isMonthStr ? dayjs(dateRange[0]).endOf("month") : dayjs(dateRange[1] ?? dateRange[0]).endOf("day");
         if (sent.isBefore(from) || sent.isAfter(to)) return false;
       }
 

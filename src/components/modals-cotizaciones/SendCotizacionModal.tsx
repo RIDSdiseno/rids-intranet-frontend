@@ -18,7 +18,7 @@ export default function SendCotizacionModal({ show, onClose, cotizacion }: Props
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('Adjunto cotización desde RIDS');
   const [bodyHtml, setBodyHtml] = useState('<p>Adjuntamos la cotización solicitada.</p>');
-  const [usePlainText, setUsePlainText] = useState(false);
+  const [usePlainText, setUsePlainText] = useState(true);
   const [plainText, setPlainText] = useState('');
   const [plainEdited, setPlainEdited] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
@@ -356,7 +356,6 @@ function buildHtmlFromText(text: string) {
       <div style="padding:18px;background:#fff;border:1px solid #e6eef0;border-top:0;border-radius:0 0 6px 6px;">
         <div style="max-width:700px;margin:0 auto;font-size:14px;line-height:1.45;word-break:break-word;white-space:normal;overflow-wrap:anywhere;">
           ${safe}
-          <p>Saludos cordiales,<br/>Equipo RIDS</p>
         </div>
       </div>
     </div>`;

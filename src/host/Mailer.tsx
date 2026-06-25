@@ -260,6 +260,57 @@ export default function Mailer() {
     rows.forEach((r) => { out[r.id] = false; });
     setSelected(out);
     setSelectAll(false);
+    setSubject("Mensaje desde RIDS");
+    setContent(DEFAULT_CONTENT);
+    setAttachments([]);
+    if (editorRef.current) editorRef.current.innerHTML = DEFAULT_CONTENT;
+  }
+
+  // ─── Editor toolbar helpers ────────────────────────────────────────────────
+
+  function insertList(ordered: boolean) {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const tag = ordered ? "ol" : "ul";
+
+    // Detectar si el cursor ya está dentro de una lista del mismo tipo → sacarla
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      let node: Node | null = sel.getRangeAt(0).commonAncestorContainer;
+      while (node && node !== editor) {
+        if (node.nodeName === tag.toUpperCase()) {
+          // Reemplazar la lista por sus <li> como párrafos
+          const listEl = node as HTMLElement;
+          const fragment = document.createDocumentFragment();
+          listEl.querySelectorAll("li").forEach((li) => {
+            const p = document.createElement("p");
+            p.innerHTML = li.innerHTML || "<br>";
+            fragment.appendChild(p);
+          });
+          listEl.parentNode?.replaceChild(fragment, listEl);
+          setContent(editor.innerHTML);
+          return;
+        }
+        node = node.parentNode;
+      }
+    }
+
+    // Insertar nueva lista al final
+    const list = document.createElement(tag);
+    const li = document.createElement("li");
+    li.appendChild(document.createElement("br"));
+    list.appendChild(li);
+    editor.appendChild(list);
+
+    editor.focus();
+    const range = document.createRange();
+    range.setStart(li, 0);
+    range.collapse(true);
+    const s = window.getSelection();
+    if (s) { s.removeAllRanges(); s.addRange(range); }
+
+    setContent(editor.innerHTML);
   }
 
   // ─── Editor sync ───────────────────────────────────────────────────────────
@@ -291,11 +342,10 @@ export default function Mailer() {
         const bodyHtml = mode === "html" ? await embedLogoInHtml(rawHtml) : rawHtml;
         const { data } = await http.post("/correo/enviar-masivo", { targets, subject, bodyHtml, attachments });
         if (data?.ok && data?.queued) {
-          const mins = Math.round((data.estimatedCompletionMs || 0) / 60000 * 100) / 100;
           notification.success({
-            message: "Envío en cola",
-            description: `${data.queuedCount} destinatario(s) encolados · ${data.ratePerMin} correos/min · ~${mins} min estimados.`,
-            duration: 8,
+            message: "Enviando correos",
+            description: `${data.queuedCount} destinatario(s) en proceso. Los correos se están enviando ahora.`,
+            duration: 6,
           });
         } else if (data?.ok) {
           notification.success({ message: "Envío completado", description: `Enviados: ${data.sent} / ${data.requested}`, duration: 6 });
@@ -348,8 +398,6 @@ export default function Mailer() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const ratePerMin = 30;
-  const estimatedMinutes = selectedCount > 0 ? Math.ceil(selectedCount / ratePerMin) : 0;
   const showSpamWarning = selectedCount > 80;
 
   return (
@@ -436,8 +484,8 @@ export default function Mailer() {
         <span className="shrink-0">{showSpamWarning ? <WarningOutlined className="text-amber-500" /> : <InfoCircleOutlined className="text-cyan-500" />}</span>
         <span>
           {showSpamWarning
-            ? <><span className="font-semibold">Precaución:</span> Más de 80 destinatarios puede aumentar el riesgo de spam. Segmenta por empresa. Tasa: {ratePerMin}/min, ~{estimatedMinutes} min.</>
-            : <>Envíos a <strong>{ratePerMin}/min</strong> en cola asíncrona. Solo contactos activos con correo válido.{selectedCount > 0 && <span className="ml-1 font-semibold text-cyan-700">{selectedCount} seleccionados · ~{estimatedMinutes} min.</span>}</>
+            ? <><span className="font-semibold">Precaución:</span> Más de 80 destinatarios puede aumentar el riesgo de spam. Considera segmentar por empresa.</>
+            : <>Envío inmediato a todos los seleccionados. Solo contactos activos con correo válido.{selectedCount > 0 && <span className="ml-1 font-semibold text-cyan-700">{selectedCount} seleccionado{selectedCount !== 1 ? "s" : ""}.</span>}</>
           }
         </span>
       </div>
@@ -591,16 +639,20 @@ export default function Mailer() {
                         { cmd: "italic", title: "Cursiva", label: <i>I</i> },
                         { cmd: "underline", title: "Subrayado", label: <u>U</u> },
                       ].map(({ cmd, title, label }) => (
-                        <button key={cmd} type="button" title={title} onClick={() => document.execCommand(cmd)}
+                        <button key={cmd} type="button" title={title}
+                          onMouseDown={(e) => { e.preventDefault(); document.execCommand(cmd); }}
                           className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">{label}</button>
                       ))}
                       <div className="mx-1 h-5 border-l border-slate-200" />
-                      <button type="button" title="Lista" onClick={() => document.execCommand("insertUnorderedList")}
+                      <button type="button" title="Lista"
+                        onMouseDown={(e) => { e.preventDefault(); insertList(false); }}
                         className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">•</button>
-                      <button type="button" title="Lista numerada" onClick={() => document.execCommand("insertOrderedList")}
+                      <button type="button" title="Lista numerada"
+                        onMouseDown={(e) => { e.preventDefault(); insertList(true); }}
                         className="flex h-7 w-7 items-center justify-center rounded-lg text-sm text-slate-600 hover:bg-white hover:shadow-sm transition">1.</button>
                       <div className="flex-1" />
-                      <button type="button" title="Limpiar formato" onClick={() => document.execCommand("removeFormat")}
+                      <button type="button" title="Limpiar formato"
+                        onMouseDown={(e) => { e.preventDefault(); document.execCommand("removeFormat"); }}
                         className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-white transition">Limpiar</button>
                     </div>
                     <div
@@ -610,7 +662,7 @@ export default function Mailer() {
                       onInput={() => { if (editorRef.current) setContent(editorRef.current.innerHTML); }}
                       onFocus={() => { isTypingRef.current = true; }}
                       onBlur={() => { isTypingRef.current = false; if (editorRef.current) setContent(editorRef.current.innerHTML); }}
-                      className="min-h-[120px] rounded-xl border border-cyan-200 px-4 py-3 text-sm outline-none transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100"
+                      className="min-h-[120px] rounded-xl border border-cyan-200 px-4 py-3 text-sm outline-none transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
                     />
                   </div>
                 )}
@@ -620,7 +672,7 @@ export default function Mailer() {
               <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Vista previa del correo</label>
                 <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-60">
-                  <div dangerouslySetInnerHTML={{ __html: fullHtml }} />
+                  <div className="[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5" dangerouslySetInnerHTML={{ __html: fullHtml }} />
                 </div>
               </div>
             </div>
