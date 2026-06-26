@@ -414,6 +414,11 @@ export default function EquipoViewModal({
 
     const latestAgentMetadata = getAgentEventMetadata(latestAgentEvent?.metadata);
 
+    const isMacAgent = latestAgentMetadata.platform === "MACOS";
+
+    const agentPlatformLabel = isMacAgent ? "macOS" : "Windows";
+    const agentTitle = isMacAgent ? "Agente macOS" : "Agente Windows";
+
     const uptimeValue =
         latestAgentMetadata.uptimeText ||
         formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
@@ -436,7 +441,7 @@ export default function EquipoViewModal({
                             </h3>
 
                             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                                Visualización completa del equipo, agente Windows, software e historial.
+                                Visualización completa del equipo, agente, software e historial.
                             </p>
                         </div>
 
@@ -718,7 +723,9 @@ export default function EquipoViewModal({
                         <div className="rounded-2xl border border-cyan-200 bg-white p-4">
                             <div className="flex items-center justify-between gap-3 mb-3">
                                 <div>
-                                    <h4 className="text-sm font-semibold text-slate-800">Agente Windows</h4>
+                                    <h4 className="text-sm font-semibold text-slate-800">
+                                        {agentTitle}
+                                    </h4>
                                     <p className="text-xs text-slate-500">
                                         Datos reportados automáticamente desde el equipo.
                                     </p>
@@ -754,6 +761,10 @@ export default function EquipoViewModal({
                                 <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
                                     <div>
                                         <strong>Hostname:</strong> {viewAgent.hostname || "—"}
+                                    </div>
+
+                                    <div>
+                                        <strong>Plataforma:</strong> {agentPlatformLabel}
                                     </div>
 
                                     <div>
@@ -928,7 +939,7 @@ export default function EquipoViewModal({
                                     Seguridad y estado
                                 </h4>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                                     <div>
                                         <strong>Antivirus:</strong>{" "}
                                         {viewAgent.detalle?.antivirusNombre || "—"}{" "}
@@ -940,11 +951,17 @@ export default function EquipoViewModal({
                                     </div>
 
                                     <div>
-                                        <strong>BitLocker:</strong> {viewAgent.detalle?.bitlockerEstado || "—"}
+                                        <strong>{isMacAgent ? "FileVault:" : "BitLocker:"}</strong>{" "}
+                                        {viewAgent.detalle?.bitlockerEstado ||
+                                            latestAgentMetadata.fileVaultEstado ||
+                                            "—"}
                                     </div>
 
                                     <div>
-                                        <strong>Windows Update:</strong> {viewAgent.detalle?.windowsUpdate || "—"}
+                                        <strong>{isMacAgent ? "Actualizaciones macOS:" : "Windows Update:"}</strong>{" "}
+                                        {isMacAgent
+                                            ? "No aplica / no reportado"
+                                            : viewAgent.detalle?.windowsUpdate || "—"}
                                     </div>
                                 </div>
                             </div>
@@ -997,7 +1014,7 @@ export default function EquipoViewModal({
                                             Software instalado
                                         </h4>
                                         <p className="mt-1 text-xs text-slate-500">
-                                            Aplicaciones detectadas automáticamente por el agente Windows.
+                                            Aplicaciones detectadas automáticamente por el agente {agentPlatformLabel}.
                                         </p>
                                     </div>
 
@@ -1080,7 +1097,7 @@ export default function EquipoViewModal({
                                             Historial de eventos del agente
                                         </h4>
                                         <p className="text-xs text-slate-500">
-                                            Últimos registros enviados automáticamente por el agente Windows.
+                                            Últimos registros enviados automáticamente por el agente.
                                         </p>
                                     </div>
 
@@ -1134,8 +1151,25 @@ export default function EquipoViewModal({
                                                                             <p className="mt-2 text-sm text-slate-700">
                                                                                 {ev.mensaje || "Sin mensaje asociado."}
                                                                             </p>
-                                                                            {tecnicoInstalador || meta.usuarioWindowsEjecutor || meta.taskUserConfigurado ? (
+                                                                            {tecnicoInstalador ||
+                                                                                meta.platform ||
+                                                                                meta.usuarioSistemaEjecutor ||
+                                                                                meta.usuarioWindowsEjecutor ||
+                                                                                meta.usuarioMacEjecutor ||
+                                                                                meta.taskUserConfigurado ||
+                                                                                meta.launchdLabel ? (
                                                                                 <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
+                                                                                    {meta.platform ? (
+                                                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                                                            <div className="font-medium text-slate-500">
+                                                                                                Plataforma
+                                                                                            </div>
+                                                                                            <div className="mt-0.5 break-all font-semibold text-slate-800">
+                                                                                                {meta.platform === "MACOS" ? "macOS" : "Windows"}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : null}
+
                                                                                     {tecnicoInstalador ? (
                                                                                         <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
                                                                                             <div className="font-medium text-slate-500">
@@ -1147,18 +1181,33 @@ export default function EquipoViewModal({
                                                                                         </div>
                                                                                     ) : null}
 
-                                                                                    {meta.usuarioWindowsEjecutor ? (
+                                                                                    {meta.usuarioSistemaEjecutor ||
+                                                                                        meta.usuarioMacEjecutor ||
+                                                                                        meta.usuarioWindowsEjecutor ? (
                                                                                         <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
                                                                                             <div className="font-medium text-slate-500">
-                                                                                                Usuario Windows
+                                                                                                {meta.platform === "MACOS" ? "Usuario macOS" : "Usuario Windows"}
                                                                                             </div>
                                                                                             <div className="mt-0.5 break-all font-mono font-semibold text-slate-800">
-                                                                                                {meta.usuarioWindowsEjecutor}
+                                                                                                {meta.usuarioSistemaEjecutor ||
+                                                                                                    meta.usuarioMacEjecutor ||
+                                                                                                    meta.usuarioWindowsEjecutor}
                                                                                             </div>
                                                                                         </div>
                                                                                     ) : null}
 
-                                                                                    {meta.taskUserConfigurado ? (
+                                                                                    {meta.platform === "MACOS" && meta.launchdLabel ? (
+                                                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                                                            <div className="font-medium text-slate-500">
+                                                                                                LaunchDaemon
+                                                                                            </div>
+                                                                                            <div className="mt-0.5 break-all font-mono font-semibold text-slate-800">
+                                                                                                {meta.launchdLabel}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : null}
+
+                                                                                    {meta.platform !== "MACOS" && meta.taskUserConfigurado ? (
                                                                                         <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
                                                                                             <div className="font-medium text-slate-500">
                                                                                                 Tarea configurada como
