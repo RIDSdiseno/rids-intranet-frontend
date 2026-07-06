@@ -523,11 +523,6 @@ export default function EquipoViewModal({
     const agentPlatformLabel = isMacAgent ? "macOS" : "Windows";
     const agentTitle = isMacAgent ? "Agente macOS" : "Agente Windows";
 
-    const isMacAgent = latestAgentMetadata.platform === "MACOS";
-
-    const agentPlatformLabel = isMacAgent ? "macOS" : "Windows";
-    const agentTitle = isMacAgent ? "Agente macOS" : "Agente Windows";
-
     const uptimeValue =
         latestAgentMetadata.uptimeText ||
         formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
