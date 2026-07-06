@@ -174,29 +174,29 @@ export function getChanges(h: EquipoHistorialItem) {
 }
 
 export function getAgentEventMetadata(metadata: unknown) {
-    if (!metadata) {
-        return {};
-    }
+    if (!metadata) return {};
 
     if (typeof metadata === "string") {
         try {
             const parsed = JSON.parse(metadata);
 
-            if (
-                parsed &&
-                typeof parsed === "object" &&
-                !Array.isArray(parsed)
-            ) {
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 return parsed as {
                     source?: string | null;
+                    platform?: string | null;
                     ejecutadoPor?: string | null;
 
                     tecnicoInstaladorId?: number | null;
                     tecnicoInstaladorNombre?: string | null;
                     tecnicoInstaladorEmail?: string | null;
 
+                    usuarioSistemaEjecutor?: string | null;
                     usuarioWindowsEjecutor?: string | null;
                     taskUserConfigurado?: string | null;
+
+                    usuarioMacEjecutor?: string | null;
+                    launchdLabel?: string | null;
+                    fileVaultEstado?: string | null;
 
                     agenteVersion?: string | null;
                     lastBootAt?: string | null;
@@ -217,14 +217,20 @@ export function getAgentEventMetadata(metadata: unknown) {
 
     return metadata as {
         source?: string | null;
+        platform?: string | null;
         ejecutadoPor?: string | null;
 
         tecnicoInstaladorId?: number | null;
         tecnicoInstaladorNombre?: string | null;
         tecnicoInstaladorEmail?: string | null;
 
+        usuarioSistemaEjecutor?: string | null;
         usuarioWindowsEjecutor?: string | null;
         taskUserConfigurado?: string | null;
+
+        usuarioMacEjecutor?: string | null;
+        launchdLabel?: string | null;
+        fileVaultEstado?: string | null;
 
         agenteVersion?: string | null;
         lastBootAt?: string | null;

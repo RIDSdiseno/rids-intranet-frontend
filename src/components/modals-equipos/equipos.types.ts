@@ -85,9 +85,9 @@ export type HistChange = {
 
 export type ActorLite =
   | {
-      nombre?: string | null;
-      email?: string | null;
-    }
+    nombre?: string | null;
+    email?: string | null;
+  }
   | string;
 
 export type EquipoHistorialItem = {
@@ -306,4 +306,34 @@ export type ListSolicitantesResponse = {
     empresaId: number | null;
     empresa: { id_empresa: number; nombre: string } | null;
   }>;
+};
+
+export type EquipoMantencion = {
+  id: number;
+  equipoId: number;
+  tipo: string;
+  estado: "COMPLETADA" | "COMPLETADA_CON_ADVERTENCIAS" | "CANCELADA" | string;
+  origen: string;
+
+  fechaInicio: string;
+  fechaFin?: string | null;
+  duracionSegundos?: number | null;
+  duracionTexto?: string | null;
+
+  tareasRealizadas: string[];
+  tareasConError: string[];
+
+  resumen?: string | null;
+  reporteTexto?: string | null;
+
+  serial?: string | null;
+  hostname?: string | null;
+  usuarioActual?: string | null;
+  localIp?: string | null;
+  macAddress?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  agenteVersion?: string | null;
+
+  createdAt: string;
 };
