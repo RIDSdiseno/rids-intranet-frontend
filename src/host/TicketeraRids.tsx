@@ -240,12 +240,13 @@ export default function TicketeraRids() {
 
     const [searchText, setSearchText] = useState(searchParams.get("search") ?? "");
 
-    const validTabs = ["ALL", "OPEN", "PENDING", "CLOSED"];
+    const validTabs = ["ALL", "NEW", "OPEN", "PENDING", "CLOSED"];
 
     const initialTab =
         searchParams.get("tab") && validTabs.includes(searchParams.get("tab")!)
             ? searchParams.get("tab")!
-            : searchParams.get("status") && ["OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
+            : searchParams.get("status") &&
+                ["NEW", "OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
                 ? searchParams.get("status")!
                 : "OPEN";
 
@@ -686,7 +687,8 @@ export default function TicketeraRids() {
         const urlTab =
             searchParams.get("tab") && validTabs.includes(searchParams.get("tab")!)
                 ? searchParams.get("tab")!
-                : searchParams.get("status") && ["OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
+                : searchParams.get("status") &&
+                    ["NEW", "OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
                     ? searchParams.get("status")!
                     : "OPEN";
 
@@ -1337,7 +1339,18 @@ export default function TicketeraRids() {
                                     allowClear
                                     style={{ width: 140 }}
                                     value={statusFilter}
-                                    onChange={setStatusFilter}
+                                    onChange={(value) => {
+                                        setStatusFilter(value);
+
+                                        if (!value) {
+                                            setActiveTab("ALL");
+                                            return;
+                                        }
+
+                                        if (["NEW", "OPEN", "PENDING", "CLOSED"].includes(value)) {
+                                            setActiveTab(value);
+                                        }
+                                    }}
                                     options={[
                                         { value: "NEW", label: "Nuevo" },
                                         { value: "OPEN", label: "Abierto" },
@@ -1405,14 +1418,21 @@ export default function TicketeraRids() {
 
                 <div className="mt-5 mb-4 flex flex-wrap items-center gap-5">
                     <Badge count={getTicketCount("all")}>
-                        <Badge count={getTicketCount("all")}>
-                            <Button
-                                type={activeTab === "ALL" ? "primary" : "default"}
-                                onClick={() => setActiveTab("ALL")}
-                            >
-                                Todos
-                            </Button>
-                        </Badge>
+                        <Button
+                            type={activeTab === "ALL" ? "primary" : "default"}
+                            onClick={() => setActiveTab("ALL")}
+                        >
+                            Todos
+                        </Button>
+                    </Badge>
+
+                    <Badge count={getTicketCount("NEW")}>
+                        <Button
+                            type={activeTab === "NEW" ? "primary" : "default"}
+                            onClick={() => setActiveTab("NEW")}
+                        >
+                            Nuevos
+                        </Button>
                     </Badge>
 
                     <Badge count={getTicketCount("OPEN")}>

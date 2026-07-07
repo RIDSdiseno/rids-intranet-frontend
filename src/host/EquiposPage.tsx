@@ -231,6 +231,11 @@ const EquiposPage: React.FC = () => {
   const [updatedFrom, setUpdatedFrom] = useState("");
   const [updatedTo, setUpdatedTo] = useState("");
 
+  // Filtro por mantenciones realizadas.
+  // Permite mostrar equipos que tuvieron mantención dentro de un rango de fechas.
+  const [mantencionDesde, setMantencionDesde] = useState("");
+  const [mantencionHasta, setMantencionHasta] = useState("");
+
   const [tecnicoOptions, setTecnicoOptions] = useState<TecnicoOpt[]>([]);
   const [tecnicoFilterId, setTecnicoFilterId] = useState<number | null>(null);
   const [auditFrom, setAuditFrom] = useState("");
@@ -370,6 +375,10 @@ const EquiposPage: React.FC = () => {
           createdTo: createdTo || undefined,
           updatedFrom: updatedFrom || undefined,
           updatedTo: updatedTo || undefined,
+
+          // Filtro por fecha de mantención.
+          mantencionDesde: mantencionDesde || undefined,
+          mantencionHasta: mantencionHasta || undefined,
 
           auditTecnicoId: tecnicoFilterId || undefined,
           auditFrom: auditFrom || undefined,
@@ -574,6 +583,8 @@ const EquiposPage: React.FC = () => {
     createdTo,
     updatedFrom,
     updatedTo,
+    mantencionDesde,
+    mantencionHasta,
     tecnicoFilterId,
     auditFrom,
     auditTo,
@@ -614,6 +625,10 @@ const EquiposPage: React.FC = () => {
     setCreatedTo("");
     setUpdatedFrom("");
     setUpdatedTo("");
+
+    // Limpia filtro por fecha de mantención.
+    setMantencionDesde("");
+    setMantencionHasta("");
 
     setTecnicoFilterId(null);
     setAuditFrom("");
@@ -833,7 +848,7 @@ const EquiposPage: React.FC = () => {
 
               {/* Empresa + Estado */}
               <div className="md:col-span-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <BuildingOfficeIcon className="w-4 h-4 text-cyan-600" />
@@ -1024,110 +1039,150 @@ const EquiposPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actividad técnico */}
-              <div className="md:col-span-12 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
-                <div className="flex flex-col gap-1 mb-3">
-                  <div className="text-sm font-semibold text-slate-800">
-                    Actividad por técnico
+              {/* 
+  Filtros secundarios:
+  - En pantallas pequeñas quedan uno debajo del otro.
+  - En pantallas grandes quedan en 2 columnas.
+  - Así evitamos que cada filtro use todo el ancho innecesariamente.
+*/}
+              <div className="md:col-span-12 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {/* Actividad por técnico */}
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+                  <div className="flex flex-col gap-1 mb-3">
+                    <div className="text-sm font-semibold text-slate-800">
+                      Actividad por técnico
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                      Filtra equipos que fueron creados o editados por un técnico.
+                    </div>
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Filtra equipos que fueron creados o editados por un técnico en una fecha determinada.
+                  {/* 
+      Como solo dejaste el filtro de técnico,
+      usamos una sola columna para que el select aproveche todo el ancho.
+    */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">Técnico</span>
+
+                      <select
+                        value={tecnicoFilterId ?? ""}
+                        onChange={(e) => {
+                          setTecnicoFilterId(e.target.value ? Number(e.target.value) : null);
+                          setPage(1);
+                        }}
+                        disabled={tecLoading}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      >
+                        <option value="">
+                          {tecLoading ? "Cargando técnicos..." : "Todos los técnicos"}
+                        </option>
+
+                        {tecnicoOptions.map((t) => (
+                          <option key={t.id_tecnico} value={t.id_tecnico}>
+                            {t.nombre}
+                            {t.email ? ` — ${t.email}` : ""}
+                          </option>
+                        ))}
+                      </select>
+
+                      {tecError && (
+                        <div className="mt-1 text-xs text-rose-600">
+                          {tecError}
+                        </div>
+                      )}
+                    </label>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <label className="text-sm">
-                    <span className="block text-slate-700 mb-1">Técnico</span>
+                {/* Mantenciones realizadas */}
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+                  <div className="flex flex-col gap-1 mb-3">
+                    <div className="text-sm font-semibold text-slate-800">
+                      Mantenciones realizadas
+                    </div>
 
-                    <select
-                      value={tecnicoFilterId ?? ""}
-                      onChange={(e) => {
-                        setTecnicoFilterId(e.target.value ? Number(e.target.value) : null);
-                        setPage(1);
-                      }}
-                      disabled={tecLoading}
-                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                    >
-                      <option value="">
-                        {tecLoading ? "Cargando técnicos..." : "Todos los técnicos"}
-                      </option>
+                    <div className="text-xs text-slate-500">
+                      Filtra equipos que tuvieron una mantención registrada dentro del periodo seleccionado.
+                    </div>
+                  </div>
 
-                      {tecnicoOptions.map((t) => (
-                        <option key={t.id_tecnico} value={t.id_tecnico}>
-                          {t.nombre}
-                          {t.email ? ` — ${t.email}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                  {/* 
+      El RangePicker usa todo el ancho disponible.
+      El estado activo queda debajo para no apretar el selector de fecha.
+    */}
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">
+                        Rango de mantención
+                      </span>
 
-                    {tecError && (
-                      <div className="mt-1 text-xs text-rose-600">
-                        {tecError}
+                      <RangePicker
+                        value={[
+                          mantencionDesde ? dayjs(mantencionDesde) : null,
+                          mantencionHasta ? dayjs(mantencionHasta) : null,
+                        ]}
+                        onChange={(dates) => {
+                          // Se envía en formato YYYY-MM-DD porque así lo espera el backend.
+                          setMantencionDesde(dates?.[0] ? dates[0].format("YYYY-MM-DD") : "");
+                          setMantencionHasta(dates?.[1] ? dates[1].format("YYYY-MM-DD") : "");
+                          setPage(1);
+                        }}
+                        format="DD/MM/YYYY"
+                        className="w-full"
+                        allowClear
+                        placeholder={["Desde", "Hasta"]}
+                        presets={[
+                          {
+                            label: "Hoy",
+                            value: [dayjs().startOf("day"), dayjs().endOf("day")],
+                          },
+                          {
+                            label: "Últimos 7 días",
+                            value: [
+                              dayjs().subtract(6, "day").startOf("day"),
+                              dayjs().endOf("day"),
+                            ],
+                          },
+                          {
+                            label: "Este mes",
+                            value: [dayjs().startOf("month"), dayjs().endOf("month")],
+                          },
+                          {
+                            label: "Mes anterior",
+                            value: [
+                              dayjs().subtract(1, "month").startOf("month"),
+                              dayjs().subtract(1, "month").endOf("month"),
+                            ],
+                          },
+                        ]}
+                      />
+                    </label>
+
+                    {mantencionDesde || mantencionHasta ? (
+                      <div className="inline-flex w-fit max-w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-700">
+                        <span className="truncate">
+                          Filtro activo:{" "}
+                          <strong>
+                            {mantencionDesde
+                              ? dayjs(mantencionDesde).format("DD/MM/YYYY")
+                              : "Inicio"}
+                          </strong>{" "}
+                          -{" "}
+                          <strong>
+                            {mantencionHasta
+                              ? dayjs(mantencionHasta).format("DD/MM/YYYY")
+                              : "Hoy"}
+                          </strong>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500">
+                        Sin filtro de mantenciones aplicado.
                       </div>
                     )}
-                  </label>
-
-                  <label className="text-sm">
-                    <span className="block text-slate-700 mb-1">Acción</span>
-
-                    <select
-                      value={auditAction}
-                      onChange={(e) => {
-                        setAuditAction(e.target.value as "ALL" | "CREATE" | "UPDATE");
-                        setPage(1);
-                      }}
-                      className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                    >
-                      <option value="ALL">Todos</option>
-                      <option value="CREATE">Solo creados</option>
-                      <option value="UPDATE">Solo editados</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm">
-                    <span className="block text-slate-700 mb-1">Rango actividad</span>
-
-                    <RangePicker
-                      value={[
-                        auditFrom ? dayjs(auditFrom) : null,
-                        auditTo ? dayjs(auditTo) : null,
-                      ]}
-                      onChange={(dates) => {
-                        setAuditFrom(dates?.[0] ? dates[0].startOf("day").toISOString() : "");
-                        setAuditTo(dates?.[1] ? dates[1].endOf("day").toISOString() : "");
-                        setPage(1);
-                      }}
-                      format="DD/MM/YYYY"
-                      className="w-full"
-                      allowClear
-                      placeholder={["Desde", "Hasta"]}
-                      presets={[
-                        {
-                          label: "Hoy",
-                          value: [dayjs().startOf("day"), dayjs().endOf("day")],
-                        },
-                        {
-                          label: "Últimos 7 días",
-                          value: [
-                            dayjs().subtract(6, "day").startOf("day"),
-                            dayjs().endOf("day"),
-                          ],
-                        },
-                        {
-                          label: "Este mes",
-                          value: [dayjs().startOf("month"), dayjs().endOf("month")],
-                        },
-                        {
-                          label: "Mes anterior",
-                          value: [
-                            dayjs().subtract(1, "month").startOf("month"),
-                            dayjs().subtract(1, "month").endOf("month"),
-                          ],
-                        },
-                      ]}
-                    />
-                  </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1241,6 +1296,35 @@ const EquiposPage: React.FC = () => {
                     className="hover:text-indigo-700 shrink-0"
                     aria-label="Quitar filtro de actividad"
                     title="Quitar filtro de actividad"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+              {(mantencionDesde || mantencionHasta) && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Mantención:</span>
+
+                  <strong className="truncate">
+                    {mantencionDesde
+                      ? dayjs(mantencionDesde).format("DD/MM/YYYY")
+                      : "Inicio"}{" "}
+                    -{" "}
+                    {mantencionHasta
+                      ? dayjs(mantencionHasta).format("DD/MM/YYYY")
+                      : "Hoy"}
+                  </strong>
+
+                  <button
+                    onClick={() => {
+                      setMantencionDesde("");
+                      setMantencionHasta("");
+                      setPage(1);
+                    }}
+                    className="hover:text-emerald-700 shrink-0"
+                    aria-label="Quitar filtro de mantención"
+                    title="Quitar filtro de mantención"
                     type="button"
                   >
                     <CloseCircleFilled />
@@ -1816,6 +1900,7 @@ const EquiposPage: React.FC = () => {
         }}
       />
 
+      {/* Modal editar */}
       <EquipoEditModal
         open={editOpen}
         row={editRow}
@@ -1825,7 +1910,8 @@ const EquiposPage: React.FC = () => {
           void handleEditSaved();
         }}
       />
-
+      
+      {/* Modal visualizar */}
       <EquipoViewModal
         open={viewOpen}
         row={viewRow}

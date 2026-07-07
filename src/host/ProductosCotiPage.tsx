@@ -1,4 +1,5 @@
 // src/host/ProductosCotiPage.tsx
+// src/host/ProductosCotiPage.tsx
 import React, {
     useEffect,
     useState,
@@ -27,22 +28,32 @@ import NewProducto from "../components/modals-cotizaciones/NewProducto";
 import EditProductoModal from "../components/modals-cotizaciones/EditProducto";
 import type { ProductoForm } from "../components/modals-cotizaciones/types";
 
+import NewProducto from "../components/modals-cotizaciones/NewProducto";
+import EditProductoModal from "../components/modals-cotizaciones/EditProducto";
+import type { ProductoForm } from "../components/modals-cotizaciones/types";
+
 interface Producto {
     id: number;
     nombre: string;
-    descripcion?: string;
-    categoria?: string;
+    descripcion?: string | null;
+    categoria?: string | null;
+
     precio: number;
-    porcGanancia?: number;
-    precioTotal?: number;
+    precioCosto?: number | null;
+    porcGanancia?: number | null;
+    precioTotal?: number | null;
+    precioOriginalCLP?: number | null;
+
     stock: number;
-    serie?: string;
-    sku?: string;
-    proveedor?: string;
+    serie?: string | null;
+    sku?: string | null;
+    codigo?: string | null;
+    proveedor?: string | null;
     fecha_creacion?: string;
     estado?: string;
 
     imagen?: string | null;
+    publicId?: string | null;
     imagenFile?: File | null;
 }
 
@@ -73,6 +84,7 @@ const ModalViewProducto: React.FC<ModalViewProductoProps> = ({
     form,
 }) => {
     if (!show) return null;
+
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -222,6 +234,21 @@ const ProductosPage: React.FC = () => {
         imagenFile: null,
     });
 
+    const [productoAEditar, setProductoAEditar] = useState<Producto | null>(null);
+
+    const [productoForm, setProductoForm] = useState<ProductoForm>({
+        nombre: "",
+        descripcion: "",
+        precio: 0,
+        porcGanancia: 0,
+        precioTotal: 0,
+        categoria: "",
+        stock: 0,
+        serie: "",
+        imagen: null,
+        imagenFile: null,
+    });
+
     const [form, setForm] = useState<Producto>({
         id: 0,
         nombre: "",
@@ -350,8 +377,9 @@ const ProductosPage: React.FC = () => {
         };
     };
 
-    const getGananciaColor = (porcGanancia?: number) => {
-        const ganancia = porcGanancia || 0;
+    const getGananciaColor = (porcGanancia?: number | null) => {
+        const ganancia = Number(porcGanancia ?? 0);
+
         if (ganancia > 50) return "text-green-600";
         if (ganancia > 20) return "text-cyan-600";
         if (ganancia > 0) return "text-yellow-600";
@@ -360,11 +388,14 @@ const ProductosPage: React.FC = () => {
 
     const resetProductoForm = () => {
         setProductoForm({
+    const resetProductoForm = () => {
+        setProductoForm({
             nombre: "",
             descripcion: "",
             precio: 0,
             porcGanancia: 0,
             precioTotal: 0,
+            categoria: "",
             categoria: "",
             stock: 0,
             serie: "",
@@ -375,6 +406,7 @@ const ProductosPage: React.FC = () => {
 
     const openCreate = () => {
         resetProductoForm();
+        resetProductoForm();
         setShowCreate(true);
     };
 
@@ -384,8 +416,36 @@ const ProductosPage: React.FC = () => {
     };
 
     const openEdit = (producto: Producto) => {
-        setProductoAEditar(producto);
+        setProductoAEditar({
+            ...producto,
+            nombre: producto.nombre ?? "",
+            descripcion: producto.descripcion ?? "",
+            categoria: producto.categoria ?? "",
+            precio: Number(producto.precio ?? 0),
+            precioCosto: Number(producto.precioCosto ?? producto.precio ?? 0),
+            precioTotal: Number(producto.precioTotal ?? producto.precio ?? 0),
+            precioOriginalCLP: Number(
+                producto.precioOriginalCLP ??
+                producto.precioTotal ??
+                producto.precio ??
+                0
+            ),
+            porcGanancia: Number(producto.porcGanancia ?? 0),
+            stock: Number(producto.stock ?? 0),
+            serie: producto.serie ?? "",
+            sku: producto.sku ?? "",
+            codigo: producto.codigo ?? producto.serie ?? "",
+            imagen: producto.imagen ?? null,
+            publicId: producto.publicId ?? null,
+            imagenFile: null,
+        });
+
         setShowEdit(true);
+    };
+
+    const closeEdit = () => {
+        setShowEdit(false);
+        setProductoAEditar(null);
     };
 
     const closeEdit = () => {
@@ -408,6 +468,7 @@ const ProductosPage: React.FC = () => {
         }));
     };
 
+    // función para actualizar un producto existente, con validaciones y manejo de imagen
     const handleGuardarProductoEditado = async (productoData: any) => {
         if (!productoData?.id) return;
         if (isSaving) return;
@@ -418,18 +479,22 @@ const ProductosPage: React.FC = () => {
             await http.put(`/productos-gestioo/${productoData.id}`, {
                 nombre: productoData.nombre,
                 descripcion: productoData.descripcion,
-                precio: Number(productoData.precioCosto ?? productoData.precio ?? 0),
+                precio: Number(
+                    productoData.precioCosto ??
+                    productoData.precio ??
+                    0
+                ),
                 porcGanancia: Number(productoData.porcGanancia ?? 0),
                 precioTotal: Number(
-                    productoData.precioOriginalCLP ??
                     productoData.precioTotal ??
+                    productoData.precioOriginalCLP ??
                     productoData.precio ??
                     productoData.precioCosto ??
                     0
                 ),
                 categoria: productoData.categoria,
                 stock: Number(productoData.stock ?? 0),
-                serie: productoData.serie,
+                serie: productoData.serie ?? productoData.codigo ?? null,
                 imagen: productoData.imagen,
                 publicId: productoData.publicId,
             });
@@ -437,12 +502,21 @@ const ProductosPage: React.FC = () => {
             showNotification("success", "Producto actualizado exitosamente");
             closeEdit();
             await loadProductos();
+            showNotification("success", "Producto actualizado exitosamente");
+            closeEdit();
+            await loadProductos();
         } catch (err: any) {
+            console.error("❌ Error actualizando producto:", err);
+
             console.error("❌ Error actualizando producto:", err);
 
             const msg =
                 err?.response?.data?.message ||
+                err?.response?.data?.message ||
                 err?.response?.data?.error ||
+                err?.message ||
+                "Error al actualizar el producto";
+
                 err?.message ||
                 "Error al actualizar el producto";
 
@@ -451,6 +525,7 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
+
 
     // función para eliminar un producto, con confirmación y manejo de errores
     const handleDelete = async (id: number) => {
@@ -468,6 +543,7 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
+
 
     // función para cambiar el estado del producto (disponible/agotado)
     return (
@@ -999,6 +1075,7 @@ const ProductosPage: React.FC = () => {
                         )}
                     </div>
 
+
                     {/* PAGINACIÓN */}
                     {totalPaginas > 1 && (
                         <div className="mt-8 pt-6 border-t border-slate-200/80">
@@ -1165,6 +1242,7 @@ const ProductosPage: React.FC = () => {
 
             {/* MODALES */}
             <NewProducto
+            <NewProducto
                 show={showCreate}
                 onClose={closeCreate}
                 onSubmit={async() => {
@@ -1181,7 +1259,13 @@ const ProductosPage: React.FC = () => {
             />
 
             <EditProductoModal
+            <EditProductoModal
                 show={showEdit}
+                producto={productoAEditar}
+                onClose={closeEdit}
+                onSave={handleGuardarProductoEditado}
+                onBackToSelector={closeEdit}
+                apiLoading={isSaving}
                 producto={productoAEditar}
                 onClose={closeEdit}
                 onSave={handleGuardarProductoEditado}

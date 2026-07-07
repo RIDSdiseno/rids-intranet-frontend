@@ -534,17 +534,18 @@ const generarPDF = async (
 
     const theadCols = mostrarTotales
         ? `<th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Código</th>
-           <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
-           <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">P.Unitario</th>
-           <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>
-           <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Desc (%)</th>
-           <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Desc ($)</th>
-           <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">IVA (%)</th>
-           <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">IVA ($)</th>
-           <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Total</th>`
+       <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
+       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>
+       <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">P.Unitario</th>
+       <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Subtotal</th>
+       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Desc (%)</th>
+       <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Desc ($)</th>
+       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">IVA (%)</th>
+       <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">IVA ($)</th>
+       <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Total</th>`
         : `<th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Código</th>
-           <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
-           <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>`;
+       <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
+       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>`;
 
     const buildEquipoDetalle = (item: any) => {
         if (!item.equipo) return "";
@@ -593,8 +594,9 @@ const generarPDF = async (
                 }
                         ${buildEquipoDetalle(item)}
                     </td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(Number(item.precio) || 0)}</td>
                     <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
+                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(Number(item.precio) || 0)}</td>
+                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.base)}</td>
                     <td style="padding:8px;text-align:center;vertical-align:top;">${valores.porcentajeMostrar}%</td>
                     <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.descuentoItem)}</td>
                     <td style="padding:8px;text-align:center;vertical-align:top;">${valores.ivaPorcentajeMostrar}%</td>
@@ -682,9 +684,9 @@ const generarPDF = async (
                     ? `
                                     <tfoot>
                                         <tr>
-                                            <td colspan="8" style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
-                                                Total ${seccion.nombre}:
-                                            </td>
+                                            <td colspan="9" style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
+    Total ${seccion.nombre}:
+</td>
                                             <td style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
                                                 ${formatPDF(totalSeccion)}
                                             </td>
