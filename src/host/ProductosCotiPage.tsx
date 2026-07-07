@@ -1,5 +1,4 @@
 // src/host/ProductosCotiPage.tsx
-// src/host/ProductosCotiPage.tsx
 import React, {
     useEffect,
     useState,
@@ -23,10 +22,6 @@ import {
 } from "lucide-react";
 
 import { http } from "../service/http";
-
-import NewProducto from "../components/modals-cotizaciones/NewProducto";
-import EditProductoModal from "../components/modals-cotizaciones/EditProducto";
-import type { ProductoForm } from "../components/modals-cotizaciones/types";
 
 import NewProducto from "../components/modals-cotizaciones/NewProducto";
 import EditProductoModal from "../components/modals-cotizaciones/EditProducto";
@@ -234,21 +229,6 @@ const ProductosPage: React.FC = () => {
         imagenFile: null,
     });
 
-    const [productoAEditar, setProductoAEditar] = useState<Producto | null>(null);
-
-    const [productoForm, setProductoForm] = useState<ProductoForm>({
-        nombre: "",
-        descripcion: "",
-        precio: 0,
-        porcGanancia: 0,
-        precioTotal: 0,
-        categoria: "",
-        stock: 0,
-        serie: "",
-        imagen: null,
-        imagenFile: null,
-    });
-
     const [form, setForm] = useState<Producto>({
         id: 0,
         nombre: "",
@@ -388,14 +368,11 @@ const ProductosPage: React.FC = () => {
 
     const resetProductoForm = () => {
         setProductoForm({
-    const resetProductoForm = () => {
-        setProductoForm({
             nombre: "",
             descripcion: "",
             precio: 0,
             porcGanancia: 0,
             precioTotal: 0,
-            categoria: "",
             categoria: "",
             stock: 0,
             serie: "",
@@ -441,11 +418,6 @@ const ProductosPage: React.FC = () => {
         });
 
         setShowEdit(true);
-    };
-
-    const closeEdit = () => {
-        setShowEdit(false);
-        setProductoAEditar(null);
     };
 
     const closeEdit = () => {
@@ -517,7 +489,7 @@ const ProductosPage: React.FC = () => {
                 err?.message ||
                 "Error al actualizar el producto";
 
-                err?.message ||
+            err?.message ||
                 "Error al actualizar el producto";
 
             showNotification("error", msg);
@@ -1242,10 +1214,9 @@ const ProductosPage: React.FC = () => {
 
             {/* MODALES */}
             <NewProducto
-            <NewProducto
                 show={showCreate}
                 onClose={closeCreate}
-                onSubmit={async() => {
+                onSubmit={async () => {
                     closeCreate();
                     await loadProductos();
                     showNotification("success", "Producto creado exitosamente");
@@ -1259,13 +1230,7 @@ const ProductosPage: React.FC = () => {
             />
 
             <EditProductoModal
-            <EditProductoModal
                 show={showEdit}
-                producto={productoAEditar}
-                onClose={closeEdit}
-                onSave={handleGuardarProductoEditado}
-                onBackToSelector={closeEdit}
-                apiLoading={isSaving}
                 producto={productoAEditar}
                 onClose={closeEdit}
                 onSave={handleGuardarProductoEditado}

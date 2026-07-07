@@ -1,3 +1,4 @@
+// src/host/Cotizaciones.tsx
 // Este componente es el corazón de la gestión de cotizaciones. Aquí se listan todas las cotizaciones con paginación, búsqueda y filtros avanzados. Desde esta vista se pueden crear nuevas cotizaciones, editar las existentes, eliminar o generar PDF. También se manejan los modales para seleccionar productos/servicios del catálogo, crear nuevos productos/servicios/entidades, y vincular equipos a los items de las cotizaciones. Se utiliza una combinación de estados locales para manejar la UI y llamadas a la API para persistir los cambios en el backend. Además, se implementa un sistema de toast para mostrar mensajes de éxito o error al usuario.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
@@ -27,7 +28,8 @@ import {
     NewEmpresaModal,
     NewProductoModal,
     GenerarPDFModal,
-    NewServicioModal
+    NewServicioModal,
+    CotizacionMasivaModal
 } from "../components/modals-cotizaciones";
 import type {
     CotizacionGestioo,
@@ -152,6 +154,9 @@ const Cotizaciones: React.FC = () => {
     const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
     const [showNewProductoModal, setShowNewProductoModal] = useState(false);
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
+
+    const [showCotizacionMasivaModal, setShowCotizacionMasivaModal] = useState(false);
+    const [loadingCotizacionesMasivas, setLoadingCotizacionesMasivas] = useState(false);
 
     const [filtroMes, setFiltroMes] = useState<string>("");
 
@@ -587,12 +592,13 @@ const Cotizaciones: React.FC = () => {
             const productosMapeados = productos.map((p: any) => ({
                 id: p.id,
                 tipo: "PRODUCTO" as const,
-                descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0,
-                porcGanancia: p.porcGanancia || 0,
-                precioTotal: p.precioTotal || p.precio || 0,
+                descripcion: p.descripcion || "",
+                precio: Number(p.precio || p.precioBase || p.valor || 0),
+                porcGanancia: Number(p.porcGanancia || 0),
+                precioTotal: Number(p.precioTotal || p.precio || 0),
                 nombre: p.nombre,
                 sku: p.serie,
+                serie: p.serie,
                 categoria: p.categoria,
                 imagen: p.imagen || null,
             }));
@@ -621,12 +627,13 @@ const Cotizaciones: React.FC = () => {
             const productosMapeados = productos.map((p: any) => ({
                 id: p.id,
                 tipo: "PRODUCTO" as const,
-                descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0,
-                porcGanancia: p.porcGanancia || 0,
-                precioTotal: p.precioTotal || p.precio || 0,
+                descripcion: p.descripcion || "",
+                precio: Number(p.precio || p.precioBase || p.valor || 0),
+                porcGanancia: Number(p.porcGanancia || 0),
+                precioTotal: Number(p.precioTotal || p.precio || 0),
                 nombre: p.nombre,
                 sku: p.serie,
+                serie: p.serie,
                 categoria: p.categoria,
                 imagen: p.imagen || null,
             }));
@@ -839,6 +846,45 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    const handleCrearCotizacionesMasivas = async (payload: {
+        nombreGrupo?: string;
+        comentariosCotizacion: string;
+        cotizaciones: Array<{
+            entidadId: number;
+            comentariosCotizacion?: string;
+            items: Array<{
+                productoId: number;
+                cantidad: number;
+            }>;
+        }>;
+    }) => {
+        try {
+            setLoadingCotizacionesMasivas(true);
+
+            const resp = await apiFetch("/cotizaciones/masivas", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const generadas = resp?.data ?? [];
+
+            setShowCotizacionMasivaModal(false);
+
+            await fetchCotizaciones(1);
+
+            showSuccess(
+                `${generadas.length || payload.cotizaciones.length} cotización(es) generada(s) correctamente`
+            );
+        } catch (error) {
+            handleApiError(error, "Error al crear cotizaciones masivas");
+        } finally {
+            setLoadingCotizacionesMasivas(false);
+        }
+    };
+
     const handleChangeEstado = async (
         cot: CotRow,
         nuevoEstado: EstadoCotizacionGestioo
@@ -1043,6 +1089,16 @@ const Cotizaciones: React.FC = () => {
             }],
             seccionActiva: 1
         });
+    };
+
+    const abrirCotizacionesMasivas = async () => {
+        try {
+            await fetchCatalogo();
+            await fetchEntidades();
+            setShowCotizacionMasivaModal(true);
+        } catch (error) {
+            handleApiError(error, "Error al cargar datos para cotizaciones masivas");
+        }
     };
 
     // === FUNCIONES PARA PRODUCTOS ===
@@ -1884,17 +1940,28 @@ const Cotizaciones: React.FC = () => {
                                 <span>Recargar</span>
                             </button>
                             {!isCliente && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        resetForm();
-                                        setShowCreateModal(true);
-                                    }}
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
-                                >
-                                    <PlusOutlined className="text-base" />
-                                    Crear
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={abrirCotizacionesMasivas}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-purple-300 bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-50 sm:w-auto"
+                                    >
+                                        <FileTextOutlined className="text-base" />
+                                        Masivas
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            resetForm();
+                                            setShowCreateModal(true);
+                                        }}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
+                                    >
+                                        <PlusOutlined className="text-base" />
+                                        Crear
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -2252,6 +2319,16 @@ const Cotizaciones: React.FC = () => {
                 }}
                 pdfURL={pdfURL}
             />
+            {!isCliente && (
+                <CotizacionMasivaModal
+                    show={showCotizacionMasivaModal}
+                    onClose={() => setShowCotizacionMasivaModal(false)}
+                    entidades={entidades}
+                    productos={productosCatalogo}
+                    onGenerar={handleCrearCotizacionesMasivas}
+                    apiLoading={loadingCotizacionesMasivas}
+                />
+            )}
             {!isCliente && (
                 <CreateCotizacionModal
                     show={showCreateModal}
