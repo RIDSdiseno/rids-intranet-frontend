@@ -1689,7 +1689,7 @@ export default function EquipoViewModal({
                                                                             </div>
                                                                         </div>
 
-                                                                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+                                                                        <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
                                                                             <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
                                                                                 <div className="font-medium text-slate-500">
                                                                                     Duración
@@ -1724,6 +1724,21 @@ export default function EquipoViewModal({
                                                                                 <div className="mt-0.5 break-all font-semibold text-slate-800">
                                                                                     {mantencion.agenteVersion || "—"}
                                                                                 </div>
+                                                                            </div>
+                                                                            <div className="rounded-lg border border-cyan-100 bg-cyan-50/50 px-2.5 py-2">
+                                                                                <div className="font-medium text-cyan-700">
+                                                                                    Técnico responsable
+                                                                                </div>
+
+                                                                                <div className="mt-0.5 break-all font-semibold text-slate-800">
+                                                                                    {mantencion.tecnico?.nombre || "No informado"}
+                                                                                </div>
+
+                                                                                {mantencion.tecnico?.email ? (
+                                                                                    <div className="mt-0.5 break-all text-[11px] text-slate-500">
+                                                                                        {mantencion.tecnico.email}
+                                                                                    </div>
+                                                                                ) : null}
                                                                             </div>
                                                                         </div>
 

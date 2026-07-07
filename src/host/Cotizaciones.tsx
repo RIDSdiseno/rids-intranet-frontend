@@ -55,7 +55,7 @@ import {
 } from "../components/modals-cotizaciones/utils";
 
 import CrearEquipoModal from "../components/modals-equipos/CrearEquipo";
-import type { EquipoDTO } from "../components/modals-equipos/CrearEquipo";
+import type { EquipoDTO } from "../components/modals-equipos/equipos.types";
 
 import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquipo";
 
@@ -1202,10 +1202,6 @@ const Cotizaciones: React.FC = () => {
         setShowEditProductoModal(true);
     };
 
-    const abrirEditarProductoDesdeCatalogo = (data: { productoId: number }) => {
-        abrirEditarProducto(data, "catalogo");
-    };
-
     const abrirEditarProductoDesdeCotizacion = (item: CotizacionItemGestioo) => {
         abrirEditarProducto(item, "cotizacion");
     };
@@ -1580,17 +1576,6 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const recargarItemsCotizacion = async (cotizacionId: number) => {
-        try {
-            const data = await apiFetch(`/cotizaciones/${cotizacionId}`);
-            const items = data.data?.items || data.items || data.data?.cotizacion?.items || data.cotizacion?.items || [];
-            return items;
-        } catch (error) {
-            handleApiError(error, "Error al recargar items");
-            return [];
-        }
-    };
-
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
@@ -1854,30 +1839,6 @@ const Cotizaciones: React.FC = () => {
                     >
                         <CopyOutlined />
                     </button>
-
-                    {c.estado === EstadoCotizacionGestioo.APROBADA &&
-                        (!c.facturas || c.facturas.length === 0) && (
-                            <button
-                                onClick={async () => {
-                                    if (!window.confirm("¿Desea emitir factura electrónica?")) return;
-
-                                    try {
-                                        await apiFetch(`/cotizaciones/${c.id}/emitir-sii`, {
-                                            method: "POST",
-                                        });
-
-                                        await fetchCotizaciones(page);
-                                        showSuccess("Factura emitida correctamente");
-                                    } catch (error) {
-                                        handleApiError(error, "Error al emitir factura");
-                                    }
-                                }}
-                                className={mobile ? "rounded-xl border border-cyan-200 p-2 text-cyan-700 hover:bg-cyan-50" : "text-sm text-purple-600 hover:text-purple-800"}
-                                title="Emitir Factura"
-                            >
-                                <FileTextOutlined />
-                            </button>
-                        )}
 
                     <button
                         onClick={() => handleDelete(c.id)}

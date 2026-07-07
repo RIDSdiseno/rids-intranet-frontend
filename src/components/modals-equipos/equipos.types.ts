@@ -311,6 +311,14 @@ export type ListSolicitantesResponse = {
 export type EquipoMantencion = {
   id: number;
   equipoId: number;
+  tecnicoId?: number | null;
+  tecnico?: {
+    id_tecnico: number;
+    nombre: string;
+    email: string;
+    rol?: string | null;
+    status?: boolean | null;
+  } | null;
   tipo: string;
   estado: "COMPLETADA" | "COMPLETADA_CON_ADVERTENCIAS" | "CANCELADA" | string;
   origen: string;
