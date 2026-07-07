@@ -1,3 +1,4 @@
+// src/host/ProductosCotiPage.tsx
 import React, {
     useEffect,
     useState,
@@ -16,12 +17,15 @@ import {
     Box,
     Hash,
     AlertCircle,
-    Loader2,
     CheckCircle2,
     Eye,
 } from "lucide-react";
 
 import { http } from "../service/http";
+
+import NewProducto from "../components/modals-cotizaciones/NewProducto";
+import EditProductoModal from "../components/modals-cotizaciones/EditProducto";
+import type { ProductoForm } from "../components/modals-cotizaciones/types";
 
 interface Producto {
     id: number;
@@ -54,334 +58,6 @@ const debounce = (fn: (...args: any[]) => void, delay: number) => {
 };
 
 /* ==========================================
-   Modal Producto (Crear / Editar)
-========================================== */
-interface ModalProductoProps {
-    show: boolean;
-    title: string;
-    onClose: () => void;
-    onSave: () => void;
-    isSaving: boolean;
-    form: Producto;
-    setForm: React.Dispatch<React.SetStateAction<Producto>>;
-    categorias: string[];
-}
-
-// modal para crear y editar productos
-const ModalProducto: React.FC<ModalProductoProps> = ({
-    show,
-    title,
-    onClose,
-    onSave,
-    isSaving,
-    form,
-    setForm,
-    categorias
-}) => {
-
-    if (!show) return null;
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSave();
-    };
-
-    const isCreate = title === "Nuevo Producto";
-    
-    // formulario de creación
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto transform transition-all">
-
-                <form onSubmit={handleSubmit}>
-                    <div className="p-6">
-
-                        {/* HEADER */}
-                        <div className="flex justify-between items-center mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-cyan-50 rounded-xl">
-                                    <Package className="w-5 h-5 text-cyan-600" />
-                                </div>
-                                <h2 className="text-xl font-semibold text-slate-900">
-                                    {title}
-                                </h2>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-                                disabled={isSaving}
-                            >
-                                <X size={20} className="text-slate-500" />
-                            </button>
-                        </div>
-
-                        {/* CAMPOS */}
-                        <div className="space-y-4">
-
-                            {/* Nombre */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Nombre <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 
-                                    focus:ring-cyan-500 focus:border-cyan-500 outline-none 
-                                    transition-colors border-slate-300"
-                                    value={form.nombre}
-                                    onChange={(e) =>
-                                        setForm((prev) => ({ ...prev, nombre: e.target.value }))
-                                    }
-                                    required
-                                />
-                            </div>
-
-                            {/* Categoría */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Categoría
-                                </label>
-
-                                <select
-                                    className="w-full px-3 py-2.5 border rounded-lg bg-white 
-                                    focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 
-                                    outline-none transition-colors border-slate-300"
-                                    value={form.categoria ?? ""}
-                                    onChange={(e) =>
-                                        setForm((prev) => ({ ...prev, categoria: e.target.value }))
-                                    }
-                                >
-                                    <option value="">Seleccione una categoría...</option>
-
-                                    {categorias.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                            {cat}
-                                        </option>
-                                    ))}
-
-                                </select>
-
-                                {form.categoria === "__nueva__" && (
-                                    <input
-                                        className="mt-3 w-full px-3 py-2.5 border rounded-lg 
-                                        focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 
-                                        outline-none transition-colors border-slate-300"
-                                        placeholder="Escriba nueva categoría..."
-                                        onChange={(e) =>
-                                            setForm((prev) => ({ ...prev, categoria: e.target.value }))
-                                        }
-                                    />
-                                )}
-                            </div>
-
-                            {/* Precio + Stock */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Precio costo <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-cyan-500 
-                                        focus:border-cyan-500 outline-none border-slate-300"
-                                        value={form.precio ?? 0}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                precio: Number(e.target.value),
-                                                precioTotal:
-                                                    prev.porcGanancia
-                                                        ? Number(e.target.value) +
-                                                        (Number(e.target.value) * (prev.porcGanancia ?? 0)) / 100
-                                                        : prev.precioTotal
-                                            }))
-                                        }
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Stock
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-cyan-500 
-                                        focus:border-cyan-500 outline-none border-slate-300"
-                                        value={form.stock ?? 0}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                stock: Number(e.target.value)
-                                            }))
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Ganancia + Precio venta */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        % Ganancia
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-cyan-500 
-                                        focus:border-cyan-500 outline-none border-slate-300"
-                                        value={form.porcGanancia ?? 0}
-                                        onChange={(e) => {
-                                            const porc = Number(e.target.value) || 0;
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                porcGanancia: porc,
-                                                precioTotal:
-                                                    prev.precio
-                                                        ? prev.precio + (prev.precio * porc) / 100
-                                                        : 0
-                                            }));
-                                        }}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Precio venta
-                                    </label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-cyan-500 
-                                        focus:border-cyan-500 outline-none border-slate-300"
-                                        value={form.precioTotal ?? form.precio ?? 0}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                precioTotal: Number(e.target.value)
-                                            }))
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Serie SOLO en edición */}
-                            {!isCreate && (
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Serie / Código interno
-                                    </label>
-                                    <input
-                                        className="w-full px-3 py-2.5 border rounded-lg bg-slate-100 opacity-70 
-                                        cursor-not-allowed border-slate-300"
-                                        value={form.serie ?? ""}
-                                        disabled
-                                    />
-                                </div>
-                            )}
-
-                            {/* Descripción */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Descripción
-                                </label>
-                                <textarea
-                                    className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-cyan-500 
-                                    focus:border-cyan-500 outline-none border-slate-300 resize-none"
-                                    rows={3}
-                                    value={form.descripcion ?? ""}
-                                    onChange={(e) =>
-                                        setForm((prev) => ({ ...prev, descripcion: e.target.value }))
-                                    }
-                                />
-                            </div>
-
-                            {/* IMAGEN */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Imagen del Producto
-                                </label>
-
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            imagenFile: e.target.files?.[0] || null
-                                        }))
-                                    }
-                                    className="w-full px-3 py-2.5 border rounded-lg border-slate-300"
-                                />
-
-                                {(form.imagenFile || form.imagen) && (
-                                    <div className="mt-3 relative inline-block group">
-                                        <img
-                                            src={
-                                                form.imagenFile
-                                                    ? URL.createObjectURL(form.imagenFile)
-                                                    : form.imagen!
-                                            }
-                                            alt="preview"
-                                            className="w-32 h-32 object-cover rounded-xl border shadow-sm"
-                                        />
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    imagen: null,
-                                                    imagenFile: null
-                                                }))
-                                            }
-                                            className="absolute -top-2 -right-2 bg-white text-slate-600 
-                hover:text-red-600 hover:bg-red-50 rounded-full w-7 h-7 
-                flex items-center justify-center shadow-md border border-slate-200"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* FOOTER */}
-                    <div className="px-6 py-4 border-t bg-slate-50 rounded-b-2xl flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg font-medium"
-                            disabled={isSaving}
-                        >
-                            Cancelar
-                        </button>
-
-                        <button
-                            type="submit"
-                            disabled={isSaving}
-                            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 
-                            font-medium flex items-center gap-2 disabled:opacity-60"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                <>
-                                    Guardar
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </form>
-
-            </div>
-        </div>
-    );
-};
-
-/* ==========================================
    Modal Ver Producto (solo lectura)
 ========================================== */
 interface ModalViewProductoProps {
@@ -397,7 +73,7 @@ const ModalViewProducto: React.FC<ModalViewProductoProps> = ({
     form,
 }) => {
     if (!show) return null;
-    
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
@@ -531,6 +207,21 @@ const ProductosPage: React.FC = () => {
     const [showEdit, setShowEdit] = useState(false);
     const [showView, setShowView] = useState(false);
 
+    const [productoAEditar, setProductoAEditar] = useState<Producto | null>(null);
+
+    const [productoForm, setProductoForm] = useState<ProductoForm>({
+        nombre: "",
+        descripcion: "",
+        precio: 0,
+        porcGanancia: 0,
+        precioTotal: 0,
+        categoria: "",
+        stock: 0,
+        serie: "",
+        imagen: null,
+        imagenFile: null,
+    });
+
     const [form, setForm] = useState<Producto>({
         id: 0,
         nombre: "",
@@ -554,7 +245,7 @@ const ProductosPage: React.FC = () => {
         },
         []
     );
-    
+
     // carga productos desde la API
     const loadProductos = async () => {
         setIsLoading(true);
@@ -667,140 +358,100 @@ const ProductosPage: React.FC = () => {
         return "text-slate-600";
     };
 
-    const resetForm = () => {
-        setForm({
-            id: 0,
+    const resetProductoForm = () => {
+        setProductoForm({
             nombre: "",
             descripcion: "",
-            categoria: "",
             precio: 0,
             porcGanancia: 0,
             precioTotal: 0,
+            categoria: "",
             stock: 0,
             serie: "",
-            sku: "",
-            proveedor: "",
             imagen: null,
             imagenFile: null,
         });
     };
 
     const openCreate = () => {
-        resetForm();
+        resetProductoForm();
         setShowCreate(true);
     };
 
-    const openEdit = (p: Producto) => {
-        setForm({
-            ...p,
-            precio: Number(p.precio) || 0,
-            precioTotal: Number(p.precioTotal || p.precio) || 0,
-            porcGanancia: Number(p.porcGanancia) || 0,
-            stock: Number(p.stock) || 0,
-            imagenFile: null,
-        });
+    const closeCreate = () => {
+        setShowCreate(false);
+        resetProductoForm();
+    };
+
+    const openEdit = (producto: Producto) => {
+        setProductoAEditar(producto);
         setShowEdit(true);
+    };
+
+    const closeEdit = () => {
+        setShowEdit(false);
+        setProductoAEditar(null);
     };
 
     const openView = (p: Producto) => {
         setForm(p);
         setShowView(true);
     };
-    
-    // función para crear un nuevo producto, con validaciones y manejo de imagen
-    const handleCreate = async () => {
 
+    const handleProductoFormChange = (
+        field: keyof ProductoForm,
+        value: any
+    ) => {
+        setProductoForm((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
+    const handleGuardarProductoEditado = async (productoData: any) => {
+        if (!productoData?.id) return;
         if (isSaving) return;
-
-        if (!form.nombre.trim() || form.precio <= 0) {
-            showNotification("error", "Nombre y precio son obligatorios");
-            return;
-        }
-
-        // 🔥 VALIDAR DUPLICADOS (NOMBRE)
-        const yaExiste = productos.some(
-            (p) =>
-                p.nombre?.toLowerCase().trim() ===
-                form.nombre?.toLowerCase().trim()
-        );
-
-        if (yaExiste) {
-            showNotification("error", "Ya existe un producto con ese nombre");
-            return;
-        }
 
         setIsSaving(true);
 
         try {
-            const { serie, imagenFile, ...resto } = form;
-
-            // 1️⃣ Crear producto primero
-            const res = await http.post("/productos-gestioo", {
-                ...resto,
-                precio: Number(form.precio) || 0,
-                precioTotal: Number(form.precioTotal || form.precio) || 0,
-                porcGanancia: Number(form.porcGanancia) || 0,
-                stock: Number(form.stock) || 0,
+            await http.put(`/productos-gestioo/${productoData.id}`, {
+                nombre: productoData.nombre,
+                descripcion: productoData.descripcion,
+                precio: Number(productoData.precioCosto ?? productoData.precio ?? 0),
+                porcGanancia: Number(productoData.porcGanancia ?? 0),
+                precioTotal: Number(
+                    productoData.precioOriginalCLP ??
+                    productoData.precioTotal ??
+                    productoData.precio ??
+                    productoData.precioCosto ??
+                    0
+                ),
+                categoria: productoData.categoria,
+                stock: Number(productoData.stock ?? 0),
+                serie: productoData.serie,
+                imagen: productoData.imagen,
+                publicId: productoData.publicId,
             });
 
-            const nuevoProducto = res.data;
-
-            // 2️⃣ Si hay imagen → subirla
-            if (imagenFile) {
-                const formData = new FormData();
-                formData.append("productoId", String(nuevoProducto.id));
-                formData.append("imagen", imagenFile);
-
-                await http.post("/upload-imagenes/upload", formData);
-            }
-
-            showNotification("success", "Producto creado exitosamente");
-            setShowCreate(false);
-            resetForm();
-            loadProductos();
-
+            showNotification("success", "Producto actualizado exitosamente");
+            closeEdit();
+            await loadProductos();
         } catch (err: any) {
+            console.error("❌ Error actualizando producto:", err);
+
             const msg =
+                err?.response?.data?.message ||
                 err?.response?.data?.error ||
-                "Error al crear el producto";
+                err?.message ||
+                "Error al actualizar el producto";
+
             showNotification("error", msg);
         } finally {
             setIsSaving(false);
         }
     };
-    
-    // función para actualizar un producto existente, con validaciones y manejo de imagen
-    const handleUpdate = async () => {
-        if (!form.id) return;
 
-        setIsSaving(true);
-
-        try {
-            const { imagenFile, ...resto } = form;
-
-            await http.put(`/productos-gestioo/${form.id}`, resto);
-
-            if (imagenFile) {
-                const formData = new FormData();
-                formData.append("productoId", String(form.id));
-                formData.append("imagen", imagenFile);
-
-                await http.post("/upload-imagenes/upload", formData);
-            }
-
-            showNotification("success", "Producto actualizado exitosamente");
-            setShowEdit(false);
-            resetForm();
-            loadProductos();
-
-        } catch (err) {
-            console.error(err);
-            showNotification("error", "Error al actualizar el producto");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-    
     // función para eliminar un producto, con confirmación y manejo de errores
     const handleDelete = async (id: number) => {
         if (!window.confirm("¿Seguro deseas eliminar este producto?")) return;
@@ -817,7 +468,7 @@ const ProductosPage: React.FC = () => {
             setIsSaving(false);
         }
     };
-    
+
     // función para cambiar el estado del producto (disponible/agotado)
     return (
         <>
@@ -1177,18 +828,18 @@ const ProductosPage: React.FC = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <button
-                                                                    onClick={() => openEdit(p)}
-                                                                    className="p-2 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition-colors"
-                                                                    title="Editar"
-                                                                >
-                                                                    <Pencil size={18} />
-                                                                </button>
-                                                                <button
                                                                     onClick={() => openView(p)}
                                                                     className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                                                                     title="Ver detalles"
                                                                 >
                                                                     <Eye size={18} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => openEdit(p)}
+                                                                    className="p-2 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition-colors"
+                                                                    title="Editar"
+                                                                >
+                                                                    <Pencil size={18} />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDelete(p.id)}
@@ -1319,18 +970,18 @@ const ProductosPage: React.FC = () => {
                                                     {/* ACCIONES */}
                                                     <div className="flex gap-2 pt-2">
                                                         <button
-                                                            onClick={() => openEdit(p)}
-                                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-50 text-cyan-700 rounded-xl hover:bg-cyan-100 transition-all duration-200 font-medium border border-cyan-200 hover:border-cyan-300"
-                                                        >
-                                                            <Pencil size={16} />
-                                                            Editar
-                                                        </button>
-                                                        <button
                                                             onClick={() => openView(p)}
                                                             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-all duration-200 font-medium border border-blue-200 hover:border-blue-300"
                                                         >
                                                             <Eye size={16} />
                                                             Ver
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openEdit(p)}
+                                                            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-50 text-cyan-700 rounded-xl hover:bg-cyan-100 transition-all duration-200 font-medium border border-cyan-200 hover:border-cyan-300"
+                                                        >
+                                                            <Pencil size={16} />
+                                                            Editar
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(p.id)}
@@ -1347,7 +998,7 @@ const ProductosPage: React.FC = () => {
                             </>
                         )}
                     </div>
-                    
+
                     {/* PAGINACIÓN */}
                     {totalPaginas > 1 && (
                         <div className="mt-8 pt-6 border-t border-slate-200/80">
@@ -1513,26 +1164,29 @@ const ProductosPage: React.FC = () => {
             </div>
 
             {/* MODALES */}
-            <ModalProducto
+            <NewProducto
                 show={showCreate}
-                title="Nuevo Producto"
-                onClose={() => setShowCreate(false)}
-                onSave={handleCreate}
-                isSaving={isSaving}
-                form={form}
-                setForm={setForm}
-                categorias={categoriasDisponibles}
+                onClose={closeCreate}
+                onSubmit={async() => {
+                    closeCreate();
+                    await loadProductos();
+                    showNotification("success", "Producto creado exitosamente");
+                }}
+                formData={productoForm}
+                onFormChange={handleProductoFormChange}
+                categoriasDisponibles={categoriasDisponibles.filter(
+                    (cat) => cat !== "Todas"
+                )}
+                apiLoading={isSaving}
             />
 
-            <ModalProducto
+            <EditProductoModal
                 show={showEdit}
-                title="Editar Producto"
-                onClose={() => setShowEdit(false)}
-                onSave={handleUpdate}
-                isSaving={isSaving}
-                form={form}
-                setForm={setForm}
-                categorias={categoriasDisponibles}
+                producto={productoAEditar}
+                onClose={closeEdit}
+                onSave={handleGuardarProductoEditado}
+                onBackToSelector={closeEdit}
+                apiLoading={isSaving}
             />
 
             <ModalViewProducto

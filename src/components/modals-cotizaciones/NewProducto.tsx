@@ -1,3 +1,4 @@
+// src/components/modals-cotizaciones/NewProducto.tsx
 import React, { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -8,6 +9,7 @@ import {
     CheckCircleOutlined,
     CloseOutlined,
 } from "@ant-design/icons";
+import { message } from "antd";
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import type { ProductoForm } from "./types";
 import { useApi } from "./UseApi";
@@ -37,6 +39,7 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
     const [conIVA, setConIVA] = useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     if (!show) return null;
 
@@ -77,18 +80,21 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
         if (isSubmitting) return;
 
         if (formInvalido) {
-            alert("Hay campos inválidos. Revisa la información ingresada.");
+            setSubmitError(motivoDeshabilitado() || "Hay campos inválidos. Revisa la información ingresada.");
             return;
         }
 
         try {
             setIsSubmitting(true);
+            setSubmitError(null);
+
+            const nombreLimpio = formData.nombre.trim().replace(/\s+/g, " ");
 
             // 1️⃣ Crear producto
             const nuevoProductoResp = await fetchApi("/productos-gestioo", {
                 method: "POST",
                 body: JSON.stringify({
-                    nombre: formData.nombre,
+                    nombre: nombreLimpio,
                     descripcion: formData.descripcion,
                     precio: formData.precio,
                     porcGanancia: formData.porcGanancia,
@@ -132,9 +138,40 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                 imagen: imagenUrl,
                 publicId,
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error("❌ Error al crear producto:", error);
-            alert("Error al crear el producto. Intente nuevamente.");
+
+            const status =
+                error?.status ||
+                error?.response?.status;
+
+            const backendMessage =
+                error?.data?.message ||
+                error?.data?.error ||
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Error al crear el producto. Intente nuevamente.";
+
+            const mensajeFinal =
+                status === 409
+                    ? backendMessage || "Ya existe un producto activo con ese nombre."
+                    : backendMessage;
+
+            setSubmitError(mensajeFinal);
+
+            if (status === 409) {
+                message.warning({
+                    content: mensajeFinal,
+                    duration: 5,
+                });
+                return;
+            }
+
+            message.error({
+                content: mensajeFinal,
+                duration: 5,
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -215,6 +252,15 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 
                 {/* FORM */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {submitError && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 flex items-start gap-2">
+                            <InfoCircleOutlined className="mt-0.5 text-rose-500" />
+                            <div>
+                                <p className="font-semibold">No se pudo crear el producto</p>
+                                <p>{submitError}</p>
+                            </div>
+                        </div>
+                    )}
                     {/* NOMBRE / CATEGORÍA */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -223,9 +269,10 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                             </label>
                             <input
                                 value={formData.nombre}
-                                onChange={(e) =>
-                                    onFormChange("nombre", e.target.value)
-                                }
+                                onChange={(e) => {
+                                    setSubmitError(null);
+                                    onFormChange("nombre", e.target.value);
+                                }}
                                 className={`w-full border rounded-xl px-4 py-3 text-sm
                                     ${nombreInvalido
                                         ? "border-rose-400"
