@@ -48,6 +48,7 @@ const FacturasBaseapi: React.FC = () => {
     const now = new Date();
     const user = useMemo(() => safeParseUser(), []);
     const isCliente = user?.rol === "CLIENTE";
+    const canViewConciliacion = String(user?.rol ?? "").toUpperCase().trim() === "ADMINISTRACION";
 
     const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
     const [ano, setAno] = useState(String(now.getFullYear()));
@@ -87,7 +88,10 @@ const FacturasBaseapi: React.FC = () => {
         if (isCliente && (mainTab === "conciliacion" || mainTab === "cobranza")) {
             setMainTab("documentos");
         }
-    }, [isCliente, mainTab]);
+        if (!canViewConciliacion && mainTab === "conciliacion") {
+            setMainTab("documentos");
+        }
+    }, [isCliente, canViewConciliacion, mainTab]);
 
     const showError = (msg: string) => {
         setToast({ type: "error", message: msg });
@@ -435,7 +439,9 @@ const FacturasBaseapi: React.FC = () => {
                             {(
                                 isCliente
                                     ? (["documentos", "dashboard"] as const)
-                                    : (["documentos", "dashboard", "conciliacion", "cobranza"] as const)
+                                    : canViewConciliacion
+                                        ? (["documentos", "dashboard", "conciliacion", "cobranza"] as const)
+                                        : (["documentos", "dashboard", "cobranza"] as const)
                             ).map((tab) => (
                                 <button
                                     key={tab}
@@ -733,7 +739,7 @@ const FacturasBaseapi: React.FC = () => {
                         )}
                     </>
                 )}
-                {!isCliente && mainTab === "conciliacion" && (
+                {canViewConciliacion && mainTab === "conciliacion" && (
                     <RcvConciliacionPanel
                         empresa={empresa}
                         activeTab={activeTab}

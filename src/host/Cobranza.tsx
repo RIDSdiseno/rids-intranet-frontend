@@ -13,6 +13,8 @@ import {
     formatCLP,
     formatFechaVista,
     EMPRESAS_PDF,
+    imageUrlToBase64,
+    escapeHtml,
 } from "../components/modals-facturasBaseapi/utils";
 import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
 import { Pagination } from "antd";
@@ -1005,12 +1007,12 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
                     documento={historialDoc}
                     onClose={() => { setHistorialModalOpen(false); setHistorialDoc(null); }}
                     documentosAll={getDocumentos(respuesta) || documentos}
-                    fetchAuditLogs={async (empresaId: number) => {
+                    fetchAuditLogs={async (folio: string) => {
                         try {
                             const token = localStorage.getItem('accessToken') ?? '';
                             const headers: any = { 'Content-Type': 'application/json' };
                             if (token) headers.Authorization = `Bearer ${token}`;
-                            const res = await fetch(`${BASE_URL}/audit?empresaId=${empresaId}&limit=200`, { headers });
+                            const res = await fetch(`${BASE_URL}/audit?entity=Documento&entityId=${encodeURIComponent(folio)}&limit=200`, { headers });
                             if (!res.ok) return [];
                             const json = await res.json();
                             return json?.data ?? [];
@@ -1020,6 +1022,28 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
             )}
         </div>
     );
+}
+
+const TITULOS_RECORDATORIO: Record<string, string> = {
+    factura_emitida: 'Factura Emitida',
+    por_vencer: 'Factura por Vencer',
+    vencida: 'Factura Vencida',
+    pago_recibido: 'Pago Recibido',
+    nuevo_doc_nc: 'Nuevo Documento',
+};
+
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string | null;
+            if (!result) return resolve("");
+            const comma = result.indexOf(",");
+            resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
 // Componente interno para el contenido del modal, separado para mantener Cobranza claro
@@ -1113,39 +1137,95 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                             const fechaVenc = String(getValue(reminderDoc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], getValue(detalle, ["fechaVencimiento","FchVenc","vencimiento"], "—")));
                             const total = formatCLP(getMontoTotalDoc(reminderDoc));
                             const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
-                            const titulo = tipo === 'vencida' ? 'Factura Vencida' : tipo === 'por_vencer' ? 'Factura por vencer' : 'Recordatorio';
+                            const titulo = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
 
                             const saludo = manualNombre.trim() ? `Estimado(a) ${manualNombre.trim()}:` : 'Estimado(a):';
 
+                            const logoBase64 = empresaPdf.logo ? await imageUrlToBase64(empresaPdf.logo) : '';
+
                             const html = `
-                            <div style="font-family: Arial, Helvetica, sans-serif; color:#111; padding:18px;">
-                              <div style="text-align:center; margin-bottom:18px;"><img src="${empresaPdf.logo}" style="max-height:64px; object-fit:contain;"/></div>
-                              <div style="background:#b91c1c; color:#fff; padding:14px; border-radius:6px; font-weight:700; margin-bottom:16px;">${titulo}</div>
-                              <div style="font-size:14px; line-height:1.5;">
-                                <p>${saludo}</p>
-                                <p>Junto con saludar le recordamos que al día de hoy nuestro sistema indica que usted mantiene un saldo de <strong>${montoPagar}</strong> pendiente de pago por la factura <strong>#${folio}</strong> que venció el <strong>${formatFechaVista(fechaVenc)}</strong>.</p>
-                                <p>Le pedimos por favor cancelar a la brevedad posible la deuda indicada en este correo.</p>
-                                ${observacion ? `<p><strong>Observación:</strong> ${observacion}</p>` : ''}
-                              </div>
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(titulo)}</title></head>
+<body style="margin:0; padding:0; background-color:#f0f6f9; font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f0f6f9;">
+  <tr>
+    <td align="center" style="padding:28px 16px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:14px; overflow:hidden; border:1px solid #e2f0f5;">
 
-                              <div style="margin-top:18px; background:#f7f7f7; padding:12px; border-radius:6px;">
-                                <div style="font-weight:600; color:#444; margin-bottom:8px;">Documento #${folio}</div>
-                                <div style="display:flex; gap:18px; font-size:13px; color:#444;">
-                                  <div><div style="color:#888">Fecha de vencimiento</div><div>${formatFechaVista(fechaVenc)}</div></div>
-                                  <div><div style="color:#888">Total</div><div>${total}</div></div>
-                                  <div><div style="color:#888">Monto por pagar</div><div>${montoPagar}</div></div>
-                                </div>
-                              </div>
+        <!-- Logo -->
+        <tr>
+          <td align="center" style="padding:26px 28px 18px; border-bottom:1px solid #eef2f5;">
+            <img src="${logoBase64}" alt="${escapeHtml(empresaPdf.nombre)}" style="max-height:52px; object-fit:contain;" />
+          </td>
+        </tr>
 
-                              <div style="margin-top:18px; text-align:center;">
-                                <a href="#" style="display:inline-block; background:#b91c1c; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">Ir al Portal</a>
-                              </div>
+        <!-- Banner -->
+        <tr>
+          <td style="background-color:#0891b2; color:#ffffff; padding:16px 28px; font-size:16px; font-weight:700;">
+            ${escapeHtml(titulo)}
+          </td>
+        </tr>
 
-                              <div style="margin-top:12px; display:flex; gap:10px; justify-content:center;">
-                                <button id="downloadPdfBtn" style="background:#fff; border:1px solid #eee; padding:8px 12px; border-radius:6px;">Descargar en PDF</button>
-                                <button id="downloadXmlBtn" style="background:#fff; border:1px solid #eee; padding:8px 12px; border-radius:6px;">Descargar en XML</button>
-                              </div>
-                            </div>
+        <!-- Cuerpo -->
+        <tr>
+          <td style="padding:26px 28px 6px; color:#1f2937; font-size:14px; line-height:1.7;">
+            <p style="margin:0 0 14px;">${escapeHtml(saludo)}</p>
+            <p style="margin:0 0 14px;">Junto con saludar le recordamos que al día de hoy nuestro sistema indica que usted mantiene un saldo de <strong>${montoPagar}</strong> pendiente de pago por la factura <strong>#${escapeHtml(folio)}</strong> que venció el <strong>${formatFechaVista(fechaVenc)}</strong>.</p>
+            <p style="margin:0 0 14px;">Le pedimos por favor cancelar a la brevedad posible la deuda indicada en este correo.</p>
+            ${observacion ? `<p style="margin:0 0 14px;"><strong>Observación:</strong> ${escapeHtml(observacion)}</p>` : ''}
+          </td>
+        </tr>
+
+        <!-- Tarjeta del documento -->
+        <tr>
+          <td style="padding:4px 28px 20px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; font-size:13px;">
+              <tr>
+                <td colspan="3" style="background-color:#f8fafc; padding:12px 16px; font-weight:700; color:#334155; border-bottom:1px solid #e5e7eb;">Documento #${escapeHtml(folio)}</td>
+              </tr>
+              <tr>
+                <td width="34%" style="padding:14px 16px; border-right:1px solid #e5e7eb; vertical-align:top;">
+                  <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px;">Fecha de vencimiento</div>
+                  <div style="color:#0f172a; font-weight:700;">${formatFechaVista(fechaVenc)}</div>
+                </td>
+                <td width="33%" style="padding:14px 16px; border-right:1px solid #e5e7eb; vertical-align:top;">
+                  <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px;">Total</div>
+                  <div style="color:#0f172a; font-weight:700;">${total}</div>
+                </td>
+                <td width="33%" style="padding:14px 16px; vertical-align:top;">
+                  <div style="color:#94a3b8; font-size:10px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px;">Monto por pagar</div>
+                  <div style="color:#0891b2; font-weight:700;">${montoPagar}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Aviso de adjunto -->
+        <tr>
+          <td style="padding:0 28px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ecfeff; border:1px solid #cffafe; border-radius:10px;">
+              <tr><td align="center" style="padding:12px 16px; font-size:12.5px; color:#0e7490;">La factura en PDF se encuentra adjunta a este correo.</td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="border-top:1px solid #eef2f5; background-color:#f8fbfd; padding:16px 28px; font-size:11px; color:#94a3b8;">
+            <div style="font-weight:700; color:#475569; margin-bottom:2px;">${escapeHtml(empresaPdf.nombre)}</div>
+            <div>${escapeHtml(empresaPdf.direccion)} · RUT ${escapeHtml(empresaPdf.rut)}</div>
+            <div>${escapeHtml(empresaPdf.correo)}${empresaPdf.telefono ? ` · ${escapeHtml(empresaPdf.telefono)}` : ''}</div>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
                             `;
 
                             setPreviewHtml(html);
@@ -1191,30 +1271,40 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
 
                                         const targets = [{ email: manualEmail.trim(), nombre: manualNombre.trim() || manualEmail.trim() }];
                                         const folio = String(getValue(reminderDoc, ["Folio","folio","Nro","numero"], "—"));
-                                        const subject = tipo === 'vencida' ? 'Factura Vencida' : tipo === 'por_vencer' ? 'Factura por vencer' : 'Recordatorio';
+                                        const subject = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
                                         const bodyHtml = previewHtml;
 
-                                        const sendResp = await fetch(`${BASE_URL}/correo/enviar-masivo`, { method: 'POST', headers, body: JSON.stringify({ targets, subject, bodyHtml, ratePerMin: 30 }) });
+                                        // Generar la factura en PDF y adjuntarla al correo
+                                        const detalle = await fetchDetalleDte(reminderDoc, false);
+                                        const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
+                                        const pdfBase64 = await blobToBase64(pdfResult.blob);
+                                        const attachments = [{ name: pdfResult.fileName, contentType: 'application/pdf', contentBytes: pdfBase64, size: pdfResult.blob.size }];
+
+                                        const sendResp = await fetch(`${BASE_URL}/correo/enviar-masivo`, { method: 'POST', headers, body: JSON.stringify({ targets, subject, bodyHtml, attachments, ratePerMin: 30 }) });
                                         const sendJson = await sendResp.json().catch(() => ({}));
                                         if (!sendResp.ok || !sendJson?.ok) {
                                             const msg = sendJson?.message || sendJson?.error || `Error ${sendResp.status}`;
                                             throw new Error(String(msg));
                                         }
 
-                                        // Registrar en audit logs que se envió un recordatorio
+                                        // Registrar en audit logs que se envió un recordatorio (queda visible en el Historial del documento)
                                         try {
                                             const empresaId = Number(getValue(reminderDoc, ['empresaId','empresa_id','id_empresa'], '') ) || null;
                                             const folioAudit = String(getValue(reminderDoc, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'') || null;
                                             const auditBody = {
-                                                entity: folioAudit ? 'Documento' : 'Recordatorio',
+                                                entity: 'Documento',
                                                 entityId: folioAudit || null,
                                                 empresaId: empresaId,
-                                                action: 'REMINDER',
-                                                description: `Recordatorio enviado a ${manualEmail.trim()} vía ${canal}`,
+                                                action: 'CREATE',
+                                                description: `Recordatorio (${subject})`,
                                                 changes: { canal, tipo, contacto: manualEmail.trim(), observacion }
                                             };
 
-                                            await fetch(`${BASE_URL}/audit`, { method: 'POST', headers, body: JSON.stringify(auditBody) });
+                                            const auditResp = await fetch(`${BASE_URL}/audit`, { method: 'POST', headers, body: JSON.stringify(auditBody) });
+                                            if (!auditResp.ok) {
+                                                const auditErr = await auditResp.json().catch(() => ({}));
+                                                console.warn('No se pudo crear audit log:', auditResp.status, auditErr);
+                                            }
                                         } catch (e) { console.warn('No se pudo crear audit log:', e); }
 
                                         alert('Recordatorio encolado para envío correctamente');
@@ -1234,7 +1324,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
 }
 
 // Historial modal component (simple timeline built from documento, related docs and audit logs)
-function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: { documento: any; onClose: () => void; documentosAll: any[]; fetchAuditLogs: (empresaId:number)=>Promise<any[]> }) {
+function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: { documento: any; onClose: () => void; documentosAll: any[]; fetchAuditLogs: (folio:string)=>Promise<any[]> }) {
     const [loading, setLoading] = React.useState(false);
     const [items, setItems] = React.useState<any[]>([]);
 
@@ -1517,12 +1607,11 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                 baseItems.push({ type: 'emitido', title: `${tipoLabelFor(documento)} emitida`, date: fechaEmi || null, created: createdSel || null, subtitle: `#${fol} → ${monto}`, doc: documento, candidates: getDateCandidates(documento) });
                 try { console.debug('Historial: seleccionado created check', { fol, fechaEmi, createdSel, keys: Object.keys(documento || {}).slice(0,20), sampleRaw: JSON.stringify(documento?.raw ?? documento ?? {}).slice(0,200) }); } catch {};
 
-                // intentar obtener audit logs si existe empresaId en documento
+                // obtener audit logs asociados al folio de este documento (recordatorios enviados, ediciones, etc.)
                 let auditEntries: any[] = [];
-                const empresaId = Number(getValue(documento, ['empresaId','empresa_id','id_empresa','empresa','empresaId'], '') ) || null;
-                if (empresaId) {
+                if (fol) {
                     try {
-                        const logs = await fetchAuditLogs(empresaId);
+                        const logs = await fetchAuditLogs(fol);
                         // filtrar logs que mencionen el folio o contengan 'recordatorio'
                         auditEntries = (logs || []).filter((l: any) => {
                             try {
@@ -1536,7 +1625,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                 for (const a of auditEntries) {
                     const title = a.description || a.action || 'Acción';
                     const when = a.createdAt ? String(a.createdAt).slice(0,10) : null;
-                    baseItems.push({ type: 'audit', title, date: when, created: when, subtitle: a.actor?.nombre ?? String(a.actorId ?? ''), raw: a });
+                    baseItems.push({ type: 'audit', title, date: when, created: null, dateLabel: 'Enviado', subtitle: a.actor?.nombre ?? String(a.actorId ?? ''), raw: a });
                 }
 
                 // ordenar cronológicamente asc por fecha (nulls last)
@@ -1615,7 +1704,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                                             {/* Mostrar fecha de origen: emisión y/o creación */}
                                             {( (it.date && it.date !== '—') || (it.created && it.created !== '—') ) && (
                                                 <div className="mt-2 text-xs text-slate-500">
-                                                    {it.date && it.date !== '—' && (<div>Emitido: <span className="font-medium text-slate-700">{it.date}</span></div>)}
+                                                    {it.date && it.date !== '—' && (<div>{it.dateLabel ?? 'Emitido'}: <span className="font-medium text-slate-700">{it.date}</span></div>)}
                                                     {it.created && it.created !== '—' && (<div>Creado: <span className="font-medium text-slate-700">{it.created}</span></div>)}
                                                 </div>
                                             )}

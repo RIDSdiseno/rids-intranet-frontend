@@ -566,28 +566,28 @@ export default function Mailer() {
       {/* Modal previsualización */}
       {showPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl max-h-[92vh]">
+          <div className="flex w-full max-w-6xl flex-col rounded-3xl bg-white shadow-2xl max-h-[95vh]">
 
             {/* Modal header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <h3 className="text-base font-black text-slate-900">Previsualización de correo</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 px-8 py-5">
+              <h3 className="text-lg font-black text-slate-900">Previsualización de correo</h3>
               <button onClick={() => setShowPreview(false)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50 transition">
                 Cerrar
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto px-6 py-5 flex flex-col gap-4">
+            <div className="flex-1 overflow-auto px-8 py-6 flex flex-col gap-6">
 
               {/* Asunto */}
               <div>
-                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Asunto</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Asunto</label>
                 <input value={subject} onChange={(e) => setSubject(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-cyan-200 px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+                  className="h-11 w-full rounded-xl border border-cyan-200 px-3 text-base text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
               </div>
 
               {/* Destinatarios */}
               <div>
-                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
                   Para ({selectedCount} destinatario{selectedCount !== 1 ? "s" : ""})
                 </label>
                 <div className="max-h-28 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
@@ -602,7 +602,7 @@ export default function Mailer() {
 
               {/* Adjuntos */}
               <div>
-                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Adjuntos</label>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Adjuntos</label>
                 <div className="flex flex-wrap gap-2">
                   {attachments.map((a, idx) => (
                     <div key={idx} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-sm">
@@ -620,8 +620,8 @@ export default function Mailer() {
 
               {/* Editor de contenido */}
               <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Mensaje</label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Mensaje</label>
                   <button type="button" onClick={() => setEditHtml((v) => !v)}
                     className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 transition">
                     {editHtml ? "WYSIWYG" : "HTML"}
@@ -629,7 +629,7 @@ export default function Mailer() {
                 </div>
 
                 {editHtml ? (
-                  <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={8}
+                  <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={14}
                     className="w-full rounded-xl border border-cyan-200 px-3 py-2 font-mono text-xs text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
                 ) : (
                   <div>
@@ -662,7 +662,7 @@ export default function Mailer() {
                       onInput={() => { if (editorRef.current) setContent(editorRef.current.innerHTML); }}
                       onFocus={() => { isTypingRef.current = true; }}
                       onBlur={() => { isTypingRef.current = false; if (editorRef.current) setContent(editorRef.current.innerHTML); }}
-                      className="min-h-[120px] rounded-xl border border-cyan-200 px-4 py-3 text-sm outline-none transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+                      className="min-h-[260px] rounded-xl border border-cyan-200 px-4 py-3 text-sm outline-none transition focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
                     />
                   </div>
                 )}
@@ -670,15 +670,18 @@ export default function Mailer() {
 
               {/* Vista previa con template */}
               <div>
-                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Vista previa del correo</label>
-                <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-60">
-                  <div className="[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5" dangerouslySetInnerHTML={{ __html: fullHtml }} />
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Vista previa del correo</label>
+                <div className="overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-8 max-h-[760px]">
+                  <div
+                    className="mx-auto max-w-[600px] origin-top scale-[1.35] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+                    dangerouslySetInnerHTML={{ __html: fullHtml }}
+                  />
                 </div>
               </div>
             </div>
 
             {/* Modal footer — dos botones de envío */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-8 py-5">
               <button onClick={() => setShowPreview(false)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
                 Cancelar
