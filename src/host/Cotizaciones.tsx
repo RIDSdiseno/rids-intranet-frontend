@@ -29,7 +29,6 @@ import {
     NewProductoModal,
     GenerarPDFModal,
     NewServicioModal,
-    CotizacionMasivaModal
 } from "../components/modals-cotizaciones";
 import type {
     CotizacionGestioo,
@@ -64,6 +63,7 @@ import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquip
 import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
 
 import { useAuth } from "../components/hooks/useAuth"
+import CotizacionesMasivasManager from "../components/modals-cotizaciones/cotizaciones-masivas/CotizacionesMasivasManager";
 
 const { isCliente } = useAuth();
 
@@ -155,8 +155,8 @@ const Cotizaciones: React.FC = () => {
     const [showNewProductoModal, setShowNewProductoModal] = useState(false);
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
 
-    const [showCotizacionMasivaModal, setShowCotizacionMasivaModal] = useState(false);
-    const [loadingCotizacionesMasivas, setLoadingCotizacionesMasivas] = useState(false);
+    const [showCotizacionesMasivasManager, setShowCotizacionesMasivasManager] =
+        useState(false);
 
     const [filtroMes, setFiltroMes] = useState<string>("");
 
@@ -846,45 +846,6 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const handleCrearCotizacionesMasivas = async (payload: {
-        nombreGrupo?: string;
-        comentariosCotizacion: string;
-        cotizaciones: Array<{
-            entidadId: number;
-            comentariosCotizacion?: string;
-            items: Array<{
-                productoId: number;
-                cantidad: number;
-            }>;
-        }>;
-    }) => {
-        try {
-            setLoadingCotizacionesMasivas(true);
-
-            const resp = await apiFetch("/cotizaciones/masivas", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const generadas = resp?.data ?? [];
-
-            setShowCotizacionMasivaModal(false);
-
-            await fetchCotizaciones(1);
-
-            showSuccess(
-                `${generadas.length || payload.cotizaciones.length} cotización(es) generada(s) correctamente`
-            );
-        } catch (error) {
-            handleApiError(error, "Error al crear cotizaciones masivas");
-        } finally {
-            setLoadingCotizacionesMasivas(false);
-        }
-    };
-
     const handleChangeEstado = async (
         cot: CotRow,
         nuevoEstado: EstadoCotizacionGestioo
@@ -1089,16 +1050,6 @@ const Cotizaciones: React.FC = () => {
             }],
             seccionActiva: 1
         });
-    };
-
-    const abrirCotizacionesMasivas = async () => {
-        try {
-            await fetchCatalogo();
-            await fetchEntidades();
-            setShowCotizacionMasivaModal(true);
-        } catch (error) {
-            handleApiError(error, "Error al cargar datos para cotizaciones masivas");
-        }
     };
 
     // === FUNCIONES PARA PRODUCTOS ===
@@ -1943,11 +1894,11 @@ const Cotizaciones: React.FC = () => {
                                 <>
                                     <button
                                         type="button"
-                                        onClick={abrirCotizacionesMasivas}
+                                        onClick={() => setShowCotizacionesMasivasManager(true)}
                                         className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-purple-300 bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-50 sm:w-auto"
                                     >
                                         <FileTextOutlined className="text-base" />
-                                        Masivas
+                                        Masivas / Plantillas
                                     </button>
 
                                     <button
@@ -2320,13 +2271,17 @@ const Cotizaciones: React.FC = () => {
                 pdfURL={pdfURL}
             />
             {!isCliente && (
-                <CotizacionMasivaModal
-                    show={showCotizacionMasivaModal}
-                    onClose={() => setShowCotizacionMasivaModal(false)}
+                <CotizacionesMasivasManager
+                    show={showCotizacionesMasivasManager}
+                    onClose={() => setShowCotizacionesMasivasManager(false)}
                     entidades={entidades}
                     productos={productosCatalogo}
-                    onGenerar={handleCrearCotizacionesMasivas}
-                    apiLoading={loadingCotizacionesMasivas}
+                    onReloadCotizaciones={() => fetchCotizaciones(1)}
+                    showSuccess={showSuccess}
+                    handleApiError={handleApiError}
+                    apiFetch={apiFetch}
+                    fetchCatalogo={fetchCatalogo}
+                    fetchEntidades={fetchEntidades}
                 />
             )}
             {!isCliente && (

@@ -10,7 +10,8 @@ import {
   EyeOutlined,
   CheckCircleOutlined,
   RobotOutlined,
-  EyeInvisibleOutlined
+  EyeInvisibleOutlined,
+  MailOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Input, message, DatePicker } from "antd";
@@ -27,6 +28,11 @@ import { KPICards } from "../components/modals-reportes/KpiCards";
 import { WizardSelector } from "../components/modals-reportes/WizardSelector";
 import { PdfModal } from "../components/modals-reportes/PdfModal";
 import { ReporteExportView } from "../components/modals-reportes/ReportExportView";
+
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import InformeResumenVisual from "../components/modals-reportes/InformeResumenVisual";
+import ReportePreviewEmailModal from "../components/modals-reportes/ReportePreviewEmailModal";
 
 // Utils
 import {
@@ -45,6 +51,14 @@ import "dayjs/locale/es";
 dayjs.locale("es");
 
 const { RangePicker } = DatePicker;
+
+// Archivo PDF generado para vista previa y envío por correo.
+type InformeResumenGenerado = {
+  nombreArchivo: string;
+  mimeType: string;
+  fileBase64: string;
+  previewUrl: string;
+};
 
 const DATE_RANGE_PRESETS: {
   label: string;
@@ -119,6 +133,22 @@ const ReportesPage: React.FC = () => {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
+  // ── Informe resumido por correo ──
+  // Este ref apunta al componente visual oculto que se captura como PDF.
+  const informeResumenRef = useRef<HTMLDivElement>(null);
+
+  const [dataInformeResumen, setDataInformeResumen] =
+    useState<ReporteGeneralData | null>(null);
+
+  const [showInformeResumenEmailModal, setShowInformeResumenEmailModal] =
+    useState(false);
+
+  const [informeResumenGenerado, setInformeResumenGenerado] =
+    useState<InformeResumenGenerado | null>(null);
+
+  const [generandoInformeResumen, setGenerandoInformeResumen] = useState(false);
+  const [enviandoInformeResumen, setEnviandoInformeResumen] = useState(false);
+
   // ── Historial ──
   const [historialReportes, setHistorialReportes] = useState<HistorialReporteRow[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
@@ -152,6 +182,24 @@ const ReportesPage: React.FC = () => {
     obtenerDatosReporteGeneral,
     onDataLoaded: setDataPrev,
   });
+
+  // Convierte un Blob a base64 para enviarlo al backend como adjunto.
+  // El backend lo transforma nuevamente a Buffer para mandarlo por correo.
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        const result = reader.result as string;
+
+        // Formato recibido: data:application/pdf;base64,XXXX
+        // Solo enviamos la parte base64.
+        resolve(result.split(",")[1]);
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
 
   const cargarHistorialReportes = useCallback(async () => {
     try {
@@ -284,6 +332,160 @@ const ReportesPage: React.FC = () => {
     void cargarHistorialReportes();
   }, [cargarHistorialReportes]);
 
+  const generarInformeResumenPDF = async (): Promise<InformeResumenGenerado | null> => {
+    if (!canGenerate) {
+      message.warning("Selecciona empresa, año y mes");
+      return null;
+    }
+
+    try {
+      setGenerandoInformeResumen(true);
+
+      // 1. Obtenemos los mismos datos del reporte normal.
+      const data = await obtenerDatosReporteGeneral(
+        empresaFiltro,
+        selectedYear,
+        selectedMonth
+      );
+
+      // 2. Guardamos la data para renderizar el informe resumido oculto.
+      setDataInformeResumen(data);
+
+      // 3. Esperamos a que React pinte el componente antes de capturarlo.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 150));
+
+      const element = informeResumenRef.current;
+
+      if (!element) {
+        throw new Error("No se encontró el informe resumido para generar el PDF.");
+      }
+
+      // 4. Capturamos el componente visual como imagen.
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+
+      // 5. Creamos PDF A4.
+      const pdf = new jsPDF({
+        orientation: "p",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgData = canvas.toDataURL("image/png");
+
+      // Ajustamos la imagen al tamaño de la página.
+      const ratio = Math.min(
+        pageWidth / canvas.width,
+        pageHeight / canvas.height
+      );
+
+      const imgWidth = canvas.width * ratio;
+      const imgHeight = canvas.height * ratio;
+
+      const x = (pageWidth - imgWidth) / 2;
+      const y = 0;
+
+      pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
+
+      const blob = pdf.output("blob");
+      const previewUrl = URL.createObjectURL(blob);
+      const fileBase64 = await blobToBase64(blob);
+
+      return {
+        nombreArchivo: `Informe_resumido_${empresaNombre}_${periodoTexto}.pdf`,
+        mimeType: "application/pdf",
+        fileBase64,
+        previewUrl,
+      };
+    } catch (error: any) {
+      console.error("Error generando informe resumido:", error);
+
+      message.error(
+        error?.message || "No se pudo generar el informe resumido."
+      );
+
+      return null;
+    } finally {
+      setGenerandoInformeResumen(false);
+    }
+  };
+
+  const handleAbrirEnvioInformeResumen = async () => {
+    const informe = await generarInformeResumenPDF();
+
+    if (!informe) return;
+
+    setInformeResumenGenerado(informe);
+    setShowInformeResumenEmailModal(true);
+  };
+
+  const handleEnviarInformeResumenCorreo = async ({
+    destinatario,
+    asunto,
+    mensaje: mensajeCorreo,
+    reporte,
+  }: {
+    destinatario: string;
+    asunto: string;
+    mensaje: string;
+    reporte: InformeResumenGenerado;
+  }) => {
+    try {
+      setEnviandoInformeResumen(true);
+
+      const { data } = await http.post("/reportes-upload/enviar-informe-resumen", {
+        destinatario,
+        asunto,
+        mensaje: mensajeCorreo,
+        fileName: reporte.nombreArchivo,
+        mimeType: reporte.mimeType,
+        fileBase64: reporte.fileBase64,
+        empresaId: Number(empresaFiltro),
+        empresa: empresaNombre,
+        periodo: periodoTexto,
+        tipo: "INFORME_RESUMIDO",
+      });
+
+      setShowInformeResumenEmailModal(false);
+
+      if (reporte.previewUrl) {
+        URL.revokeObjectURL(reporte.previewUrl);
+      }
+
+      setInformeResumenGenerado(null);
+
+      message.success(
+        data?.message || "Informe resumido enviado correctamente."
+      );
+
+      // Refrescamos historial si el backend lo registra.
+      void cargarHistorialReportes();
+    } catch (error: any) {
+      console.error("Error enviando informe resumido:", error);
+
+      message.error(
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "No se pudo enviar el informe resumido por correo."
+      );
+    } finally {
+      setEnviandoInformeResumen(false);
+    }
+  };
+
   // ── Render ──
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-slate-50 to-white">
@@ -388,6 +590,28 @@ const ReportesPage: React.FC = () => {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
                 <EyeOutlined className="mr-2" /> Ver PDF
+              </button>
+              <button
+                onClick={handleAbrirEnvioInformeResumen}
+                disabled={
+                  !canGenerate ||
+                  exportStatus.exporting ||
+                  generandoInformeResumen ||
+                  enviandoInformeResumen
+                }
+                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                {generandoInformeResumen ? (
+                  <>
+                    <LoadingOutlined className="animate-spin mr-2" />
+                    Generando informe…
+                  </>
+                ) : (
+                  <>
+                    <MailOutlined className="mr-2" />
+                    Enviar informe resumido
+                  </>
+                )}
               </button>
             </div>
 
@@ -612,6 +836,29 @@ const ReportesPage: React.FC = () => {
           )}
         </div>
 
+        {/* ── Contenedor oculto para informe resumido por correo ── */}
+        <div
+          ref={informeResumenRef}
+          id="informe-resumen-preview-root"
+          style={{
+            position: "fixed",
+            left: -10000,
+            top: 0,
+            width: 794,
+            background: "#ffffff",
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        >
+          {dataInformeResumen && (
+            <InformeResumenVisual
+              data={dataInformeResumen}
+              empresaNombre={empresaNombre}
+              periodoTexto={periodoTexto}
+            />
+          )}
+        </div>
+
         {/* ── Panel edición portada ── */}
         {!esCliente && (
           <motion.div
@@ -652,6 +899,22 @@ const ReportesPage: React.FC = () => {
 
       {/* ── Modales ── */}
       {pdfModalOpen && <PdfModal pdfUrl={pdfUrl} onClose={closePdfModal} />}
+
+      <ReportePreviewEmailModal
+        show={showInformeResumenEmailModal}
+        reporte={informeResumenGenerado}
+        loading={enviandoInformeResumen}
+        onClose={() => {
+          setShowInformeResumenEmailModal(false);
+
+          if (informeResumenGenerado?.previewUrl) {
+            URL.revokeObjectURL(informeResumenGenerado.previewUrl);
+          }
+
+          setInformeResumenGenerado(null);
+        }}
+        onEnviarCorreo={handleEnviarInformeResumenCorreo}
+      />
 
       {/* ── Loading overlay ── */}
       {exportStatus.exporting && (
