@@ -15,6 +15,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 import type { AgendaVisita, Tecnico, Empresa } from "../components/modals-agenda/tiposAgenda";
+import { getAgendaEstadoEventColor } from "../components/modals-agenda/tiposAgenda";
 import { CrearVisitaManual } from "../components/modals-agenda/CrearVisitaManual";
 import { EditarVisita } from "../components/modals-agenda/EditarVisita";
 import { DiaAgenda } from "../components/modals-agenda/DiaAgenda";
@@ -207,8 +208,12 @@ export default function AgendaPage() {
       const tecExtra = v.tecnicos.length > 2 ? ` +${v.tecnicos.length - 2}` : "";
       const tecLabel = v.tecnicos.length === 0 ? "Sin técnico" : `${tecs}${tecExtra}`;
       const hora = fmtHora(v.horaInicio);
-      const title = hora ? `${hora} · ${tecLabel} · ${empresa}` : `${tecLabel} · ${empresa}`;
+      const estadoLabel = v.estado === "INICIADA" ? " · INICIADA" : "";
+      const title = hora
+        ? `${hora} · ${tecLabel} · ${empresa}${estadoLabel}`
+        : `${tecLabel} · ${empresa}${estadoLabel}`;
       const allDay = !v.horaInicio;
+      const colors = tecnicoColor(v.tecnicos[0]?.tecnico?.nombre);
       return {
         id: String(v.id),
         title,
@@ -219,7 +224,8 @@ export default function AgendaPage() {
         startEditable: !isPast,
         durationEditable: !isPast,
         extendedProps: { visita: v },
-        ...tecnicoColor(v.tecnicos[0]?.tecnico?.nombre),
+        ...colors,
+        borderColor: getAgendaEstadoEventColor(v.estado),
       };
     }),
     [visitas]);

@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Button } from "antd";
 import type { AgendaVisita } from "./tiposAgenda";
+import { getAgendaEstadoBadgeStyle, getAgendaEstadoEventColor, getAgendaEstadoLabel } from "./tiposAgenda";
 import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
 
 export interface DiaAgendaProps {
@@ -91,7 +92,7 @@ export function DiaAgenda({
                         style={{
                           cursor: "pointer",
                           padding: "7px 12px",
-                          borderLeft: "3px solid #0ea5e9",
+                          borderLeft: `3px solid ${getAgendaEstadoEventColor(v.estado)}`,
                           background: "#fff",
                           transition: "background 0.15s",
                           display: "flex",
@@ -112,6 +113,19 @@ export function DiaAgenda({
                         {v.tipo && (
                           <span style={{ fontSize: 11, color: "#94a3b8" }}>{v.tipo}</span>
                         )}
+                        <span
+                          style={{
+                            ...getAgendaEstadoBadgeStyle(v.estado),
+                            borderRadius: 999,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: "1px 6px",
+                            marginLeft: "auto",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {getAgendaEstadoLabel(v.estado)}
+                        </span>
                       </div>
                     ))}
                 </div>
