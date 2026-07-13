@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { FileTextOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import CotizacionMasivaModal from "./CotizacionMasivaModal";
-import PlantillasMasivasModal from "./plantillasMasivasModal";
+import PlantillasMasivasModal from "./PlantillasMasivasModal";
 import PreviewPlantillaMasivaModal from "./PreviewPlantillaMasivaModal";
 import type { EntidadGestioo } from "../types";
 
