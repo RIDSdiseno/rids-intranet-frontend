@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Button, Popconfirm } from "antd";
 import type { AgendaVisita } from "./tiposAgenda";
+import { getAgendaEstadoBadgeStyle, getAgendaEstadoLabel } from "./tiposAgenda";
 import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
 
 export interface DetalleVisitaProps {
@@ -53,6 +54,21 @@ export function DetalleVisita({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, marginTop: 4 }}>
         <div>
+          <span style={{ color: "#94a3b8" }}>Estado: </span>
+          <span
+            style={{
+              ...getAgendaEstadoBadgeStyle(visita.estado),
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 800,
+              padding: "2px 8px",
+            }}
+          >
+            {getAgendaEstadoLabel(visita.estado)}
+          </span>
+        </div>
+
+        <div>
           <span style={{ color: "#94a3b8" }}>Empresa: </span>
           <strong style={{ color: "#dc2626" }}>
             {nombreEmpresa}
@@ -81,6 +97,20 @@ export function DetalleVisita({
           <div>
             <span style={{ color: "#94a3b8" }}>Tipo: </span>
             <span style={{ color: "#334155" }}>{visita.tipo}</span>
+          </div>
+        )}
+
+        {visita.fechaInicioRuta && (
+          <div>
+            <span style={{ color: "#94a3b8" }}>Inicio ruta: </span>
+            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioRuta).toLocaleString("es-CL")}</span>
+          </div>
+        )}
+
+        {visita.fechaInicioVisita && (
+          <div>
+            <span style={{ color: "#94a3b8" }}>Inicio visita: </span>
+            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioVisita).toLocaleString("es-CL")}</span>
           </div>
         )}
 
