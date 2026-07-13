@@ -16,6 +16,8 @@ import {
     diskUsedPercent,
     getAgentEventMetadata,
     getTecnicoInstaladorLabel,
+    getPropiedadEquipoLabel,
+    getPropiedadEquipoClass,
 } from "./equipos.helpers";
 
 import type {
@@ -528,6 +530,21 @@ export default function EquipoViewModal({
         formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
         formatUptimeFromLastBoot(viewAgent?.lastBootAt);
 
+    const agenteLastSeenAt = viewAgent?.lastSeenAt || row.lastSeenAt;
+    const agenteInstalado = Boolean(agenteLastSeenAt);
+
+    const agenteEstado =
+        viewAgent?.estadoAgente ||
+        row.estadoAgente ||
+        (agenteInstalado ? "ACTIVO" : "SIN_AGENTE");
+
+    const agenteVersion = viewAgent?.agenteVersion || row.agenteVersion;
+    const agenteHostname = viewAgent?.hostname || row.hostname;
+    const agenteUsuario = viewAgent?.usuarioActual || row.usuarioActual;
+    const agenteIpLocal = viewAgent?.localIp || row.localIp;
+    const agenteMac = viewAgent?.macAddress || row.macAddress;
+    const agenteUltimoArranque = viewAgent?.lastBootAt || row.lastBootAt;
+
     return (
         <div
             role="dialog"
@@ -610,7 +627,17 @@ export default function EquipoViewModal({
                                         <div><strong>CPU:</strong> {row.procesador}</div>
                                         <div><strong>RAM:</strong> {row.ram || "—"}</div>
                                         <div><strong>Disco:</strong> {row.disco}</div>
-                                        <div><strong>Propiedad:</strong> {row.propiedad}</div>
+                                        <div>
+                                            <strong>Pertenencia:</strong>{" "}
+                                            <span
+                                                className={clsx(
+                                                    "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                                                    getPropiedadEquipoClass(row.propiedad)
+                                                )}
+                                            >
+                                                {getPropiedadEquipoLabel(row.propiedad, row.propietarioExterno)}
+                                            </span>
+                                        </div>
 
                                         <div className="sm:col-span-2">
                                             <strong>Observaciones:</strong>
@@ -703,6 +730,155 @@ export default function EquipoViewModal({
                                                             hour12: false,
                                                         })
                                                         : "—"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                    <section className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
+                                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-800">
+                                                    Mant.General RIDS
+                                                </h4>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Estado del ejecutable de mantención general en este equipo.
+                                                </p>
+                                            </div>
+
+                                            {row.mantGeneralInstalado ? (
+                                                <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                    Instalado / registrado
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                                                    No registrado
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">Estado</div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {row.mantGeneralInstalado ? "Instalado / configurado" : "Sin registro"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">Versión</div>
+                                                <div className="mt-1 break-all font-semibold text-slate-800">
+                                                    {row.mantGeneralVersion || "—"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">Última apertura</div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {formatDateTimeCL(row.mantGeneralLastSeenAt)}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">Primer registro</div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {formatDateTimeCL(row.mantGeneralInstalledAt)}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 sm:col-span-2">
+                                                <div className="text-xs font-medium text-slate-500">Ruta ejecutable</div>
+                                                <div className="mt-1 break-all font-mono text-xs font-semibold text-slate-800">
+                                                    {row.mantGeneralExePath || "—"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 sm:col-span-2 xl:col-span-3">
+                                                <div className="text-xs font-medium text-slate-500">Ruta config.json</div>
+                                                <div className="mt-1 break-all font-mono text-xs font-semibold text-slate-800">
+                                                    {row.mantGeneralConfigPath || "—"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                    <section className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+                                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-800">
+                                                    Agente de inventario RIDS
+                                                </h4>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Estado del agente/script de inventario instalado en este equipo.
+                                                </p>
+                                            </div>
+
+                                            {agenteInstalado ? (
+                                                <span
+                                                    className={clsx(
+                                                        "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                                                        agenteEstadoClasses(agenteEstado)
+                                                    )}
+                                                >
+                                                    {agenteEstado}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                                                    Sin agente
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Estado
+                                                </div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {agenteInstalado ? agenteEstado : "Sin registro"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Versión agente
+                                                </div>
+                                                <div className="mt-1 break-all font-semibold text-slate-800">
+                                                    {agenteVersion || "—"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Última conexión
+                                                </div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {formatDateTimeCL(agenteLastSeenAt)}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Último arranque
+                                                </div>
+                                                <div className="mt-1 font-semibold text-slate-800">
+                                                    {formatDateTimeCL(agenteUltimoArranque)}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Hostname
+                                                </div>
+                                                <div className="mt-1 break-all font-semibold text-slate-800">
+                                                    {agenteHostname || "—"}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                                <div className="text-xs font-medium text-slate-500">
+                                                    Usuario actual
+                                                </div>
+                                                <div className="mt-1 break-all font-semibold text-slate-800">
+                                                    {agenteUsuario || "—"}
                                                 </div>
                                             </div>
                                         </div>
@@ -846,105 +1022,6 @@ export default function EquipoViewModal({
                                         </div>
                                     </div>
                                 </section>
-
-                                {/* Agente Windows */}
-                                <div className="rounded-2xl border border-cyan-200 bg-white p-4">
-                                    <div className="flex items-center justify-between gap-3 mb-3">
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-slate-800">
-                                                {agentTitle}
-                                            </h4>
-                                            <p className="text-xs text-slate-500">
-                                                Datos reportados automáticamente desde el equipo.
-                                            </p>
-                                        </div>
-
-                                        {agentLoading ? (
-                                            <span className="text-xs text-slate-500">Cargando…</span>
-                                        ) : viewAgent?.agenteActivo ? (
-                                            <span
-                                                className={clsx(
-                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium",
-                                                    agenteEstadoClasses(viewAgent.estadoAgente)
-                                                )}
-                                            >
-                                                {viewAgent.estadoAgente}
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                                                Sin agente
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {agentError ? (
-                                        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                                            {agentError}
-                                        </div>
-                                    ) : !agentLoading && !viewAgent ? (
-                                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                                            Este equipo aún no tiene información del agente.
-                                        </div>
-                                    ) : viewAgent ? (
-                                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                                            <div>
-                                                <strong>Hostname:</strong> {viewAgent.hostname || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>Plataforma:</strong> {agentPlatformLabel}
-                                            </div>
-
-                                            <div>
-                                                <strong>Usuario actual:</strong> {viewAgent.usuarioActual || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>Dominio:</strong> {viewAgent.dominio || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>IP local:</strong> {viewAgent.localIp || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>MAC principal:</strong> {viewAgent.macAddress || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>MAC WiFi:</strong> {viewAgent.detalle?.macWifi || row?.macWifi || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>MAC Ethernet:</strong> {viewAgent.detalle?.redEthernet || row?.redEthernet || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>RAM detectada:</strong> {viewAgent.ram || row?.ram || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>Última conexión:</strong> {formatDateTimeCL(viewAgent.lastSeenAt)}
-                                            </div>
-
-                                            <div>
-                                                <strong>Último arranque:</strong> {formatDateTimeCL(viewAgent.lastBootAt)}
-                                            </div>
-
-                                            <div>
-                                                <strong>Tiempo activo:</strong> {uptimeValue || "—"}
-                                            </div>
-
-                                            <div>
-                                                <strong>Versión agente:</strong> {viewAgent.agenteVersion || "—"}
-                                            </div>
-
-                                            <div className="sm:col-span-2 xl:col-span-3">
-                                                <strong>Sistema operativo:</strong> {viewAgent.detalle?.so || viewAgent.so || "—"}
-                                            </div>
-                                        </div>
-                                    ) : null}
-                                </div>
 
                                 {/* Licencias y acceso remoto */}
                                 {viewAgent ? (
@@ -1524,40 +1601,32 @@ export default function EquipoViewModal({
                                                                                 </span>
                                                                             </div>
 
-                                                                            {h.action !== "CREATE" ? (
-                                                                                <div className="mt-4">
-                                                                                    {realChanges.length > 0 ? (
-                                                                                        <div className="space-y-2">
-                                                                                            {realChanges.map(([k, v]) => (
-                                                                                                <div
-                                                                                                    key={k}
-                                                                                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2"
-                                                                                                >
-                                                                                                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                                                                                        {fieldLabels[k] ?? k}
-                                                                                                    </div>
+                                                                            {realChanges.length > 0 ? (
+                                                                                <div className="mt-4 space-y-2">
+                                                                                    {realChanges.map(([k, v]) => (
+                                                                                        <div
+                                                                                            key={k}
+                                                                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                                                                                        >
+                                                                                            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                                                                {fieldLabels[k] ?? k}
+                                                                                            </div>
 
-                                                                                                    <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                                                                                                        <div className="rounded-lg bg-slate-50 px-2 py-1.5 font-mono text-slate-500">
-                                                                                                            {formatHistoryValue(v?.before)}
-                                                                                                        </div>
-
-                                                                                                        <div className="hidden text-center text-slate-400 sm:block">
-                                                                                                            →
-                                                                                                        </div>
-
-                                                                                                        <div className="rounded-lg bg-indigo-50 px-2 py-1.5 font-mono font-semibold text-slate-900">
-                                                                                                            {formatHistoryValue(v?.after)}
-                                                                                                        </div>
-                                                                                                    </div>
+                                                                                            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                                                                                                <div className="rounded-lg bg-slate-50 px-2 py-1.5 font-mono text-slate-500">
+                                                                                                    {formatHistoryValue(v?.before)}
                                                                                                 </div>
-                                                                                            ))}
+
+                                                                                                <div className="hidden text-center text-slate-400 sm:block">
+                                                                                                    →
+                                                                                                </div>
+
+                                                                                                <div className="rounded-lg bg-indigo-50 px-2 py-1.5 font-mono font-semibold text-slate-900">
+                                                                                                    {formatHistoryValue(v?.after)}
+                                                                                                </div>
+                                                                                            </div>
                                                                                         </div>
-                                                                                    ) : (
-                                                                                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs italic text-slate-500">
-                                                                                            Sin cambios relevantes.
-                                                                                        </div>
-                                                                                    )}
+                                                                                    ))}
                                                                                 </div>
                                                                             ) : (
                                                                                 <div className="mt-4 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs text-slate-600">

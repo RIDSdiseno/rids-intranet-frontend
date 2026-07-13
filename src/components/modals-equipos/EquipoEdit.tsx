@@ -16,6 +16,7 @@ import type {
     EquipoRow,
     EstadoEquipo,
     SolicitanteLite,
+    PropiedadEquipo
 } from "./equipos.types";
 import {
     ADICIONAL_TIPOS,
@@ -24,6 +25,8 @@ import {
     clsx,
     formatRut,
     getAnioPcOrigenLabel,
+    PROPIEDAD_EQUIPO_OPTIONS,
+    getPropiedadEquipoLabel,
 } from "./equipos.helpers";
 
 type Props = {
@@ -80,10 +83,10 @@ const initialForm: EquipoForm = {
     procesador: "",
     ram: "",
     disco: "",
-    propiedad: "",
+    propiedad: "Empresa",
+    propietarioExterno: "",
     observaciones: "",
     estado: "ACTIVO",
-
     macWifi: "",
     redEthernet: "",
     so: "",
@@ -137,7 +140,8 @@ export default function EquipoEditModal({
             procesador: row.procesador || "",
             ram: row.ram || "",
             disco: row.disco || "",
-            propiedad: row.propiedad || "",
+            propiedad: (row.propiedad as PropiedadEquipo) || "Empresa",
+            propietarioExterno: row.propietarioExterno || "",
             observaciones: row.observaciones || "",
             estado: (row.estado ?? "ACTIVO") as EstadoEquipo,
 
@@ -254,6 +258,12 @@ export default function EquipoEditModal({
             }
         }
 
+        if (form.propiedad === "Externo" && !form.propietarioExterno.trim()) {
+            setEditFieldError("propietarioExterno");
+            setEditError("Debes indicar el dueño externo del equipo.");
+            return;
+        }
+
         if (empresaId == null) {
             setEditError("Debes seleccionar una empresa.");
             return;
@@ -270,6 +280,11 @@ export default function EquipoEditModal({
             const hoy = dayjs().format("YYYY-MM-DD");
             const { anioPc, ...baseEditForm } = form;
 
+            const propietarioExterno =
+                form.propiedad === "Externo"
+                    ? form.propietarioExterno.trim()
+                    : null;
+
             const payload: any = {
                 ...baseEditForm,
                 tipo: form.tipo,
@@ -278,6 +293,9 @@ export default function EquipoEditModal({
                 procesador: requiresProcesador ? form.procesador.trim() : "N/A",
                 ram: requiresRam ? form.ram.trim() : "N/A",
                 disco: requiresDisco ? form.disco.trim() : "N/A",
+
+                propiedad: form.propiedad,
+                propietarioExterno,
 
                 revisado: hoy,
                 idSolicitante: solicitanteId,
@@ -522,7 +540,6 @@ export default function EquipoEditModal({
                                         required: requiresDisco,
                                         disabled: !requiresDisco,
                                     },
-                                    { key: "propiedad", label: "Propiedad", required: true },
                                 ].map((f) => {
                                     const key = f.key as keyof EquipoForm;
 
@@ -577,6 +594,88 @@ export default function EquipoEditModal({
                                         </label>
                                     );
                                 })}
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">
+                                        Pertenencia <span className="text-rose-500">*</span>
+                                    </span>
+
+                                    <select
+                                        value={form.propiedad || "Empresa"}
+                                        onChange={(e) => {
+                                            const propiedad = e.target.value as PropiedadEquipo;
+
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                propiedad,
+                                                propietarioExterno:
+                                                    propiedad === "Externo" ? prev.propietarioExterno : "",
+                                            }));
+
+                                            if (editFieldError === "propiedad" || editFieldError === "propietarioExterno") {
+                                                setEditFieldError(null);
+                                                setEditError(null);
+                                            }
+                                        }}
+                                        className={clsx(
+                                            "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                                            editFieldError === "propiedad"
+                                                ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                                : "border-cyan-200 focus:ring-cyan-500/30"
+                                        )}
+                                    >
+                                        {PROPIEDAD_EQUIPO_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                {form.propiedad === "Externo" && (
+                                    <label className="text-sm">
+                                        <span className="mb-1 block text-slate-700">
+                                            Dueño externo <span className="text-rose-500">*</span>
+                                        </span>
+
+                                        <input
+                                            value={form.propietarioExterno}
+                                            onChange={(e) => {
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    propietarioExterno: e.target.value,
+                                                }));
+
+                                                if (editFieldError === "propietarioExterno") {
+                                                    setEditFieldError(null);
+                                                    setEditError(null);
+                                                }
+                                            }}
+                                            onBlur={(e) => {
+                                                const next = e.target.value.trim().replace(/\s{2,}/g, " ");
+
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    propietarioExterno: next,
+                                                }));
+                                            }}
+                                            placeholder="Ej: RUT 12.345.678-9 o Empresa Externa SpA"
+                                            maxLength={200}
+                                            className={clsx(
+                                                "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                                                editFieldError === "propietarioExterno"
+                                                    ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                                    : "border-cyan-200 focus:ring-cyan-500/30"
+                                            )}
+                                        />
+
+                                        {editFieldError === "propietarioExterno" && editError && (
+                                            <div className="mt-1 text-xs font-medium text-rose-600">
+                                                {editError}
+                                            </div>
+                                        )}
+                                    </label>
+                                )}
 
                                 <label className="text-sm">
                                     <span className="mb-1 block text-slate-700">Año PC</span>

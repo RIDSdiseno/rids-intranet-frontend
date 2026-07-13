@@ -41,6 +41,7 @@ import type {
   EmpresaOpt,
   EstadoEquipo,
   TecnicoOpt,
+  PropiedadEquipo
 } from "../components/modals-equipos/equipos.types";
 
 import {
@@ -51,6 +52,9 @@ import {
   toUC,
   ESTADO_EQUIPO_OPTIONS,
   agenteEstadoClasses,
+  PROPIEDAD_EQUIPO_OPTIONS,
+  getPropiedadEquipoLabel,
+  getPropiedadEquipoClass,
 } from "../components/modals-equipos/equipos.helpers";
 
 /* =================== Config =================== */
@@ -236,6 +240,23 @@ const EquiposPage: React.FC = () => {
   const [mantencionDesde, setMantencionDesde] = useState("");
   const [mantencionHasta, setMantencionHasta] = useState("");
 
+  // Filtro Mant.General RIDS.
+  // Permite mostrar equipos donde el .exe fue registrado como instalado/configurado.
+  const [mantGeneralFilter, setMantGeneralFilter] = useState<
+    "TODOS" | "INSTALADO" | "NO_INSTALADO"
+  >("TODOS");
+
+  const [mantGeneralDesde, setMantGeneralDesde] = useState("");
+  const [mantGeneralHasta, setMantGeneralHasta] = useState("");
+
+  // Filtro Agente / Script RIDS.
+  const [agenteFilter, setAgenteFilter] = useState<
+    "TODOS" | "INSTALADO" | "NO_INSTALADO" | "ACTIVO" | "SIN_CONEXION"
+  >("TODOS");
+
+  const [agenteDesde, setAgenteDesde] = useState("");
+  const [agenteHasta, setAgenteHasta] = useState("");
+
   const [tecnicoOptions, setTecnicoOptions] = useState<TecnicoOpt[]>([]);
   const [tecnicoFilterId, setTecnicoFilterId] = useState<number | null>(null);
   const [auditFrom, setAuditFrom] = useState("");
@@ -250,6 +271,9 @@ const EquiposPage: React.FC = () => {
 
   const [marcaFilter, setMarcaFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoEquipo | "">("");
+
+  const [propiedadFilter, setPropiedadFilter] = useState<PropiedadEquipo | "">("");
+  const [propietarioExternoFilter, setPropietarioExternoFilter] = useState("");
 
   const [anioPcDesde, setAnioPcDesde] = useState("");
   const [anioPcHasta, setAnioPcHasta] = useState("");
@@ -371,6 +395,9 @@ const EquiposPage: React.FC = () => {
           empresaId: empresaFilterId || undefined,
           marca: marcaFilter || undefined,
 
+          propiedad: propiedadFilter || undefined,
+          propietarioExterno: propietarioExternoFilter || undefined,
+
           createdFrom: createdFrom || undefined,
           createdTo: createdTo || undefined,
           updatedFrom: updatedFrom || undefined,
@@ -379,6 +406,14 @@ const EquiposPage: React.FC = () => {
           // Filtro por fecha de mantención.
           mantencionDesde: mantencionDesde || undefined,
           mantencionHasta: mantencionHasta || undefined,
+
+          // Filtro Mant.General RIDS.
+          mantGeneral: mantGeneralFilter !== "TODOS" ? mantGeneralFilter : undefined,
+
+          // Filtro Agente / Script RIDS.
+          agente: agenteFilter !== "TODOS" ? agenteFilter : undefined,
+          agenteDesde: agenteDesde || undefined,
+          agenteHasta: agenteHasta || undefined,
 
           auditTecnicoId: tecnicoFilterId || undefined,
           auditFrom: auditFrom || undefined,
@@ -579,12 +614,20 @@ const EquiposPage: React.FC = () => {
     qDebounced,
     empresaFilterId,
     marcaFilter,
+    propiedadFilter,
+    propietarioExternoFilter,
     createdFrom,
     createdTo,
     updatedFrom,
     updatedTo,
     mantencionDesde,
     mantencionHasta,
+    mantGeneralFilter,
+    mantGeneralDesde,
+    mantGeneralHasta,
+    agenteFilter,
+    agenteDesde,
+    agenteHasta,
     tecnicoFilterId,
     auditFrom,
     auditTo,
@@ -626,9 +669,18 @@ const EquiposPage: React.FC = () => {
     setUpdatedFrom("");
     setUpdatedTo("");
 
-    // Limpia filtro por fecha de mantención.
     setMantencionDesde("");
     setMantencionHasta("");
+
+    // Limpia filtro Mant.General.
+    setMantGeneralFilter("TODOS");
+    setMantGeneralDesde("");
+    setMantGeneralHasta("");
+
+    // Limpia filtro Agente / Script RIDS.
+    setAgenteFilter("TODOS");
+    setAgenteDesde("");
+    setAgenteHasta("");
 
     setTecnicoFilterId(null);
     setAuditFrom("");
@@ -636,6 +688,9 @@ const EquiposPage: React.FC = () => {
     setAuditAction("ALL");
 
     setEstadoFilter("");
+
+    setPropiedadFilter("");
+    setPropietarioExternoFilter("");
 
     setAnioPcDesde("");
     setAnioPcHasta("");
@@ -1045,7 +1100,7 @@ const EquiposPage: React.FC = () => {
   - En pantallas grandes quedan en 2 columnas.
   - Así evitamos que cada filtro use todo el ancho innecesariamente.
 */}
-              <div className="md:col-span-12 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="md:col-span-12 grid grid-cols-1 xl:grid-cols-3 gap-4">
                 {/* Actividad por técnico */}
                 <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
                   <div className="flex flex-col gap-1 mb-3">
@@ -1096,26 +1151,22 @@ const EquiposPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Mantenciones realizadas */}
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4">
+                {/* Mantenciones / Mant.General */}
+                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-cyan-50/60 p-4">
                   <div className="flex flex-col gap-1 mb-3">
                     <div className="text-sm font-semibold text-slate-800">
-                      Mantenciones realizadas
+                      Mantenciones / Mant.General
                     </div>
 
                     <div className="text-xs text-slate-500">
-                      Filtra equipos que tuvieron una mantención registrada dentro del periodo seleccionado.
+                      Filtra equipos con mantenciones registradas o con Mant.General instalado/abierto.
                     </div>
                   </div>
 
-                  {/* 
-      El RangePicker usa todo el ancho disponible.
-      El estado activo queda debajo para no apretar el selector de fecha.
-    */}
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 gap-4">
                     <label className="text-sm">
                       <span className="block text-slate-700 mb-1">
-                        Rango de mantención
+                        Rango de mantención realizada
                       </span>
 
                       <RangePicker
@@ -1124,9 +1175,12 @@ const EquiposPage: React.FC = () => {
                           mantencionHasta ? dayjs(mantencionHasta) : null,
                         ]}
                         onChange={(dates) => {
-                          // Se envía en formato YYYY-MM-DD porque así lo espera el backend.
-                          setMantencionDesde(dates?.[0] ? dates[0].format("YYYY-MM-DD") : "");
-                          setMantencionHasta(dates?.[1] ? dates[1].format("YYYY-MM-DD") : "");
+                          setMantencionDesde(
+                            dates?.[0] ? dates[0].format("YYYY-MM-DD") : ""
+                          );
+                          setMantencionHasta(
+                            dates?.[1] ? dates[1].format("YYYY-MM-DD") : ""
+                          );
                           setPage(1);
                         }}
                         format="DD/MM/YYYY"
@@ -1160,26 +1214,250 @@ const EquiposPage: React.FC = () => {
                       />
                     </label>
 
-                    {mantencionDesde || mantencionHasta ? (
-                      <div className="inline-flex w-fit max-w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-700">
+                    <div className="h-px bg-emerald-100" />
+
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">
+                        Estado Mant.General
+                      </span>
+
+                      <select
+                        value={mantGeneralFilter}
+                        onChange={(e) => {
+                          setMantGeneralFilter(
+                            e.target.value as "TODOS" | "INSTALADO" | "NO_INSTALADO"
+                          );
+                          setPage(1);
+                        }}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="INSTALADO">Con Mant.General</option>
+                        <option value="NO_INSTALADO">Sin Mant.General</option>
+                      </select>
+                    </label>
+
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">
+                        Última apertura de Mant.General
+                      </span>
+
+                      <RangePicker
+                        value={[
+                          mantGeneralDesde ? dayjs(mantGeneralDesde) : null,
+                          mantGeneralHasta ? dayjs(mantGeneralHasta) : null,
+                        ]}
+                        onChange={(dates) => {
+                          setMantGeneralDesde(
+                            dates?.[0] ? dates[0].format("YYYY-MM-DD") : ""
+                          );
+                          setMantGeneralHasta(
+                            dates?.[1] ? dates[1].format("YYYY-MM-DD") : ""
+                          );
+                          setPage(1);
+                        }}
+                        format="DD/MM/YYYY"
+                        className="w-full"
+                        allowClear
+                        placeholder={["Desde", "Hasta"]}
+                        presets={[
+                          {
+                            label: "Hoy",
+                            value: [dayjs().startOf("day"), dayjs().endOf("day")],
+                          },
+                          {
+                            label: "Últimos 7 días",
+                            value: [
+                              dayjs().subtract(6, "day").startOf("day"),
+                              dayjs().endOf("day"),
+                            ],
+                          },
+                          {
+                            label: "Este mes",
+                            value: [dayjs().startOf("month"), dayjs().endOf("month")],
+                          },
+                          {
+                            label: "Mes anterior",
+                            value: [
+                              dayjs().subtract(1, "month").startOf("month"),
+                              dayjs().subtract(1, "month").endOf("month"),
+                            ],
+                          },
+                        ]}
+                      />
+                    </label>
+
+                    {mantencionDesde ||
+                      mantencionHasta ||
+                      mantGeneralFilter !== "TODOS" ||
+                      mantGeneralDesde ||
+                      mantGeneralHasta ? (
+                      <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-600">
+                        <div className="font-semibold text-slate-700">
+                          Filtros activos
+                        </div>
+
+                        <div className="mt-1 space-y-1">
+                          {(mantencionDesde || mantencionHasta) && (
+                            <div>
+                              Mantención:{" "}
+                              <strong>
+                                {mantencionDesde
+                                  ? dayjs(mantencionDesde).format("DD/MM/YYYY")
+                                  : "Inicio"}
+                              </strong>{" "}
+                              -{" "}
+                              <strong>
+                                {mantencionHasta
+                                  ? dayjs(mantencionHasta).format("DD/MM/YYYY")
+                                  : "Hoy"}
+                              </strong>
+                            </div>
+                          )}
+
+                          {mantGeneralFilter !== "TODOS" && (
+                            <div>
+                              Mant.General:{" "}
+                              <strong>
+                                {mantGeneralFilter === "INSTALADO"
+                                  ? "Con Mant.General"
+                                  : "Sin Mant.General"}
+                              </strong>
+                            </div>
+                          )}
+
+                          {(mantGeneralDesde || mantGeneralHasta) && (
+                            <div>
+                              Última apertura:{" "}
+                              <strong>
+                                {mantGeneralDesde
+                                  ? dayjs(mantGeneralDesde).format("DD/MM/YYYY")
+                                  : "Inicio"}
+                              </strong>{" "}
+                              -{" "}
+                              <strong>
+                                {mantGeneralHasta
+                                  ? dayjs(mantGeneralHasta).format("DD/MM/YYYY")
+                                  : "Hoy"}
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500">
+                        Sin filtros de mantenciones o Mant.General aplicados.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Agente / Script instalado */}
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                  <div className="flex flex-col gap-1 mb-3">
+                    <div className="text-sm font-semibold text-slate-800">
+                      Agente / Script RIDS
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                      Filtra equipos que tienen el agente de inventario instalado o activo.
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">
+                        Estado del agente
+                      </span>
+
+                      <select
+                        value={agenteFilter}
+                        onChange={(e) => {
+                          setAgenteFilter(
+                            e.target.value as
+                            | "TODOS"
+                            | "INSTALADO"
+                            | "NO_INSTALADO"
+                            | "ACTIVO"
+                            | "SIN_CONEXION"
+                          );
+                          setPage(1);
+                        }}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="INSTALADO">Con agente instalado</option>
+                        <option value="NO_INSTALADO">Sin agente</option>
+                        <option value="ACTIVO">Agente activo</option>
+                        <option value="SIN_CONEXION">Sin conexión</option>
+                      </select>
+                    </label>
+
+                    <label className="text-sm">
+                      <span className="block text-slate-700 mb-1">
+                        Última conexión del agente
+                      </span>
+
+                      <RangePicker
+                        value={[
+                          agenteDesde ? dayjs(agenteDesde) : null,
+                          agenteHasta ? dayjs(agenteHasta) : null,
+                        ]}
+                        onChange={(dates) => {
+                          setAgenteDesde(dates?.[0] ? dates[0].format("YYYY-MM-DD") : "");
+                          setAgenteHasta(dates?.[1] ? dates[1].format("YYYY-MM-DD") : "");
+                          setPage(1);
+                        }}
+                        format="DD/MM/YYYY"
+                        className="w-full"
+                        allowClear
+                        placeholder={["Desde", "Hasta"]}
+                        presets={[
+                          {
+                            label: "Hoy",
+                            value: [dayjs().startOf("day"), dayjs().endOf("day")],
+                          },
+                          {
+                            label: "Últimos 7 días",
+                            value: [
+                              dayjs().subtract(6, "day").startOf("day"),
+                              dayjs().endOf("day"),
+                            ],
+                          },
+                          {
+                            label: "Este mes",
+                            value: [dayjs().startOf("month"), dayjs().endOf("month")],
+                          },
+                          {
+                            label: "Mes anterior",
+                            value: [
+                              dayjs().subtract(1, "month").startOf("month"),
+                              dayjs().subtract(1, "month").endOf("month"),
+                            ],
+                          },
+                        ]}
+                      />
+                    </label>
+
+                    {agenteFilter !== "TODOS" || agenteDesde || agenteHasta ? (
+                      <div className="inline-flex w-fit max-w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs text-blue-700">
                         <span className="truncate">
                           Filtro activo:{" "}
                           <strong>
-                            {mantencionDesde
-                              ? dayjs(mantencionDesde).format("DD/MM/YYYY")
-                              : "Inicio"}
-                          </strong>{" "}
-                          -{" "}
-                          <strong>
-                            {mantencionHasta
-                              ? dayjs(mantencionHasta).format("DD/MM/YYYY")
-                              : "Hoy"}
+                            {agenteFilter === "INSTALADO"
+                              ? "Con agente"
+                              : agenteFilter === "NO_INSTALADO"
+                                ? "Sin agente"
+                                : agenteFilter === "ACTIVO"
+                                  ? "Activo"
+                                  : agenteFilter === "SIN_CONEXION"
+                                    ? "Sin conexión"
+                                    : "Todos"}
                           </strong>
                         </span>
                       </div>
                     ) : (
                       <div className="text-xs text-slate-500">
-                        Sin filtro de mantenciones aplicado.
+                        Sin filtro de agente aplicado.
                       </div>
                     )}
                   </div>
@@ -1331,6 +1609,89 @@ const EquiposPage: React.FC = () => {
                   </button>
                 </span>
               )}
+              {(mantGeneralFilter !== "TODOS" || mantGeneralDesde || mantGeneralHasta) && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Mant.General:</span>
+
+                  <strong className="truncate">
+                    {mantGeneralFilter === "INSTALADO"
+                      ? "Con Mant.General"
+                      : mantGeneralFilter === "NO_INSTALADO"
+                        ? "Sin Mant.General"
+                        : "Todos"}
+
+                    {(mantGeneralDesde || mantGeneralHasta) && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        {mantGeneralDesde
+                          ? dayjs(mantGeneralDesde).format("DD/MM/YYYY")
+                          : "Inicio"}{" "}
+                        -{" "}
+                        {mantGeneralHasta
+                          ? dayjs(mantGeneralHasta).format("DD/MM/YYYY")
+                          : "Hoy"}
+                      </>
+                    )}
+                  </strong>
+
+                  <button
+                    onClick={() => {
+                      setMantGeneralFilter("TODOS");
+                      setMantGeneralDesde("");
+                      setMantGeneralHasta("");
+                      setPage(1);
+                    }}
+                    className="hover:text-cyan-700 shrink-0"
+                    aria-label="Quitar filtro Mant.General"
+                    title="Quitar filtro Mant.General"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+              {(agenteFilter !== "TODOS" || agenteDesde || agenteHasta) && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 text-blue-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Agente:</span>
+
+                  <strong className="truncate">
+                    {agenteFilter === "INSTALADO"
+                      ? "Con agente"
+                      : agenteFilter === "NO_INSTALADO"
+                        ? "Sin agente"
+                        : agenteFilter === "ACTIVO"
+                          ? "Activo"
+                          : agenteFilter === "SIN_CONEXION"
+                            ? "Sin conexión"
+                            : "Todos"}
+
+                    {(agenteDesde || agenteHasta) && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        {agenteDesde ? dayjs(agenteDesde).format("DD/MM/YYYY") : "Inicio"} -{" "}
+                        {agenteHasta ? dayjs(agenteHasta).format("DD/MM/YYYY") : "Hoy"}
+                      </>
+                    )}
+                  </strong>
+
+                  <button
+                    onClick={() => {
+                      setAgenteFilter("TODOS");
+                      setAgenteDesde("");
+                      setAgenteHasta("");
+                      setPage(1);
+                    }}
+                    className="hover:text-blue-700 shrink-0"
+                    aria-label="Quitar filtro de agente"
+                    title="Quitar filtro de agente"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
             </div>
 
             <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
@@ -1458,16 +1819,44 @@ const EquiposPage: React.FC = () => {
                   ) : null}
                 </div>
 
-                {(e as any).agenteActivo ? (
-                  <span
-                    className={clsx(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border",
-                      agenteEstadoClasses((e as any).estadoAgente)
-                    )}
-                  >
-                    Agente {(e as any).estadoAgente || "ACTIVO"}
+                {e.lastSeenAt ? (
+                  <>
+                    <span
+                      className={clsx(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border",
+                        agenteEstadoClasses(e.estadoAgente || "ACTIVO")
+                      )}
+                    >
+                      Agente {e.estadoAgente || "ACTIVO"}
+                    </span>
+
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Agente última conexión:{" "}
+                      {new Intl.DateTimeFormat("es-CL", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(e.lastSeenAt))}
+                    </p>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-500">
+                    Sin agente
                   </span>
-                ) : null}
+                )}
+
+                {e.mantGeneralInstalado ? (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">
+                    Mant.General instalado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-500">
+                    Sin Mant.General
+                  </span>
+                )}
 
                 {(e as any).hostname ? (
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-700">
@@ -1910,7 +2299,7 @@ const EquiposPage: React.FC = () => {
           void handleEditSaved();
         }}
       />
-      
+
       {/* Modal visualizar */}
       <EquipoViewModal
         open={viewOpen}

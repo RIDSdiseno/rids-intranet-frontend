@@ -35,6 +35,7 @@ import type {
   EmpresaOpt,
   ListSolicitantesResponse,
   SolicitanteLite,
+  PropiedadEquipo,
 } from "./equipos.types";
 
 import {
@@ -43,6 +44,7 @@ import {
   ADICIONAL_TIPOS,
   ADICIONAL_TIPO_LABEL,
   formatRut,
+  PROPIEDAD_EQUIPO_OPTIONS,
 } from "./equipos.helpers";
 
 import {
@@ -220,6 +222,10 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
   const empresaId = Form.useWatch("empresaId", form);
   const marcaValue = Form.useWatch("marca", form);
 
+  const propiedadValue =
+    (Form.useWatch("propiedad", form) as PropiedadEquipo | undefined) ??
+    "Empresa";
+
   const tipoEquipoValue =
     (Form.useWatch("tipo", form) as TipoEquipoValue | undefined) ??
     TipoEquipo.GENERICO;
@@ -359,6 +365,29 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
       const values = await form.validateFields();
       setLoading(true);
 
+      const propiedad = (values.propiedad ?? "Empresa") as PropiedadEquipo;
+
+      const propietarioExterno =
+        propiedad === "Externo"
+          ? String(values.propietarioExterno ?? "").trim()
+          : null;
+
+      if (propiedad === "Externo" && !propietarioExterno) {
+        form.setFields([
+          {
+            name: "propietarioExterno",
+            errors: ["Debes indicar el dueño externo del equipo"],
+          },
+        ]);
+
+        setShakeField("propietarioExterno");
+        setTick((t) => t + 1);
+        setTimeout(() => setShakeField(null), 500);
+
+        setLoading(false);
+        return;
+      }
+
       const tipoEquipo = (values.tipo ?? TipoEquipo.GENERICO) as TipoEquipoValue;
 
       const currentRequired =
@@ -391,7 +420,8 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           ? values.disco.trim()
           : "N/A",
 
-        propiedad: values.propiedad.trim(),
+        propiedad,
+        propietarioExterno,
 
         estado: values.estado ?? "ACTIVO",
         observaciones: values.observaciones?.trim() || null,
@@ -619,6 +649,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
           layout="vertical"
           initialValues={{
             propiedad: "Empresa",
+            propietarioExterno: "",
             idSolicitante: undefined,
             tipo: TipoEquipo.GENERICO,
             estado: "ACTIVO",
@@ -1055,18 +1086,57 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   >
                     <Form.Item
                       name="propiedad"
-                      label={<span className="inline-flex items-center gap-1">Propiedad <Tag color="processing">Requerido</Tag></span>}
-                      rules={[{ required: true, message: "Indica la propiedad" }]}
+                      label={
+                        <span className="inline-flex items-center gap-1">
+                          Pertenencia <Tag color="processing">Requerido</Tag>
+                        </span>
+                      }
+                      rules={[{ required: true, message: "Selecciona la pertenencia del equipo" }]}
                     >
                       <Select
-                        options={[
-                          { label: "Empresa", value: "Empresa" },
-                          { label: "Equipo Personal", value: "Equipo Personal" },
-                        ]}
+                        options={PROPIEDAD_EQUIPO_OPTIONS.map((opt) => ({
+                          label: opt.label,
+                          value: opt.value,
+                        }))}
+                        onChange={(value) => {
+                          if (value !== "Externo") {
+                            form.setFieldsValue({ propietarioExterno: "" });
+                            form.setFields([{ name: "propietarioExterno", errors: [] }]);
+                          }
+                        }}
                         className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
                       />
                     </Form.Item>
                   </motion.div>
+
+                  {propiedadValue === "Externo" && (
+                    <motion.div
+                      animate={shakeField === "propietarioExterno" ? shakeKeyframes : { x: 0 }}
+                      transition={shakeTransition}
+                      className={`rounded-lg ${hasError("propietarioExterno") ? "ring-2 ring-red-300/70" : ""} transition-all`}
+                    >
+                      <Form.Item
+                        name="propietarioExterno"
+                        label={<RequiredLabel>Dueño externo</RequiredLabel>}
+                        rules={[
+                          {
+                            validator: (_, value) =>
+                              String(value ?? "").trim()
+                                ? Promise.resolve()
+                                : Promise.reject("Indica el nombre o RUT del dueño externo"),
+                          },
+                        ]}
+                        tooltip="Ejemplo: Juan Pérez, 12.345.678-9 o Empresa Externa SpA"
+                      >
+                        <Input
+                          allowClear
+                          placeholder="Ej: Juan Pérez, 12.345.678-9 o Empresa Externa SpA"
+                          maxLength={200}
+                          className={`${T.ring} transition-all duration-200 hover:shadow-sm`}
+                        />
+                      </Form.Item>
+                    </motion.div>
+                  )}
 
                   <Form.Item
                     name="estado"

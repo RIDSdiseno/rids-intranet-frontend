@@ -17,6 +17,8 @@ export type EquipoAdicional = {
   serialAdicional?: string | null;
 };
 
+export type PropiedadEquipo = "Empresa" | "Personal" | "Externo";
+
 export type EquipoRow = {
   id_equipo: number;
   serial: string | null;
@@ -28,7 +30,8 @@ export type EquipoRow = {
   procesador: string | null;
   ram: string | null;
   disco: string | null;
-  propiedad: string | null;
+  propiedad?: PropiedadEquipo | string | null;
+  propietarioExterno?: string | null;
   observaciones?: string | null;
 
   solicitante: string | null;
@@ -41,6 +44,23 @@ export type EquipoRow = {
 
   createdAt: string;
   updatedAt: string;
+
+  hostname?: string | null;
+  usuarioActual?: string | null;
+  dominio?: string | null;
+  localIp?: string | null;
+  publicIp?: string | null;
+  macAddress?: string | null;
+
+  ramGb?: number | null;
+  diskTotalGb?: number | null;
+  diskFreeGb?: number | null;
+
+  lastBootAt?: string | null;
+  lastSeenAt?: string | null;
+  agenteVersion?: string | null;
+  agenteActivo?: boolean | null;
+  estadoAgente?: EstadoAgente | null;
 
   macWifi?: string | null;
   redEthernet?: string | null;
@@ -60,6 +80,14 @@ export type EquipoRow = {
 
   adicionales?: EquipoAdicional[];
   estado?: EstadoEquipo | null;
+
+  mantGeneralInstalado?: boolean | null;
+  mantGeneralVersion?: string | null;
+  mantGeneralLastSeenAt?: string | null;
+  mantGeneralInstalledAt?: string | null;
+  mantGeneralConfigPath?: string | null;
+  mantGeneralExePath?: string | null;
+  mantGeneralTecnicoId?: number | null;
 };
 
 export type EmpresaOpt = {
@@ -109,7 +137,8 @@ export type EquipoForm = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad: PropiedadEquipo;
+  propietarioExterno: string;
   observaciones: string;
 
   macWifi: string;
@@ -232,7 +261,8 @@ export type EquipoDTO = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad?: PropiedadEquipo | string | null;
+  propietarioExterno?: string | null;
   estado: EstadoEquipo;
   observaciones?: string | null;
   idSolicitante: number;
@@ -257,7 +287,8 @@ export type CreateEquipoPayload = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad: PropiedadEquipo;
+  propietarioExterno?: string | null;
   estado: EstadoEquipo;
   observaciones?: string | null;
 

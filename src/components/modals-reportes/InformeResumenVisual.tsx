@@ -40,18 +40,150 @@ function SimpleBar({
     const width = max > 0 ? Math.max(8, Math.round((value / max) * 100)) : 0;
 
     return (
-        <div>
-            <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-                <span className="truncate font-semibold text-slate-600">{label}</span>
-                <span className="font-bold text-slate-800">{formatNumber(value)}</span>
+        <div style={{ marginBottom: 12 }}>
+            {/* Fila superior de etiqueta y valor */}
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 11,
+                    marginBottom: 5,
+                }}
+            >
+                <span
+                    style={{
+                        fontWeight: 700,
+                        color: "#475569",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {label}
+                </span>
+
+                <span
+                    style={{
+                        fontWeight: 800,
+                        color: "#1e293b",
+                    }}
+                >
+                    {formatNumber(value)}
+                </span>
             </div>
 
-            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+            {/* Barra visual usando solo colores HEX para evitar error oklch en html2canvas */}
+            <div
+                style={{
+                    height: 10,
+                    width: "100%",
+                    overflow: "hidden",
+                    borderRadius: 999,
+                    backgroundColor: "#e2e8f0",
+                }}
+            >
                 <div
-                    className="h-full rounded-full bg-cyan-600"
-                    style={{ width: `${width}%` }}
+                    style={{
+                        width: `${width}%`,
+                        height: "100%",
+                        borderRadius: 999,
+                        backgroundColor: "#0891b2",
+                    }}
                 />
             </div>
+        </div>
+    );
+}
+
+function KpiCard({
+    label,
+    value,
+}: {
+    label: string;
+    value: string | number;
+}) {
+    return (
+        <div
+            style={{
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                borderRadius: 18,
+                padding: 16,
+            }}
+        >
+            <p
+                style={{
+                    margin: 0,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    color: "#64748b",
+                    letterSpacing: 0.3,
+                }}
+            >
+                {label}
+            </p>
+
+            <p
+                style={{
+                    margin: "8px 0 0",
+                    fontSize: 30,
+                    lineHeight: "34px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                }}
+            >
+                {value}
+            </p>
+        </div>
+    );
+}
+
+function HoraCard({
+    label,
+    value,
+    bg,
+    border,
+    text,
+}: {
+    label: string;
+    value: string;
+    bg: string;
+    border: string;
+    text: string;
+}) {
+    return (
+        <div
+            style={{
+                border: `1px solid ${border}`,
+                backgroundColor: bg,
+                borderRadius: 18,
+                padding: 18,
+            }}
+        >
+            <p
+                style={{
+                    margin: 0,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: text,
+                }}
+            >
+                {label}
+            </p>
+
+            <p
+                style={{
+                    margin: "8px 0 0",
+                    fontSize: 36,
+                    lineHeight: "40px",
+                    fontWeight: 900,
+                    color: text,
+                }}
+            >
+                {value}
+            </p>
         </div>
     );
 }
@@ -81,9 +213,12 @@ export default function InformeResumenVisual({
 
     const totalHorasTeamViewer = totalMinutosTeamViewer / 60;
 
-    const totalMinutosVisitas = (data.visitas ?? []).reduce((acc: number, visita: any) => {
-        return acc + getDuracionMinutos(visita.inicio, visita.fin);
-    }, 0);
+    const totalMinutosVisitas = (data.visitas ?? []).reduce(
+        (acc: number, visita: any) => {
+            return acc + getDuracionMinutos(visita.inicio, visita.fin);
+        },
+        0
+    );
 
     const totalHorasVisitas = totalMinutosVisitas / 60;
 
@@ -134,174 +269,334 @@ export default function InformeResumenVisual({
     const maxActividad = Math.max(1, ...actividadRows.map((item) => item.value));
 
     return (
-        <div className="w-[794px] bg-white px-10 py-8 text-slate-800">
+        <div
+            style={{
+                width: 794,
+                minHeight: 1123,
+                backgroundColor: "#ffffff",
+                padding: "32px 40px",
+                boxSizing: "border-box",
+                fontFamily: "Arial, sans-serif",
+                color: "#1e293b",
+            }}
+        >
             {/* Encabezado del informe corto */}
-            <header className="mb-6 border-b border-slate-200 pb-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-cyan-700">
+            <header
+                style={{
+                    marginBottom: 24,
+                    paddingBottom: 16,
+                    borderBottom: "1px solid #e2e8f0",
+                }}
+            >
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: 11,
+                        fontWeight: 900,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.6,
+                        color: "#0e7490",
+                    }}
+                >
                     Informe ejecutivo resumido
                 </p>
 
-                <h1 className="mt-1 text-2xl font-black text-slate-900">
+                <h1
+                    style={{
+                        margin: "6px 0 0",
+                        fontSize: 26,
+                        lineHeight: "32px",
+                        fontWeight: 900,
+                        color: "#0f172a",
+                    }}
+                >
                     {empresaNombre}
                 </h1>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p
+                    style={{
+                        margin: "6px 0 0",
+                        fontSize: 13,
+                        color: "#64748b",
+                    }}
+                >
                     Período: {periodoTexto}
                 </p>
             </header>
 
             {/* KPIs principales */}
-            <section className="mb-6 grid grid-cols-4 gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                        Tickets
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900">
-                        {formatNumber(totalTickets)}
-                    </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                        Visitas
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900">
-                        {formatNumber(totalVisitas)}
-                    </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                        Equipos
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900">
-                        {formatNumber(totalEquipos)}
-                    </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase text-slate-500">
-                        Usuarios
-                    </p>
-                    <p className="mt-2 text-3xl font-black text-slate-900">
-                        {formatNumber(totalSolicitantes)}
-                    </p>
-                </div>
+            <section
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 12,
+                    marginBottom: 24,
+                }}
+            >
+                <KpiCard label="Tickets" value={formatNumber(totalTickets)} />
+                <KpiCard label="Visitas" value={formatNumber(totalVisitas)} />
+                <KpiCard label="Equipos" value={formatNumber(totalEquipos)} />
+                <KpiCard label="Usuarios" value={formatNumber(totalSolicitantes)} />
             </section>
 
             {/* Resumen de horas */}
-            <section className="mb-6 grid grid-cols-3 gap-4">
-                <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-5">
-                    <p className="text-sm font-bold text-cyan-800">
-                        Horas tickets
-                    </p>
-                    <p className="mt-2 text-4xl font-black text-cyan-900">
-                        {formatHoras(totalHorasTickets)}
-                    </p>
-                </div>
+            <section
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 14,
+                    marginBottom: 24,
+                }}
+            >
+                <HoraCard
+                    label="Horas tickets"
+                    value={formatHoras(totalHorasTickets)}
+                    bg="#ecfeff"
+                    border="#a5f3fc"
+                    text="#155e75"
+                />
 
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5">
-                    <p className="text-sm font-bold text-indigo-800">
-                        Horas remotas
-                    </p>
-                    <p className="mt-2 text-4xl font-black text-indigo-900">
-                        {formatHoras(totalHorasTeamViewer)}
-                    </p>
-                </div>
+                <HoraCard
+                    label="Horas remotas"
+                    value={formatHoras(totalHorasTeamViewer)}
+                    bg="#eef2ff"
+                    border="#c7d2fe"
+                    text="#3730a3"
+                />
 
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
-                    <p className="text-sm font-bold text-emerald-800">
-                        Total soporte
-                    </p>
-                    <p className="mt-2 text-4xl font-black text-emerald-900">
-                        {formatHoras(horasTotalSoporte)}
-                    </p>
-                </div>
+                <HoraCard
+                    label="Total soporte"
+                    value={formatHoras(horasTotalSoporte)}
+                    bg="#ecfdf5"
+                    border="#a7f3d0"
+                    text="#065f46"
+                />
             </section>
 
             {/* Visuales principales */}
-            <section className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-slate-200 p-5">
-                    <h2 className="mb-4 text-sm font-bold text-slate-700">
+            <section
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, 1fr)",
+                    gap: 14,
+                }}
+            >
+                <div
+                    style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 18,
+                        padding: 18,
+                    }}
+                >
+                    <h2
+                        style={{
+                            margin: "0 0 16px",
+                            fontSize: 14,
+                            fontWeight: 900,
+                            color: "#334155",
+                        }}
+                    >
                         Estado de tickets
                     </h2>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-emerald-50 p-4 text-center">
-                            <p className="text-xs font-semibold uppercase text-emerald-700">
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, 1fr)",
+                            gap: 12,
+                        }}
+                    >
+                        <div
+                            style={{
+                                borderRadius: 14,
+                                backgroundColor: "#ecfdf5",
+                                padding: 16,
+                                textAlign: "center",
+                            }}
+                        >
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    fontWeight: 900,
+                                    textTransform: "uppercase",
+                                    color: "#047857",
+                                }}
+                            >
                                 Cerrados
                             </p>
-                            <p className="mt-2 text-3xl font-black text-emerald-900">
+
+                            <p
+                                style={{
+                                    margin: "8px 0 0",
+                                    fontSize: 30,
+                                    fontWeight: 900,
+                                    color: "#064e3b",
+                                }}
+                            >
                                 {formatNumber(ticketsCerrados)}
                             </p>
                         </div>
 
-                        <div className="rounded-xl bg-amber-50 p-4 text-center">
-                            <p className="text-xs font-semibold uppercase text-amber-700">
+                        <div
+                            style={{
+                                borderRadius: 14,
+                                backgroundColor: "#fffbeb",
+                                padding: 16,
+                                textAlign: "center",
+                            }}
+                        >
+                            <p
+                                style={{
+                                    margin: 0,
+                                    fontSize: 10,
+                                    fontWeight: 900,
+                                    textTransform: "uppercase",
+                                    color: "#b45309",
+                                }}
+                            >
                                 Abiertos
                             </p>
-                            <p className="mt-2 text-3xl font-black text-amber-900">
+
+                            <p
+                                style={{
+                                    margin: "8px 0 0",
+                                    fontSize: 30,
+                                    fontWeight: 900,
+                                    color: "#78350f",
+                                }}
+                            >
                                 {formatNumber(ticketsAbiertos)}
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 p-5">
-                    <h2 className="mb-4 text-sm font-bold text-slate-700">
+                <div
+                    style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 18,
+                        padding: 18,
+                    }}
+                >
+                    <h2
+                        style={{
+                            margin: "0 0 16px",
+                            fontSize: 14,
+                            fontWeight: 900,
+                            color: "#334155",
+                        }}
+                    >
                         Actividad del período
                     </h2>
 
-                    <div className="space-y-3">
-                        {actividadRows.map((item) => (
+                    {actividadRows.map((item) => (
+                        <SimpleBar
+                            key={item.label}
+                            label={item.label}
+                            value={item.value}
+                            max={maxActividad}
+                        />
+                    ))}
+                </div>
+
+                <div
+                    style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 18,
+                        padding: 18,
+                    }}
+                >
+                    <h2
+                        style={{
+                            margin: "0 0 16px",
+                            fontSize: 14,
+                            fontWeight: 900,
+                            color: "#334155",
+                        }}
+                    >
+                        Top solicitantes por tickets
+                    </h2>
+
+                    {topSolicitantes.length > 0 ? (
+                        topSolicitantes.map((item) => (
                             <SimpleBar
                                 key={item.label}
                                 label={item.label}
                                 value={item.value}
-                                max={maxActividad}
+                                max={maxTopSolicitantes}
                             />
-                        ))}
-                    </div>
+                        ))
+                    ) : (
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 13,
+                                color: "#64748b",
+                            }}
+                        >
+                            Sin datos disponibles.
+                        </p>
+                    )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 p-5">
-                    <h2 className="mb-4 text-sm font-bold text-slate-700">
-                        Top solicitantes por tickets
-                    </h2>
-
-                    <div className="space-y-3">
-                        {topSolicitantes.length > 0 ? (
-                            topSolicitantes.map((item) => (
-                                <SimpleBar
-                                    key={item.label}
-                                    label={item.label}
-                                    value={item.value}
-                                    max={maxTopSolicitantes}
-                                />
-                            ))
-                        ) : (
-                            <p className="text-sm text-slate-500">
-                                Sin datos disponibles.
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 p-5">
-                    <h2 className="mb-4 text-sm font-bold text-slate-700">
+                <div
+                    style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 18,
+                        padding: 18,
+                    }}
+                >
+                    <h2
+                        style={{
+                            margin: "0 0 16px",
+                            fontSize: 14,
+                            fontWeight: 900,
+                            color: "#334155",
+                        }}
+                    >
                         Mantenciones remotas
                     </h2>
 
-                    <div className="rounded-xl bg-slate-50 p-5 text-center">
-                        <p className="text-xs font-semibold uppercase text-slate-500">
+                    <div
+                        style={{
+                            borderRadius: 14,
+                            backgroundColor: "#f8fafc",
+                            padding: 20,
+                            textAlign: "center",
+                        }}
+                    >
+                        <p
+                            style={{
+                                margin: 0,
+                                fontSize: 10,
+                                fontWeight: 900,
+                                textTransform: "uppercase",
+                                color: "#64748b",
+                            }}
+                        >
                             Minutos TeamViewer
                         </p>
 
-                        <p className="mt-2 text-4xl font-black text-slate-900">
+                        <p
+                            style={{
+                                margin: "8px 0 0",
+                                fontSize: 36,
+                                lineHeight: "40px",
+                                fontWeight: 900,
+                                color: "#0f172a",
+                            }}
+                        >
                             {formatNumber(totalMinutosTeamViewer)}
                         </p>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p
+                            style={{
+                                margin: "4px 0 0",
+                                fontSize: 13,
+                                color: "#64748b",
+                            }}
+                        >
                             Equivalente a {formatHoras(totalHorasTeamViewer)}
                         </p>
                     </div>
@@ -309,7 +604,15 @@ export default function InformeResumenVisual({
             </section>
 
             {/* Pie breve */}
-            <footer className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500">
+            <footer
+                style={{
+                    marginTop: 24,
+                    paddingTop: 14,
+                    borderTop: "1px solid #e2e8f0",
+                    fontSize: 11,
+                    color: "#64748b",
+                }}
+            >
                 Informe resumido generado automáticamente desde el módulo de reportes RIDS.
             </footer>
         </div>

@@ -79,6 +79,7 @@ export const fieldLabels: Record<string, string> = {
     ram: "RAM",
     disco: "Disco",
     propiedad: "Propiedad",
+    propietarioExterno: "Dueño externo",
     observaciones: "Observaciones",
     estado: "Estado",
     empresaId: "Empresa",
@@ -281,4 +282,44 @@ export function diskUsedPercent(equipo?: EquipoAgentFull | null) {
     }
 
     return Math.round(((total - free) / total) * 100);
+}
+
+export const PROPIEDAD_EQUIPO_OPTIONS = [
+    { value: "Empresa", label: "Empresa" },
+    { value: "Personal", label: "Personal" },
+    { value: "Externo", label: "Externo" },
+] as const;
+
+export function getPropiedadEquipoLabel(
+    propiedad?: string | null,
+    propietarioExterno?: string | null
+) {
+    if (propiedad === "Externo") {
+        return propietarioExterno
+            ? `Externo: ${propietarioExterno}`
+            : "Externo";
+    }
+
+    if (propiedad === "Personal") {
+        return "Personal";
+    }
+
+    if (propiedad === "Empresa") {
+        return "Empresa";
+    }
+
+    return "No definido";
+}
+
+export function getPropiedadEquipoClass(propiedad?: string | null) {
+    switch (propiedad) {
+        case "Empresa":
+            return "border-emerald-200 bg-emerald-50 text-emerald-800";
+        case "Personal":
+            return "border-indigo-200 bg-indigo-50 text-indigo-800";
+        case "Externo":
+            return "border-amber-200 bg-amber-50 text-amber-800";
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-600";
+    }
 }
