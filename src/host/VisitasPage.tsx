@@ -14,7 +14,15 @@ import {
   DeleteOutlined,
   DownOutlined,
   UpOutlined,
+  CalendarOutlined,
+  TeamOutlined,
+  CustomerServiceOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  ExpandOutlined,
+  CompressOutlined,
 } from "@ant-design/icons";
+
 import VisitaDetailModal, { type VisitaDetail } from "../components/modals-visitas/VisitaDetailModal";
 import CreateVisitaModal, {
   type TecnicoMini,
@@ -286,7 +294,7 @@ const VisitasPage: React.FC = () => {
   const [openExportExcel, setOpenExportExcel] = useState(false);
 
   const [activeTab, setActiveTab] =
-    useState<"lista" | "agenda" | "dashboard">("lista");
+    useState<"agenda" | "lista" | "dashboard">("agenda");
 
   const [tecnicosExpandidos, setTecnicosExpandidos] =
     useState<Set<number>>(new Set());
@@ -764,16 +772,6 @@ const VisitasPage: React.FC = () => {
             <div className="mt-5 flex gap-1 border-b border-cyan-100">
               <button
                 type="button"
-                onClick={() => setActiveTab("lista")}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "lista"
-                  ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
-                  : "text-slate-500 hover:text-cyan-600"
-                  }`}
-              >
-                Lista de visitas
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveTab("agenda")}
                 className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "agenda"
                   ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
@@ -781,6 +779,16 @@ const VisitasPage: React.FC = () => {
                   }`}
               >
                 Agenda y atenciones
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("lista")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "lista"
+                  ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
+                  : "text-slate-500 hover:text-cyan-600"
+                  }`}
+              >
+                Lista de visitas
               </button>
               <button
                 type="button"
@@ -946,6 +954,236 @@ const VisitasPage: React.FC = () => {
                         <span className="hidden sm:inline">+ Nueva</span>
                       </button>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Toolbar de Agenda y atenciones ── */}
+            {activeTab === "agenda" && (
+              <div className="mt-5">
+                <div
+                  className="
+        rounded-2xl border border-cyan-100
+        bg-gradient-to-br from-white via-white to-cyan-50/60
+        p-4 sm:p-5
+        shadow-[0_10px_28px_-20px_rgba(8,145,178,0.55)]
+      "
+                >
+                  <div className="flex flex-col gap-5">
+                    {/* Encabezado */}
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-lg text-cyan-700">
+                          <CalendarOutlined />
+                        </div>
+
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">
+                            Agenda y atenciones en terreno
+                          </h2>
+
+                          <p className="mt-1 max-w-3xl text-sm text-slate-500">
+                            Compara la planificación del calendario con las
+                            atenciones registradas por cada técnico durante el
+                            periodo seleccionado.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1.5 text-xs font-semibold capitalize text-cyan-700 shadow-sm">
+                        <CalendarOutlined />
+                        {formatearRangoAgenda(rangoAgenda)}
+                      </div>
+                    </div>
+
+                    {/* Filtros */}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+                      {/* Periodo */}
+                      <div className="xl:col-span-4">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Periodo
+                        </label>
+
+                        <RangePicker
+                          value={rangoAgenda}
+                          presets={presetsAgenda}
+                          format="DD/MM/YYYY"
+                          allowClear={false}
+                          size="middle"
+                          className="w-full"
+                          placeholder={[
+                            "Fecha desde",
+                            "Fecha hasta",
+                          ]}
+                          onChange={(values) => {
+                            const desde = values?.[0];
+                            const hasta = values?.[1];
+
+                            if (!desde || !hasta) return;
+
+                            setRangoAgenda([
+                              desde.startOf("day"),
+                              hasta.startOf("day"),
+                            ]);
+                          }}
+                        />
+                      </div>
+
+                      {/* Técnico */}
+                      <div className="xl:col-span-3">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Técnico
+                        </label>
+
+                        <Select
+                          value={tecnicoId || undefined}
+                          placeholder="Todos los técnicos"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          size="middle"
+                          className="w-full"
+                          options={tecnicos.map((tecnico) => ({
+                            value: tecnico.id,
+                            label: tecnico.nombre,
+                          }))}
+                          onChange={(value?: number) => {
+                            setTecnicoId(value ?? "");
+                          }}
+                        />
+                      </div>
+
+                      {/* Empresa */}
+                      {isAdminLike && (
+                        <div className="xl:col-span-3">
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Empresa
+                          </label>
+
+                          <Select
+                            value={empresaId || undefined}
+                            placeholder="Todas las empresas"
+                            allowClear
+                            showSearch
+                            optionFilterProp="label"
+                            size="middle"
+                            className="w-full"
+                            options={empresas.map((empresa) => ({
+                              value: empresa.id,
+                              label: empresa.nombre,
+                            }))}
+                            onChange={(value?: number) => {
+                              setEmpresaId(value ?? "");
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Actualizar */}
+                      <div
+                        className={clsx(
+                          "flex items-end",
+                          isAdminLike
+                            ? "xl:col-span-2"
+                            : "xl:col-span-5"
+                        )}
+                      >
+                        <Button
+                          type="primary"
+                          size="middle"
+                          icon={<ReloadOutlined />}
+                          loading={loadingResumenDia}
+                          onClick={() => {
+                            void fetchResumenDia();
+                          }}
+                          className="
+                h-10 w-full rounded-xl
+                bg-gradient-to-r from-cyan-600 to-teal-600
+                font-semibold
+                shadow-[0_8px_20px_-12px_rgba(8,145,178,0.9)]
+              "
+                        >
+                          Actualizar
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Rangos rápidos */}
+                    <div className="flex flex-col gap-2 border-t border-cyan-100 pt-4 sm:flex-row sm:items-center">
+                      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Rangos rápidos
+                      </span>
+
+                      <Space wrap size={[8, 8]}>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const hoy = obtenerHoyChile();
+                            setRangoAgenda([hoy, hoy]);
+                          }}
+                        >
+                          Hoy
+                        </Button>
+
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const ayer =
+                              obtenerHoyChile().subtract(1, "day");
+
+                            setRangoAgenda([ayer, ayer]);
+                          }}
+                        >
+                          Ayer
+                        </Button>
+
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const hoy = obtenerHoyChile();
+
+                            setRangoAgenda([
+                              hoy.subtract(2, "day"),
+                              hoy,
+                            ]);
+                          }}
+                        >
+                          Últimos 3 días
+                        </Button>
+
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const hoy = obtenerHoyChile();
+
+                            setRangoAgenda([
+                              obtenerInicioSemana(hoy),
+                              obtenerFinSemana(hoy),
+                            ]);
+                          }}
+                        >
+                          Esta semana
+                        </Button>
+
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            const inicioSemanaActual =
+                              obtenerInicioSemana(
+                                obtenerHoyChile()
+                              );
+
+                            setRangoAgenda([
+                              inicioSemanaActual.subtract(7, "day"),
+                              inicioSemanaActual.subtract(1, "day"),
+                            ]);
+                          }}
+                        >
+                          Semana anterior
+                        </Button>
+                      </Space>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1177,201 +1415,6 @@ const VisitasPage: React.FC = () => {
       {activeTab === "agenda" && (
         <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
           <section className="mt-4 space-y-4">
-            {/* Selector de fecha */}
-            <div className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Agenda y atenciones en terreno
-                  </h2>
-
-                  <p className="mt-1 text-sm font-medium capitalize text-cyan-700">
-                    {formatearRangoAgenda(rangoAgenda)}
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Compara la planificación del calendario con las
-                    atenciones registradas por cada técnico durante
-                    el periodo seleccionado.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {/* Rango de fechas */}
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">
-                      Periodo
-                    </label>
-
-                    <RangePicker
-                      value={rangoAgenda}
-                      presets={presetsAgenda}
-                      format="DD/MM/YYYY"
-                      allowClear={false}
-                      className="w-full"
-                      placeholder={[
-                        "Fecha desde",
-                        "Fecha hasta",
-                      ]}
-                      onChange={(values) => {
-                        const desde = values?.[0];
-                        const hasta = values?.[1];
-
-                        if (!desde || !hasta) {
-                          return;
-                        }
-
-                        setRangoAgenda([
-                          desde.startOf("day"),
-                          hasta.startOf("day"),
-                        ]);
-                      }}
-                    />
-                  </div>
-
-                  {/* Técnico */}
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">
-                      Técnico
-                    </label>
-
-                    <Select
-                      value={tecnicoId || undefined}
-                      placeholder="Todos los técnicos"
-                      allowClear
-                      showSearch
-                      optionFilterProp="label"
-                      className="w-full"
-                      options={tecnicos.map((tecnico) => ({
-                        value: tecnico.id,
-                        label: tecnico.nombre,
-                      }))}
-                      onChange={(value?: number) => {
-                        setTecnicoId(value ?? "");
-                      }}
-                    />
-                  </div>
-
-                  {/* Empresa */}
-                  {isAdminLike && (
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-600">
-                        Empresa
-                      </label>
-
-                      <Select
-                        value={empresaId || undefined}
-                        placeholder="Todas las empresas"
-                        allowClear
-                        showSearch
-                        optionFilterProp="label"
-                        className="w-full"
-                        options={empresas.map((empresa) => ({
-                          value: empresa.id,
-                          label: empresa.nombre,
-                        }))}
-                        onChange={(value?: number) => {
-                          setEmpresaId(value ?? "");
-                        }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Actualizar */}
-                  <div className="flex items-end">
-                    <Button
-                      type="primary"
-                      icon={<ReloadOutlined />}
-                      loading={loadingResumenDia}
-                      onClick={() => {
-                        void fetchResumenDia();
-                      }}
-                      className="w-full"
-                    >
-                      Actualizar
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Botones rápidos */}
-                <Space wrap size={[8, 8]}>
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      const hoy = obtenerHoyChile();
-
-                      setRangoAgenda([hoy, hoy]);
-                    }}
-                  >
-                    Hoy
-                  </Button>
-
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      const ayer =
-                        obtenerHoyChile().subtract(1, "day");
-
-                      setRangoAgenda([ayer, ayer]);
-                    }}
-                  >
-                    Ayer
-                  </Button>
-
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      const hoy = obtenerHoyChile();
-
-                      setRangoAgenda([
-                        hoy.subtract(2, "day"),
-                        hoy,
-                      ]);
-                    }}
-                  >
-                    Últimos 3 días
-                  </Button>
-
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      const hoy = obtenerHoyChile();
-
-                      setRangoAgenda([
-                        obtenerInicioSemana(hoy),
-                        obtenerFinSemana(hoy),
-                      ]);
-                    }}
-                  >
-                    Esta semana
-                  </Button>
-
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      const inicioSemanaActual =
-                        obtenerInicioSemana(
-                          obtenerHoyChile()
-                        );
-
-                      setRangoAgenda([
-                        inicioSemanaActual.subtract(
-                          7,
-                          "day"
-                        ),
-
-                        inicioSemanaActual.subtract(
-                          1,
-                          "day"
-                        ),
-                      ]);
-                    }}
-                  >
-                    Semana anterior
-                  </Button>
-                </Space>
-              </div>
-            </div>
             {/* Error */}
             {errorResumenDia && (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -1401,49 +1444,73 @@ const VisitasPage: React.FC = () => {
               resumenDia && (
                 <>
                   {/* KPI */}
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
                     <ResumenDiaKpi
                       label="Técnicos programados"
                       value={resumenDia.totales.tecnicosProgramados}
+                      description="Con agenda"
+                      icon={<TeamOutlined />}
+                      variant="cyan"
                     />
 
                     <ResumenDiaKpi
                       label="Bloques de agenda"
                       value={resumenDia.totales.agendas}
+                      description="Planificados"
+                      icon={<CalendarOutlined />}
+                      variant="blue"
                     />
 
                     <ResumenDiaKpi
                       label="Atenciones"
                       value={resumenDia.totales.atenciones}
+                      description="Registradas"
+                      icon={<CustomerServiceOutlined />}
+                      variant="indigo"
                     />
 
                     <ResumenDiaKpi
                       label="Completadas"
                       value={resumenDia.totales.completadas}
+                      description="Finalizadas"
+                      icon={<CheckCircleOutlined />}
+                      variant="emerald"
                     />
 
                     <ResumenDiaKpi
                       label="Pendientes"
                       value={resumenDia.totales.pendientes}
-                    />
-
-                    <ResumenDiaKpi
-                      label="Canceladas"
-                      value={resumenDia.totales.canceladas}
+                      description="Por cerrar"
+                      icon={<ClockCircleOutlined />}
+                      variant="amber"
                     />
                   </div>
 
                   {/* Acciones del listado */}
                   {resumenDia.tecnicos.length > 0 && (
-                    <div className="flex justify-end">
-                      <Space wrap>
+                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          Técnicos del periodo
+                        </p>
+
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Revisa la agenda y las atenciones registradas por
+                          cada técnico.
+                        </p>
+                      </div>
+
+                      <Space wrap size={8}>
                         <Button
                           size="small"
+                          shape="round"
+                          icon={<ExpandOutlined />}
                           onClick={() => {
                             setTecnicosExpandidos(
                               new Set(
                                 resumenDia.tecnicos.map(
-                                  (item) => item.tecnico.id_tecnico
+                                  (item) =>
+                                    item.tecnico.id_tecnico
                                 )
                               )
                             );
@@ -1454,8 +1521,11 @@ const VisitasPage: React.FC = () => {
 
                         <Button
                           size="small"
+                          shape="round"
+                          icon={<CompressOutlined />}
                           onClick={() => {
                             setTecnicosExpandidos(new Set());
+                            setAgendaSeleccionadaPorTecnico({});
                           }}
                         >
                           Minimizar todos
@@ -1549,10 +1619,22 @@ const VisitasPage: React.FC = () => {
                         return (
                           <article
                             key={item.tecnico.id_tecnico}
-                            className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm"
+                            className="
+    overflow-hidden rounded-2xl
+    border border-cyan-200/80
+    bg-white
+    shadow-[0_10px_28px_-22px_rgba(8,145,178,0.55)]
+    transition duration-200
+    hover:border-cyan-300
+  "
                           >
                             {/* Encabezado del técnico */}
-                            <header className="flex flex-col gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <header
+                              className={clsx(
+                                "flex flex-col gap-3 bg-white p-4 sm:flex-row sm:items-center sm:justify-between",
+                                estaExpandido && "border-b border-cyan-100"
+                              )}
+                            >
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h3 className="text-base font-bold text-slate-900">
@@ -2033,22 +2115,118 @@ function TableSkeletonRows({ cols, rows = 8 }: { cols: number; rows?: number }) 
   );
 }
 
+type ResumenDiaKpiVariant =
+  | "cyan"
+  | "blue"
+  | "indigo"
+  | "emerald"
+  | "amber"
+  | "rose";
+
 function ResumenDiaKpi({
   label,
   value,
+  description,
+  icon,
+  variant = "cyan",
 }: {
   label: string;
   value: number;
+  description?: string;
+  icon?: React.ReactNode;
+  variant?: ResumenDiaKpiVariant;
 }) {
-  return (
-    <div className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500">
-        {label}
-      </p>
+  const variantStyles: Record<
+    ResumenDiaKpiVariant,
+    {
+      border: string;
+      background: string;
+      icon: string;
+    }
+  > = {
+    cyan: {
+      border: "border-cyan-200",
+      background:
+        "bg-gradient-to-br from-white to-cyan-50/70",
+      icon: "bg-cyan-100 text-cyan-700",
+    },
 
-      <p className="mt-1 text-2xl font-extrabold text-slate-900">
-        {value}
-      </p>
+    blue: {
+      border: "border-blue-200",
+      background:
+        "bg-gradient-to-br from-white to-blue-50/70",
+      icon: "bg-blue-100 text-blue-700",
+    },
+
+    indigo: {
+      border: "border-indigo-200",
+      background:
+        "bg-gradient-to-br from-white to-indigo-50/70",
+      icon: "bg-indigo-100 text-indigo-700",
+    },
+
+    emerald: {
+      border: "border-emerald-200",
+      background:
+        "bg-gradient-to-br from-white to-emerald-50/70",
+      icon: "bg-emerald-100 text-emerald-700",
+    },
+
+    amber: {
+      border: "border-amber-200",
+      background:
+        "bg-gradient-to-br from-white to-amber-50/70",
+      icon: "bg-amber-100 text-amber-700",
+    },
+
+    rose: {
+      border: "border-rose-200",
+      background:
+        "bg-gradient-to-br from-white to-rose-50/70",
+      icon: "bg-rose-100 text-rose-700",
+    },
+  };
+
+  const styles = variantStyles[variant];
+
+  return (
+    <div
+      className={clsx(
+        "rounded-2xl border p-4",
+        "shadow-[0_8px_20px_-16px_rgba(15,23,42,0.45)]",
+        "transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        styles.border,
+        styles.background
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-600">
+            {label}
+          </p>
+
+          <p className="mt-1 text-2xl font-extrabold text-slate-900">
+            {value}
+          </p>
+
+          {description && (
+            <p className="mt-1 text-[11px] text-slate-400">
+              {description}
+            </p>
+          )}
+        </div>
+
+        {icon && (
+          <div
+            className={clsx(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base",
+              styles.icon
+            )}
+          >
+            {icon}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

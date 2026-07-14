@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/config-tickets/reply-templates/TemplateEditor.tsx
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Button, Space } from "antd";
