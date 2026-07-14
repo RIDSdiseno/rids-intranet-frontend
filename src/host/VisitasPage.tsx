@@ -98,6 +98,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function OrigenBadge({ origen, agendaId }: { origen?: string | null; agendaId?: number | null }) {
+  const norm = String(origen ?? "MANUAL").toUpperCase();
+  const isAgenda = norm === "AGENDA";
+
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+        isAgenda
+          ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+          : "bg-slate-50 text-slate-700 ring-1 ring-slate-200"
+      )}
+      title={isAgenda && agendaId ? `Agenda #${agendaId}` : "Visita manual"}
+    >
+      {isAgenda ? `Agenda${agendaId ? ` #${agendaId}` : ""}` : "Manual"}
+    </span>
+  );
+}
+
 const clsx = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
 
@@ -258,6 +277,9 @@ const VisitasPage: React.FC = () => {
       otros: row.otros,
       otrosDetalle: row.otrosDetalle ?? null,
       status: row.status,
+      agendaId: row.agendaId ?? null,
+      origen: row.origen ?? "MANUAL",
+      agenda: row.agenda ?? null,
       empresa: row.empresa ? { id_empresa: row.empresa.id_empresa, nombre: row.empresa.nombre } : undefined,
       tecnico: row.tecnico ? { id_tecnico: row.tecnico.id_tecnico, nombre: row.tecnico.nombre } : undefined,
       actualizaciones: row.actualizaciones,
@@ -565,6 +587,9 @@ const VisitasPage: React.FC = () => {
                       <h3 className="text-base font-semibold text-slate-900">
                         {v.empresa?.nombre ?? `#${v.empresaId}`}
                       </h3>
+                      <div className="mt-1">
+                        <OrigenBadge origen={v.origen} agendaId={v.agendaId} />
+                      </div>
                       <p className="text-xs text-slate-600 mt-0.5">
                         {v.tecnico?.nombre ?? `#${v.tecnicoId}`} • {formatDateTime(v.inicio)}
                       </p>
@@ -621,18 +646,18 @@ const VisitasPage: React.FC = () => {
               <table className="min-w-full text-sm">
                 <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
                   <tr>
-                    {["ID", "Técnico", "Empresa", "Solicitante", "Inicio", "Estado", "Acciones"].map((h) => (
+                    {["ID", "Técnico", "Empresa", "Origen", "Solicitante", "Inicio", "Estado", "Acciones"].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-semibold">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="text-slate-800">
-                  {loading && <TableSkeletonRows cols={7} rows={8} />}
+                  {loading && <TableSkeletonRows cols={8} rows={8} />}
                   {!loading && error && (
-                    <tr><td colSpan={7} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-rose-700">{error}</td></tr>
                   )}
                   {!loading && !error && data?.items?.length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-600">Sin resultados.</td></tr>
                   )}
                   {!loading && !error && data?.items?.map((v) => {
                     const nombreSolicitante = v.solicitanteRef?.nombre ?? v.solicitante ?? "—";
@@ -645,6 +670,7 @@ const VisitasPage: React.FC = () => {
                         <td className="px-4 py-3 whitespace-nowrap">{v.id_visita}</td>
                         <td className="px-4 py-3">{v.tecnico?.nombre ?? `#${v.tecnicoId}`}</td>
                         <td className="px-4 py-3">{v.empresa?.nombre ?? `#${v.empresaId}`}</td>
+                        <td className="px-4 py-3"><OrigenBadge origen={v.origen} agendaId={v.agendaId} /></td>
                         <td className="px-4 py-3">
                           <div className="max-w-[420px] truncate" title={nombreSolicitante}>{nombreSolicitante}</div>
                         </td>

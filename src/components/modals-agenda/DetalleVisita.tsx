@@ -114,6 +114,40 @@ export function DetalleVisita({
           </div>
         )}
 
+        <div
+          style={{
+            borderRadius: 8,
+            border: "1px solid #e2e8f0",
+            background: visita.visita ? "#f8fafc" : "#fff7ed",
+            padding: "8px 10px",
+            marginTop: 4,
+          }}
+        >
+          <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+            Formulario asociado
+          </div>
+          {visita.visita ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
+              <span style={{ color: "#0f172a", fontWeight: 700 }}>
+                Visita #{visita.visita.id_visita}
+              </span>
+              <span style={{ color: "#475569", fontSize: 12 }}>
+                Estado: {visita.visita.status ?? "Sin estado"} · Origen: {visita.visita.origen ?? "AGENDA"}
+              </span>
+              {(visita.visita.inicio || visita.visita.fin) && (
+                <span style={{ color: "#475569", fontSize: 12 }}>
+                  {visita.visita.inicio ? new Date(visita.visita.inicio).toLocaleString("es-CL") : "--"}{" "}
+                  - {visita.visita.fin ? new Date(visita.visita.fin).toLocaleString("es-CL") : "En curso"}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span style={{ color: "#9a3412", fontSize: 13 }}>
+              Sin formulario de visita asociado.
+            </span>
+          )}
+        </div>
+
         {visita.notas && (
           <div>
             <span style={{ color: "#94a3b8" }}>Notas: </span>
