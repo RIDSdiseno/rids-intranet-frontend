@@ -1,5 +1,9 @@
 // src/host/Visitas.tsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Button, DatePicker, Select, Space } from "antd";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
 import {
   SearchOutlined,
   ReloadOutlined,
@@ -8,6 +12,8 @@ import {
   RightOutlined,
   EditOutlined,
   DeleteOutlined,
+  DownOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import VisitaDetailModal, { type VisitaDetail } from "../components/modals-visitas/VisitaDetailModal";
 import CreateVisitaModal, {
@@ -23,6 +29,10 @@ import { useAuth } from "../components/hooks/useAuth";
 
 import { http } from "../service/http";
 
+dayjs.locale("es");
+
+const { RangePicker } = DatePicker;
+
 /* ========= Domain ========= */
 type ApiList<T> = { page: number; pageSize: number; total: number; totalPages: number; items: T[]; };
 type VisitaRow = VisitaDetail & {
@@ -32,6 +42,83 @@ type VisitaRow = VisitaDetail & {
   direccion_visita?: string | null
   sucursal?: { id_sucursal: number; nombre: string } | null
 };
+
+type AgendaDiariaItem = {
+  id: number;
+  fecha: string;
+  tipo: string;
+  estado: string;
+  empresaId: number | null;
+  empresaNombre: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  notas: string | null;
+  mensaje: string | null;
+};
+
+type AtencionDiariaItem = {
+  id_visita: number;
+  empresaId: number;
+  empresaNombre: string;
+  solicitanteId: number | null;
+  solicitanteNombre: string;
+  inicio: string;
+  fin: string | null;
+  status: string;
+  direccion_visita: string | null;
+  otrosDetalle: string | null;
+
+  sucursal: {
+    id_sucursal: number;
+    nombre: string;
+    direccion: string | null;
+  } | null;
+};
+
+type ResumenTecnicoDia = {
+  tecnico: {
+    id_tecnico: number;
+    nombre: string;
+    email: string;
+    rol: string;
+    status: boolean;
+  };
+
+  tieneAgenda: boolean;
+
+  resumen: {
+    totalProgramadas: number;
+    totalAtenciones: number;
+    totalJornadas: number;
+    completadas: number;
+    pendientes: number;
+    canceladas: number;
+    atencionesEnEmpresasProgramadas: number;
+    atencionesFueraAgenda: number;
+  };
+
+  agendas: AgendaDiariaItem[];
+  atenciones: AtencionDiariaItem[];
+};
+
+type ResumenVisitasDiaResponse = {
+  fechaDesde: string;
+  fechaHasta: string;
+
+  totales: {
+    tecnicos: number;
+    tecnicosProgramados: number;
+    agendas: number;
+    atenciones: number;
+    completadas: number;
+    pendientes: number;
+    canceladas: number;
+  };
+
+  tecnicos: ResumenTecnicoDia[];
+};
+
+type RangoAgenda = [Dayjs, Dayjs];
 
 /* ========= Config ========= */
 const PAGE_SIZE = 10;
@@ -63,6 +150,67 @@ function formatDateTime(d: string | Date | null | undefined) {
   } catch {
     return String(d);
   }
+}
+
+function obtenerFechaChileFront(
+  fecha: string | Date
+): string {
+  return new Date(fecha).toLocaleDateString(
+    "en-CA",
+    {
+      timeZone: "America/Santiago",
+    }
+  );
+}
+
+function obtenerHoyChile(): Dayjs {
+  const fechaChile = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Santiago",
+  });
+
+  return dayjs(fechaChile).startOf("day");
+}
+
+function obtenerInicioSemana(fecha: Dayjs): Dayjs {
+  const diaSemana = fecha.day();
+
+  /*
+    dayjs:
+    0 = domingo
+    1 = lunes
+    ...
+    6 = sábado
+  */
+  const diasDesdeLunes =
+    diaSemana === 0
+      ? 6
+      : diaSemana - 1;
+
+  return fecha
+    .subtract(diasDesdeLunes, "day")
+    .startOf("day");
+}
+
+function obtenerFinSemana(fecha: Dayjs): Dayjs {
+  return obtenerInicioSemana(fecha)
+    .add(6, "day")
+    .startOf("day");
+}
+
+function formatearRangoAgenda(
+  rango: RangoAgenda
+): string {
+  const [desde, hasta] = rango;
+
+  if (desde.isSame(hasta, "day")) {
+    return desde.format(
+      "dddd DD [de] MMMM [de] YYYY"
+    );
+  }
+
+  return `${desde.format("DD/MM/YYYY")} al ${hasta.format(
+    "DD/MM/YYYY"
+  )}`;
 }
 
 // devuelve un badge con color según el estado (PENDIENTE, EN_PROGRESO, COMPLETADA, CANCELADA), o gris si no reconoce el estado
@@ -137,7 +285,88 @@ const VisitasPage: React.FC = () => {
   const [openDashboard, setOpenDashboard] = useState(false);
   const [openExportExcel, setOpenExportExcel] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"lista" | "dashboard">("lista");
+  const [activeTab, setActiveTab] =
+    useState<"lista" | "agenda" | "dashboard">("lista");
+
+  const [tecnicosExpandidos, setTecnicosExpandidos] =
+    useState<Set<number>>(new Set());
+
+  type SeleccionAgenda = {
+    empresaId: number;
+    fecha: string;
+  };
+
+  const [
+    agendaSeleccionadaPorTecnico,
+    setAgendaSeleccionadaPorTecnico,
+  ] = useState<
+    Record<number, SeleccionAgenda | undefined>
+  >({});
+
+  const [rangoAgenda, setRangoAgenda] =
+    useState<RangoAgenda>(() => {
+      const hoy = obtenerHoyChile();
+
+      return [hoy, hoy];
+    });
+
+  const presetsAgenda = useMemo(() => {
+    const hoy = obtenerHoyChile();
+    const ayer = hoy.subtract(1, "day");
+
+    const inicioSemanaActual =
+      obtenerInicioSemana(hoy);
+
+    const finSemanaActual =
+      obtenerFinSemana(hoy);
+
+    const inicioSemanaAnterior =
+      inicioSemanaActual.subtract(7, "day");
+
+    const finSemanaAnterior =
+      inicioSemanaActual.subtract(1, "day");
+
+    return [
+      {
+        label: "Hoy",
+        value: [hoy, hoy] as RangoAgenda,
+      },
+      {
+        label: "Ayer",
+        value: [ayer, ayer] as RangoAgenda,
+      },
+      {
+        label: "Últimos 3 días",
+        value: [
+          hoy.subtract(2, "day"),
+          hoy,
+        ] as RangoAgenda,
+      },
+      {
+        label: "Esta semana",
+        value: [
+          inicioSemanaActual,
+          finSemanaActual,
+        ] as RangoAgenda,
+      },
+      {
+        label: "Semana anterior",
+        value: [
+          inicioSemanaAnterior,
+          finSemanaAnterior,
+        ] as RangoAgenda,
+      },
+    ];
+  }, []);
+
+  const [resumenDia, setResumenDia] =
+    useState<ResumenVisitasDiaResponse | null>(null);
+
+  const [loadingResumenDia, setLoadingResumenDia] =
+    useState(false);
+
+  const [errorResumenDia, setErrorResumenDia] =
+    useState<string | null>(null);
 
   const reqSeqRef = useRef(0);
 
@@ -200,11 +429,133 @@ const VisitasPage: React.FC = () => {
     }
   }, [page, qDebounced, tecnicoId, empresaId, monthFilter, yearFilter]);
 
+  const fetchResumenDia = useCallback(
+    async (signal?: AbortSignal) => {
+      const [fechaDesde, fechaHasta] =
+        rangoAgenda;
+
+      if (!fechaDesde || !fechaHasta) {
+        setResumenDia(null);
+        return;
+      }
+
+      try {
+        setLoadingResumenDia(true);
+        setErrorResumenDia(null);
+        setResumenDia(null);
+
+        const response =
+          await http.get<ResumenVisitasDiaResponse>(
+            "/visitas/resumen-diario",
+            {
+              signal,
+
+              params: {
+                fechaDesde:
+                  fechaDesde.format("YYYY-MM-DD"),
+
+                fechaHasta:
+                  fechaHasta.format("YYYY-MM-DD"),
+
+                tecnicoId:
+                  tecnicoId || undefined,
+
+                empresaId:
+                  empresaId || undefined,
+
+                _ts: Date.now(),
+              },
+            }
+          );
+
+        setResumenDia(response.data);
+      } catch (err: any) {
+        if (
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "Error cargando resumen de agenda:",
+          err
+        );
+
+        setErrorResumenDia(
+          err?.response?.data?.error ??
+          err?.message ??
+          "No fue posible cargar la agenda del periodo."
+        );
+      } finally {
+        setLoadingResumenDia(false);
+      }
+    },
+    [
+      rangoAgenda,
+      tecnicoId,
+      empresaId,
+    ]
+  );
+
   // Función para refrescar la lista después de crear/editar/eliminar sin esperar al efecto
   const refreshNow = useCallback(() => {
     const c = new AbortController();
     void fetchList(c.signal);
   }, [fetchList]);
+
+  const refreshVisitasData = useCallback(() => {
+    const listController = new AbortController();
+
+    void fetchList(listController.signal);
+
+    /*
+      Si la pestaña diaria está activa, también recarga
+      la comparación entre agenda y atenciones.
+    */
+    if (activeTab === "agenda") {
+      const resumenController = new AbortController();
+
+      void fetchResumenDia(resumenController.signal);
+    }
+  }, [
+    fetchList,
+    fetchResumenDia,
+    activeTab,
+  ]);
+
+  const toggleTecnicoExpandido = useCallback(
+    (tecnicoId: number) => {
+      setTecnicosExpandidos((actuales) => {
+        const nuevos = new Set(actuales);
+
+        if (nuevos.has(tecnicoId)) {
+          nuevos.delete(tecnicoId);
+
+          /*
+            Al minimizar el técnico también se elimina
+            la agenda/empresa seleccionada.
+          */
+          setAgendaSeleccionadaPorTecnico(
+            (seleccionesActuales) => {
+              const nuevasSelecciones = {
+                ...seleccionesActuales,
+              };
+
+              delete nuevasSelecciones[tecnicoId];
+
+              return nuevasSelecciones;
+            }
+          );
+        } else {
+          nuevos.add(tecnicoId);
+        }
+
+        return nuevos;
+      });
+    },
+    []
+  );
 
   /* === Efectos usando las funciones memorizadas === */
   useEffect(() => {
@@ -230,6 +581,20 @@ const VisitasPage: React.FC = () => {
     setPage(1);
   };
 
+  useEffect(() => {
+    if (activeTab !== "agenda") return;
+
+    const controller = new AbortController();
+
+    void fetchResumenDia(controller.signal);
+
+    return () => controller.abort();
+  }, [activeTab, fetchResumenDia]);
+
+  useEffect(() => {
+    setAgendaSeleccionadaPorTecnico({});
+  }, [rangoAgenda, tecnicoId, empresaId]);
+
   const { user, isCliente, isAdminLike } = useAuth();
 
   const canCreateVisita = !isCliente;
@@ -242,24 +607,49 @@ const VisitasPage: React.FC = () => {
   }, [isCliente, user]);
 
   // Al hacer click en una fila, abrir el modal de detalle
-  const openRow = (row: VisitaRow) => {
+  const openRow = useCallback((row: VisitaRow) => {
     const visita: VisitaDetail = {
       id_visita: row.id_visita,
       empresaId: row.empresaId,
       tecnicoId: row.tecnicoId,
-      solicitante: row.solicitante ?? row.solicitanteRef?.nombre ?? "",
-      direccion_visita: row.direccion_visita ?? null,
-      sucursal: row.sucursal ?? null,
+
+      solicitante:
+        row.solicitante ??
+        row.solicitanteRef?.nombre ??
+        "",
+
+      direccion_visita:
+        row.direccion_visita ?? null,
+
+      sucursal:
+        row.sucursal ?? null,
+
       inicio: row.inicio,
       fin: row.fin ?? null,
+
       confImpresoras: row.confImpresoras,
       confTelefonos: row.confTelefonos,
       confPiePagina: row.confPiePagina,
+
       otros: row.otros,
       otrosDetalle: row.otrosDetalle ?? null,
+
       status: row.status,
-      empresa: row.empresa ? { id_empresa: row.empresa.id_empresa, nombre: row.empresa.nombre } : undefined,
-      tecnico: row.tecnico ? { id_tecnico: row.tecnico.id_tecnico, nombre: row.tecnico.nombre } : undefined,
+
+      empresa: row.empresa
+        ? {
+          id_empresa: row.empresa.id_empresa,
+          nombre: row.empresa.nombre,
+        }
+        : undefined,
+
+      tecnico: row.tecnico
+        ? {
+          id_tecnico: row.tecnico.id_tecnico,
+          nombre: row.tecnico.nombre,
+        }
+        : undefined,
+
       actualizaciones: row.actualizaciones,
       antivirus: row.antivirus,
       ccleaner: row.ccleaner,
@@ -269,9 +659,34 @@ const VisitasPage: React.FC = () => {
       mantenimientoReloj: row.mantenimientoReloj,
       rendimientoEquipo: row.rendimientoEquipo,
     };
+
     setSelected(visita);
     setOpenDetail(true);
-  };
+  }, []);
+
+  const openVisitaById = useCallback(
+    async (visitaId: number) => {
+      try {
+        const response = await http.get<VisitaRow>(
+          `/visitas/${visitaId}`
+        );
+
+        openRow(response.data);
+      } catch (error: any) {
+        console.error(
+          "Error cargando detalle de visita:",
+          error
+        );
+
+        alert(
+          error?.response?.data?.error ??
+          error?.message ??
+          "No fue posible abrir la visita."
+        );
+      }
+    },
+    [openRow]
+  );
 
   async function apiDeleteVisita(id: number) {
     await http.delete(`/visitas/${id}`);
@@ -312,7 +727,7 @@ const VisitasPage: React.FC = () => {
     try {
       setDeletingId(row.id_visita);
       await apiDeleteVisita(row.id_visita);
-      refreshNow();
+      refreshVisitasData();
     } catch (e) {
       alert((e as Error).message || "No se pudo eliminar la visita");
     } finally {
@@ -356,6 +771,16 @@ const VisitasPage: React.FC = () => {
                   }`}
               >
                 Lista de visitas
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("agenda")}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${activeTab === "agenda"
+                  ? "bg-white border border-b-white border-cyan-200 text-cyan-700 -mb-px"
+                  : "text-slate-500 hover:text-cyan-600"
+                  }`}
+              >
+                Agenda y atenciones
               </button>
               <button
                 type="button"
@@ -749,6 +1174,787 @@ const VisitasPage: React.FC = () => {
         </main>
       )}
 
+      {activeTab === "agenda" && (
+        <main className="px-3 sm:px-4 md:px-6 lg:px-8 pb-24 md:pb-10 max-w-7xl mx-auto w-full">
+          <section className="mt-4 space-y-4">
+            {/* Selector de fecha */}
+            <div className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Agenda y atenciones en terreno
+                  </h2>
+
+                  <p className="mt-1 text-sm font-medium capitalize text-cyan-700">
+                    {formatearRangoAgenda(rangoAgenda)}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Compara la planificación del calendario con las
+                    atenciones registradas por cada técnico durante
+                    el periodo seleccionado.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {/* Rango de fechas */}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-600">
+                      Periodo
+                    </label>
+
+                    <RangePicker
+                      value={rangoAgenda}
+                      presets={presetsAgenda}
+                      format="DD/MM/YYYY"
+                      allowClear={false}
+                      className="w-full"
+                      placeholder={[
+                        "Fecha desde",
+                        "Fecha hasta",
+                      ]}
+                      onChange={(values) => {
+                        const desde = values?.[0];
+                        const hasta = values?.[1];
+
+                        if (!desde || !hasta) {
+                          return;
+                        }
+
+                        setRangoAgenda([
+                          desde.startOf("day"),
+                          hasta.startOf("day"),
+                        ]);
+                      }}
+                    />
+                  </div>
+
+                  {/* Técnico */}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-600">
+                      Técnico
+                    </label>
+
+                    <Select
+                      value={tecnicoId || undefined}
+                      placeholder="Todos los técnicos"
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      className="w-full"
+                      options={tecnicos.map((tecnico) => ({
+                        value: tecnico.id,
+                        label: tecnico.nombre,
+                      }))}
+                      onChange={(value?: number) => {
+                        setTecnicoId(value ?? "");
+                      }}
+                    />
+                  </div>
+
+                  {/* Empresa */}
+                  {isAdminLike && (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-600">
+                        Empresa
+                      </label>
+
+                      <Select
+                        value={empresaId || undefined}
+                        placeholder="Todas las empresas"
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        className="w-full"
+                        options={empresas.map((empresa) => ({
+                          value: empresa.id,
+                          label: empresa.nombre,
+                        }))}
+                        onChange={(value?: number) => {
+                          setEmpresaId(value ?? "");
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Actualizar */}
+                  <div className="flex items-end">
+                    <Button
+                      type="primary"
+                      icon={<ReloadOutlined />}
+                      loading={loadingResumenDia}
+                      onClick={() => {
+                        void fetchResumenDia();
+                      }}
+                      className="w-full"
+                    >
+                      Actualizar
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Botones rápidos */}
+                <Space wrap size={[8, 8]}>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const hoy = obtenerHoyChile();
+
+                      setRangoAgenda([hoy, hoy]);
+                    }}
+                  >
+                    Hoy
+                  </Button>
+
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const ayer =
+                        obtenerHoyChile().subtract(1, "day");
+
+                      setRangoAgenda([ayer, ayer]);
+                    }}
+                  >
+                    Ayer
+                  </Button>
+
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const hoy = obtenerHoyChile();
+
+                      setRangoAgenda([
+                        hoy.subtract(2, "day"),
+                        hoy,
+                      ]);
+                    }}
+                  >
+                    Últimos 3 días
+                  </Button>
+
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const hoy = obtenerHoyChile();
+
+                      setRangoAgenda([
+                        obtenerInicioSemana(hoy),
+                        obtenerFinSemana(hoy),
+                      ]);
+                    }}
+                  >
+                    Esta semana
+                  </Button>
+
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const inicioSemanaActual =
+                        obtenerInicioSemana(
+                          obtenerHoyChile()
+                        );
+
+                      setRangoAgenda([
+                        inicioSemanaActual.subtract(
+                          7,
+                          "day"
+                        ),
+
+                        inicioSemanaActual.subtract(
+                          1,
+                          "day"
+                        ),
+                      ]);
+                    }}
+                  >
+                    Semana anterior
+                  </Button>
+                </Space>
+              </div>
+            </div>
+            {/* Error */}
+            {errorResumenDia && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                {errorResumenDia}
+              </div>
+            )}
+
+            {/* Cargando */}
+            {loadingResumenDia && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`agenda-skeleton-${index}`}
+                    className="h-52 animate-pulse rounded-2xl border border-cyan-200 bg-white p-4"
+                  >
+                    <div className="h-5 w-40 rounded bg-slate-100" />
+                    <div className="mt-4 h-4 w-full rounded bg-slate-100" />
+                    <div className="mt-2 h-4 w-3/4 rounded bg-slate-100" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Resultados */}
+            {!loadingResumenDia &&
+              !errorResumenDia &&
+              resumenDia && (
+                <>
+                  {/* KPI */}
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <ResumenDiaKpi
+                      label="Técnicos programados"
+                      value={resumenDia.totales.tecnicosProgramados}
+                    />
+
+                    <ResumenDiaKpi
+                      label="Bloques de agenda"
+                      value={resumenDia.totales.agendas}
+                    />
+
+                    <ResumenDiaKpi
+                      label="Atenciones"
+                      value={resumenDia.totales.atenciones}
+                    />
+
+                    <ResumenDiaKpi
+                      label="Completadas"
+                      value={resumenDia.totales.completadas}
+                    />
+
+                    <ResumenDiaKpi
+                      label="Pendientes"
+                      value={resumenDia.totales.pendientes}
+                    />
+
+                    <ResumenDiaKpi
+                      label="Canceladas"
+                      value={resumenDia.totales.canceladas}
+                    />
+                  </div>
+
+                  {/* Acciones del listado */}
+                  {resumenDia.tecnicos.length > 0 && (
+                    <div className="flex justify-end">
+                      <Space wrap>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setTecnicosExpandidos(
+                              new Set(
+                                resumenDia.tecnicos.map(
+                                  (item) => item.tecnico.id_tecnico
+                                )
+                              )
+                            );
+                          }}
+                        >
+                          Expandir todos
+                        </Button>
+
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setTecnicosExpandidos(new Set());
+                          }}
+                        >
+                          Minimizar todos
+                        </Button>
+                      </Space>
+                    </div>
+                  )}
+
+                  {/* Listado de técnicos */}
+                  {resumenDia.tecnicos.length === 0 ? (
+                    <div className="rounded-2xl border border-cyan-200 bg-white p-8 text-center text-slate-500">
+                      No existen visitas programadas ni atenciones
+                      registradas para el periodo seleccionado.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {resumenDia.tecnicos.map((item) => {
+                        const estaExpandido =
+                          tecnicosExpandidos.has(
+                            item.tecnico.id_tecnico
+                          );
+
+                        const tecnicoIdActual = item.tecnico.id_tecnico;
+
+                        const seleccionAgenda =
+                          agendaSeleccionadaPorTecnico[
+                          tecnicoIdActual
+                          ];
+
+                        const empresaSeleccionadaId =
+                          seleccionAgenda?.empresaId;
+
+                        const fechaSeleccionada =
+                          seleccionAgenda?.fecha;
+
+                        const agendaSeleccionada = item.agendas.find(
+                          (agenda) =>
+                            agenda.empresaId === empresaSeleccionadaId
+                        );
+
+                        const atencionesFiltradas =
+                          !empresaSeleccionadaId ||
+                            !fechaSeleccionada
+                            ? []
+                            : item.atenciones.filter((atencion) => {
+                              const fechaAtencion =
+                                obtenerFechaChileFront(
+                                  atencion.inicio
+                                );
+
+                              return (
+                                atencion.empresaId ===
+                                empresaSeleccionadaId &&
+                                fechaAtencion ===
+                                fechaSeleccionada
+                              );
+                            });
+
+                        const agendasOrdenadas = [...item.agendas].sort(
+                          (agendaA, agendaB) => {
+                            const comparacionFecha =
+                              agendaA.fecha.localeCompare(agendaB.fecha);
+
+                            if (comparacionFecha !== 0) {
+                              return comparacionFecha;
+                            }
+
+                            const horaA = agendaA.horaInicio ?? "99:99";
+                            const horaB = agendaB.horaInicio ?? "99:99";
+
+                            return horaA.localeCompare(horaB);
+                          }
+                        );
+
+                        const agendasAgrupadasPorFecha = Array.from(
+                          agendasOrdenadas.reduce<
+                            Map<string, AgendaDiariaItem[]>
+                          >((grupos, agenda) => {
+                            const fechaAgenda = agenda.fecha.slice(0, 10);
+
+                            const agendasFecha =
+                              grupos.get(fechaAgenda) ?? [];
+
+                            agendasFecha.push(agenda);
+                            grupos.set(fechaAgenda, agendasFecha);
+
+                            return grupos;
+                          }, new Map())
+                        );
+
+                        return (
+                          <article
+                            key={item.tecnico.id_tecnico}
+                            className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm"
+                          >
+                            {/* Encabezado del técnico */}
+                            <header className="flex flex-col gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-base font-bold text-slate-900">
+                                    {item.tecnico.nombre}
+                                  </h3>
+
+                                  {item.tieneAgenda ? (
+                                    <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-700">
+                                      Programado
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                      Sin agenda previa
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {item.tecnico.email}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-3 sm:items-end">
+                                <div className="flex flex-wrap gap-2">
+                                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                                    {item.resumen.totalProgramadas} programadas
+                                  </span>
+
+                                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                    {item.resumen.totalAtenciones} atenciones
+                                  </span>
+
+                                  <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                    {item.resumen.totalJornadas} jornadas
+                                  </span>
+
+                                  {item.resumen.atencionesFueraAgenda > 0 && (
+                                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                                      {item.resumen.atencionesFueraAgenda} fuera de agenda
+                                    </span>
+                                  )}
+                                </div>
+
+                                <Button
+                                  type="text"
+                                  shape="circle"
+                                  size="small"
+                                  icon={
+                                    estaExpandido
+                                      ? <UpOutlined />
+                                      : <DownOutlined />
+                                  }
+                                  onClick={() =>
+                                    toggleTecnicoExpandido(
+                                      item.tecnico.id_tecnico
+                                    )
+                                  }
+                                  aria-label={
+                                    estaExpandido
+                                      ? `Minimizar detalle de ${item.tecnico.nombre}`
+                                      : `Ver detalle de ${item.tecnico.nombre}`
+                                  }
+                                  title={
+                                    estaExpandido
+                                      ? "Minimizar detalle"
+                                      : "Ver detalle"
+                                  }
+                                />
+                              </div>
+                            </header>
+
+                            {estaExpandido && (
+                              <div className="grid gap-0 lg:grid-cols-2">
+                                {/* Agenda */}
+                                <div className="border-b border-cyan-100 p-4 lg:border-b-0 lg:border-r">
+                                  <div className="mb-3">
+                                    <h4 className="text-sm font-bold text-slate-700">
+                                      Calendario del técnico
+                                    </h4>
+
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      Selecciona una empresa para visualizar sus
+                                      atenciones.
+                                    </p>
+                                  </div>
+
+                                  {item.agendas.length === 0 ? (
+                                    <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
+                                      El técnico no tenía visitas programadas
+                                      durante este periodo.
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="space-y-5">
+                                        {agendasAgrupadasPorFecha.map(
+                                          ([fecha, agendasDelDia]) => (
+                                            <section
+                                              key={`${tecnicoIdActual}-${fecha}`}
+                                              className="space-y-2"
+                                            >
+                                              {/* Encabezado del día */}
+                                              <div className="flex items-center gap-3">
+                                                <div className="h-px flex-1 bg-cyan-100" />
+
+                                                <span className="shrink-0 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold capitalize text-cyan-800 ring-1 ring-cyan-200">
+                                                  {dayjs(fecha).format(
+                                                    "dddd DD [de] MMMM"
+                                                  )}
+                                                </span>
+
+                                                <div className="h-px flex-1 bg-cyan-100" />
+                                              </div>
+
+                                              {/* Visitas programadas para ese día */}
+                                              <div className="space-y-2">
+                                                {agendasDelDia.map((agenda) => {
+                                                  const fechaAgenda =
+                                                    agenda.fecha.slice(0, 10);
+
+                                                  const estaSeleccionada =
+                                                    agenda.empresaId !== null &&
+                                                    seleccionAgenda?.empresaId ===
+                                                    agenda.empresaId &&
+                                                    seleccionAgenda?.fecha ===
+                                                    fechaAgenda;
+
+                                                  const puedeSeleccionarse =
+                                                    agenda.empresaId !== null;
+
+                                                  const atencionesDeEstaVisita =
+                                                    agenda.empresaId === null
+                                                      ? []
+                                                      : item.atenciones.filter((atencion) => {
+                                                        const fechaAtencion = obtenerFechaChileFront(
+                                                          atencion.inicio
+                                                        );
+
+                                                        return (
+                                                          atencion.empresaId === agenda.empresaId &&
+                                                          fechaAtencion === fechaAgenda
+                                                        );
+                                                      });
+
+                                                  const cantidadAtencionesEmpresa =
+                                                    atencionesDeEstaVisita.length;
+
+                                                  return (
+                                                    <button
+                                                      key={`${tecnicoIdActual}-${fecha}-${agenda.id}`}
+                                                      type="button"
+                                                      disabled={!puedeSeleccionarse}
+                                                      onClick={() => {
+                                                        const empresaIdAgenda =
+                                                          agenda.empresaId;
+
+                                                        if (empresaIdAgenda === null) {
+                                                          return;
+                                                        }
+
+                                                        const fechaAgenda =
+                                                          agenda.fecha.slice(0, 10);
+
+                                                        setAgendaSeleccionadaPorTecnico(
+                                                          (actuales) => {
+                                                            const seleccionActual =
+                                                              actuales[tecnicoIdActual];
+
+                                                            const esLaMisma =
+                                                              seleccionActual?.empresaId ===
+                                                              empresaIdAgenda &&
+                                                              seleccionActual?.fecha ===
+                                                              fechaAgenda;
+
+                                                            return {
+                                                              ...actuales,
+                                                              [tecnicoIdActual]:
+                                                                esLaMisma
+                                                                  ? undefined
+                                                                  : {
+                                                                    empresaId:
+                                                                      empresaIdAgenda,
+                                                                    fecha:
+                                                                      fechaAgenda,
+                                                                  },
+                                                            };
+                                                          }
+                                                        );
+                                                      }}
+                                                      className={clsx(
+                                                        "w-full rounded-xl border p-3 text-left transition",
+                                                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400",
+
+                                                        estaSeleccionada
+                                                          ? "border-cyan-500 bg-cyan-100 shadow-sm ring-1 ring-cyan-300"
+                                                          : "border-cyan-100 bg-cyan-50/40 hover:border-cyan-300 hover:bg-cyan-50",
+
+                                                        !puedeSeleccionarse &&
+                                                        "cursor-not-allowed opacity-60"
+                                                      )}
+                                                    >
+                                                      <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                          <div className="flex flex-wrap items-center gap-2">
+                                                            <p className="font-semibold text-slate-900">
+                                                              {agenda.empresaNombre}
+                                                            </p>
+
+                                                            {estaSeleccionada && (
+                                                              <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                                                Seleccionada
+                                                              </span>
+                                                            )}
+                                                          </div>
+
+                                                          <p className="mt-1 text-xs text-slate-500">
+                                                            {agenda.horaInicio ||
+                                                              "Sin hora"}
+
+                                                            {agenda.horaFin
+                                                              ? ` - ${agenda.horaFin}`
+                                                              : ""}
+                                                          </p>
+
+                                                          {agenda.notas && (
+                                                            <p className="mt-2 text-xs text-slate-600">
+                                                              {agenda.notas}
+                                                            </p>
+                                                          )}
+
+                                                          {puedeSeleccionarse && (
+                                                            <p
+                                                              className={clsx(
+                                                                "mt-2 text-xs font-medium",
+
+                                                                estaSeleccionada
+                                                                  ? "text-cyan-800"
+                                                                  : "text-cyan-600"
+                                                              )}
+                                                            >
+                                                              {
+                                                                cantidadAtencionesEmpresa
+                                                              }{" "}
+                                                              {cantidadAtencionesEmpresa ===
+                                                                1
+                                                                ? "atención registrada"
+                                                                : "atenciones registradas"}
+                                                            </p>
+                                                          )}
+                                                        </div>
+
+                                                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-200">
+                                                          {agenda.estado}
+                                                        </span>
+                                                      </div>
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            </section>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Atenciones */}
+                                <div className="p-4">
+                                  <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div>
+                                      <h4 className="text-sm font-bold text-slate-700">
+                                        Atenciones a solicitantes
+                                      </h4>
+
+                                      {agendaSeleccionada && (
+                                        <p className="mt-1 text-xs font-medium text-emerald-700">
+                                          Empresa seleccionada:{" "}
+                                          {agendaSeleccionada.empresaNombre}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {empresaSeleccionadaId !== undefined && (
+                                      <Button
+                                        type="text"
+                                        size="small"
+                                        onClick={() => {
+                                          setAgendaSeleccionadaPorTecnico(
+                                            (seleccionesActuales) => {
+                                              const nuevasSelecciones = {
+                                                ...seleccionesActuales,
+                                              };
+
+                                              delete nuevasSelecciones[
+                                                tecnicoIdActual
+                                              ];
+
+                                              return nuevasSelecciones;
+                                            }
+                                          );
+                                        }}
+                                      >
+                                        Limpiar
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  {empresaSeleccionadaId === undefined ? (
+                                    <div className="rounded-xl border border-dashed border-cyan-200 bg-cyan-50/40 p-6 text-center">
+                                      <p className="text-sm font-semibold text-cyan-800">
+                                        Selecciona una empresa
+                                      </p>
+
+                                      <p className="mt-1 text-xs text-slate-500">
+                                        Presiona una empresa en el calendario del
+                                        técnico para revisar sus atenciones.
+                                      </p>
+                                    </div>
+                                  ) : atencionesFiltradas.length === 0 ? (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+                                      <p className="text-sm font-medium text-amber-800">
+                                        Sin atenciones registradas
+                                      </p>
+
+                                      <p className="mt-1 text-xs text-amber-700">
+                                        El técnico tenía programada esta empresa,
+                                        pero no tiene atenciones asociadas durante
+                                        el periodo seleccionado.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <p className="mb-2 text-xs text-slate-500">
+                                        {atencionesFiltradas.length}{" "}
+                                        {atencionesFiltradas.length === 1
+                                          ? "atención encontrada"
+                                          : "atenciones encontradas"}
+                                      </p>
+
+                                      {atencionesFiltradas.map((atencion) => (
+                                        <button
+                                          key={atencion.id_visita}
+                                          type="button"
+                                          onClick={() => {
+                                            void openVisitaById(
+                                              atencion.id_visita
+                                            );
+                                          }}
+                                          className="w-full rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50"
+                                        >
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                              <p className="font-semibold text-slate-900">
+                                                {atencion.empresaNombre}
+                                              </p>
+
+                                              <p className="mt-1 text-sm text-slate-700">
+                                                {atencion.solicitanteNombre}
+                                              </p>
+
+                                              <p className="mt-1 text-xs text-slate-500">
+                                                {formatDateTime(
+                                                  atencion.inicio
+                                                )}
+
+                                                {atencion.fin
+                                                  ? ` — ${formatDateTime(
+                                                    atencion.fin
+                                                  )}`
+                                                  : ""}
+                                              </p>
+                                            </div>
+
+                                            <StatusBadge
+                                              status={atencion.status}
+                                            />
+                                          </div>
+
+                                          {atencion.sucursal && (
+                                            <p className="mt-2 text-xs text-slate-500">
+                                              Sucursal:{" "}
+                                              {atencion.sucursal.nombre}
+                                            </p>
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+          </section>
+        </main>
+      )}
+
       {activeTab === "dashboard" && (
         <div className="px-3 sm:px-4 md:px-6 lg:px-8 pb-10 max-w-7xl mx-auto w-full mt-4">
           <VisitasDashboardInline />
@@ -764,7 +1970,7 @@ const VisitasPage: React.FC = () => {
           onClose={() => setOpenCreate(false)}
           onCreated={() => {
             setOpenCreate(false);
-            refreshNow();
+            refreshVisitasData();
           }}
           tecnicos={tecnicos}
           empresas={empresas}
@@ -777,7 +1983,11 @@ const VisitasPage: React.FC = () => {
         visita={editVisita ?? undefined}
         onClose={() => { setOpenEdit(false); setEditVisita(null); }}
         onCreated={() => { }}
-        onUpdated={() => { setOpenEdit(false); setEditVisita(null); refreshNow(); }}
+        onUpdated={() => {
+          setOpenEdit(false);
+          setEditVisita(null);
+          refreshVisitasData();
+        }}
         tecnicos={tecnicos}
         empresas={empresas}
       />
@@ -820,5 +2030,25 @@ function TableSkeletonRows({ cols, rows = 8 }: { cols: number; rows?: number }) 
         </tr>
       ))}
     </>
+  );
+}
+
+function ResumenDiaKpi({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-1 text-2xl font-extrabold text-slate-900">
+        {value}
+      </p>
+    </div>
   );
 }
