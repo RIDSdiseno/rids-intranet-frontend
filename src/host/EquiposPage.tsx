@@ -409,6 +409,8 @@ const EquiposPage: React.FC = () => {
 
           // Filtro Mant.General RIDS.
           mantGeneral: mantGeneralFilter !== "TODOS" ? mantGeneralFilter : undefined,
+          mantGeneralDesde: mantGeneralDesde || undefined,
+          mantGeneralHasta: mantGeneralHasta || undefined,
 
           // Filtro Agente / Script RIDS.
           agente: agenteFilter !== "TODOS" ? agenteFilter : undefined,

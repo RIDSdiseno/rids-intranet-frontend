@@ -1962,7 +1962,7 @@ const VisitasPage: React.FC = () => {
                                       <p className="mt-1 text-xs text-amber-700">
                                         El técnico tenía programada esta empresa,
                                         pero no tiene atenciones asociadas durante
-                                        el periodo seleccionado.
+                                        el horario seleccionado.
                                       </p>
                                     </div>
                                   ) : (

@@ -47,7 +47,6 @@ import { BulkMergeModal } from "../components/modals-ticketera/BulkMerge";
 import { CrearTicketDrawer } from "../components/modals-ticketera/CrearTicket";
 
 import { useAuth } from "../components/hooks/useAuth";
-const { isCliente } = useAuth();
 
 // Tipos y utilidades
 type TicketSla = {
@@ -230,6 +229,8 @@ function SlaCard({
 export default function TicketeraRids() {
     const navigate = useNavigate();
 
+    const { isCliente } = useAuth();
+
     const [notificationApi, notificationContextHolder] = notification.useNotification();
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -239,6 +240,20 @@ export default function TicketeraRids() {
     const [loading, setLoading] = useState(false);
 
     const [searchText, setSearchText] = useState(searchParams.get("search") ?? "");
+
+    const [debouncedSearchText, setDebouncedSearchText] =
+        useState(searchText);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setPage(1);
+            setDebouncedSearchText(searchText.trim());
+        }, 450);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [searchText]);
 
     const validTabs = ["ALL", "NEW", "OPEN", "PENDING", "CLOSED"];
 
@@ -506,7 +521,9 @@ export default function TicketeraRids() {
                 if (selectedArea) params.append("area", selectedArea);
             }
 
-            if (searchText) params.append("search", searchText);
+            if (debouncedSearchText) {
+                params.append("search", debouncedSearchText);
+            }
             if (dateRange) {
                 params.append("from", dateRange[0]);
                 params.append("to", dateRange[1]);
@@ -684,48 +701,27 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        const urlTab =
-            searchParams.get("tab") && validTabs.includes(searchParams.get("tab")!)
-                ? searchParams.get("tab")!
-                : searchParams.get("status") &&
-                    ["NEW", "OPEN", "PENDING", "CLOSED"].includes(searchParams.get("status")!)
-                    ? searchParams.get("status")!
-                    : "OPEN";
-
-        const urlStatus = searchParams.get("status") ?? undefined;
-        const urlPriority = searchParams.get("priority") ?? undefined;
-        const urlAssignee = searchParams.get("assigneeId")
-            ? Number(searchParams.get("assigneeId"))
-            : undefined;
-        const urlArea = (searchParams.get("area") as AreaFilter) ?? "TODAS";
-        const urlSort =
-            (searchParams.get("sortOrder") as "recent_first" | "old_first") ?? "recent_first";
-        const urlPage = Number(searchParams.get("page") ?? 1);
-        const urlPageSize = Number(searchParams.get("pageSize") ?? 30);
-        const urlSearch = searchParams.get("search") ?? "";
-        const urlActiveRange = searchParams.get("activeRange") ?? null;
-        const urlDateRange =
-            searchParams.get("from") && searchParams.get("to")
-                ? [searchParams.get("from")!, searchParams.get("to")!] as [string, string]
-                : null;
-
-        setActiveTab(urlTab);
-        setStatusFilter(urlStatus);
-        setPriorityFilter(urlPriority);
-        setAssigneeFilter(urlAssignee);
-        setAreaFilter(urlArea);
-        setSortOrder(urlSort);
-        setPage(urlPage);
-        setPageSize(urlPageSize);
-        setSearchText(urlSearch);
-        setActiveRange(urlActiveRange);
-        setDateRange(urlDateRange);
-    }, [searchParams]);
+        void loadTickets();
+    }, [
+        page,
+        pageSize,
+        statusFilter,
+        priorityFilter,
+        assigneeFilter,
+        areaFilter,
+        dateRange,
+        debouncedSearchText,
+    ]);
 
     useEffect(() => {
-        loadTickets();
-        loadSla();
-    }, [page, pageSize, statusFilter, priorityFilter, assigneeFilter, areaFilter, dateRange, searchText]);
+        if (isCliente || !showResumen) return;
+
+        void loadSla();
+    }, [
+        dateRange,
+        isCliente,
+        showResumen,
+    ]);
 
     // Cada vez que cambian los filtros, la búsqueda o la paginación, actualizamos los parámetros de la URL para reflejar el estado actual de la aplicación y permitir compartir enlaces con los mismos filtros aplicados. Solo incluimos en los parámetros aquellos filtros que tienen un valor diferente al predeterminado para mantener la URL limpia.
     useEffect(() => {

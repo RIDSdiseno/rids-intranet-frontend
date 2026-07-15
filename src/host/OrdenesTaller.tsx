@@ -518,41 +518,59 @@ const OrdenesTaller: React.FC = () => {
 
     /* ======= Filtrado base: empresa, técnico, origen y búsqueda ======= */
     const filteredBase = useMemo(() => {
-        const q = safeLower(busquedaEquipo);
+        const q = safeLower(busquedaEquipo).trim();
         const qNumber = Number(busquedaEquipo);
 
         return ordenes.filter((o) => {
             const matchesOrigen =
-                origenFiltro === "todas" || o.entidad?.origen === origenFiltro;
+                origenFiltro === "todas" ||
+                o.entidad?.origen === origenFiltro;
 
             const matchesEmpresa =
-                empresaFiltro === "todas" || o.entidad?.nombre === empresaFiltro;
+                empresaFiltro === "todas" ||
+                o.entidad?.nombre === empresaFiltro;
 
             const matchesTecnico =
                 tecnicoFiltro === "todos" ||
                 o.tecnico?.id_tecnico === tecnicoFiltro;
 
             const tipoLabel = o.equipo?.tipo
-                ? safeLower(TipoEquipoLabel[o.equipo.tipo as TipoEquipoValue])
+                ? safeLower(
+                    TipoEquipoLabel[
+                    o.equipo.tipo as TipoEquipoValue
+                    ]
+                )
                 : "";
 
-            const matchesEquipo =
+            const matchesBusquedaTexto =
                 !q ||
+                safeLower(o.entidad?.nombre).includes(q) ||
+                safeLower(o.entidad?.rut).includes(q) ||
+                safeLower(o.numeroOrden).includes(q) ||
+                safeLower(o.tipoTrabajo).includes(q) ||
+                safeLower(o.descripcion).includes(q) ||
                 safeLower(o.equipo?.marca).includes(q) ||
                 safeLower(o.equipo?.modelo).includes(q) ||
                 safeLower(o.equipo?.serial).includes(q) ||
+                safeLower(o.tecnico?.nombre).includes(q) ||
                 tipoLabel.includes(q);
 
             const matchesOrdenId =
-                Boolean(busquedaEquipo) &&
+                Boolean(q) &&
                 !Number.isNaN(qNumber) &&
-                (o.ordenGrupoId === qNumber || o.id === qNumber);
+                (
+                    o.ordenGrupoId === qNumber ||
+                    o.id === qNumber
+                );
 
             return (
                 matchesOrigen &&
                 matchesEmpresa &&
                 matchesTecnico &&
-                (matchesEquipo || matchesOrdenId)
+                (
+                    matchesBusquedaTexto ||
+                    matchesOrdenId
+                )
             );
         });
     }, [
@@ -832,7 +850,7 @@ const OrdenesTaller: React.FC = () => {
                         <div className="mt-4">
                             <input
                                 type="text"
-                                placeholder="Buscar por N° orden, marca, modelo, serie o tipo..."
+                                placeholder="Buscar por entidad, N° orden, equipo, serie o técnico..."
                                 value={busquedaEquipo}
                                 onChange={(e) => setBusquedaEquipo(e.target.value)}
                                 className="border border-cyan-200 rounded-xl px-4 py-2 text-sm w-full md:w-72 focus:ring-2 focus:ring-cyan-400"
