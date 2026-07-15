@@ -31,7 +31,11 @@ import type {
 import { buildReporteExportData } from "./buildReporteExportData";
 
 import { http } from "../../service/http";
-import { buildAndDownloadReporteIABetaDocx } from "./buildReporteIABetaDocx";
+import {
+  buildAndDownloadReporteIABetaDocx,
+  buildReporteIABetaDocxBlob,
+  buildReporteIABetaFileName,
+} from "./buildReporteIABetaDocx";
 
 // ─── XLSX helpers ─────────────────────────────────────────────────────────
 
@@ -375,321 +379,356 @@ export const useExportReportes = ({
     error: null,
   });
 
-  // word IA
-  const exportDOCXIABeta = async () => {
-    try {
-      setExportStatus({ exporting: true, error: null });
+  const prepararReporteIABeta = async () => {
+    /*
+      Prepara todos los datos necesarios para generar el Word IA.
+      Esta misma función se usa para:
+      1. Descargar Word IA.
+      2. Enviar Word IA por correo.
+    */
 
-      const dataBase = await obtenerDatosReporteGeneral(
-        empresaFiltro,
-        selectedYear,
-        selectedMonth
-      );
-      onDataLoaded(dataBase);
+    const dataBase = await obtenerDatosReporteGeneral(
+      empresaFiltro,
+      selectedYear,
+      selectedMonth
+    );
 
-      const { data } = await http.get(
-        `/ia-reportes/word-beta/${empresaFiltro}/${selectedYear}/${selectedMonth}`
-      );
+    onDataLoaded(dataBase);
 
-      const iaPayload = data.data;
-      const logoBytes = await fetchImageBytes("/login/rids_logo.png");
-      const headerLogoBytes = await fetchImageBytes("/login/LOGO_RIDS.png");
+    const { data } = await http.get(
+      `/ia-reportes/word-beta/${empresaFiltro}/${selectedYear}/${selectedMonth}`
+    );
 
-      const ticketsPorCategoriaMap: Record<string, number> = {};
-      for (const t of dataBase.tickets || []) {
-        const key = (t.type || "Sin categoría").trim();
-        ticketsPorCategoriaMap[key] = (ticketsPorCategoriaMap[key] || 0) + 1;
-      }
+    const iaPayload = data.data;
 
-      const ticketsPorCategoria = Object.entries(ticketsPorCategoriaMap).map(
-        ([label, value]) => ({ label, value })
-      );
+    const logoBytes = await fetchImageBytes("/login/rids_logo.png");
+    const headerLogoBytes = await fetchImageBytes("/login/LOGO_RIDS.png");
 
-      const topUsuariosGeneral = obtenerTopUsuariosGeneral(
-        dataBase.visitas || [],
-        dataBase.tickets || []
-      ).map((x: any) => ({
-        label: String(x.Usuario),
-        value: Number(x.Solicitudes),
-      }));
+    const ticketsPorCategoriaMap: Record<string, number> = {};
 
-      const visitasPorTecnicoMap: Record<string, number> = {};
-      for (const v of dataBase.visitas || []) {
-        const key = v.tecnico?.nombre?.trim() || "Sin técnico";
-        visitasPorTecnicoMap[key] = (visitasPorTecnicoMap[key] || 0) + 1;
-      }
-      const visitasPorTecnico = Object.entries(visitasPorTecnicoMap).map(
-        ([label, value]) => ({ label, value })
-      );
+    for (const t of dataBase.tickets || []) {
+      const key = (t.type || "Sin categoría").trim();
+      ticketsPorCategoriaMap[key] = (ticketsPorCategoriaMap[key] || 0) + 1;
+    }
 
-      const visitasPorTipoRows = contarTiposVisita(dataBase.visitas || []).map((x: any) => ({
+    const ticketsPorCategoria = Object.entries(ticketsPorCategoriaMap).map(
+      ([label, value]) => ({ label, value })
+    );
+
+    const topUsuariosGeneral = obtenerTopUsuariosGeneral(
+      dataBase.visitas || [],
+      dataBase.tickets || []
+    ).map((x: any) => ({
+      label: String(x.Usuario),
+      value: Number(x.Solicitudes),
+    }));
+
+    const visitasPorTecnicoMap: Record<string, number> = {};
+
+    for (const v of dataBase.visitas || []) {
+      const key = v.tecnico?.nombre?.trim() || "Sin técnico";
+      visitasPorTecnicoMap[key] = (visitasPorTecnicoMap[key] || 0) + 1;
+    }
+
+    const visitasPorTecnico = Object.entries(visitasPorTecnicoMap).map(
+      ([label, value]) => ({ label, value })
+    );
+
+    const visitasPorTipoRows = contarTiposVisita(dataBase.visitas || []).map(
+      (x: any) => ({
         label: String(x.Tipo),
         value: Number(x.Cantidad),
+      })
+    );
+
+    const mantencionesPorStatusMap: Record<string, number> = {};
+
+    for (const m of dataBase.mantencionesRemotas || []) {
+      const key = (m.status || "Sin estado").trim();
+      mantencionesPorStatusMap[key] =
+        (mantencionesPorStatusMap[key] || 0) + 1;
+    }
+
+    const mantencionesPorStatus = Object.entries(mantencionesPorStatusMap).map(
+      ([label, value]) => ({ label, value })
+    );
+
+    const mantencionesPorTecnicoMap: Record<string, number> = {};
+
+    for (const m of dataBase.mantencionesRemotas || []) {
+      const key = m.tecnico?.nombre?.trim() || "Sin técnico";
+      mantencionesPorTecnicoMap[key] =
+        (mantencionesPorTecnicoMap[key] || 0) + 1;
+    }
+
+    const mantencionesPorTecnico = Object.entries(mantencionesPorTecnicoMap).map(
+      ([label, value]) => ({ label, value })
+    );
+
+    const inventarioPorMarcaMap: Record<string, number> = {};
+
+    for (const eq of dataBase.equipos || []) {
+      const key = (eq.marca || "Sin marca").trim();
+      inventarioPorMarcaMap[key] = (inventarioPorMarcaMap[key] || 0) + 1;
+    }
+
+    const inventarioPorMarca = Object.entries(inventarioPorMarcaMap).map(
+      ([label, value]) => ({ label, value })
+    );
+
+    const mantencionesPorFechaRows = contarMantenimientosPorFecha(
+      dataBase.visitas || []
+    ).map((x: any) => ({
+      label: String(x.Fecha),
+      value: Number(x.Cantidad),
+    }));
+
+    const actividadesMantenimientoRows = contarMantenimientos(
+      dataBase.visitas || []
+    ).map((x: any) => ({
+      label: String(x.Ítem),
+      value: Number(x.Cantidad),
+    }));
+
+    const distribucionServiciosRows = (() => {
+      const ds = calcularDistribucionServicios(dataBase.visitas || []);
+
+      return (ds?.labels || []).map((label: string, index: number) => ({
+        label: String(label),
+        value: Number(ds?.data?.[index] || 0),
       }));
+    })();
 
-      const mantencionesPorStatusMap: Record<string, number> = {};
-      for (const m of dataBase.mantencionesRemotas || []) {
-        const key = (m.status || "Sin estado").trim();
-        mantencionesPorStatusMap[key] = (mantencionesPorStatusMap[key] || 0) + 1;
-      }
-      const mantencionesPorStatus = Object.entries(mantencionesPorStatusMap).map(
-        ([label, value]) => ({ label, value })
-      );
+    const topSolicitantesTickets = obtenerTopSolicitantesTickets(
+      dataBase.tickets || []
+    ).map((x: any) => ({
+      label: String(x.Solicitante),
+      value: Number(x.Tickets),
+    }));
 
-      const mantencionesPorTecnicoMap: Record<string, number> = {};
-      for (const m of dataBase.mantencionesRemotas || []) {
-        const key = m.tecnico?.nombre?.trim() || "Sin técnico";
-        mantencionesPorTecnicoMap[key] = (mantencionesPorTecnicoMap[key] || 0) + 1;
-      }
-      const mantencionesPorTecnico = Object.entries(mantencionesPorTecnicoMap).map(
-        ([label, value]) => ({ label, value })
-      );
+    const datasetMap: Record<string, { labels: string[]; values: number[] }> = {
+      mantenciones_por_fecha: {
+        labels: mantencionesPorFechaRows.map((x) => x.label),
+        values: mantencionesPorFechaRows.map((x) => x.value),
+      },
+      distribucion_servicios: {
+        labels: distribucionServiciosRows.map((x) => x.label),
+        values: distribucionServiciosRows.map((x) => x.value),
+      },
+      solicitudes_programadas_vs_adicionales: {
+        labels: visitasPorTipoRows.map((x) => x.label),
+        values: visitasPorTipoRows.map((x) => x.value),
+      },
+      actividades_mantenimiento: {
+        labels: actividadesMantenimientoRows.map((x) => x.label),
+        values: actividadesMantenimientoRows.map((x) => x.value),
+      },
+      inventario_por_marca: {
+        labels: inventarioPorMarca.map((x) => x.label),
+        values: inventarioPorMarca.map((x) => x.value),
+      },
+      tickets_por_categoria: {
+        labels: ticketsPorCategoria.map((x) => x.label),
+        values: ticketsPorCategoria.map((x) => x.value),
+      },
+      tickets_top_usuarios: {
+        labels: topUsuariosGeneral.map((x) => x.label),
+        values: topUsuariosGeneral.map((x) => x.value),
+      },
+      visitas_por_tecnico: {
+        labels: visitasPorTecnico.map((x) => x.label),
+        values: visitasPorTecnico.map((x) => x.value),
+      },
+      visitas_por_tipo: {
+        labels: visitasPorTipoRows.map((x) => x.label),
+        values: visitasPorTipoRows.map((x) => x.value),
+      },
+      mantenciones_por_status: {
+        labels: mantencionesPorStatus.map((x) => x.label),
+        values: mantencionesPorStatus.map((x) => x.value),
+      },
+      mantenciones_por_tecnico: {
+        labels: mantencionesPorTecnico.map((x) => x.label),
+        values: mantencionesPorTecnico.map((x) => x.value),
+      },
+      tickets_top_solicitantes: {
+        labels: topSolicitantesTickets.map((x) => x.label),
+        values: topSolicitantesTickets.map((x) => x.value),
+      },
+    };
 
-      const inventarioPorMarcaMap: Record<string, number> = {};
-      for (const eq of dataBase.equipos || []) {
-        const key = (eq.marca || "Sin marca").trim();
-        inventarioPorMarcaMap[key] = (inventarioPorMarcaMap[key] || 0) + 1;
-      }
-      const inventarioPorMarca = Object.entries(inventarioPorMarcaMap).map(
-        ([label, value]) => ({ label, value })
-      );
+    const chartIdMap: Record<string, string> = {
+      mantenciones_por_fecha: "chart-wordbeta-mant-fecha",
+      distribucion_servicios: "chart-wordbeta-distribucion-servicios",
+      solicitudes_programadas_vs_adicionales:
+        "chart-wordbeta-solicitudes-programadas",
+      actividades_mantenimiento: "chart-wordbeta-actividades-mantenimiento",
+      inventario_por_marca: "chart-wordbeta-inventario-marca",
+      tickets_por_categoria: "chart-wordbeta-tickets-categoria",
+      tickets_top_usuarios: "chart-wordbeta-top-usuarios",
+      tickets_top_solicitantes: "chart-wordbeta-top-solicitantes-tickets",
+      visitas_por_tecnico: "chart-wordbeta-visitas-tecnico",
+      visitas_por_tipo: "chart-wordbeta-visitas-tipo",
+      mantenciones_por_status: "chart-wordbeta-mant-status",
+      mantenciones_por_tecnico: "chart-wordbeta-mant-tecnico",
+    };
 
-      const mantencionesPorFechaRows = contarMantenimientosPorFecha(
-        dataBase.visitas || []
-      ).map((x: any) => ({
-        label: String(x.Fecha),
-        value: Number(x.Cantidad),
-      }));
+    const chartColorMap: Record<string, string> = {
+      mantenciones_por_fecha: CHART_CONFIG.colors.primary,
+      distribucion_servicios: CHART_CONFIG.colors.secondary,
+      solicitudes_programadas_vs_adicionales: CHART_CONFIG.colors.purple,
+      actividades_mantenimiento: CHART_CONFIG.colors.accent,
+      inventario_por_marca: CHART_CONFIG.colors.danger,
+      tickets_por_categoria: CHART_CONFIG.colors.teal,
+      tickets_top_usuarios: CHART_CONFIG.colors.emerald,
+      tickets_top_solicitantes: CHART_CONFIG.colors.rose,
+      visitas_por_tecnico: CHART_CONFIG.colors.cyan,
+      visitas_por_tipo: CHART_CONFIG.colors.pink,
+      mantenciones_por_status: CHART_CONFIG.colors.warning,
+      mantenciones_por_tecnico: CHART_CONFIG.colors.teal,
+    };
 
-      const actividadesMantenimientoRows = contarMantenimientos(
-        dataBase.visitas || []
-      ).map((x: any) => ({
-        label: String(x.Ítem),
-        value: Number(x.Cantidad),
-      }));
+    const graficosOperacionalesFijos = [
+      {
+        tipo: "bar",
+        titulo: "Cantidad de mantenciones por fecha",
+        dataset_key: "mantenciones_por_fecha",
+        lectura:
+          "Permite observar la distribución temporal de mantenciones realizadas durante el periodo y detectar jornadas de mayor actividad.",
+      },
+      {
+        tipo: "pie",
+        titulo: "Distribución de Servicios",
+        dataset_key: "distribucion_servicios",
+        lectura:
+          "Resume visualmente el peso relativo de cada tipo de servicio ejecutado durante el periodo.",
+      },
+      {
+        tipo: "pie",
+        titulo: "Solicitudes programadas vs adicionales",
+        dataset_key: "solicitudes_programadas_vs_adicionales",
+        lectura:
+          "Permite distinguir la proporción entre trabajo planificado y requerimientos adicionales atendidos en terreno.",
+      },
+      {
+        tipo: "bar",
+        titulo: "Actividades de mantenimiento",
+        dataset_key: "actividades_mantenimiento",
+        lectura:
+          "Muestra las principales actividades ejecutadas por el equipo técnico dentro del periodo informado.",
+      },
+      {
+        tipo: "bar",
+        titulo: "Inventario de equipos por marca",
+        dataset_key: "inventario_por_marca",
+        lectura:
+          "Entrega visibilidad sobre la composición del parque tecnológico por fabricante.",
+      },
+    ];
 
-      const distribucionServiciosRows = (() => {
-        const ds = calcularDistribucionServicios(dataBase.visitas || []);
-        return (ds?.labels || []).map((label: string, index: number) => ({
-          label: String(label),
-          value: Number(ds?.data?.[index] || 0),
-        }));
-      })();
+    const graficosCombinados = [
+      ...graficosOperacionalesFijos,
+      ...(iaPayload.graficos_sugeridos || []),
+    ]
+      .filter((grafico, index, arr) => {
+        const key = grafico?.dataset_key || `idx-${index}`;
 
-      const topSolicitantesTickets = obtenerTopSolicitantesTickets(dataBase.tickets || []).map((x: any) => ({
-        label: String(x.Solicitante),
-        value: Number(x.Tickets),
-      }));
+        return (
+          arr.findIndex(
+            (x) => (x?.dataset_key || `idx-${index}`) === key
+          ) === index
+        );
+      })
+      .filter((grafico) => {
+        if (!grafico?.dataset_key) return false;
 
-      const datasetMap: Record<string, { labels: string[]; values: number[] }> = {
-        mantenciones_por_fecha: {
-          labels: mantencionesPorFechaRows.map((x) => x.label),
-          values: mantencionesPorFechaRows.map((x) => x.value),
-        },
-        distribucion_servicios: {
-          labels: distribucionServiciosRows.map((x) => x.label),
-          values: distribucionServiciosRows.map((x) => x.value),
-        },
-        solicitudes_programadas_vs_adicionales: {
-          labels: visitasPorTipoRows.map((x) => x.label),
-          values: visitasPorTipoRows.map((x) => x.value),
-        },
-        actividades_mantenimiento: {
-          labels: actividadesMantenimientoRows.map((x) => x.label),
-          values: actividadesMantenimientoRows.map((x) => x.value),
-        },
-        inventario_por_marca: {
-          labels: inventarioPorMarca.map((x) => x.label),
-          values: inventarioPorMarca.map((x) => x.value),
-        },
-        tickets_por_categoria: {
-          labels: ticketsPorCategoria.map((x) => x.label),
-          values: ticketsPorCategoria.map((x) => x.value),
-        },
-        tickets_top_usuarios: {
-          labels: topUsuariosGeneral.map((x) => x.label),
-          values: topUsuariosGeneral.map((x) => x.value),
-        },
-        visitas_por_tecnico: {
-          labels: visitasPorTecnico.map((x) => x.label),
-          values: visitasPorTecnico.map((x) => x.value),
-        },
-        visitas_por_tipo: {
-          labels: visitasPorTipoRows.map((x) => x.label),
-          values: visitasPorTipoRows.map((x) => x.value),
-        },
-        mantenciones_por_status: {
-          labels: mantencionesPorStatus.map((x) => x.label),
-          values: mantencionesPorStatus.map((x) => x.value),
-        },
-        mantenciones_por_tecnico: {
-          labels: mantencionesPorTecnico.map((x) => x.label),
-          values: mantencionesPorTecnico.map((x) => x.value),
-        },
-        tickets_top_solicitantes: {
-          labels: topSolicitantesTickets.map((x) => x.label),
-          values: topSolicitantesTickets.map((x) => x.value),
-        },
-      };
+        const ds = datasetMap[grafico.dataset_key];
 
-      const chartIdMap: Record<string, string> = {
-        mantenciones_por_fecha: "chart-wordbeta-mant-fecha",
-        distribucion_servicios: "chart-wordbeta-distribucion-servicios",
-        solicitudes_programadas_vs_adicionales:
-          "chart-wordbeta-solicitudes-programadas",
-        actividades_mantenimiento: "chart-wordbeta-actividades-mantenimiento",
-        inventario_por_marca: "chart-wordbeta-inventario-marca",
-        tickets_por_categoria: "chart-wordbeta-tickets-categoria",
-        tickets_top_usuarios: "chart-wordbeta-top-usuarios",
-        tickets_top_solicitantes: "chart-wordbeta-top-solicitantes-tickets",
-        visitas_por_tecnico: "chart-wordbeta-visitas-tecnico",
-        visitas_por_tipo: "chart-wordbeta-visitas-tipo",
-        mantenciones_por_status: "chart-wordbeta-mant-status",
-        mantenciones_por_tecnico: "chart-wordbeta-mant-tecnico",
-      };
+        return ds && ds.labels.length > 0 && ds.values.length > 0;
+      });
 
-      const chartColorMap: Record<string, string> = {
-        mantenciones_por_fecha: CHART_CONFIG.colors.primary,
-        distribucion_servicios: CHART_CONFIG.colors.secondary,
-        solicitudes_programadas_vs_adicionales: CHART_CONFIG.colors.purple,
-        actividades_mantenimiento: CHART_CONFIG.colors.accent,
-        inventario_por_marca: CHART_CONFIG.colors.danger,
-        tickets_por_categoria: CHART_CONFIG.colors.teal,
-        tickets_top_usuarios: CHART_CONFIG.colors.emerald,
-        tickets_top_solicitantes: CHART_CONFIG.colors.rose,
-        visitas_por_tecnico: CHART_CONFIG.colors.cyan,
-        visitas_por_tipo: CHART_CONFIG.colors.pink,
-        mantenciones_por_status: CHART_CONFIG.colors.warning,
-        mantenciones_por_tecnico: CHART_CONFIG.colors.teal,
-      };
+    const chartImages = [];
 
-      const graficosOperacionalesFijos = [
-        {
-          tipo: "bar",
-          titulo: "Cantidad de mantenciones por fecha",
-          dataset_key: "mantenciones_por_fecha",
-          lectura:
-            "Permite observar la distribución temporal de mantenciones realizadas durante el periodo y detectar jornadas de mayor actividad.",
-        },
-        {
-          tipo: "pie",
-          titulo: "Distribución de Servicios",
-          dataset_key: "distribucion_servicios",
-          lectura:
-            "Resume visualmente el peso relativo de cada tipo de servicio ejecutado durante el periodo.",
-        },
-        {
-          tipo: "pie",
-          titulo: "Solicitudes programadas vs adicionales",
-          dataset_key: "solicitudes_programadas_vs_adicionales",
-          lectura:
-            "Permite distinguir la proporción entre trabajo planificado y requerimientos adicionales atendidos en terreno.",
-        },
-        {
-          tipo: "bar",
-          titulo: "Actividades de mantenimiento",
-          dataset_key: "actividades_mantenimiento",
-          lectura:
-            "Muestra las principales actividades ejecutadas por el equipo técnico dentro del periodo informado.",
-        },
-        {
-          tipo: "bar",
-          titulo: "Inventario de equipos por marca",
-          dataset_key: "inventario_por_marca",
-          lectura:
-            "Entrega visibilidad sobre la composición del parque tecnológico por fabricante.",
-        },
-      ];
+    for (const grafico of graficosCombinados) {
+      const datasetKey = grafico.dataset_key;
+      const ds = datasetMap[datasetKey];
+      const chartId = chartIdMap[datasetKey];
 
-      const graficosCombinados = [
-        ...graficosOperacionalesFijos,
-        ...(iaPayload.graficos_sugeridos || []),
-      ]
-        // Eliminar duplicados por dataset_key
-        .filter((grafico, index, arr) => {
-          const key = grafico?.dataset_key || `idx-${index}`;
-          return arr.findIndex((x) => (x?.dataset_key || `idx-${index}`) === key) === index;
-        })
-        // Eliminar gráficos cuyo dataset_key no existe en datasetMap o no tiene datos
-        .filter((grafico) => {
-          if (!grafico?.dataset_key) return false;
-          const ds = datasetMap[grafico.dataset_key];
-          return ds && ds.labels.length > 0 && ds.values.length > 0;
-        });
-
-      const chartImages = [];
-
-
-      for (const grafico of graficosCombinados) {
-        const datasetKey = grafico.dataset_key;
-        const ds = datasetMap[datasetKey];
-        const chartId = chartIdMap[datasetKey];
-
-        if (!datasetKey || !ds || !chartId || !ds.labels.length || !ds.values.length) {
-          chartImages.push({
-            ...grafico,
-            imageBytes: null,
-          });
-          continue;
-        }
-
-        let dataUrl: string | null = null;
-        const tipo = String(grafico.tipo || "").toLowerCase();
-
-        if (tipo === "pie" || tipo === "doughnut") {
-          dataUrl = await generatePieChart(
-            chartId,
-            ds.labels,
-            ds.values,
-            grafico.titulo || "Gráfico"
-          );
-        } else if (tipo === "line") {
-          const chartColor = chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
-          dataUrl = await generateLineChart(
-            chartId,
-            ds.labels,
-            [
-              {
-                label: grafico.titulo || "Serie",
-                data: ds.values,
-                color: chartColor,
-              },
-            ],
-            grafico.titulo || "Gráfico"
-          );
-        } else {
-          const chartColor = chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
-          dataUrl = await generateBarChart(
-            chartId,
-            ds.labels,
-            ds.values,
-            grafico.titulo || "Gráfico",
-            chartColor
-          );
-        }
-
+      if (
+        !datasetKey ||
+        !ds ||
+        !chartId ||
+        !ds.labels.length ||
+        !ds.values.length
+      ) {
         chartImages.push({
           ...grafico,
-          imageBytes: dataUrl ? dataUrlToUint8Array(dataUrl) : null,
+          imageBytes: null,
         });
+
+        continue;
       }
 
-      const extras = contarExtras(dataBase.visitas || []);
-      
-      // Para el detalle de equipos, se prioriza dataBase (que es la que se muestra en el preview
-      const dataWord = data?.data ?? data;
+      let dataUrl: string | null = null;
+      const tipo = String(grafico.tipo || "").toLowerCase();
 
-      const inventarioFuente =
-        dataBase.inventario?.detalle ??
-        dataBase.inventario?.equipos ??
-        dataWord.inventario?.detalle ??
-        dataWord.inventario?.equipos ??
-        dataWord.equipos ??
-        dataBase.equipos ??
-        [];
-      
-      // Se mapean los equipos para el detalle, priorizando los campos de dataBase y usando dataWord como respaldo para campos faltantes
-      const equiposDetalleReporte = inventarioFuente.map((equipo: any, index: number) => ({
+      if (tipo === "pie" || tipo === "doughnut") {
+        dataUrl = await generatePieChart(
+          chartId,
+          ds.labels,
+          ds.values,
+          grafico.titulo || "Gráfico"
+        );
+      } else if (tipo === "line") {
+        const chartColor =
+          chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
+
+        dataUrl = await generateLineChart(
+          chartId,
+          ds.labels,
+          [
+            {
+              label: grafico.titulo || "Serie",
+              data: ds.values,
+              color: chartColor,
+            },
+          ],
+          grafico.titulo || "Gráfico"
+        );
+      } else {
+        const chartColor =
+          chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
+
+        dataUrl = await generateBarChart(
+          chartId,
+          ds.labels,
+          ds.values,
+          grafico.titulo || "Gráfico",
+          chartColor
+        );
+      }
+
+      chartImages.push({
+        ...grafico,
+        imageBytes: dataUrl ? dataUrlToUint8Array(dataUrl) : null,
+      });
+    }
+
+    const extras = contarExtras(dataBase.visitas || []);
+
+    const dataWord = data?.data ?? data;
+
+    const inventarioFuente =
+      dataBase.inventario?.detalle ??
+      dataBase.inventario?.equipos ??
+      dataWord.inventario?.detalle ??
+      dataWord.inventario?.equipos ??
+      dataWord.equipos ??
+      dataBase.equipos ??
+      [];
+
+    const equiposDetalleReporte = inventarioFuente.map(
+      (equipo: any, index: number) => ({
         codigo: equipo.codigo ?? index + 1,
 
         usuario:
@@ -704,31 +743,50 @@ export const useExportReportes = ({
           equipo.solicitanteEmail ??
           "",
 
-        estadoEquipo:
-          equipo.estadoEquipo ??
-          equipo.estado ??
-          "",
+        estadoEquipo: equipo.estadoEquipo ?? equipo.estado ?? "",
 
         serial: equipo.serial ?? "",
         marca: equipo.marca ?? "",
         modelo: equipo.modelo ?? "",
 
-        cpu:
-          equipo.cpu ??
-          equipo.procesador ??
-          "",
+        cpu: equipo.cpu ?? equipo.procesador ?? "",
 
         ram: equipo.ram ?? "",
         disco: equipo.disco ?? "",
 
         sistemaOperativo:
-          equipo.sistemaOperativo ??
-          equipo.detalle?.so ??
-          equipo.so ??
-          "",
-      }));
-      
-      // Finalmente, se construye y descarga el reporte usando la función especializada para el formato IA Beta
+          equipo.sistemaOperativo ?? equipo.detalle?.so ?? equipo.so ?? "",
+      })
+    );
+
+    return {
+      iaPayload,
+      dataBase,
+      logoBytes,
+      headerLogoBytes,
+      graficosCombinados,
+      chartImages,
+      extras,
+      equiposDetalleReporte,
+    };
+  };
+
+  // word IA
+  const exportDOCXIABeta = async () => {
+    try {
+      setExportStatus({ exporting: true, error: null });
+
+      const {
+        iaPayload,
+        dataBase,
+        logoBytes,
+        headerLogoBytes,
+        graficosCombinados,
+        chartImages,
+        extras,
+        equiposDetalleReporte,
+      } = await prepararReporteIABeta();
+
       await buildAndDownloadReporteIABetaDocx({
         payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
         empresaNombre,
@@ -749,10 +807,76 @@ export const useExportReportes = ({
       setExportStatus({ exporting: false, error: null });
     } catch (e) {
       console.error(e);
+
       setExportStatus({
         exporting: false,
         error: "No se pudo generar el Word IA.",
       });
+
+      throw e;
+    }
+  };
+
+  const generarDOCXIABetaBlob = async (): Promise<{
+    blob: Blob;
+    fileName: string;
+  }> => {
+    /*
+      Genera el mismo Word IA que se descarga,
+      pero devuelve el Blob para enviarlo por correo.
+    */
+
+    try {
+      setExportStatus({ exporting: true, error: null });
+
+      const {
+        iaPayload,
+        dataBase,
+        logoBytes,
+        headerLogoBytes,
+        graficosCombinados,
+        chartImages,
+        extras,
+        equiposDetalleReporte,
+      } = await prepararReporteIABeta();
+
+      const blob = await buildReporteIABetaDocxBlob({
+        payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
+        empresaNombre,
+        periodoTexto,
+        chartImages,
+        mantencionesRemotas: dataBase.mantencionesRemotas || [],
+        ticketsDetalle: dataBase.tickets || [],
+        visitasDetalle: dataBase.visitas || [],
+        extrasTotales: extras.totales || [],
+        extrasDetalle: extras.detalles || [],
+        solicitantesDetalle: dataBase.solicitantes || [],
+        equiposDetalle: equiposDetalleReporte,
+        licencias: dataBase.licencias,
+        logoBytes,
+        headerLogoBytes,
+      });
+
+      const fileName = buildReporteIABetaFileName(
+        empresaNombre,
+        periodoTexto || "Periodo"
+      );
+
+      setExportStatus({ exporting: false, error: null });
+
+      return {
+        blob,
+        fileName,
+      };
+    } catch (e) {
+      console.error(e);
+
+      setExportStatus({
+        exporting: false,
+        error: "No se pudo generar el Word IA para correo.",
+      });
+
+      throw e;
     }
   };
 
@@ -1505,5 +1629,13 @@ export const useExportReportes = ({
     }
   };
 
-  return { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX, generarPdfBlob, exportPDFToStorage };
+  return {
+    exportStatus,
+    exportDOCX,
+    exportDOCXIABeta,
+    generarDOCXIABetaBlob,
+    exportXLSX,
+    generarPdfBlob,
+    exportPDFToStorage,
+  };
 };

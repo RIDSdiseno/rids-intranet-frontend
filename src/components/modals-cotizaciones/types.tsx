@@ -1,3 +1,4 @@
+// src/components/modals-cotizacion/types.tsx
 export const ORIGEN_MAP = {
   RIDS: "RIDS",
   ECONNET: "ECONNET",

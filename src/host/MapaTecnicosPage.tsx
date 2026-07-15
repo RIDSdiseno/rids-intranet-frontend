@@ -21,6 +21,8 @@ type UbicacionTecnico = {
   direccion?: string | null;
   fechaProgramada?: string | null;
   horaProgramada?: string | null;
+  fechaInicioRuta?: string | null;
+  fechaInicioVisita?: string | null;
   estadoAgenda?: string | null;
   latitud: number;
   longitud: number;
@@ -123,8 +125,16 @@ function formatEstado(value?: string | null) {
   return String(value ?? "SIN_ESTADO").replace(/_/g, " ");
 }
 
+function getEstadoOperativo(item: UbicacionTecnico) {
+  return item.estadoAgenda ?? item.estadoTracking;
+}
+
 function getEstadoColor(value?: string | null) {
   const estado = String(value ?? "").toUpperCase();
+
+  if (estado.includes("INICIADA")) {
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  }
 
   if (estado.includes("EN_RUTA")) {
     return "bg-blue-50 text-blue-700 border-blue-200";
@@ -244,7 +254,11 @@ export default function MapaTecnicosPage() {
   }, [cargarUbicaciones]);
 
   const estadosDisponibles = useMemo(() => {
-    const estados = new Set(ubicaciones.map((item) => item.estadoTracking).filter(Boolean));
+    const estados = new Set(
+      ubicaciones
+        .flatMap((item) => [item.estadoTracking, item.estadoAgenda])
+        .filter(Boolean)
+    );
     return Array.from(estados).sort();
   }, [ubicaciones]);
 
@@ -258,7 +272,10 @@ export default function MapaTecnicosPage() {
         String(item.empresa ?? "").toLowerCase().includes(text) ||
         String(item.direccion ?? "").toLowerCase().includes(text);
 
-      const matchEstado = estado === "TODOS" || item.estadoTracking === estado;
+      const matchEstado =
+        estado === "TODOS" ||
+        item.estadoTracking === estado ||
+        item.estadoAgenda === estado;
 
       return matchText && matchEstado;
     });
@@ -273,9 +290,10 @@ export default function MapaTecnicosPage() {
 
   const markerPositions = useMemo(() => buildMarkerPositions(filtradas), [filtradas]);
 
-  const totalEnRuta = ubicaciones.filter((item) =>
-    String(item.estadoTracking ?? "").toUpperCase().includes("EN_RUTA")
-  ).length;
+  const totalEnRuta = ubicaciones.filter((item) => {
+    const estadoOperativo = String(getEstadoOperativo(item) ?? "").toUpperCase();
+    return estadoOperativo.includes("EN_RUTA");
+  }).length;
 
   const totalActivos = ubicaciones.filter((item) => getEstadoSenal(item.createdAt) === "ACTIVO").length;
   const totalSinSenal = ubicaciones.filter((item) => getEstadoSenal(item.createdAt) === "SIN_SEÑAL").length;
@@ -452,8 +470,13 @@ export default function MapaTecnicosPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getEstadoColor(selected.estadoTracking)}`}>
-                          {formatEstado(selected.estadoTracking)}
+                          Tracking: {formatEstado(selected.estadoTracking)}
                         </span>
+                        {selected.estadoAgenda && (
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getEstadoColor(selected.estadoAgenda)}`}>
+                            Agenda: {formatEstado(selected.estadoAgenda)}
+                          </span>
+                        )}
                         <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getSenalColor(selected.createdAt)}`}>
                           {getSenalLabel(selected.createdAt)}
                         </span>
@@ -480,6 +503,10 @@ export default function MapaTecnicosPage() {
                       <div>
                         <p className="font-semibold text-slate-500">Velocidad</p>
                         <p className="text-slate-900">{formatVelocidad(selected.velocidad)}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-500">Estado agenda</p>
+                        <p className="text-slate-900">{formatEstado(selected.estadoAgenda)}</p>
                       </div>
                       <div>
                         <p className="font-semibold text-slate-500">Última ubicación</p>
@@ -540,6 +567,11 @@ export default function MapaTecnicosPage() {
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getEstadoColor(item.estadoTracking)}`}>
                           {formatEstado(item.estadoTracking)}
                         </span>
+                        {item.estadoAgenda && (
+                          <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getEstadoColor(item.estadoAgenda)}`}>
+                            {formatEstado(item.estadoAgenda)}
+                          </span>
+                        )}
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getSenalColor(item.createdAt)}`}>
                           {senal.replace("_", " ")}
                         </span>

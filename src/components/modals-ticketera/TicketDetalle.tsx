@@ -9,7 +9,8 @@ import {
     Button,
     Input,
     message,
-    Modal
+    Modal,
+    Alert
 } from "antd";
 import {
     UserOutlined,
@@ -337,6 +338,24 @@ function AutoResizeIframe({ srcDoc }: { srcDoc: string }) {
     );
 }
 
+const MAX_REPLY_FILE_SIZE_MB = 50;
+const MAX_REPLY_FILE_SIZE_BYTES = MAX_REPLY_FILE_SIZE_MB * 1024 * 1024;
+const MAX_REPLY_FILES = 10;
+
+function getApiErrorMessage(error: any) {
+    const data = error?.response?.data;
+
+    if (data?.detail) return data.detail;
+    if (data?.message) return data.message;
+    if (data?.error) return data.error;
+
+    if (!error?.response) {
+        return "No se pudo conectar con el servidor. Si estás adjuntando archivos, revisa que no superen el límite permitido o intenta nuevamente.";
+    }
+
+    return error?.message || "Error inesperado al procesar la solicitud.";
+}
+
 // Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 export default function TicketDetailPage() {
     const { id } = useParams();
@@ -352,6 +371,7 @@ export default function TicketDetailPage() {
     const [replyText, setReplyText] = useState("");
     const [internalNoteText, setInternalNoteText] = useState("");
     const [sendingReply, setSendingReply] = useState(false);
+    const [replyError, setReplyError] = useState<string | null>(null);
 
     const [toEmails, setToEmails] = useState<string[]>([]);
     const [ccEmails, setCcEmails] = useState<string[]>([]);
@@ -381,6 +401,101 @@ export default function TicketDetailPage() {
             clearTimeout(timer);
             timer = setTimeout(() => fn(...args), delay);
         };
+    };
+
+    const handleAddReplyFiles = (fileList: FileList | null) => {
+        setReplyError(null);
+
+        if (!fileList || fileList.length === 0) {
+            notification.warning({
+                message: "No se seleccionaron archivos",
+                description: "Intenta seleccionar el archivo nuevamente.",
+                placement: "topRight",
+                duration: 4,
+            });
+            return;
+        }
+
+        const incomingFiles = Array.from(fileList);
+
+        const allowedTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel.sheet.macroEnabled.12",
+            "text/plain",
+        ];
+
+        const invalidFile = incomingFiles.find(
+            (file) => !allowedTypes.includes(file.type)
+        );
+
+        if (invalidFile) {
+            const msg = `El archivo "${invalidFile.name}" no tiene un formato permitido.`;
+
+            setReplyError(msg);
+
+            notification.error({
+                message: "Tipo de archivo no permitido",
+                description: msg,
+                placement: "topRight",
+                duration: 6,
+            });
+
+            return;
+        }
+
+        const tooLargeFile = incomingFiles.find(
+            (file) => file.size > MAX_REPLY_FILE_SIZE_BYTES
+        );
+
+        if (tooLargeFile) {
+            const sizeMb = (tooLargeFile.size / 1024 / 1024).toFixed(2);
+
+            const msg = `El archivo "${tooLargeFile.name}" pesa ${sizeMb} MB y supera el máximo permitido de ${MAX_REPLY_FILE_SIZE_MB} MB.`;
+
+            setReplyError(msg);
+
+            notification.error({
+                message: "Archivo demasiado grande",
+                description: msg,
+                placement: "topRight",
+                duration: 6,
+            });
+
+            return;
+        }
+
+        const totalFiles = replyFiles.length + incomingFiles.length;
+
+        if (totalFiles > MAX_REPLY_FILES) {
+            const msg = `Solo puedes adjuntar hasta ${MAX_REPLY_FILES} archivos por respuesta.`;
+
+            setReplyError(msg);
+
+            notification.warning({
+                message: "Demasiados adjuntos",
+                description: msg,
+                placement: "topRight",
+                duration: 6,
+            });
+
+            return;
+        }
+
+        setReplyFiles((prev) => [...prev, ...incomingFiles]);
+
+        message.success(
+            incomingFiles.length === 1
+                ? "Archivo adjuntado correctamente"
+                : `${incomingFiles.length} archivos adjuntados correctamente`
+        );
     };
 
     // Función para buscar contactos por email, con debounce para evitar llamadas excesivas a la API
@@ -581,6 +696,34 @@ export default function TicketDetailPage() {
             return;
         }
 
+        setReplyError(null);
+
+        const tooLargeFile = replyFiles.find(
+            (file) => file.size > MAX_REPLY_FILE_SIZE_BYTES
+        );
+
+        if (tooLargeFile) {
+            notification.error({
+                message: "Archivo demasiado grande",
+                description: `El archivo "${tooLargeFile.name}" supera el máximo permitido de ${MAX_REPLY_FILE_SIZE_MB} MB.`,
+                placement: "topRight",
+                duration: 6,
+            });
+
+            return;
+        }
+
+        if (replyFiles.length > MAX_REPLY_FILES) {
+            notification.warning({
+                message: "Demasiados adjuntos",
+                description: `Solo puedes adjuntar hasta ${MAX_REPLY_FILES} archivos por respuesta.`,
+                placement: "topRight",
+                duration: 6,
+            });
+
+            return;
+        }
+
         try {
             setSendingReply(true);
 
@@ -591,9 +734,7 @@ export default function TicketDetailPage() {
             formData.append("cc", JSON.stringify(ccEmails));
             replyFiles.forEach((file) => formData.append("attachments", file));
 
-            await api.post(`/helpdesk/tickets/${ticketDetalle.id}/reply`, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            await api.post(`/helpdesk/tickets/${ticketDetalle.id}/reply`, formData);
 
             if (isInternal) {
                 setInternalNoteText("");
@@ -616,21 +757,21 @@ export default function TicketDetailPage() {
                 status: error?.response?.status,
                 data: error?.response?.data,
                 message: error?.message,
+                code: error?.code,
             });
 
-            const errorMessage =
-                error?.response?.data?.detail ||
-                error?.response?.data?.message ||
-                error?.response?.data?.error ||
-                error?.message ||
-                "Error al responder ticket";
+            const errorMessage = getApiErrorMessage(error);
+
+            setReplyError(errorMessage);
 
             notification.error({
                 message: "No se pudo responder el ticket",
                 description: errorMessage,
                 placement: "topRight",
-                duration: 6,
+                duration: 8,
             });
+
+            message.error(errorMessage);
         } finally {
             setSendingReply(false);
         }
@@ -968,6 +1109,16 @@ export default function TicketDetailPage() {
                                                         ),
                                                         children: (
                                                             <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+                                                                {replyError && (
+                                                                    <Alert
+                                                                        type="error"
+                                                                        showIcon
+                                                                        closable
+                                                                        message="No se pudo enviar la respuesta"
+                                                                        description={replyError}
+                                                                        onClose={() => setReplyError(null)}
+                                                                    />
+                                                                )}
                                                                 <div className="shrink-0">
                                                                     <div className="flex justify-between items-center mb-1">
                                                                         <span className="text-xs text-gray-500">Para:</span>
@@ -1049,9 +1200,7 @@ export default function TicketDetailPage() {
                                                                         multiple
                                                                         hidden
                                                                         onChange={(e) => {
-                                                                            const files = e.target.files;
-                                                                            if (!files?.length) return;
-                                                                            setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                            handleAddReplyFiles(e.target.files);
                                                                             e.target.value = "";
                                                                         }}
                                                                     />
@@ -1127,10 +1276,9 @@ export default function TicketDetailPage() {
                                                                         type="file"
                                                                         multiple
                                                                         hidden
+                                                                        accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.txt"
                                                                         onChange={(e) => {
-                                                                            const files = e.target.files;
-                                                                            if (!files?.length) return;
-                                                                            setReplyFiles([...replyFiles, ...Array.from(files)]);
+                                                                            handleAddReplyFiles(e.target.files);
                                                                             e.target.value = "";
                                                                         }}
                                                                     />

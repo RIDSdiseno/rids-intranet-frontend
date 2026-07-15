@@ -1,3 +1,4 @@
+// src/components/modals-cotizaciones/EditCotizacion.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
@@ -21,6 +22,7 @@ import {
     ItemTipoGestioo,
     MonedaCotizacion,
     type CotizacionItemGestioo,
+    type OrigenEntidadGestioo
 } from "./types";
 
 import { useApi } from "./UseApi"; // ajusta la ruta si es necesario
@@ -362,15 +364,17 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                             <div className="relative">
                                                 <select
                                                     value={cotizacion.entidad?.origen || ""}
-                                                    onChange={(e) =>
+                                                    onChange={(e) => {
+                                                        const origenValue = e.target.value as OrigenEntidadGestioo | "";
+
                                                         onUpdateCotizacion({
                                                             ...cotizacion,
                                                             entidad: {
                                                                 ...cotizacion.entidad!,
-                                                                origen: e.target.value,
+                                                                origen: origenValue === "" ? null : origenValue,
                                                             },
-                                                        })
-                                                    }
+                                                        });
+                                                    }}
                                                     className="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all appearance-none bg-white"
                                                     required
                                                 >

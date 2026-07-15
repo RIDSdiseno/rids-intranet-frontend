@@ -10,7 +10,8 @@ import {
   EyeOutlined,
   CheckCircleOutlined,
   RobotOutlined,
-  EyeInvisibleOutlined
+  EyeInvisibleOutlined,
+  MailOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Input, message, DatePicker } from "antd";
@@ -27,6 +28,11 @@ import { KPICards } from "../components/modals-reportes/KpiCards";
 import { WizardSelector } from "../components/modals-reportes/WizardSelector";
 import { PdfModal } from "../components/modals-reportes/PdfModal";
 import { ReporteExportView } from "../components/modals-reportes/ReportExportView";
+
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import InformeResumenVisual from "../components/modals-reportes/InformeResumenVisual";
+import ReportePreviewEmailModal from "../components/modals-reportes/ReportePreviewEmailModal";
 
 // Utils
 import {
@@ -45,6 +51,25 @@ import "dayjs/locale/es";
 dayjs.locale("es");
 
 const { RangePicker } = DatePicker;
+
+// Archivo PDF generado para vista previa y envío por correo.
+type InformeEmailGenerado = {
+  nombreArchivo: string;
+  mimeType: string;
+  fileBase64: string;
+
+  // PDF temporal para previsualizar en iframe.
+  previewUrl?: string;
+
+  // DOCX original para descargar.
+  downloadUrl?: string;
+
+  // Nombre del archivo de previsualización PDF.
+  previewFileName?: string;
+
+  // MIME del preview.
+  previewMimeType?: string;
+};
 
 const DATE_RANGE_PRESETS: {
   label: string;
@@ -118,6 +143,16 @@ const ReportesPage: React.FC = () => {
   // ── PDF modal ──
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState("Informe.pdf");
+
+  // ── Informe IA por correo ──
+  const [showInformeIAEmailModal, setShowInformeIAEmailModal] = useState(false);
+
+  const [informeIAGenerado, setInformeIAGenerado] =
+    useState<InformeEmailGenerado | null>(null);
+
+  const [generandoInformeIAEmail, setGenerandoInformeIAEmail] = useState(false);
+  const [enviandoInformeIAEmail, setEnviandoInformeIAEmail] = useState(false);
 
   // ── Historial ──
   const [historialReportes, setHistorialReportes] = useState<HistorialReporteRow[]>([]);
@@ -139,7 +174,15 @@ const ReportesPage: React.FC = () => {
   const canGenerate = !!empresaFiltro && !!selectedYear && !!selectedMonth;
 
   // ── Export hook ──
-  const { exportStatus, exportDOCX, exportDOCXIABeta, exportXLSX, generarPdfBlob, exportPDFToStorage } = useExportReportes({
+  const {
+    exportStatus,
+    exportDOCX,
+    exportDOCXIABeta,
+    generarDOCXIABetaBlob,
+    exportXLSX,
+    generarPdfBlob,
+    exportPDFToStorage,
+  } = useExportReportes({
     empresaFiltro,
     selectedYear,
     selectedMonth,
@@ -152,6 +195,24 @@ const ReportesPage: React.FC = () => {
     obtenerDatosReporteGeneral,
     onDataLoaded: setDataPrev,
   });
+
+  // Convierte un Blob a base64 para enviarlo al backend como adjunto.
+  // El backend lo transforma nuevamente a Buffer para mandarlo por correo.
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        const result = reader.result as string;
+
+        // Formato recibido: data:application/pdf;base64,XXXX
+        // Solo enviamos la parte base64.
+        resolve(result.split(",")[1]);
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
 
   const cargarHistorialReportes = useCallback(async () => {
     try {
@@ -266,23 +327,222 @@ const ReportesPage: React.FC = () => {
   };
 
   const abrirPDF = async () => {
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    const url = await generarPdfBlob();
-    if (url) {
-      setPdfUrl(url);
+    if (!canGenerate) {
+      message.warning("Selecciona empresa, año y mes");
+      return;
+    }
+
+    try {
+      setGenerandoInformeIAEmail(true);
+
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl(null);
+      }
+
+      /*
+        1. Genera el mismo Word IA usado para enviar por correo.
+        2. Lo convierte a base64.
+        3. Pide al backend convertirlo a PDF temporal.
+        4. Abre ese PDF en el modal.
+      */
+      const { blob, fileName } = await generarDOCXIABetaBlob();
+
+      const fileBase64 = await blobToBase64(blob);
+
+      const { data } = await http.post("/reportes-upload/preview-docx-pdf", {
+        fileName,
+        fileBase64,
+      });
+
+      if (!data?.fileBase64) {
+        throw new Error("El backend no devolvió el PDF de previsualización.");
+      }
+
+      const pdfBytes = Uint8Array.from(atob(data.fileBase64), (char) =>
+        char.charCodeAt(0)
+      );
+
+      const pdfBlob = new Blob([pdfBytes], {
+        type: "application/pdf",
+      });
+
+      const nextPdfUrl = URL.createObjectURL(pdfBlob);
+
+      setPdfUrl(nextPdfUrl);
+      setPdfFileName(data.fileName || fileName.replace(/\.docx$/i, ".pdf"));
       setPdfModalOpen(true);
+    } catch (error: any) {
+      console.error("Error generando PDF desde Word IA:", error);
+
+      message.error(
+        error?.response?.data?.message ||
+        error?.message ||
+        "No se pudo generar la vista previa PDF del informe IA."
+      );
+    } finally {
+      setGenerandoInformeIAEmail(false);
     }
   };
 
   const closePdfModal = () => {
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
+
     setPdfUrl(null);
+    setPdfFileName("Informe.pdf");
     setPdfModalOpen(false);
   };
 
   useEffect(() => {
     void cargarHistorialReportes();
   }, [cargarHistorialReportes]);
+
+  const generarInformeIADocxEmail = async (): Promise<InformeEmailGenerado | null> => {
+    if (!canGenerate) {
+      message.warning("Selecciona empresa, año y mes");
+      return null;
+    }
+
+    try {
+      setGenerandoInformeIAEmail(true);
+
+      // 1. Genera el Word IA original.
+      const { blob, fileName } = await generarDOCXIABetaBlob();
+
+      // 2. Convierte el DOCX original a base64 para enviarlo por correo.
+      const fileBase64 = await blobToBase64(blob);
+
+      // 3. URL local del DOCX original para descargarlo desde el modal.
+      const downloadUrl = URL.createObjectURL(blob);
+
+      let previewUrl: string | undefined;
+      let previewFileName: string | undefined;
+      let previewMimeType: string | undefined;
+
+      // 4. Pedimos al backend una vista previa PDF temporal.
+      try {
+        const { data } = await http.post("/reportes-upload/preview-docx-pdf", {
+          fileName,
+          fileBase64,
+        });
+
+        if (data?.fileBase64) {
+          const pdfBytes = Uint8Array.from(atob(data.fileBase64), (char) =>
+            char.charCodeAt(0)
+          );
+
+          const pdfBlob = new Blob([pdfBytes], {
+            type: "application/pdf",
+          });
+
+          previewUrl = URL.createObjectURL(pdfBlob);
+          previewFileName = data.fileName;
+          previewMimeType = data.mimeType;
+        }
+      } catch (previewError) {
+        console.warn("No se pudo generar la vista previa PDF:", previewError);
+
+        message.warning(
+          "El informe IA fue generado, pero no se pudo crear la vista previa PDF. Puedes descargar el Word para revisarlo."
+        );
+      }
+
+      return {
+        nombreArchivo: fileName,
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        fileBase64,
+
+        // PDF para iframe.
+        previewUrl,
+        previewFileName,
+        previewMimeType,
+
+        // DOCX original para descarga.
+        downloadUrl,
+      };
+    } catch (error: any) {
+      console.error("Error generando informe IA para correo:", error);
+
+      message.error(
+        error?.message || "No se pudo generar el informe IA para correo."
+      );
+
+      return null;
+    } finally {
+      setGenerandoInformeIAEmail(false);
+    }
+  };
+
+  const handleAbrirEnvioInformeIA = async () => {
+    const informe = await generarInformeIADocxEmail();
+
+    if (!informe) return;
+
+    setInformeIAGenerado(informe);
+    setShowInformeIAEmailModal(true);
+  };
+
+  const handleEnviarInformeIACorreo = async ({
+    destinatarios,
+    cc,
+    asunto,
+    mensaje: mensajeCorreo,
+    reporte,
+  }: {
+    destinatarios: string[];
+    cc: string[];
+    asunto: string;
+    mensaje: string;
+    reporte: InformeEmailGenerado;
+  }) => {
+    try {
+      setEnviandoInformeIAEmail(true);
+
+      const { data } = await http.post("/reportes-upload/enviar-informe-resumen", {
+        destinatarios,
+        cc,
+        asunto,
+        mensaje: mensajeCorreo,
+        fileName: reporte.nombreArchivo,
+        mimeType: reporte.mimeType,
+        fileBase64: reporte.fileBase64,
+        empresaId: Number(empresaFiltro),
+        empresa: empresaNombre,
+        periodo: periodoTexto,
+        tipo: "INFORME_IA",
+      });
+
+      setShowInformeIAEmailModal(false);
+
+      if (reporte.previewUrl) {
+        URL.revokeObjectURL(reporte.previewUrl);
+      }
+
+      if (reporte.downloadUrl) {
+        URL.revokeObjectURL(reporte.downloadUrl);
+      }
+
+      setInformeIAGenerado(null);
+
+      message.success(data?.message || "Informe IA enviado correctamente.");
+
+      void cargarHistorialReportes();
+    } catch (error: any) {
+      console.error("Error enviando informe IA:", error);
+
+      message.error(
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        "No se pudo enviar el informe IA por correo."
+      );
+    } finally {
+      setEnviandoInformeIAEmail(false);
+    }
+  };
 
   // ── Render ──
   return (
@@ -374,20 +634,44 @@ const ReportesPage: React.FC = () => {
               >
                 <RobotOutlined className="mr-2" /> Descargar Word IA
               </button>
-
-              <button
-                onClick={exportXLSX}
-                disabled={!canGenerate || exportStatus.exporting}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
-              >
-                <DownloadOutlined className="mr-2" /> Descargar Respaldo (XLSX)
-              </button>
               <button
                 onClick={abrirPDF}
-                disabled={!canGenerate || exportStatus.exporting}
+                disabled={!canGenerate || exportStatus.exporting || generandoInformeIAEmail}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <EyeOutlined className="mr-2" /> Ver PDF
+                {generandoInformeIAEmail ? (
+                  <>
+                    <LoadingOutlined className="animate-spin mr-2" />
+                    Generando PDF…
+                  </>
+                ) : (
+                  <>
+                    <EyeOutlined className="mr-2" />
+                    Ver PDF
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleAbrirEnvioInformeIA}
+                disabled={
+                  !canGenerate ||
+                  exportStatus.exporting ||
+                  generandoInformeIAEmail ||
+                  enviandoInformeIAEmail
+                }
+                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              >
+                {generandoInformeIAEmail ? (
+                  <>
+                    <LoadingOutlined className="animate-spin mr-2" />
+                    Generando informe…
+                  </>
+                ) : (
+                  <>
+                    <MailOutlined className="mr-2" />
+                    Enviar informe
+                  </>
+                )}
               </button>
             </div>
 
@@ -651,7 +935,33 @@ const ReportesPage: React.FC = () => {
       </main>
 
       {/* ── Modales ── */}
-      {pdfModalOpen && <PdfModal pdfUrl={pdfUrl} onClose={closePdfModal} />}
+      {pdfModalOpen && (
+        <PdfModal
+          pdfUrl={pdfUrl}
+          fileName={pdfFileName}
+          onClose={closePdfModal}
+        />
+      )}
+
+      <ReportePreviewEmailModal
+        show={showInformeIAEmailModal}
+        reporte={informeIAGenerado}
+        loading={enviandoInformeIAEmail}
+        onClose={() => {
+          setShowInformeIAEmailModal(false);
+
+          if (informeIAGenerado?.previewUrl) {
+            URL.revokeObjectURL(informeIAGenerado.previewUrl);
+          }
+
+          if (informeIAGenerado?.downloadUrl) {
+            URL.revokeObjectURL(informeIAGenerado.downloadUrl);
+          }
+
+          setInformeIAGenerado(null);
+        }}
+        onEnviarCorreo={handleEnviarInformeIACorreo}
+      />
 
       {/* ── Loading overlay ── */}
       {exportStatus.exporting && (

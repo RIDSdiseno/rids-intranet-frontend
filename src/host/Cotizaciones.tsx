@@ -1,3 +1,4 @@
+// src/host/Cotizaciones.tsx
 // Este componente es el corazón de la gestión de cotizaciones. Aquí se listan todas las cotizaciones con paginación, búsqueda y filtros avanzados. Desde esta vista se pueden crear nuevas cotizaciones, editar las existentes, eliminar o generar PDF. También se manejan los modales para seleccionar productos/servicios del catálogo, crear nuevos productos/servicios/entidades, y vincular equipos a los items de las cotizaciones. Se utiliza una combinación de estados locales para manejar la UI y llamadas a la API para persistir los cambios en el backend. Además, se implementa un sistema de toast para mostrar mensajes de éxito o error al usuario.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
@@ -29,7 +30,7 @@ import {
     NewEmpresaModal,
     NewProductoModal,
     GenerarPDFModal,
-    NewServicioModal
+    NewServicioModal,
 } from "../components/modals-cotizaciones";
 import { generarPDF } from "../components/modals-cotizaciones/GenerarPDFModal";
 import { http } from '../service/http';
@@ -63,13 +64,14 @@ import {
 } from "../components/modals-cotizaciones/utils";
 
 import CrearEquipoModal from "../components/modals-equipos/CrearEquipo";
-import type { EquipoDTO } from "../components/modals-equipos/CrearEquipo";
+import type { EquipoDTO } from "../components/modals-equipos/equipos.types";
 
 import type { EquipoOption } from "../components/modals-cotizaciones/SelectEquipo";
 
 import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
 
 import { useAuth } from "../components/hooks/useAuth"
+import CotizacionesMasivasManager from "../components/modals-cotizaciones/cotizaciones-masivas/CotizacionesMasivasManager";
 
 const { isCliente } = useAuth();
 
@@ -160,6 +162,9 @@ const Cotizaciones: React.FC = () => {
     const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
     const [showNewProductoModal, setShowNewProductoModal] = useState(false);
     const [showCreateServicioModal, setShowCreateServicioModal] = useState(false);
+
+    const [showCotizacionesMasivasManager, setShowCotizacionesMasivasManager] =
+        useState(false);
 
     const [filtroMes, setFiltroMes] = useState<string>("");
 
@@ -652,12 +657,13 @@ const Cotizaciones: React.FC = () => {
             const productosMapeados = productos.map((p: any) => ({
                 id: p.id,
                 tipo: "PRODUCTO" as const,
-                descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0,
-                porcGanancia: p.porcGanancia || 0,
-                precioTotal: p.precioTotal || p.precio || 0,
+                descripcion: p.descripcion || "",
+                precio: Number(p.precio || p.precioBase || p.valor || 0),
+                porcGanancia: Number(p.porcGanancia || 0),
+                precioTotal: Number(p.precioTotal || p.precio || 0),
                 nombre: p.nombre,
                 sku: p.serie,
+                serie: p.serie,
                 categoria: p.categoria,
                 imagen: p.imagen || null,
             }));
@@ -686,12 +692,13 @@ const Cotizaciones: React.FC = () => {
             const productosMapeados = productos.map((p: any) => ({
                 id: p.id,
                 tipo: "PRODUCTO" as const,
-                descripcion: p.nombre || p.descripcion || "Producto sin nombre",
-                precio: p.precio || p.precioBase || p.valor || 0,
-                porcGanancia: p.porcGanancia || 0,
-                precioTotal: p.precioTotal || p.precio || 0,
+                descripcion: p.descripcion || "",
+                precio: Number(p.precio || p.precioBase || p.valor || 0),
+                porcGanancia: Number(p.porcGanancia || 0),
+                precioTotal: Number(p.precioTotal || p.precio || 0),
                 nombre: p.nombre,
                 sku: p.serie,
+                serie: p.serie,
                 categoria: p.categoria,
                 imagen: p.imagen || null,
             }));
@@ -1528,10 +1535,6 @@ const Cotizaciones: React.FC = () => {
         setShowEditProductoModal(true);
     };
 
-    const abrirEditarProductoDesdeCatalogo = (data: { productoId: number }) => {
-        abrirEditarProducto(data, "catalogo");
-    };
-
     const abrirEditarProductoDesdeCotizacion = (item: CotizacionItemGestioo) => {
         abrirEditarProducto(item, "cotizacion");
     };
@@ -1906,17 +1909,6 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
-    const recargarItemsCotizacion = async (cotizacionId: number) => {
-        try {
-            const data = await apiFetch(`/cotizaciones/${cotizacionId}`);
-            const items = data.data?.items || data.items || data.data?.cotizacion?.items || data.cotizacion?.items || [];
-            return items;
-        } catch (error) {
-            handleApiError(error, "Error al recargar items");
-            return [];
-        }
-    };
-
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
@@ -2245,30 +2237,6 @@ const Cotizaciones: React.FC = () => {
                         <CopyOutlined />
                     </button>
 
-                    {c.estado === EstadoCotizacionGestioo.APROBADA &&
-                        (!c.facturas || c.facturas.length === 0) && (
-                            <button
-                                onClick={async () => {
-                                    if (!window.confirm("¿Desea emitir factura electrónica?")) return;
-
-                                    try {
-                                        await apiFetch(`/cotizaciones/${c.id}/emitir-sii`, {
-                                            method: "POST",
-                                        });
-
-                                        await fetchCotizaciones(page);
-                                        showSuccess("Factura emitida correctamente");
-                                    } catch (error) {
-                                        handleApiError(error, "Error al emitir factura");
-                                    }
-                                }}
-                                className={mobile ? "rounded-xl border border-cyan-200 p-2 text-cyan-700 hover:bg-cyan-50" : "text-sm text-purple-600 hover:text-purple-800"}
-                                title="Emitir Factura"
-                            >
-                                <FileTextOutlined />
-                            </button>
-                        )}
-
                     <button
                         onClick={() => handleDelete(c.id)}
                         className={mobile ? "rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50" : "text-sm text-red-600 hover:text-red-800"}
@@ -2333,17 +2301,28 @@ const Cotizaciones: React.FC = () => {
                             </button>
                             )}
                             {!isCliente && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        resetForm();
-                                        setShowCreateModal(true);
-                                    }}
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
-                                >
-                                    <PlusOutlined className="text-base" />
-                                    Crear
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCotizacionesMasivasManager(true)}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-purple-300 bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-50 sm:w-auto"
+                                    >
+                                        <FileTextOutlined className="text-base" />
+                                        Masivas / Plantillas
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            resetForm();
+                                            setShowCreateModal(true);
+                                        }}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
+                                    >
+                                        <PlusOutlined className="text-base" />
+                                        Crear
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -2762,6 +2741,20 @@ const Cotizaciones: React.FC = () => {
                 }}
                 pdfURL={pdfURL}
             />
+            {!isCliente && (
+                <CotizacionesMasivasManager
+                    show={showCotizacionesMasivasManager}
+                    onClose={() => setShowCotizacionesMasivasManager(false)}
+                    entidades={entidades}
+                    productos={productosCatalogo}
+                    onReloadCotizaciones={() => fetchCotizaciones(1)}
+                    showSuccess={showSuccess}
+                    handleApiError={handleApiError}
+                    apiFetch={apiFetch}
+                    fetchCatalogo={fetchCatalogo}
+                    fetchEntidades={fetchEntidades}
+                />
+            )}
             {!isCliente && (
                 <CreateCotizacionModal
                     show={showCreateModal}

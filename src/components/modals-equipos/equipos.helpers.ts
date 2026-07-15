@@ -79,6 +79,7 @@ export const fieldLabels: Record<string, string> = {
     ram: "RAM",
     disco: "Disco",
     propiedad: "Propiedad",
+    propietarioExterno: "Dueño externo",
     observaciones: "Observaciones",
     estado: "Estado",
     empresaId: "Empresa",
@@ -161,12 +162,92 @@ export function getAnioPcOrigenLabel(value?: string | null) {
 
 export function actorName(actor: ActorLite | null | undefined) {
     if (!actor) return "Sistema";
-    if (typeof actor === "string") return actor;
-    return actor.nombre ?? "Sistema";
+
+    if (typeof actor === "string") {
+        return actor.trim() || "Sistema";
+    }
+
+    return actor.nombre?.trim() || actor.email?.trim() || "Sistema";
 }
 
 export function getChanges(h: EquipoHistorialItem) {
     return h.changes ?? h.diff ?? null;
+}
+
+export function getAgentEventMetadata(metadata: unknown) {
+    if (!metadata) return {};
+
+    if (typeof metadata === "string") {
+        try {
+            const parsed = JSON.parse(metadata);
+
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed as {
+                    source?: string | null;
+                    platform?: string | null;
+                    ejecutadoPor?: string | null;
+
+                    tecnicoInstaladorId?: number | null;
+                    tecnicoInstaladorNombre?: string | null;
+                    tecnicoInstaladorEmail?: string | null;
+
+                    usuarioSistemaEjecutor?: string | null;
+                    usuarioWindowsEjecutor?: string | null;
+                    taskUserConfigurado?: string | null;
+
+                    usuarioMacEjecutor?: string | null;
+                    launchdLabel?: string | null;
+                    fileVaultEstado?: string | null;
+
+                    agenteVersion?: string | null;
+                    lastBootAt?: string | null;
+                    uptimeText?: string | null;
+                    uptimeSeconds?: number | string | null;
+                };
+            }
+
+            return {};
+        } catch {
+            return {};
+        }
+    }
+
+    if (typeof metadata !== "object" || Array.isArray(metadata)) {
+        return {};
+    }
+
+    return metadata as {
+        source?: string | null;
+        platform?: string | null;
+        ejecutadoPor?: string | null;
+
+        tecnicoInstaladorId?: number | null;
+        tecnicoInstaladorNombre?: string | null;
+        tecnicoInstaladorEmail?: string | null;
+
+        usuarioSistemaEjecutor?: string | null;
+        usuarioWindowsEjecutor?: string | null;
+        taskUserConfigurado?: string | null;
+
+        usuarioMacEjecutor?: string | null;
+        launchdLabel?: string | null;
+        fileVaultEstado?: string | null;
+
+        agenteVersion?: string | null;
+        lastBootAt?: string | null;
+        uptimeText?: string | null;
+        uptimeSeconds?: number | string | null;
+    };
+}
+
+export function getTecnicoInstaladorLabel(metadata: unknown) {
+    const meta = getAgentEventMetadata(metadata);
+
+    return (
+        meta.tecnicoInstaladorNombre?.trim() ||
+        meta.tecnicoInstaladorEmail?.trim() ||
+        null
+    );
 }
 
 export function agenteEstadoClasses(estado?: string | null) {
@@ -201,4 +282,44 @@ export function diskUsedPercent(equipo?: EquipoAgentFull | null) {
     }
 
     return Math.round(((total - free) / total) * 100);
+}
+
+export const PROPIEDAD_EQUIPO_OPTIONS = [
+    { value: "Empresa", label: "Empresa" },
+    { value: "Personal", label: "Personal" },
+    { value: "Externo", label: "Externo" },
+] as const;
+
+export function getPropiedadEquipoLabel(
+    propiedad?: string | null,
+    propietarioExterno?: string | null
+) {
+    if (propiedad === "Externo") {
+        return propietarioExterno
+            ? `Externo: ${propietarioExterno}`
+            : "Externo";
+    }
+
+    if (propiedad === "Personal") {
+        return "Personal";
+    }
+
+    if (propiedad === "Empresa") {
+        return "Empresa";
+    }
+
+    return "No definido";
+}
+
+export function getPropiedadEquipoClass(propiedad?: string | null) {
+    switch (propiedad) {
+        case "Empresa":
+            return "border-emerald-200 bg-emerald-50 text-emerald-800";
+        case "Personal":
+            return "border-indigo-200 bg-indigo-50 text-indigo-800";
+        case "Externo":
+            return "border-amber-200 bg-amber-50 text-amber-800";
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-600";
+    }
 }

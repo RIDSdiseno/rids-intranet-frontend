@@ -1,23 +1,22 @@
 // src/components/modals-reportes/buildReporteIABetaDocx.ts
-// ─── CAMBIOS respecto al original ─────────────────────────────────────────
+// ─── CAMBIOS en esta versión (fix de saltos entre páginas) ─────────────────
 //
-//  Se eliminó desde "Narrativa consultiva" hacia abajo:
-//    ✗ buildDualInsightSection (resumen + destacados de texto)
-//    ✗ KPIs Interpretados (tabla de texto)
-//    ✗ Aspectos Destacados (tarjetas buildHighlightCard)
-//    ✗ Aspectos a Monitorear (tabla buildMonitorRowTable)
-//    ✗ Acciones Recomendadas (tarjetas buildRecommendationCard)
-//    ✗ Plan de Acción 30-60-90
-//    ✗ Conclusión
-//    ✗ Anexo Operacional completo (tablas de datos raw)
+//  ✓ cantSplit: true en TODAS las filas de tabla
+//      → evita que una fila se parta a la mitad entre dos páginas.
+//        Si no cabe, la fila entera baja limpia a la página siguiente.
+//        Aplica también a las tarjetas de gráfico: badge + título + imagen +
+//        lectura se mantienen SIEMPRE juntos.
 //
-//  Se conservó y mejoró:
-//    ✓ Portada premium (buildHeroPremium)
-//    ✓ Panel ejecutivo KPI dashboard (4 métricas visuales)
-//    ✓ Todos los gráficos en layout 2 columnas cuando es posible
-//    ✓ Cada gráfico con badge de categoría + título + lectura ejecutiva
-//    ✓ Sección de métricas destacadas de la IA (tabla compacta)
-//    ✓ Header y footer de documento
+//  ✓ Se eliminaron los saltos de página forzados que dejaban medias páginas
+//    en blanco:
+//      ✗ opción pageBreakAfterFirst en buildChartBlocks
+//      ✗ pageBreak() antes de "Resumen del período"
+//      ✗ pageBreak() antes de "Mesa de ayuda"
+//      ✗ pageBreak() antes de "Inventario"
+//      ✗ pageBreak() antes de "Distribución de servicios"
+//    Ahora el contenido fluye y llena la página de forma natural.
+//    (El helper pageBreak() se conserva por si quieres reintroducir UN salto
+//     puntual en alguna sección específica.)
 //
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -37,6 +36,7 @@ import {
   TextRun,
   WidthType,
   VerticalAlign,
+  ShadingType,
 } from "docx";
 import { saveAs } from "file-saver";
 
@@ -141,7 +141,7 @@ type PayloadIABeta = {
   conclusion?: string;
 };
 
-type Params = {
+export type BuildReporteIABetaDocxParams = {
   payload: PayloadIABeta;
   empresaNombre: string;
   periodoTexto: string;
@@ -165,7 +165,6 @@ type Params = {
       cantidad?: number | string | null;
     }>;
   };
-
 };
 
 // ── Paleta de tema ─────────────────────────────────────────────────────────
@@ -186,12 +185,30 @@ const THEME = {
 
 const body = (text: string) =>
   new Paragraph({
+    // keepLines: mantiene TODAS las líneas del párrafo en la misma página.
+    // Si no cabe al final de una página, el párrafo entero baja a la siguiente
+    // en vez de partirse a la mitad.
+    keepLines: true,
     spacing: { after: 120, line: 320 },
     children: [new TextRun({ text: text || "—", color: THEME.text, size: 22 })],
   });
 
-const spacer = (pts = 120) =>
-  new Paragraph({ spacing: { after: pts } });
+const spacer = (pts = 60) =>
+  new Paragraph({
+    spacing: {
+      before: 0,
+      after: pts,
+    },
+  });
+
+const pageBreak = () =>
+  new Paragraph({
+    pageBreakBefore: true,
+    spacing: { before: 0, after: 0 },
+  });
+
+const pageBreakIfNeeded = (enabled: boolean) =>
+  enabled ? [pageBreak()] : [];
 
 const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } as const;
 const noBorders = {
@@ -209,6 +226,7 @@ const buildHeader = (empresaNombre: string, headerLogoBytes?: Uint8Array | null)
         borders: noBorders,
         rows: [
           new TableRow({
+            cantSplit: true,
             children: [
               new TableCell({
                 width: { size: 72, type: WidthType.PERCENTAGE },
@@ -277,6 +295,7 @@ const buildHeroPremium = (
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       new TableRow({
+        cantSplit: true,
         children: [
           new TableCell({
             shading: { fill: "0F2B67" },
@@ -286,6 +305,7 @@ const buildHeroPremium = (
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 rows: [
                   new TableRow({
+                    cantSplit: true,
                     children: [
                       // Columna izquierda — texto
                       new TableCell({
@@ -310,6 +330,7 @@ const buildHeroPremium = (
                             width: { size: 100, type: WidthType.PERCENTAGE },
                             rows: [
                               new TableRow({
+                                cantSplit: true,
                                 children: [
                                   new TableCell({
                                     shading: { fill: "335FBA" },
@@ -354,6 +375,7 @@ const buildKpiDashboard = (
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       new TableRow({
+        cantSplit: true,
         children: cards.map((card) =>
           new TableCell({
             width: { size: 25, type: WidthType.PERCENTAGE },
@@ -377,6 +399,8 @@ const buildMetricasTable = (items: MetricaDestacadaItem[]) => {
   if (!items.length) return null;
 
   const headerRow = new TableRow({
+    cantSplit: true,
+    tableHeader: true,
     children: ["Métrica", "Valor", "Lectura ejecutiva"].map((t) =>
       new TableCell({
         shading: { fill: THEME.primary },
@@ -394,6 +418,7 @@ const buildMetricasTable = (items: MetricaDestacadaItem[]) => {
 
   const bodyRows = items.map((item, i) =>
     new TableRow({
+      cantSplit: true,
       children: [
         String(item.nombre ?? "—"),
         String(item.valor ?? "—"),
@@ -420,36 +445,52 @@ const buildMetricasTable = (items: MetricaDestacadaItem[]) => {
 };
 
 // ── Sección separadora de bloque ───────────────────────────────────────────
+//
+// Antes era una Table independiente; el problema es que keepNext NO cruza el
+// borde de una tabla, así que el encabezado quedaba huérfano al pie de página.
+//
+// Ahora son párrafos sombreados (mismo look: caja gris + barra azul a la
+// izquierda) con keepNext:true, que SÍ se mantienen junto al bloque siguiente
+// (tabla, gráfico o párrafo). El espacio inferior va incorporado, por lo que
+// ya NO se debe agregar un spacer() justo después del encabezado.
 
-const buildSectionHeader = (title: string, subtitle?: string) =>
-  new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            shading: { fill: THEME.light },
-            margins: { top: 100, bottom: 100, left: 160, right: 160 },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.SINGLE, size: 16, color: THEME.accent },
-            },
-            children: [
-              new Paragraph({
-                spacing: { after: subtitle ? 30 : 0 },
-                children: [new TextRun({ text: title, bold: true, size: 28, color: THEME.primary })],
-              }),
-              ...(subtitle
-                ? [new Paragraph({ children: [new TextRun({ text: subtitle, size: 20, color: THEME.muted })] })]
-                : []),
-            ],
-          }),
-        ],
-      }),
-    ],
+const SECTION_SHADING = {
+  type: ShadingType.CLEAR,
+  color: "auto",
+  fill: THEME.light,
+} as const;
+
+const SECTION_BORDER = {
+  top: { style: BorderStyle.SINGLE, size: 2, color: THEME.light },
+  bottom: { style: BorderStyle.SINGLE, size: 2, color: THEME.light },
+  left: { style: BorderStyle.SINGLE, size: 16, color: THEME.accent, space: 6 },
+} as const;
+
+const buildSectionHeader = (title: string, subtitle?: string): Paragraph[] => {
+  const titlePara = new Paragraph({
+    keepNext: true,
+    keepLines: true,
+    shading: SECTION_SHADING,
+    border: SECTION_BORDER,
+    indent: { left: 120 },
+    spacing: { before: 200, after: subtitle ? 0 : 160 },
+    children: [new TextRun({ text: title, bold: true, size: 28, color: THEME.primary })],
   });
+
+  if (!subtitle) return [titlePara];
+
+  const subtitlePara = new Paragraph({
+    keepNext: true,
+    keepLines: true,
+    shading: SECTION_SHADING,
+    border: SECTION_BORDER,
+    indent: { left: 120 },
+    spacing: { before: 0, after: 160 },
+    children: [new TextRun({ text: subtitle, size: 20, color: THEME.muted })],
+  });
+
+  return [titlePara, subtitlePara];
+};
 
 // ── Mapa de estilos por dataset_key ───────────────────────────────────────
 
@@ -481,6 +522,49 @@ function getStyle(datasetKey?: string, index = 0) {
     : FALLBACK_STYLES[index % FALLBACK_STYLES.length];
 }
 
+// ── Escalado de imágenes respetando proporción ─────────────────────────────
+//
+// Problema: forzar un ancho y alto fijos (p. ej. 300x250) DEFORMA la imagen si
+// su proporción real es distinta. Un gráfico circular cuadrado metido en un
+// recuadro rectangular se ve como óvalo y con bordes dentados (el estirado no
+// uniforme genera ese aspecto "pixeleado").
+//
+// Solución: leer el tamaño real del PNG y escalarlo proporcionalmente para que
+// quepa dentro de un recuadro máximo, sin deformarlo.
+
+/** Lee ancho y alto reales de un PNG desde su cabecera (chunk IHDR). */
+function readPngSize(bytes?: Uint8Array | null): { width: number; height: number } | null {
+  if (!bytes || bytes.length < 24) return null;
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  for (let i = 0; i < 8; i++) {
+    if (bytes[i] !== signature[i]) return null;
+  }
+  const width =
+    ((bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19]) >>> 0;
+  const height =
+    ((bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23]) >>> 0;
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * Devuelve { width, height } (en px @96dpi) para que la imagen quepa dentro de
+ * un recuadro maxW x maxH manteniendo su proporción original.
+ * Si no se puede leer el tamaño del PNG, usa el recuadro completo (fallback).
+ */
+function fitTransformation(
+  bytes: Uint8Array | null | undefined,
+  maxW: number,
+  maxH: number
+): { width: number; height: number } {
+  const size = readPngSize(bytes);
+  if (!size) return { width: maxW, height: maxH };
+  const ratio = Math.min(maxW / size.width, maxH / size.height);
+  return {
+    width: Math.max(1, Math.round(size.width * ratio)),
+    height: Math.max(1, Math.round(size.height * ratio)),
+  };
+}
+
 // ── Tarjeta de gráfico individual (ancho completo) ─────────────────────────
 
 const buildChartCard = (grafico: ChartImageItem, index: number): Table => {
@@ -507,7 +591,10 @@ const buildChartCard = (grafico: ChartImageItem, index: number): Table => {
             new ImageRun({
               data: grafico.imageBytes,
               type: "png",
-              transformation: { width: 560, height: 290 },
+              // Escala proporcional dentro de un recuadro de 660x420px. El alto
+              // amplio permite que los gráficos casi cuadrados (pie/donut) salgan
+              // grandes; los de barras siguen limitados por el ancho (660).
+              transformation: fitTransformation(grafico.imageBytes, 660, 420),
             }),
           ],
         }),
@@ -536,10 +623,12 @@ const buildChartCard = (grafico: ChartImageItem, index: number): Table => {
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       new TableRow({
+        // Mantiene badge + título + imagen + lectura SIEMPRE en la misma página.
+        cantSplit: true,
         children: [
           new TableCell({
             shading: { fill: style.bg },
-            margins: { top: 160, bottom: 160, left: 180, right: 180 },
+            margins: { top: 90, bottom: 90, left: 120, right: 120 },
             borders: {
               top: { style: BorderStyle.SINGLE, size: 6, color: style.accent },
               left: { style: BorderStyle.SINGLE, size: 12, color: style.accent },
@@ -567,7 +656,7 @@ const buildChartPair = (
     return new TableCell({
       width: { size: 50, type: WidthType.PERCENTAGE },
       shading: { fill: style.bg },
-      margins: { top: 140, bottom: 140, left: 140, right: 140 },
+      margins: { top: 80, bottom: 80, left: 100, right: 100 },
       borders: {
         top: { style: BorderStyle.SINGLE, size: 6, color: style.accent },
         left: { style: BorderStyle.SINGLE, size: 10, color: style.accent },
@@ -592,7 +681,9 @@ const buildChartPair = (
                 new ImageRun({
                   data: grafico.imageBytes,
                   type: "png",
-                  transformation: { width: 260, height: 220 },
+                  // Escala proporcional dentro de un recuadro de 320x300px por
+                  // columna. Evita que los circulares se deformen en óvalos.
+                  transformation: fitTransformation(grafico.imageBytes, 320, 300),
                 }),
               ],
             }),
@@ -618,6 +709,8 @@ const buildChartPair = (
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       new TableRow({
+        // Mantiene el par de gráficos junto en la misma página.
+        cantSplit: true,
         children: [
           buildCell(left, leftIndex),
           // Separador invisible entre columnas
@@ -636,6 +729,13 @@ const buildChartPair = (
 
 // ── Decisión de layout por tipo de gráfico ────────────────────────────────
 
+// Interruptor de layout de gráficos circulares (pie/donut):
+//   false → cada gráfico a ANCHO COMPLETO, uno por fila. Más grande y con el
+//           texto/leyenda legibles (recomendado si el texto se ve pequeño).
+//   true  → pie/donut consecutivos en 2 columnas (más compacto, pero el texto
+//           queda pequeño porque cada columna es angosta).
+const PAIR_PIE_CHARTS = false;
+
 function isPieType(tipo?: string): boolean {
   const t = (tipo || "").toLowerCase();
   return t === "pie" || t === "doughnut";
@@ -643,8 +743,13 @@ function isPieType(tipo?: string): boolean {
 
 /**
  * Organiza los gráficos en bloques:
- *   - Pie/donut consecutivos → pares en 2 columnas (más compacto)
- *   - Bar/line → ancho completo (más espacio para etiquetas)
+ *   - Con PAIR_PIE_CHARTS=true: pie/donut consecutivos → pares en 2 columnas.
+ *   - Con PAIR_PIE_CHARTS=false (por defecto): todos a ancho completo, lo que
+ *     hace los gráficos (y su texto) mucho más grandes.
+ *
+ * Nota: ya NO se fuerzan saltos de página aquí. Con cantSplit:true cada
+ * tarjeta se mantiene íntegra, así que Word decide el corte de página
+ * automáticamente sin cortar títulos ni imágenes.
  */
 function buildChartBlocks(graficos: ChartImageItem[]): (Table | Paragraph)[] {
   const blocks: (Table | Paragraph)[] = [];
@@ -654,15 +759,18 @@ function buildChartBlocks(graficos: ChartImageItem[]): (Table | Paragraph)[] {
     const current = graficos[i];
     const next = graficos[i + 1];
 
-    if (isPieType(current.tipo) && next && isPieType(next.tipo)) {
-      // Par de gráficos circulares → 2 columnas
+    if (
+      PAIR_PIE_CHARTS &&
+      isPieType(current.tipo) &&
+      next &&
+      isPieType(next.tipo)
+    ) {
       blocks.push(buildChartPair(current, next, i));
-      blocks.push(spacer(100));
+      blocks.push(spacer(40));
       i += 2;
     } else {
-      // Gráfico de barras/línea → ancho completo
       blocks.push(buildChartCard(current, i));
-      blocks.push(spacer(100));
+      blocks.push(spacer(40));
       i += 1;
     }
   }
@@ -710,20 +818,22 @@ function tableCell(text: string): TableCell {
   });
 }
 
-function tableHeaderCellCompact(text: string): TableCell {
+function tableHeaderCellCompact(text: string, keepNext = false): TableCell {
   return new TableCell({
     shading: { fill: THEME.primary },
     verticalAlign: VerticalAlign.CENTER,
-    margins: { top: 60, bottom: 60, left: 70, right: 70 },
+    margins: { top: 40, bottom: 40, left: 45, right: 45 },
     children: [
       new Paragraph({
         alignment: AlignmentType.CENTER,
+        keepNext,
+        keepLines: true,
         children: [
           new TextRun({
             text,
             bold: true,
             color: "FFFFFF",
-            size: 14,
+            size: 12,
           }),
         ],
       }),
@@ -731,17 +841,22 @@ function tableHeaderCellCompact(text: string): TableCell {
   });
 }
 
-function tableCellCompact(text: string | number | null | undefined): TableCell {
+function tableCellCompact(
+  text: string | number | null | undefined,
+  keepNext = false
+): TableCell {
   return new TableCell({
     verticalAlign: VerticalAlign.CENTER,
-    margins: { top: 50, bottom: 50, left: 70, right: 70 },
+    margins: { top: 35, bottom: 35, left: 45, right: 45 },
     children: [
       new Paragraph({
+        keepNext,
+        keepLines: true,
         children: [
           new TextRun({
             text: String(text ?? "—"),
             color: THEME.text,
-            size: 14,
+            size: 12,
           }),
         ],
       }),
@@ -760,8 +875,8 @@ function getSolicitanteCorreo(value: EquipoDetalleRow["solicitante"]) {
   return value.email ?? "";
 }
 
-function buildInventarioEquiposTable(equipos: EquipoDetalleRow[]): Table | null {
-  if (!equipos.length) return null;
+function buildInventarioEquiposTables(equipos: EquipoDetalleRow[]): Table[] {
+  if (!equipos.length) return [];
 
   const headers = [
     "Código",
@@ -791,26 +906,36 @@ function buildInventarioEquiposTable(equipos: EquipoDetalleRow[]): Table | null 
     equipo.sistemaOperativo ?? equipo.detalle?.so ?? equipo.so ?? "",
   ]);
 
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        tableHeader: true,
-        children: headers.map((header) => tableHeaderCellCompact(header)),
-      }),
-
-      ...rows.map((row) =>
-        new TableRow({
-          children: row.map((value) => tableCellCompact(value)),
-        })
-      ),
-    ],
+  // Una SOLA tabla continua. El encabezado se marca con tableHeader:true, por
+  // lo que Word/Word-compatible lo repite automáticamente al inicio de cada
+  // página. Las filas llevan cantSplit:true para no cortarse a la mitad, pero
+  // la tabla SÍ puede fluir de una página a la siguiente (ya no se trocea en
+  // tablas separadas). Resultado: se ve como una única tabla conjunta.
+  const headerRow = new TableRow({
+    tableHeader: true,
+    cantSplit: true,
+    children: headers.map((header) => tableHeaderCellCompact(header)),
   });
+
+  const bodyRows = rows.map(
+    (row) =>
+      new TableRow({
+        cantSplit: true,
+        children: row.map((value) => tableCellCompact(value)),
+      })
+  );
+
+  return [
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [headerRow, ...bodyRows],
+    }),
+  ];
 }
 
 // ── Función principal ──────────────────────────────────────────────────────
 
-export async function buildAndDownloadReporteIABetaDocx({
+export async function buildReporteIABetaDocxBlob({
   payload,
   empresaNombre,
   periodoTexto,
@@ -822,7 +947,7 @@ export async function buildAndDownloadReporteIABetaDocx({
   equiposDetalle = [],
   logoBytes = null,
   headerLogoBytes = null,
-}: Params) {
+}: BuildReporteIABetaDocxParams): Promise<Blob> {
   const titulo = payload?.titulo || "Informe Ejecutivo de Operaciones TI";
   const subtitulo = payload?.subtitulo || "Versión Visual";
 
@@ -875,7 +1000,7 @@ export async function buildAndDownloadReporteIABetaDocx({
     ? buildMetricasTable(metricasDestacadas)
     : null;
 
-  const inventarioEquiposTable = buildInventarioEquiposTable(equiposDetalle);
+  const inventarioEquiposTables = buildInventarioEquiposTables(equiposDetalle);
 
   // ── 4. Clasificar gráficos en grupos temáticos ────────────────────────────
   //
@@ -919,67 +1044,75 @@ export async function buildAndDownloadReporteIABetaDocx({
   });
 
   // ── 5. Armar el documento ─────────────────────────────────────────────────
+  //
+  // Ya no se fuerzan saltos de página entre bloques. Con cantSplit:true cada
+  // tarjeta/fila se mantiene íntegra y el contenido fluye llenando cada página.
+  // Si en algún momento quieres que UNA sección específica arranque en página
+  // nueva, inserta un pageBreak() puntual en ese punto.
 
   const children: (Table | Paragraph)[] = [
 
     // ── Portada ──────────────────────────────────────────────────────────────
     buildHeroPremium(titulo, subtitulo, empresaNombre, periodoTexto, logoBytes),
-    spacer(160),
+    spacer(70),
 
     // ── Panel KPI ─────────────────────────────────────────────────────────────
-    buildSectionHeader("Panel ejecutivo", "Métricas clave del período"),
-    spacer(80),
+    // Nota: el encabezado ya NO lleva spacer() inmediatamente después; el gap
+    // inferior está incorporado en el propio encabezado y keepNext lo mantiene
+    // pegado al bloque siguiente.
+    ...buildSectionHeader("Panel ejecutivo", "Métricas clave del período"),
     buildKpiDashboard(panelCards),
-    spacer(140),
+    spacer(60),
 
     // ── Métricas IA (si existen) ──────────────────────────────────────────────
     ...(metricasTable
       ? [
-        buildSectionHeader("Métricas destacadas", "Indicadores Destacados"),
-        spacer(80),
+        ...buildSectionHeader("Métricas destacadas", "Indicadores Destacados"),
         metricasTable,
-        spacer(140),
+        spacer(60),
       ]
       : []),
 
     // ── Resumen ejecutivo (una sola línea de texto, sin listas) ───────────────
     ...(payload?.resumen_ejecutivo
       ? [
-        buildSectionHeader("Resumen del período"),
-        spacer(80),
+        ...buildSectionHeader("Resumen del período"),
         body(payload.resumen_ejecutivo),
-        spacer(140),
+        spacer(50),
       ]
       : []),
 
     // ── Bloque A: Actividad y cobertura ───────────────────────────────────────
     ...(grupoActividad.length > 0
       ? [
-        buildSectionHeader("Actividad y cobertura técnica", "Visitas, mantenciones presenciales y remotas"),
-        spacer(80),
+        ...buildSectionHeader(
+          "Actividad y cobertura técnica",
+          "Visitas, mantenciones presenciales y remotas"
+        ),
         ...buildChartBlocks(grupoActividad),
-        spacer(80),
+        spacer(50),
       ]
       : []),
 
     // ── Bloque B: Mesa de ayuda ───────────────────────────────────────────────
     ...(grupoTickets.length > 0
       ? [
-        buildSectionHeader("Mesa de ayuda — Tickets", "Volumen, categorías y solicitantes frecuentes"),
-        spacer(80),
+        ...buildSectionHeader(
+          "Mesa de ayuda — Tickets",
+          "Volumen, categorías y solicitantes frecuentes"
+        ),
         ...buildChartBlocks(grupoTickets),
         spacer(80),
       ]
       : []),
 
     // ── Bloque C: Inventario ──────────────────────────────────────────────────
-    ...(grupoInventario.length > 0 || inventarioEquiposTable
+    ...(grupoInventario.length > 0 || inventarioEquiposTables.length > 0
       ? [
-        buildSectionHeader(
+        ...buildSectionHeader(
           "Inventario de equipamiento",
           "Composición tecnológica y detalle operativo de activos registrados"
         ),
-        spacer(80),
 
         ...(grupoInventario.length > 0
           ? [
@@ -988,15 +1121,17 @@ export async function buildAndDownloadReporteIABetaDocx({
           ]
           : []),
 
-        ...(inventarioEquiposTable
+        ...(inventarioEquiposTables.length > 0
           ? [
-            buildSectionHeader(
+            ...buildSectionHeader(
               "Detalle de inventario de equipos",
               "Listado de activos registrados por usuario, estado y especificaciones principales"
             ),
-            spacer(80),
-            inventarioEquiposTable,
-            spacer(120),
+            ...inventarioEquiposTables.flatMap((table, index) => [
+              ...(index > 0 ? [spacer(40)] : []),
+              table,
+            ]),
+            spacer(70),
           ]
           : []),
       ]
@@ -1005,18 +1140,19 @@ export async function buildAndDownloadReporteIABetaDocx({
     // ── Bloque D: Distribución de servicios ───────────────────────────────────
     ...(grupoDistrib.length > 0
       ? [
-        buildSectionHeader("Distribución de servicios", "Tipos de intervención y actividades ejecutadas"),
-        spacer(80),
+        ...buildSectionHeader(
+          "Distribución de servicios",
+          "Tipos de intervención y actividades ejecutadas"
+        ),
         ...buildChartBlocks(grupoDistrib),
-        spacer(80),
+        spacer(50),
       ]
       : []),
 
     // ── Bloque E: Gráficos adicionales sugeridos por IA ───────────────────────
     ...(grupoOtros.length > 0
       ? [
-        buildSectionHeader("Análisis complementario", "Visualizaciones adicionales sugeridas"),
-        spacer(80),
+        ...buildSectionHeader("Análisis complementario", "Visualizaciones adicionales sugeridas"),
         ...buildChartBlocks(grupoOtros),
         spacer(80),
       ]
@@ -1027,6 +1163,7 @@ export async function buildAndDownloadReporteIABetaDocx({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
         new TableRow({
+          cantSplit: true,
           children: [
             new TableCell({
               shading: { fill: THEME.light },
@@ -1072,7 +1209,42 @@ export async function buildAndDownloadReporteIABetaDocx({
   });
 
   const blob = await Packer.toBlob(doc);
-  const safeEmpresa = empresaNombre.replace(/\s+/g, "_").replace(/[^\w-]/g, "");
-  const safePeriodo = (periodoTexto || "Periodo").replace(/\s+/g, "_").replace(/[^\w-]/g, "");
-  saveAs(blob, `Informe_${safeEmpresa}_${safePeriodo}.docx`);
+
+  return blob;
+}
+
+export function buildReporteIABetaFileName(
+  empresaNombre: string,
+  periodoTexto: string
+): string {
+  /*
+    Nombre seguro para descargar o adjuntar el informe IA.
+    Se usa tanto para descarga manual como para correo.
+  */
+  const safeEmpresa = empresaNombre
+    .replace(/\s+/g, "_")
+    .replace(/[^\w-]/g, "");
+
+  const safePeriodo = (periodoTexto || "Periodo")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w-]/g, "");
+
+  return `Informe_${safeEmpresa}_${safePeriodo}.docx`;
+}
+
+export async function buildAndDownloadReporteIABetaDocx(
+  params: BuildReporteIABetaDocxParams
+): Promise<Blob> {
+  /*
+    Mantiene el comportamiento actual:
+    genera el Word IA y lo descarga.
+  */
+  const blob = await buildReporteIABetaDocxBlob(params);
+
+  saveAs(
+    blob,
+    buildReporteIABetaFileName(params.empresaNombre, params.periodoTexto)
+  );
+
+  return blob;
 }

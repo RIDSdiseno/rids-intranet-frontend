@@ -16,6 +16,7 @@ import type {
     EquipoRow,
     EstadoEquipo,
     SolicitanteLite,
+    PropiedadEquipo
 } from "./equipos.types";
 import {
     ADICIONAL_TIPOS,
@@ -24,6 +25,8 @@ import {
     clsx,
     formatRut,
     getAnioPcOrigenLabel,
+    PROPIEDAD_EQUIPO_OPTIONS,
+    getPropiedadEquipoLabel,
 } from "./equipos.helpers";
 
 type Props = {
@@ -80,10 +83,10 @@ const initialForm: EquipoForm = {
     procesador: "",
     ram: "",
     disco: "",
-    propiedad: "",
+    propiedad: "Empresa",
+    propietarioExterno: "",
     observaciones: "",
     estado: "ACTIVO",
-
     macWifi: "",
     redEthernet: "",
     so: "",
@@ -137,7 +140,8 @@ export default function EquipoEditModal({
             procesador: row.procesador || "",
             ram: row.ram || "",
             disco: row.disco || "",
-            propiedad: row.propiedad || "",
+            propiedad: (row.propiedad as PropiedadEquipo) || "Empresa",
+            propietarioExterno: row.propietarioExterno || "",
             observaciones: row.observaciones || "",
             estado: (row.estado ?? "ACTIVO") as EstadoEquipo,
 
@@ -254,6 +258,12 @@ export default function EquipoEditModal({
             }
         }
 
+        if (form.propiedad === "Externo" && !form.propietarioExterno.trim()) {
+            setEditFieldError("propietarioExterno");
+            setEditError("Debes indicar el dueño externo del equipo.");
+            return;
+        }
+
         if (empresaId == null) {
             setEditError("Debes seleccionar una empresa.");
             return;
@@ -270,6 +280,11 @@ export default function EquipoEditModal({
             const hoy = dayjs().format("YYYY-MM-DD");
             const { anioPc, ...baseEditForm } = form;
 
+            const propietarioExterno =
+                form.propiedad === "Externo"
+                    ? form.propietarioExterno.trim()
+                    : null;
+
             const payload: any = {
                 ...baseEditForm,
                 tipo: form.tipo,
@@ -278,6 +293,9 @@ export default function EquipoEditModal({
                 procesador: requiresProcesador ? form.procesador.trim() : "N/A",
                 ram: requiresRam ? form.ram.trim() : "N/A",
                 disco: requiresDisco ? form.disco.trim() : "N/A",
+
+                propiedad: form.propiedad,
+                propietarioExterno,
 
                 revisado: hoy,
                 idSolicitante: solicitanteId,
@@ -318,99 +336,40 @@ export default function EquipoEditModal({
     if (!open || !row) return null;
 
     return (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 lg:p-6"
+        >
             <div className="absolute inset-0 bg-slate-900/40" />
 
-            <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-cyan-200 bg-white shadow-xl">
-                <div className="px-5 py-4 border-b border-cyan-100 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-slate-900">
-                        Editar equipo #{row.id_equipo}
-                    </h3>
+            <div className="relative flex h-[94dvh] w-full max-w-[950px] flex-col overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-2xl">
+                {/* Header */}
+                <div className="shrink-0 border-b border-cyan-100 bg-white px-4 py-3 sm:px-6 lg:px-8">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
+                                Editar equipo #{row.id_equipo}
+                            </h3>
+                            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                                Actualiza la ficha del equipo, datos técnicos, accesos y adicionales.
+                            </p>
+                        </div>
 
-                    <button onClick={handleClose} className="text-slate-500 hover:text-slate-700" aria-label="Cerrar">
-                        ✕
-                    </button>
-                </div>
-
-                {editError && (
-                    <div className="mx-5 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                        <div className="font-semibold">No se pudo guardar el equipo</div>
-                        <div>{editError}</div>
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                            aria-label="Cerrar"
+                        >
+                            ✕
+                        </button>
                     </div>
-                )}
-
-                <div className="px-5 pt-4 grid grid-cols-1 gap-3">
-                    <label className="text-sm">
-                        <span className="block text-slate-700 mb-1">
-                            Empresa <span className="text-rose-500">*</span>
-                        </span>
-
-                        <select
-                            value={empresaId ?? ""}
-                            onChange={(e) => {
-                                const val = e.target.value ? Number(e.target.value) : null;
-                                setEmpresaId(val);
-                                setSolicitanteId(null);
-                                setSolSearch("");
-                                setSolOpts([]);
-                            }}
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                        >
-                            <option value="">— Selecciona empresa —</option>
-                            {empresaOptions.map((opt) => (
-                                <option key={opt.id ?? -1} value={opt.id ?? ""}>
-                                    {opt.nombre}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-
-                    <label className="text-sm">
-                        <span className="block text-slate-700 mb-1">
-                            Solicitante <span className="text-rose-500">*</span>
-                        </span>
-
-                        <div className="flex gap-2">
-                            <input
-                                value={solSearch}
-                                onChange={(e) => setSolSearch(e.target.value)}
-                                placeholder="Buscar por nombre, apellido, email o teléfono…"
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                disabled={empresaId == null}
-                            />
-
-                            {solLoading ? (
-                                <span className="inline-flex items-center px-2 text-slate-500">
-                                    <LoadingOutlined />
-                                </span>
-                            ) : null}
-                        </div>
-
-                        <select
-                            value={solicitanteId ?? ""}
-                            onChange={(e) => setSolicitanteId(e.target.value ? Number(e.target.value) : null)}
-                            className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                            disabled={empresaId == null}
-                        >
-                            <option value="">{solLoading ? "Cargando…" : "— Selecciona —"}</option>
-
-                            {solOpts.map((s) => (
-                                <option key={s.id_solicitante} value={s.id_solicitante}>
-                                    {s.nombre}
-                                    {s.rut ? ` — RUT: ${formatRut(s.rut)}` : ""}
-                                    {s.email ? ` — ${s.email}` : ""}
-                                </option>
-                            ))}
-                        </select>
-
-                        <div className="text-[11px] text-slate-500 mt-1">
-                            Si el equipo cambió de empresa, primero selecciona la nueva empresa para listar sus solicitantes.
-                        </div>
-                    </label>
                 </div>
 
+                {/* Contenido */}
                 <div
-                    className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3"
+                    className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-3 py-4 sm:px-5 lg:px-8 lg:py-6"
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
@@ -418,440 +377,670 @@ export default function EquipoEditModal({
                         }
                     }}
                 >
-                    <label className="text-sm sm:col-span-2">
-                        <span className="block text-slate-700 mb-1">
-                            Tipo de equipo <span className="text-rose-500">*</span>
-                        </span>
+                    <div className="mx-auto w-full max-w-[1320px] space-y-4">
+                        {editError && (
+                            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                                <div className="font-semibold">No se pudo guardar el equipo</div>
+                                <div>{editError}</div>
+                            </div>
+                        )}
 
-                        <select
-                            value={form.tipo}
-                            onChange={(e) => {
-                                const tipo = e.target.value as TipoEquipoValue;
-                                const nextRequired =
-                                    REQUIRED_FIELDS_BY_TIPO[tipo] ?? REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
-
-                                setForm((prev) => ({
-                                    ...prev,
-                                    tipo,
-                                    procesador: nextRequired.procesador ? prev.procesador : "",
-                                    ram: nextRequired.ram ? prev.ram : "",
-                                    disco: nextRequired.disco ? prev.disco : "",
-                                }));
-
-                                setEditError(null);
-                                setEditFieldError(null);
-                            }}
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                        >
-                            {Object.values(TipoEquipo).map((tipo) => (
-                                <option key={tipo} value={tipo}>
-                                    {TipoEquipoLabel[tipo]}
-                                </option>
-                            ))}
-                        </select>
-
-                        <div className="mt-1 text-[11px] text-slate-500">
-                            {requiresProcesador || requiresRam || requiresDisco
-                                ? "Este tipo de equipo requiere datos técnicos específicos."
-                                : "Este tipo de equipo no requiere CPU, RAM ni Disco. Se guardarán como N/A."}
-                        </div>
-                    </label>
-
-                    {[
-                        { key: "serial", label: "Serial", autoCap: true, required: true },
-                        { key: "marca", label: "Marca", autoCap: true, required: true },
-                        { key: "modelo", label: "Modelo", required: true },
-                        {
-                            key: "procesador",
-                            label: requiresProcesador ? "CPU" : "CPU (no aplica)",
-                            required: requiresProcesador,
-                            disabled: !requiresProcesador,
-                        },
-                        {
-                            key: "ram",
-                            label: requiresRam ? "RAM" : "RAM (no aplica)",
-                            required: requiresRam,
-                            disabled: !requiresRam,
-                        },
-                        {
-                            key: "disco",
-                            label: requiresDisco ? "Disco" : "Disco (no aplica)",
-                            required: requiresDisco,
-                            disabled: !requiresDisco,
-                        },
-                        { key: "propiedad", label: "Propiedad", required: true },
-                    ].map((f) => {
-                        const key = f.key as keyof EquipoForm;
-
-                        return (
-                            <label key={String(key)} className="text-sm">
-                                <span className="block text-slate-700 mb-1">
-                                    {f.label} {f.required && <span className="text-rose-500">*</span>}
-                                </span>
-
-                                <input
-                                    required={f.required}
-                                    disabled={f.disabled}
-                                    value={form[key]}
-                                    onChange={(e) => {
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            [key]: e.target.value,
-                                        }));
-
-                                        if (editFieldError === key) {
-                                            setEditFieldError(null);
-                                            setEditError(null);
-                                        }
-                                    }}
-                                    onBlur={(e) => {
-                                        const v = e.target.value.trim();
-                                        const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
-
-                                        if (next !== form[key]) {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                [key]: next,
-                                            }));
-                                        }
-                                    }}
-                                    placeholder={f.label}
-                                    className={clsx(
-                                        "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
-                                        f.disabled
-                                            ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
-                                            : editFieldError === key
-                                                ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
-                                                : "border-cyan-200 focus:ring-cyan-500/30"
-                                    )}
-                                />
-
-                                {editFieldError === key && editError && (
-                                    <div className="mt-1 text-xs font-medium text-rose-600">
-                                        {editError}
-                                    </div>
-                                )}
-                            </label>
-                        );
-                    })}
-
-                    <label className="text-sm">
-                        <span className="block text-slate-700 mb-1">Año PC</span>
-
-                        <input
-                            type="number"
-                            min={2000}
-                            max={new Date().getFullYear() + 1}
-                            value={form.anioPc}
-                            onChange={(e) => {
-                                setAnioPcTouched(true);
-                                setForm((prev) => ({
-                                    ...prev,
-                                    anioPc: e.target.value,
-                                }));
-                            }}
-                            placeholder="Ej: 2022"
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                        />
-
-                        <div className="mt-1 text-[11px] text-slate-500">
-                            Origen actual: {getAnioPcOrigenLabel(row.anioPcOrigen)}.
-                            Si modificas este campo, quedará como manual.
-                        </div>
-                    </label>
-
-                    <label className="text-sm">
-                        <span className="block text-slate-700 mb-1">
-                            Estado del equipo <span className="text-rose-500">*</span>
-                        </span>
-
-                        <select
-                            value={form.estado}
-                            onChange={(e) =>
-                                setForm((prev) => ({
-                                    ...prev,
-                                    estado: e.target.value as EstadoEquipo,
-                                }))
-                            }
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                        >
-                            {ESTADO_EQUIPO_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-
-                    <label className="text-sm sm:col-span-2">
-                        <span className="block text-slate-700 mb-1">Observaciones</span>
-
-                        <textarea
-                            value={form.observaciones}
-                            onChange={(e) =>
-                                setForm((prev) => ({
-                                    ...prev,
-                                    observaciones: e.target.value,
-                                }))
-                            }
-                            rows={3}
-                            maxLength={1000}
-                            placeholder="Ingrese observaciones generales del equipo..."
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 resize-y"
-                        />
-
-                        <div className="mt-1 text-[11px] text-slate-500">
-                            {form.observaciones.length}/1000 caracteres
-                        </div>
-                    </label>
-
-                    <div className="sm:col-span-2 text-[11px] text-slate-500 mt-1">
-                        Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
-                    </div>
-
-                    <section className="sm:col-span-2 mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                            Detalles Técnicos
-                        </h4>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            {[
-                                { key: "macWifi", label: "MAC WiFi", placeholder: "00:1A:2B:3C:4D:5E" },
-                                { key: "redEthernet", label: "MAC Ethernet", placeholder: "00:1A:2B:3C:4D:5F" },
-                                { key: "so", label: "Sistema Operativo", placeholder: "Ej: Windows 11 Pro" },
-                                { key: "tipoDd", label: "Tipo Disco", placeholder: "Ej: SSD / HDD / NVMe" },
-                                { key: "estadoAlm", label: "Estado Almacenamiento", placeholder: "Ej: 97% BUENO" },
-                                { key: "office", label: "Office", placeholder: "Ej: Office 365 / 2019" },
-                                { key: "teamViewer", label: "TeamViewer", placeholder: "ID TeamViewer" },
-                                { key: "claveTv", label: "Clave TeamViewer", placeholder: "Contraseña TeamViewer" },
-                            ].map((f) => {
-                                const key = f.key as keyof EquipoForm;
-
-                                return (
-                                    <label key={String(key)} className="text-sm">
-                                        <span className="block text-slate-600 mb-1">{f.label}</span>
-
-                                        <input
-                                            value={form[key]}
-                                            placeholder={f.placeholder}
-                                            onChange={(e) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    [key]: e.target.value,
-                                                }))
-                                            }
-                                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                        />
-                                    </label>
-                                );
-                            })}
-
-                            <label className="text-sm">
-                                <span className="block text-slate-600 mb-1">Revisado</span>
-
-                                <DatePicker
-                                    allowClear
-                                    value={form.revisado && dayjs(form.revisado).isValid() ? dayjs(form.revisado) : null}
-                                    onChange={(date) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            revisado: date ? date.format("YYYY-MM-DD") : "",
-                                        }))
-                                    }
-                                    format="DD/MM/YYYY"
-                                    className="w-full"
-                                />
-                            </label>
-                        </div>
-                    </section>
-
-                    <section className="sm:col-span-2 mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                        <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                            Accesos y Usuarios
-                        </h4>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                            <div className="sm:col-span-2 font-medium text-slate-600 mt-2">
-                                Administrador RIDS
+                        {/* Relación */}
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-slate-800">
+                                    Relación
+                                </h4>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Empresa y solicitante asociados al equipo.
+                                </p>
                             </div>
 
-                            <input
-                                placeholder="Usuario Admin RIDS"
-                                value={form.adminRidsUsuario}
-                                onChange={(e) => setForm((prev) => ({ ...prev, adminRidsUsuario: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
+                            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">
+                                        Empresa <span className="text-rose-500">*</span>
+                                    </span>
 
-                            <input
-                                placeholder="Contraseña Admin RIDS"
-                                value={form.adminRidsPassword}
-                                onChange={(e) => setForm((prev) => ({ ...prev, adminRidsPassword: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
-
-                            <div className="sm:col-span-2 font-medium text-slate-600 mt-4">
-                                Usuario Empresa
-                            </div>
-
-                            <input
-                                placeholder="Usuario Empresa"
-                                value={form.usuarioEmpresa}
-                                onChange={(e) => setForm((prev) => ({ ...prev, usuarioEmpresa: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
-
-                            <input
-                                placeholder="Contraseña Usuario Empresa"
-                                value={form.passwordEmpresa}
-                                onChange={(e) => setForm((prev) => ({ ...prev, passwordEmpresa: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
-
-                            <div className="sm:col-span-2 font-medium text-slate-600 mt-4">
-                                Usuario Personal
-                            </div>
-
-                            <input
-                                placeholder="Usuario Personal"
-                                value={form.usuarioPersonal}
-                                onChange={(e) => setForm((prev) => ({ ...prev, usuarioPersonal: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
-
-                            <input
-                                placeholder="Contraseña Usuario Personal"
-                                value={form.passwordPersonal}
-                                onChange={(e) => setForm((prev) => ({ ...prev, passwordPersonal: e.target.value }))}
-                                className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
-                            />
-                        </div>
-                    </section>
-
-                    <section className="sm:col-span-2 mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-sm font-semibold text-slate-700">
-                                Adicionales
-                            </h4>
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setAdicionales((prev) => [
-                                        ...prev,
-                                        {
-                                            id: Date.now(),
-                                            tipo: "",
-                                            descripcion: "",
-                                            cantidad: 1,
-                                            serialAdicional: "",
-                                        },
-                                    ])
-                                }
-                                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm border-cyan-200 bg-white hover:bg-cyan-50"
-                            >
-                                <PlusOutlined />
-                                Agregar
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {adicionales.map((a, idx) => (
-                                <div key={`${a.id}-${idx}`} className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-3">
                                     <select
-                                        value={a.tipo || ""}
-                                        onChange={(e) =>
-                                            setAdicionales((prev) =>
-                                                prev.map((x, i) => (i === idx ? { ...x, tipo: e.target.value } : x))
-                                            )
-                                        }
-                                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                        value={empresaId ?? ""}
+                                        onChange={(e) => {
+                                            const val = e.target.value ? Number(e.target.value) : null;
+                                            setEmpresaId(val);
+                                            setSolicitanteId(null);
+                                            setSolSearch("");
+                                            setSolOpts([]);
+                                        }}
+                                        className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                     >
-                                        <option value="">Selecciona un tipo</option>
-                                        {ADICIONAL_TIPOS.map((tipo) => (
-                                            <option key={tipo} value={tipo}>
-                                                {tipo}
+                                        <option value="">— Selecciona empresa —</option>
+                                        {empresaOptions.map((opt) => (
+                                            <option key={opt.id ?? -1} value={opt.id ?? ""}>
+                                                {opt.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">
+                                        Solicitante <span className="text-rose-500">*</span>
+                                    </span>
+
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={solSearch}
+                                            onChange={(e) => setSolSearch(e.target.value)}
+                                            placeholder="Buscar por nombre, apellido, email o teléfono…"
+                                            className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                            disabled={empresaId == null}
+                                        />
+
+                                        {solLoading ? (
+                                            <span className="inline-flex items-center px-2 text-slate-500">
+                                                <LoadingOutlined />
+                                            </span>
+                                        ) : null}
+                                    </div>
+
+                                    <select
+                                        value={solicitanteId ?? ""}
+                                        onChange={(e) => setSolicitanteId(e.target.value ? Number(e.target.value) : null)}
+                                        className="mt-2 w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                        disabled={empresaId == null}
+                                    >
+                                        <option value="">{solLoading ? "Cargando…" : "— Selecciona —"}</option>
+
+                                        {solOpts.map((s) => (
+                                            <option key={s.id_solicitante} value={s.id_solicitante}>
+                                                {s.nombre}
+                                                {s.rut ? ` — RUT: ${formatRut(s.rut)}` : ""}
+                                                {s.email ? ` — ${s.email}` : ""}
                                             </option>
                                         ))}
                                     </select>
 
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={String(a.cantidad ?? 1)}
-                                        onChange={(e) =>
-                                            setAdicionales((prev) =>
-                                                prev.map((x, i) =>
-                                                    i === idx ? { ...x, cantidad: Number(e.target.value) || 1 } : x
-                                                )
-                                            )
-                                        }
-                                        placeholder="Cantidad"
-                                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                    />
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                        Si el equipo cambió de empresa, primero selecciona la nueva empresa para listar sus solicitantes.
+                                    </div>
+                                </label>
+                            </div>
+                        </section>
 
-                                    <input
-                                        value={a.descripcion || ""}
-                                        onChange={(e) =>
-                                            setAdicionales((prev) =>
-                                                prev.map((x, i) => (i === idx ? { ...x, descripcion: e.target.value } : x))
-                                            )
-                                        }
-                                        placeholder="Descripción"
-                                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                    />
+                        {/* Datos principales */}
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-slate-800">
+                                    Datos principales
+                                </h4>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Información base del equipo, estado, propiedad y características generales.
+                                </p>
+                            </div>
 
-                                    <div className="flex gap-2">
-                                        <input
-                                            value={a.serialAdicional || ""}
-                                            onChange={(e) =>
-                                                setAdicionales((prev) =>
-                                                    prev.map((x, i) =>
-                                                        i === idx ? { ...x, serialAdicional: e.target.value } : x
-                                                    )
-                                                )
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                <label className="text-sm sm:col-span-2 xl:col-span-3">
+                                    <span className="mb-1 block text-slate-700">
+                                        Tipo de equipo <span className="text-rose-500">*</span>
+                                    </span>
+
+                                    <select
+                                        value={form.tipo}
+                                        onChange={(e) => {
+                                            const tipo = e.target.value as TipoEquipoValue;
+                                            const nextRequired =
+                                                REQUIRED_FIELDS_BY_TIPO[tipo] ?? REQUIRED_FIELDS_BY_TIPO[TipoEquipo.GENERICO];
+
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                tipo,
+                                                procesador: nextRequired.procesador ? prev.procesador : "",
+                                                ram: nextRequired.ram ? prev.ram : "",
+                                                disco: nextRequired.disco ? prev.disco : "",
+                                            }));
+
+                                            setEditError(null);
+                                            setEditFieldError(null);
+                                        }}
+                                        className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                    >
+                                        {Object.values(TipoEquipo).map((tipo) => (
+                                            <option key={tipo} value={tipo}>
+                                                {TipoEquipoLabel[tipo]}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                        {requiresProcesador || requiresRam || requiresDisco
+                                            ? "Este tipo de equipo requiere datos técnicos específicos."
+                                            : "Este tipo de equipo no requiere CPU, RAM ni Disco. Se guardarán como N/A."}
+                                    </div>
+                                </label>
+
+                                {[
+                                    { key: "serial", label: "Serial", autoCap: true, required: true },
+                                    { key: "marca", label: "Marca", autoCap: true, required: true },
+                                    { key: "modelo", label: "Modelo", required: true },
+                                    {
+                                        key: "procesador",
+                                        label: requiresProcesador ? "CPU" : "CPU (no aplica)",
+                                        required: requiresProcesador,
+                                        disabled: !requiresProcesador,
+                                    },
+                                    {
+                                        key: "ram",
+                                        label: requiresRam ? "RAM" : "RAM (no aplica)",
+                                        required: requiresRam,
+                                        disabled: !requiresRam,
+                                    },
+                                    {
+                                        key: "disco",
+                                        label: requiresDisco ? "Disco" : "Disco (no aplica)",
+                                        required: requiresDisco,
+                                        disabled: !requiresDisco,
+                                    },
+                                ].map((f) => {
+                                    const key = f.key as keyof EquipoForm;
+
+                                    return (
+                                        <label key={String(key)} className="text-sm">
+                                            <span className="mb-1 block text-slate-700">
+                                                {f.label} {f.required && <span className="text-rose-500">*</span>}
+                                            </span>
+
+                                            <input
+                                                required={f.required}
+                                                disabled={f.disabled}
+                                                value={form[key]}
+                                                onChange={(e) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        [key]: e.target.value,
+                                                    }));
+
+                                                    if (editFieldError === key) {
+                                                        setEditFieldError(null);
+                                                        setEditError(null);
+                                                    }
+                                                }}
+                                                onBlur={(e) => {
+                                                    const v = e.target.value.trim();
+                                                    const next = f.autoCap ? v.toUpperCase() : v.replace(/\s{2,}/g, " ");
+
+                                                    if (next !== form[key]) {
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            [key]: next,
+                                                        }));
+                                                    }
+                                                }}
+                                                placeholder={f.label}
+                                                className={clsx(
+                                                    "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                                                    f.disabled
+                                                        ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                                        : editFieldError === key
+                                                            ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                                            : "border-cyan-200 focus:ring-cyan-500/30"
+                                                )}
+                                            />
+
+                                            {editFieldError === key && editError && (
+                                                <div className="mt-1 text-xs font-medium text-rose-600">
+                                                    {editError}
+                                                </div>
+                                            )}
+                                        </label>
+                                    );
+                                })}
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">
+                                        Pertenencia <span className="text-rose-500">*</span>
+                                    </span>
+
+                                    <select
+                                        value={form.propiedad || "Empresa"}
+                                        onChange={(e) => {
+                                            const propiedad = e.target.value as PropiedadEquipo;
+
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                propiedad,
+                                                propietarioExterno:
+                                                    propiedad === "Externo" ? prev.propietarioExterno : "",
+                                            }));
+
+                                            if (editFieldError === "propiedad" || editFieldError === "propietarioExterno") {
+                                                setEditFieldError(null);
+                                                setEditError(null);
                                             }
-                                            placeholder="Serial adicional"
-                                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm border-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                        }}
+                                        className={clsx(
+                                            "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                                            editFieldError === "propiedad"
+                                                ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                                : "border-cyan-200 focus:ring-cyan-500/30"
+                                        )}
+                                    >
+                                        {PROPIEDAD_EQUIPO_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                {form.propiedad === "Externo" && (
+                                    <label className="text-sm">
+                                        <span className="mb-1 block text-slate-700">
+                                            Dueño externo <span className="text-rose-500">*</span>
+                                        </span>
+
+                                        <input
+                                            value={form.propietarioExterno}
+                                            onChange={(e) => {
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    propietarioExterno: e.target.value,
+                                                }));
+
+                                                if (editFieldError === "propietarioExterno") {
+                                                    setEditFieldError(null);
+                                                    setEditError(null);
+                                                }
+                                            }}
+                                            onBlur={(e) => {
+                                                const next = e.target.value.trim().replace(/\s{2,}/g, " ");
+
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    propietarioExterno: next,
+                                                }));
+                                            }}
+                                            placeholder="Ej: RUT 12.345.678-9 o Empresa Externa SpA"
+                                            maxLength={200}
+                                            className={clsx(
+                                                "w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2",
+                                                editFieldError === "propietarioExterno"
+                                                    ? "border-rose-400 bg-rose-50 focus:ring-rose-500/30"
+                                                    : "border-cyan-200 focus:ring-cyan-500/30"
+                                            )}
                                         />
 
-                                        <button
-                                            type="button"
-                                            onClick={() => setAdicionales((prev) => prev.filter((_, i) => i !== idx))}
-                                            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
-                                        >
-                                            Quitar
-                                        </button>
+                                        {editFieldError === "propietarioExterno" && editError && (
+                                            <div className="mt-1 text-xs font-medium text-rose-600">
+                                                {editError}
+                                            </div>
+                                        )}
+                                    </label>
+                                )}
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">Año PC</span>
+
+                                    <input
+                                        type="number"
+                                        min={2000}
+                                        max={new Date().getFullYear() + 1}
+                                        value={form.anioPc}
+                                        onChange={(e) => {
+                                            setAnioPcTouched(true);
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                anioPc: e.target.value,
+                                            }));
+                                        }}
+                                        placeholder="Ej: 2022"
+                                        className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                    />
+
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                        Origen actual: {getAnioPcOrigenLabel(row.anioPcOrigen)}.
+                                        Si modificas este campo, quedará como manual.
+                                    </div>
+                                </label>
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-700">
+                                        Estado del equipo <span className="text-rose-500">*</span>
+                                    </span>
+
+                                    <select
+                                        value={form.estado}
+                                        onChange={(e) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                estado: e.target.value as EstadoEquipo,
+                                            }))
+                                        }
+                                        className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                    >
+                                        {ESTADO_EQUIPO_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="text-sm sm:col-span-2 xl:col-span-3">
+                                    <span className="mb-1 block text-slate-700">Observaciones</span>
+
+                                    <textarea
+                                        value={form.observaciones}
+                                        onChange={(e) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                observaciones: e.target.value,
+                                            }))
+                                        }
+                                        rows={3}
+                                        maxLength={1000}
+                                        placeholder="Ingrese observaciones generales del equipo..."
+                                        className="w-full resize-y rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                    />
+
+                                    <div className="mt-1 text-[11px] text-slate-500">
+                                        {form.observaciones.length}/1000 caracteres
+                                    </div>
+                                </label>
+
+                                <div className="text-[11px] text-slate-500 sm:col-span-2 xl:col-span-3">
+                                    Los campos marcados con <span className="text-rose-500">*</span> son obligatorios.
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Detalles técnicos */}
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-slate-800">
+                                    Detalles técnicos
+                                </h4>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Conectividad, sistema operativo, almacenamiento, Office y acceso remoto.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                                {[
+                                    { key: "macWifi", label: "MAC WiFi", placeholder: "00:1A:2B:3C:4D:5E" },
+                                    { key: "redEthernet", label: "MAC Ethernet", placeholder: "00:1A:2B:3C:4D:5F" },
+                                    { key: "so", label: "Sistema Operativo", placeholder: "Ej: Windows 11 Pro" },
+                                    { key: "tipoDd", label: "Tipo Disco", placeholder: "Ej: SSD / HDD / NVMe" },
+                                    { key: "estadoAlm", label: "Estado Almacenamiento", placeholder: "Ej: 97% BUENO" },
+                                    { key: "office", label: "Office", placeholder: "Ej: Office 365 / 2019" },
+                                    { key: "teamViewer", label: "TeamViewer", placeholder: "ID TeamViewer" },
+                                    { key: "claveTv", label: "Clave TeamViewer", placeholder: "Contraseña TeamViewer" },
+                                ].map((f) => {
+                                    const key = f.key as keyof EquipoForm;
+
+                                    return (
+                                        <label key={String(key)} className="text-sm">
+                                            <span className="mb-1 block text-slate-600">{f.label}</span>
+
+                                            <input
+                                                value={form[key]}
+                                                placeholder={f.placeholder}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        [key]: e.target.value,
+                                                    }))
+                                                }
+                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                            />
+                                        </label>
+                                    );
+                                })}
+
+                                <label className="text-sm">
+                                    <span className="mb-1 block text-slate-600">Revisado</span>
+
+                                    <DatePicker
+                                        allowClear
+                                        value={form.revisado && dayjs(form.revisado).isValid() ? dayjs(form.revisado) : null}
+                                        onChange={(date) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                revisado: date ? date.format("YYYY-MM-DD") : "",
+                                            }))
+                                        }
+                                        format="DD/MM/YYYY"
+                                        className="w-full"
+                                    />
+                                </label>
+                            </div>
+                        </section>
+
+                        {/* Accesos y usuarios */}
+                        <section className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-slate-800">
+                                    Accesos y usuarios
+                                </h4>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Credenciales registradas para administración y usuarios del equipo.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 text-sm xl:grid-cols-3">
+                                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                                    <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                        Administrador RIDS
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <input
+                                            placeholder="Usuario Admin RIDS"
+                                            value={form.adminRidsUsuario}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, adminRidsUsuario: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
+
+                                        <input
+                                            placeholder="Contraseña Admin RIDS"
+                                            value={form.adminRidsPassword}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, adminRidsPassword: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </section>
+
+                                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                                    <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                        Usuario Empresa
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <input
+                                            placeholder="Usuario Empresa"
+                                            value={form.usuarioEmpresa}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, usuarioEmpresa: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
+
+                                        <input
+                                            placeholder="Contraseña Usuario Empresa"
+                                            value={form.passwordEmpresa}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, passwordEmpresa: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                                    <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                        Usuario Personal
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <input
+                                            placeholder="Usuario Personal"
+                                            value={form.usuarioPersonal}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, usuarioPersonal: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
+
+                                        <input
+                                            placeholder="Contraseña Usuario Personal"
+                                            value={form.passwordPersonal}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, passwordPersonal: e.target.value }))}
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Adicionales */}
+                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h4 className="text-sm font-semibold text-slate-800">
+                                        Adicionales
+                                    </h4>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Periféricos, accesorios u otros elementos asociados al equipo.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setAdicionales((prev) => [
+                                            ...prev,
+                                            {
+                                                id: Date.now(),
+                                                tipo: "",
+                                                descripcion: "",
+                                                cantidad: 1,
+                                                serialAdicional: "",
+                                            },
+                                        ])
+                                    }
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm hover:bg-cyan-50 sm:w-auto"
+                                >
+                                    <PlusOutlined />
+                                    Agregar
+                                </button>
+                            </div>
+
+                            {adicionales.length === 0 ? (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                    Sin adicionales registrados.
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {adicionales.map((a, idx) => (
+                                        <div
+                                            key={`${a.id}-${idx}`}
+                                            className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4"
+                                        >
+                                            <select
+                                                value={a.tipo || ""}
+                                                onChange={(e) =>
+                                                    setAdicionales((prev) =>
+                                                        prev.map((x, i) => (i === idx ? { ...x, tipo: e.target.value } : x))
+                                                    )
+                                                }
+                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                            >
+                                                <option value="">Selecciona un tipo</option>
+                                                {ADICIONAL_TIPOS.map((tipo) => (
+                                                    <option key={tipo} value={tipo}>
+                                                        {tipo}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={String(a.cantidad ?? 1)}
+                                                onChange={(e) =>
+                                                    setAdicionales((prev) =>
+                                                        prev.map((x, i) =>
+                                                            i === idx ? { ...x, cantidad: Number(e.target.value) || 1 } : x
+                                                        )
+                                                    )
+                                                }
+                                                placeholder="Cantidad"
+                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                            />
+
+                                            <input
+                                                value={a.descripcion || ""}
+                                                onChange={(e) =>
+                                                    setAdicionales((prev) =>
+                                                        prev.map((x, i) => (i === idx ? { ...x, descripcion: e.target.value } : x))
+                                                    )
+                                                }
+                                                placeholder="Descripción"
+                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                            />
+
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={a.serialAdicional || ""}
+                                                    onChange={(e) =>
+                                                        setAdicionales((prev) =>
+                                                            prev.map((x, i) =>
+                                                                i === idx ? { ...x, serialAdicional: e.target.value } : x
+                                                            )
+                                                        )
+                                                    }
+                                                    placeholder="Serial adicional"
+                                                    className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                                />
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAdicionales((prev) => prev.filter((_, i) => i !== idx))}
+                                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
+                                                >
+                                                    Quitar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    </div>
                 </div>
 
-                <div className="px-5 py-4 border-t border-cyan-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end bg-slate-50">
-                    <button
-                        onClick={handleClose}
-                        disabled={saving}
-                        className={clsx(
-                            "inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm",
-                            "border-slate-200 text-slate-700 bg-white hover:bg-slate-100",
-                            saving && "opacity-50 cursor-not-allowed"
-                        )}
-                    >
-                        Cancelar
-                    </button>
+                {/* Footer */}
+                <div className="shrink-0 border-t border-cyan-100 bg-white px-4 py-3 sm:px-6 lg:px-8">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            disabled={saving}
+                            className={clsx(
+                                "inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm sm:w-auto",
+                                "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                                saving && "cursor-not-allowed opacity-50"
+                            )}
+                        >
+                            Cancelar
+                        </button>
 
-                    <button
-                        onClick={save}
-                        disabled={saving}
-                        className={clsx(
-                            "inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium text-white",
-                            "bg-gradient-to-tr from-indigo-600 to-cyan-600 hover:brightness-110",
-                            saving && "opacity-60 cursor-not-allowed"
-                        )}
-                    >
-                        {saving ? "Guardando…" : "Guardar cambios"}
-                    </button>
+                        <button
+                            type="button"
+                            onClick={save}
+                            disabled={saving}
+                            className={clsx(
+                                "inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium text-white sm:w-auto",
+                                "bg-gradient-to-tr from-indigo-600 to-cyan-600 hover:brightness-110",
+                                saving && "cursor-not-allowed opacity-60"
+                            )}
+                        >
+                            {saving ? "Guardando…" : "Guardar cambios"}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

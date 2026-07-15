@@ -1,6 +1,7 @@
 import React from "react";
 import { Modal, Button, Popconfirm } from "antd";
 import type { AgendaVisita } from "./tiposAgenda";
+import { getAgendaEstadoBadgeStyle, getAgendaEstadoLabel } from "./tiposAgenda";
 import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
 
 export interface DetalleVisitaProps {
@@ -53,6 +54,21 @@ export function DetalleVisita({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, marginTop: 4 }}>
         <div>
+          <span style={{ color: "#94a3b8" }}>Estado: </span>
+          <span
+            style={{
+              ...getAgendaEstadoBadgeStyle(visita.estado),
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 800,
+              padding: "2px 8px",
+            }}
+          >
+            {getAgendaEstadoLabel(visita.estado)}
+          </span>
+        </div>
+
+        <div>
           <span style={{ color: "#94a3b8" }}>Empresa: </span>
           <strong style={{ color: "#dc2626" }}>
             {nombreEmpresa}
@@ -83,6 +99,54 @@ export function DetalleVisita({
             <span style={{ color: "#334155" }}>{visita.tipo}</span>
           </div>
         )}
+
+        {visita.fechaInicioRuta && (
+          <div>
+            <span style={{ color: "#94a3b8" }}>Inicio ruta: </span>
+            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioRuta).toLocaleString("es-CL")}</span>
+          </div>
+        )}
+
+        {visita.fechaInicioVisita && (
+          <div>
+            <span style={{ color: "#94a3b8" }}>Inicio visita: </span>
+            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioVisita).toLocaleString("es-CL")}</span>
+          </div>
+        )}
+
+        <div
+          style={{
+            borderRadius: 8,
+            border: "1px solid #e2e8f0",
+            background: visita.visita ? "#f8fafc" : "#fff7ed",
+            padding: "8px 10px",
+            marginTop: 4,
+          }}
+        >
+          <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+            Formulario asociado
+          </div>
+          {visita.visita ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
+              <span style={{ color: "#0f172a", fontWeight: 700 }}>
+                Visita #{visita.visita.id_visita}
+              </span>
+              <span style={{ color: "#475569", fontSize: 12 }}>
+                Estado: {visita.visita.status ?? "Sin estado"} · Origen: {visita.visita.origen ?? "AGENDA"}
+              </span>
+              {(visita.visita.inicio || visita.visita.fin) && (
+                <span style={{ color: "#475569", fontSize: 12 }}>
+                  {visita.visita.inicio ? new Date(visita.visita.inicio).toLocaleString("es-CL") : "--"}{" "}
+                  - {visita.visita.fin ? new Date(visita.visita.fin).toLocaleString("es-CL") : "En curso"}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span style={{ color: "#9a3412", fontSize: 13 }}>
+              Sin formulario de visita asociado.
+            </span>
+          )}
+        </div>
 
         {visita.notas && (
           <div>

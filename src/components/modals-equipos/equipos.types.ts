@@ -17,6 +17,8 @@ export type EquipoAdicional = {
   serialAdicional?: string | null;
 };
 
+export type PropiedadEquipo = "Empresa" | "Personal" | "Externo";
+
 export type EquipoRow = {
   id_equipo: number;
   serial: string | null;
@@ -28,7 +30,8 @@ export type EquipoRow = {
   procesador: string | null;
   ram: string | null;
   disco: string | null;
-  propiedad: string | null;
+  propiedad?: PropiedadEquipo | string | null;
+  propietarioExterno?: string | null;
   observaciones?: string | null;
 
   solicitante: string | null;
@@ -41,6 +44,23 @@ export type EquipoRow = {
 
   createdAt: string;
   updatedAt: string;
+
+  hostname?: string | null;
+  usuarioActual?: string | null;
+  dominio?: string | null;
+  localIp?: string | null;
+  publicIp?: string | null;
+  macAddress?: string | null;
+
+  ramGb?: number | null;
+  diskTotalGb?: number | null;
+  diskFreeGb?: number | null;
+
+  lastBootAt?: string | null;
+  lastSeenAt?: string | null;
+  agenteVersion?: string | null;
+  agenteActivo?: boolean | null;
+  estadoAgente?: EstadoAgente | null;
 
   macWifi?: string | null;
   redEthernet?: string | null;
@@ -60,6 +80,14 @@ export type EquipoRow = {
 
   adicionales?: EquipoAdicional[];
   estado?: EstadoEquipo | null;
+
+  mantGeneralInstalado?: boolean | null;
+  mantGeneralVersion?: string | null;
+  mantGeneralLastSeenAt?: string | null;
+  mantGeneralInstalledAt?: string | null;
+  mantGeneralConfigPath?: string | null;
+  mantGeneralExePath?: string | null;
+  mantGeneralTecnicoId?: number | null;
 };
 
 export type EmpresaOpt = {
@@ -83,9 +111,12 @@ export type HistChange = {
   after: unknown;
 };
 
-export type ActorLite = {
-  nombre: string;
-} | string;
+export type ActorLite =
+  | {
+    nombre?: string | null;
+    email?: string | null;
+  }
+  | string;
 
 export type EquipoHistorialItem = {
   id?: string | number;
@@ -106,7 +137,8 @@ export type EquipoForm = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad: PropiedadEquipo;
+  propietarioExterno: string;
   observaciones: string;
 
   macWifi: string;
@@ -229,7 +261,8 @@ export type EquipoDTO = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad?: PropiedadEquipo | string | null;
+  propietarioExterno?: string | null;
   estado: EstadoEquipo;
   observaciones?: string | null;
   idSolicitante: number;
@@ -254,7 +287,8 @@ export type CreateEquipoPayload = {
   procesador: string;
   ram: string;
   disco: string;
-  propiedad: string;
+  propiedad: PropiedadEquipo;
+  propietarioExterno?: string | null;
   estado: EstadoEquipo;
   observaciones?: string | null;
 
@@ -303,4 +337,42 @@ export type ListSolicitantesResponse = {
     empresaId: number | null;
     empresa: { id_empresa: number; nombre: string } | null;
   }>;
+};
+
+export type EquipoMantencion = {
+  id: number;
+  equipoId: number;
+  tecnicoId?: number | null;
+  tecnico?: {
+    id_tecnico: number;
+    nombre: string;
+    email: string;
+    rol?: string | null;
+    status?: boolean | null;
+  } | null;
+  tipo: string;
+  estado: "COMPLETADA" | "COMPLETADA_CON_ADVERTENCIAS" | "CANCELADA" | string;
+  origen: string;
+
+  fechaInicio: string;
+  fechaFin?: string | null;
+  duracionSegundos?: number | null;
+  duracionTexto?: string | null;
+
+  tareasRealizadas: string[];
+  tareasConError: string[];
+
+  resumen?: string | null;
+  reporteTexto?: string | null;
+
+  serial?: string | null;
+  hostname?: string | null;
+  usuarioActual?: string | null;
+  localIp?: string | null;
+  macAddress?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  agenteVersion?: string | null;
+
+  createdAt: string;
 };
