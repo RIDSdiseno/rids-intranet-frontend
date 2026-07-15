@@ -113,6 +113,21 @@ export function DiaAgenda({
                         {v.tipo && (
                           <span style={{ fontSize: 11, color: "#94a3b8" }}>{v.tipo}</span>
                         )}
+                        {v.visitaId && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: "#1d4ed8",
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: 999,
+                              fontWeight: 800,
+                              padding: "1px 6px",
+                            }}
+                          >
+                            Visita #{v.visitaId}
+                          </span>
+                        )}
                         <span
                           style={{
                             ...getAgendaEstadoBadgeStyle(v.estado),

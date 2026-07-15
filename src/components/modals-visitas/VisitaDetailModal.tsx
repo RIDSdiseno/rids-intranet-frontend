@@ -12,6 +12,17 @@ import {
 export type VisitaEmpresa = { id_empresa: number; nombre: string };
 export type VisitaTecnico = { id_tecnico: number; nombre: string };
 export type VisitaSucursal = { id_sucursal: number; nombre: string };
+export type VisitaAgendaResumen = {
+  id: number;
+  fecha?: string | null;
+  estado?: string | null;
+  horaInicio?: string | null;
+  horaFin?: string | null;
+  fechaInicioRuta?: string | null;
+  fechaInicioVisita?: string | null;
+  empresaExternaNombre?: string | null;
+  empresa?: VisitaEmpresa | null;
+};
 
 export type VisitaDetail = {
   id_visita: number;
@@ -44,6 +55,9 @@ export type VisitaDetail = {
   rendimientoEquipo?: boolean;
 
   status: string;
+  agendaId?: number | null;
+  origen?: "MANUAL" | "AGENDA" | string | null;
+  agenda?: VisitaAgendaResumen | null;
   empresa?: VisitaEmpresa | null;
   tecnico?: VisitaTecnico | null;
 };
@@ -128,6 +142,13 @@ function statusStyles(statusRaw?: string) {
   if (s.includes("PEND")) return "bg-amber-50 text-amber-800 border border-amber-200";
   if (s.includes("CANCEL")) return "bg-rose-50 text-rose-800 border border-rose-200";
   return "bg-neutral-50 text-neutral-700 border border-neutral-200";
+}
+
+function origenLabel(origen?: string | null) {
+  const key = String(origen ?? "MANUAL").toUpperCase();
+  if (key === "AGENDA") return "Agenda";
+  if (key === "MANUAL") return "Manual";
+  return origen ?? "Manual";
 }
 
 // Componente para mostrar un chip con estilo
@@ -221,6 +242,7 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
 
   const empresaName = visita.empresa?.nombre ?? `#${visita.empresaId}`;
   const tecnicoName = visita.tecnico?.nombre ?? `#${visita.tecnicoId}`;
+  const esAgenda = String(visita.origen ?? "").toUpperCase() === "AGENDA";
 
   const BoolRow: React.FC<{ ok?: boolean; label: string }> = ({ ok, label }) => (
     <div className="flex items-center gap-2 text-sm">
@@ -282,6 +304,11 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
               >
                 {visita.status}
               </span>
+              {esAgenda && (
+                <span className="px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium bg-white/15 text-white ring-1 ring-white/30">
+                  Agenda #{visita.agendaId ?? visita.agenda?.id ?? "—"}
+                </span>
+              )}
               <button
                 onClick={onClose}
                 className="p-2.5 rounded-lg text-white/90 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
@@ -331,6 +358,36 @@ const VisitaDetailModal: React.FC<Props> = ({ open, onClose, visita }) => {
 
               <Row label="Sucursal">
                 {visita.sucursal?.nombre ?? "—"}
+              </Row>
+
+              <Row label="Origen">
+                <div className="flex flex-col gap-1">
+                  <span
+                    className={[
+                      "inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                      esAgenda
+                        ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                        : "bg-slate-50 text-slate-700 ring-1 ring-slate-200",
+                    ].join(" ")}
+                  >
+                    {origenLabel(visita.origen)}
+                  </span>
+                  {esAgenda ? (
+                    visita.agenda ? (
+                      <span className="text-sm text-neutral-700">
+                        Agenda #{visita.agenda.id}
+                        {visita.agenda.fecha ? ` · ${fmtDateTime(visita.agenda.fecha)}` : ""}
+                        {visita.agenda.estado ? ` · ${visita.agenda.estado}` : ""}
+                      </span>
+                    ) : visita.agendaId ? (
+                      <span className="text-sm text-amber-700">
+                        Agenda #{visita.agendaId} no encontrada o eliminada.
+                      </span>
+                    ) : (
+                      <span className="text-sm text-neutral-500">Sin agenda asociada.</span>
+                    )
+                  ) : null}
+                </div>
               </Row>
 
               <Row label="Duración">

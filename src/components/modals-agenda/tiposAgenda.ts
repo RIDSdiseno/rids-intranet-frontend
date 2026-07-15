@@ -12,6 +12,17 @@ export interface Empresa {
   nombre: string;
 }
 
+export type OrigenVisita = "MANUAL" | "AGENDA";
+
+export interface FormularioVisitaAsociada {
+  id_visita: number;
+  agendaId?: number | null;
+  status: string;
+  origen: OrigenVisita | string;
+  inicio?: string | null;
+  fin?: string | null;
+}
+
 export type EstadoAgenda =
   | "PROGRAMADA"
   | "NOTIFICADA"
@@ -78,6 +89,10 @@ export interface AgendaVisita {
   horaFin?: string | null;
   fechaInicioRuta?: string | null;
   fechaInicioVisita?: string | null;
+  visitaId?: number | null;
+  visitaStatus?: string | null;
+  visitaOrigen?: OrigenVisita | string | null;
+  visita?: FormularioVisitaAsociada | null;
   notas?: string | null;
 }
 import type { CSSProperties } from "react";
