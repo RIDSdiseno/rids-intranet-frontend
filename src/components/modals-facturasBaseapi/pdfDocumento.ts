@@ -29,6 +29,28 @@ import {
 } from "./utils";
 import type { utils } from "xlsx-js-style";
 
+function extractTimbreFrmtFromXml(xmlRaw: string): string | null {
+    if (!xmlRaw) return null;
+
+    try {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlRaw, "text/xml");
+
+        const all = Array.from(xml.getElementsByTagName("*")) as any[];
+        const ted = all.find((el) => el.localName === "TED");
+
+        if (!ted) return null;
+
+        const frmtEl = (Array.from(ted.getElementsByTagName("*")) as any[]).find((el) => el.localName === "FRMT");
+
+        const txt = frmtEl?.textContent?.trim() ?? null;
+
+        return txt || null;
+    } catch (err) {
+        return null;
+    }
+}
+
 import {
     prepararContenedorPdf,
     getHtml2CanvasPdfOptions,
@@ -42,6 +64,7 @@ export async function generarPdfDocumentoSeleccionado(params: {
     mes: string;
     ano: string;
     autoDownload?: boolean;
+    observacion?: string | null;
 }): Promise<{
     blob: Blob;
     url: string;
@@ -65,6 +88,17 @@ export async function generarPdfDocumentoSeleccionado(params: {
     const dteVisual = parseDteXml(xmlDecodificado);
 
     const itemsVisuales = getItemsVisualesParaPdf(detalleDte);
+
+    // Intentamos obtener el timbre desde la respuesta del backend o extrayéndolo del XML
+    const timbreBase64FromResponse =
+        (detalleDte && (
+            detalleDte.timbre_base64 ??
+            detalleDte.data?.documento?.timbre_base64 ??
+            detalleDte.documento?.timbre_base64 ??
+            null
+        )) ?? null;
+
+    const timbreBase64 = timbreBase64FromResponse || extractTimbreFrmtFromXml(xmlDecodificado);
 
     const folio =
         dteDocumento?.folio ??
@@ -234,10 +268,8 @@ export async function generarPdfDocumentoSeleccionado(params: {
             </tr>
         `;
 
-    const observacion =
-        itemsVisuales.length > 0
-            ? "Documento generado con información del RCV y detalle de ítems del DTE."
-            : "Este PDF muestra la información general del documento. El detalle de productos o servicios aún no está sincronizado.";
+    // Observación por defecto: vacía. Puede ser provista por quien genera el PDF (por ejemplo, el modal Recordatorio).
+    const observacion = params.observacion ?? "";
 
     const fechaImpresion = new Date().toLocaleString("es-CL", {
         day: "2-digit",
@@ -488,6 +520,21 @@ export async function generarPdfDocumentoSeleccionado(params: {
         color: #6b7280;
         font-size: 10px;
     }
+
+    .timbre {
+        position: absolute;
+        left: 54px;
+        bottom: 90px;
+    }
+
+    .timbre-img {
+        width: 160px;
+        height: auto;
+        object-fit: contain;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        padding: 6px;
+    }
 </style>
 </head>
 <body>
@@ -588,6 +635,9 @@ export async function generarPdfDocumentoSeleccionado(params: {
     <div class="observaciones">
         <div style="margin-bottom:4px;">Observaciones</div>
         ${escapeHtml(observacion)}
+    </div>
+    <div class="timbre">
+        ${timbreBase64 ? `<img src="data:image/png;base64,${timbreBase64}" class="timbre-img"/>` : ``}
     </div>
 
     <div class="footer">

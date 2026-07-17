@@ -19,6 +19,9 @@ const ReportesPage = lazy(() => import("./host/Reportes"));
 const DocumentosPage = lazy(() => import("./host/DocumentosPage"));
 const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
+const CotizacionesEnviadasPage = lazy(() => import("./host/CotizacionesEnviadas"));
+const MailerPage = lazy(() => import("./host/Mailer"));
+const CobranzaPage = lazy(() => import("./host/Cobranza"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
 const FacturasDashboardPage = lazy(() => import("./host/FacturasDashboard"));
@@ -215,6 +218,8 @@ export default function App() {
               <Route path="/reportes" element={<ReportesPage />} />
               <Route path="/ordenes-taller" element={<OrdenesTallerPage />} />
               <Route path="/Cotizaciones" element={<CotizacionesPage />} />
+              <Route path="/rids/mailer" element={<MailerPage />} />
+              <Route path="/Cotizaciones/enviadas" element={<CotizacionesEnviadasPage />} />
             </Route>
 
             {/* ── Técnicos ─────────────────────────────────────────────── */}
@@ -240,6 +245,11 @@ export default function App() {
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
               <Route path="/facturas" element={<FacturasBaseapiPage />} />
               <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
+            </Route>
+
+            {/* ── Cobranza (acceso restringido) ───────────────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "VENTAS"]} />}>
+              <Route path="/facturas/cobranza" element={<CobranzaPage />} />
             </Route>
 
           </Route>

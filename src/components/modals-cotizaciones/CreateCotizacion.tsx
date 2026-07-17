@@ -45,6 +45,7 @@ interface CreateCotizacionModalProps {
     onUpdateItem: (id: number, field: string, value: any) => void;
     onRemoveItem: (id: number) => void;
     onCrearCotizacion: () => void;
+    onCrearYEnviarCotizacion?: () => void;
     onCrearEmpresa: () => void;
     onCrearProducto: () => void;
     onCrearPersona: () => void;
@@ -81,6 +82,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     onEditarPersona,
     onEditarProducto,
     onCrearServicio,
+    onCrearYEnviarCotizacion,
     totales,
     apiLoading,
     onAbrirCrearEquipo,
@@ -1222,6 +1224,16 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                     >
                                         {apiLoading ? "Creando..." : "Crear Cotización"}
                                     </button>
+                                    {onCrearYEnviarCotizacion && (
+                                        <button
+                                            onClick={onCrearYEnviarCotizacion}
+                                            disabled={!formData.entidadId || !formData.estadoCotizacion || items.length === 0 || !!motivoDeshabilitado() || apiLoading}
+                                            title={motivoDeshabilitado()}
+                                            className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {apiLoading ? "Procesando..." : "Crear y Enviar"}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

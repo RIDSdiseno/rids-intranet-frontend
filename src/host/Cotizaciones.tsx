@@ -12,8 +12,10 @@ import {
     CloseCircleOutlined,
     FileTextOutlined,
     PrinterOutlined,
+    MailOutlined,
     CopyOutlined,
 } from "@ant-design/icons";
+import { Modal } from 'antd';
 import { motion } from "framer-motion";
 import { useApi } from "../components/modals-cotizaciones/UseApi";
 import {
@@ -30,6 +32,10 @@ import {
     GenerarPDFModal,
     NewServicioModal,
 } from "../components/modals-cotizaciones";
+import { generarPDF } from "../components/modals-cotizaciones/GenerarPDFModal";
+import { http } from '../service/http';
+import SendCotizacionModal from "../components/modals-cotizaciones/SendCotizacionModal";
+import CotizacionesEnviadas from "./CotizacionesEnviadas";
 import type {
     CotizacionGestioo,
     EntidadGestioo,
@@ -42,6 +48,8 @@ import type {
     Toast,
     CotizacionItemGestioo
 } from "../components/modals-cotizaciones/types";
+import { notification } from 'antd';
+import { escapeHtml, formatCurrency, buildCotizacionHtml } from '../lib/emailTemplates';
 import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
@@ -308,6 +316,63 @@ const Cotizaciones: React.FC = () => {
     const showError = (msg: string) => {
         setToast({ type: "error", message: msg });
     };
+
+    // escapeHtml and formatCurrency moved to src/lib/emailTemplates
+
+        function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
+                                const nombre = cot.entidad?.nombre || '';
+                                const total = Array.isArray(cot.items) ? cot.items.reduce((s: number, it: any) => s + ((Number(it.precio) || 0) * (Number(it.cantidad) || 1)), 0) : cot.total || 0;
+                                return `
+                                <div style="font-family:Arial,Helvetica,sans-serif;background:#eef2f7;padding:32px 16px;">
+                                  <div style="max-width:600px;margin:0 auto;">
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0c4a6e;border-radius:12px 12px 0 0;overflow:hidden;">
+                                      <tr><td style="padding:20px 28px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                                          <td><img src="/img/splash.png" alt="RIDS" style="height:36px;display:block;border-radius:5px;background:#ffffff;padding:4px;" /></td>
+                                          <td align="right">
+                                            <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Cotización</span>
+                                            <span style="display:block;font-size:13px;font-weight:600;color:#7dd3fc;margin-top:2px;text-align:right;">#${cot.id}</span>
+                                          </td>
+                                        </tr></table>
+                                      </td></tr>
+                                      <tr><td style="background:linear-gradient(90deg,#0ea5e9,#38bdf8);height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>
+                                    </table>
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
+                                      <tr><td style="padding:28px 28px 20px;">
+                                        <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.08em;">Nueva cotización</p>
+                                        <p style="margin:0 0 16px;font-size:17px;font-weight:700;color:#0f172a;">Estimado/a ${escapeHtml(nombre)},</p>
+                                        <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.7;">Adjuntamos la cotización solicitada. En el archivo adjunto encontrarás el detalle completo. Si deseas realizar cambios, responde a este correo indicando lo que necesitas modificar.</p>
+
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+                                          <tr>
+                                            <td width="47%" style="background:#f0f9ff;border-radius:10px;padding:16px 18px;vertical-align:top;">
+                                              <div style="font-size:10px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Total</div>
+                                              <div style="font-size:24px;font-weight:800;color:#0c4a6e;line-height:1;">${formatCurrency(total)}</div>
+                                            </td>
+                                            <td width="6%"></td>
+                                            <td width="47%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;vertical-align:top;">
+                                              <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Ítems incluidos</div>
+                                              <div style="font-size:24px;font-weight:800;color:#0f172a;line-height:1;">${Array.isArray(cot.items) ? cot.items.length : '-'}</div>
+                                            </td>
+                                          </tr>
+                                        </table>
+
+                                      </td></tr>
+                                    </table>
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;border-top:1px solid #e2e8f0;border-radius:0 0 12px 12px;">
+                                      <tr><td style="padding:18px 28px;">
+                                        <p style="margin:0 0 4px;font-size:13px;color:#334155;">Saludos cordiales,</p>
+                                        <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#0c4a6e;">Equipo RIDS</p>
+                                        <p style="margin:0;font-size:11px;color:#94a3b8;">Si no solicitaste esta cotización, puedes ignorar este mensaje. Para asistencia, responde a este correo.</p>
+                                      </td></tr>
+                                    </table>
+
+                                  </div>
+                                </div>`;
+        }
 
     const fetchTecnicos = async () => {
         try {
@@ -843,6 +908,267 @@ const Cotizaciones: React.FC = () => {
 
         } catch (error) {
             handleApiError(error, "Error al crear cotización");
+        }
+    };
+
+    // Crear y enviar: crea la cotización y genera el PDF + envía por correo sin abrir modal
+    const handleCreateAndSendCotizacion = async () => {
+        if (!formData.entidadId) {
+            handleApiError(null, "Debe seleccionar una entidad");
+            return;
+        }
+
+        if (items.length === 0) {
+            handleApiError(null, "Debe agregar al menos un item en alguna sección");
+            return;
+        }
+
+        try {
+            // reuse creation logic (file upload if needed)
+            let imagenUrl = null;
+
+            if (formData.imagenFile) {
+                const formDataToSend = new FormData();
+                formDataToSend.append("imagen", formData.imagenFile);
+
+                const uploadResp = await apiFetch("/upload-imagenes/upload", {
+                    method: "POST",
+                    body: formDataToSend
+                });
+
+                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+            }
+
+            const itemsParaEnviar = items.map((item: any) => {
+                const tasa = Number(formData.tasaCambio || 1);
+
+                const precioCLP =
+                    formData.moneda === "USD"
+                        ? Math.round(Number(item.precio || 0) * tasa)
+                        : Number(item.precio || 0);
+
+                const precioCostoCLP =
+                    item.precioCosto != null
+                        ? formData.moneda === "USD"
+                            ? Math.round(Number(item.precioCosto) * tasa)
+                            : Number(item.precioCosto)
+                        : null;
+
+                return {
+                    tipo: item.tipo,
+                    nombre: item.nombre,
+                    descripcion: item.descripcion,
+                    cantidad: item.cantidad,
+                    precio: precioCLP,
+                    precioOriginalCLP: precioCLP,
+                    precioCosto: precioCostoCLP,
+                    porcentaje: item.porcentaje || null,
+                    tieneIVA: item.tieneIVA || false,
+                    tieneDescuento: item.tieneDescuento || false,
+                    sku: item.sku || null,
+                    porcGanancia: item.porcGanancia || null,
+                    seccionId: item.seccionId,
+                    imagen: item.imagen || null,
+                    equipoId: item.equipoId ?? null,
+                };
+            });
+
+            const totales = calcularTotales(itemsParaEnviar);
+
+            const cotizacionData = {
+                tipo: TipoCotizacionGestioo.CLIENTE,
+                estado: EstadoCotizacionGestioo.BORRADOR,
+                entidadId: Number(formData.entidadId),
+                subtotal: totales.subtotal,
+                descuentos: totales.descuentos,
+                iva: totales.iva,
+                total: totales.total,
+                moneda: formData.moneda,
+                tasaCambio: formData.moneda === "USD"
+                    ? Number(formData.tasaCambio || 1)
+                    : 1,
+                items: itemsParaEnviar,
+                comentariosCotizacion: formData.comentariosCotizacion?.trim() || null,
+                secciones: formData.secciones,
+                personaResponsable: formData.personaResponsable || null,
+                imagen: imagenUrl
+            };
+
+            const data = await apiFetch("/cotizaciones", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(cotizacionData)
+            });
+
+            const created = data.data;
+            setCotizaciones(prev => [created, ...prev]);
+            setShowCreateModal(false);
+            resetForm();
+            showSuccess("Cotización creada correctamente");
+
+            // Generar el PDF programáticamente y enviarlo
+            try {
+                const pdf = await generarPDF(created, false, true);
+                let dataUrl: string | null = null;
+                try { dataUrl = pdf.output('datauristring'); } catch (e) {
+                    const blob = pdf.output('blob');
+                    dataUrl = await new Promise<string>((res) => {
+                        const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                    });
+                }
+
+                if (!dataUrl) throw new Error('No se pudo generar el PDF');
+
+                const comma = dataUrl.indexOf(',');
+                const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+                const mimeMatch = dataUrl.match(/data:([^;]+);/);
+                const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+                // armar HTML con logo embebido (simple replacement)
+                let finalHtml = buildDefaultHtml(created as any);
+                try {
+                    const resp = await fetch('/img/splash.png');
+                    if (resp.ok) {
+                        const blob = await resp.blob();
+                        const logoData = await new Promise<string>((res) => {
+                            const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                        });
+                        finalHtml = finalHtml.replace(/src=["']\/img\/splash\.png["']/g, `src="${logoData}"`);
+                    }
+                } catch (e) {
+                    // ignore logo embedding errors
+                }
+
+                const payload = {
+                    targets: [{ email: created.entidad?.correo || '', nombre: created.entidad?.nombre || '' }],
+                    subject: `Cotización #${created.id} - ${created.entidad?.nombre || ''}`,
+                    bodyHtml: finalHtml,
+                    attachments: [{ name: `Cotizacion_${created.id}.pdf`, contentType, contentBytes: base64 }]
+                };
+
+                const sendResp = await http.post('/correo/enviar-masivo', payload);
+                if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
+                    const queued = !!sendResp.data?.queued;
+                    const jobId = sendResp.data?.jobId ?? null;
+                    const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${created.entidad?.correo}`;
+                    try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                    notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
+                                        // Registrar envío en cotizaciones-enviadas (no bloquear)
+                                        (async () => {
+                                            try {
+                                                await http.post('/cotizaciones/enviadas', {
+                                                    cotizacionId: created.id,
+                                                    to: created.entidad?.correo ?? null,
+                                                    subject: payload.subject,
+                                                    jobId: sendResp.data.jobId ?? null,
+                                                    meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                                                });
+                                            } catch (err: any) {
+                                                console.error('Error registrando cotizacion enviada:', err);
+                                                try {
+                                                    const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                                                    notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                                                } catch (_) {}
+                                            }
+                                        })();
+                } else {
+                    notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
+                }
+            } catch (err) {
+                console.error('Error generando/enviando PDF:', err);
+                notification.error({ message: 'Error', description: 'No se pudo generar o enviar el PDF automáticamente.' });
+            }
+
+        } catch (error) {
+            handleApiError(error, "Error al crear cotización");
+        }
+    };
+
+    const handleGuardarYEnviarCotizacion = async () => {
+        if (!selectedCotizacion) {
+            handleApiError(null, 'No hay cotización seleccionada');
+            return;
+        }
+
+        try {
+            // Guardar primero
+            await handleUpdateCotizacion();
+
+            // Obtener la versión actualizada
+            const resp = await apiFetch(`/cotizaciones/${selectedCotizacion.id}`);
+            const cot = resp.data || resp;
+
+            // Generar PDF
+            const pdf = await generarPDF(cot, false, true);
+            let dataUrl: string | null = null;
+            try { dataUrl = pdf.output('datauristring'); } catch (e) {
+                const blob = pdf.output('blob');
+                dataUrl = await new Promise<string>((res) => {
+                    const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                });
+            }
+
+            if (!dataUrl) throw new Error('No se pudo generar el PDF');
+
+            const comma = dataUrl.indexOf(',');
+            const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+            const mimeMatch = dataUrl.match(/data:([^;]+);/);
+            const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+            // Construir HTML (simple) e intentar embeber logo
+            let finalHtml = buildDefaultHtmlForSend(cot as any);
+            try {
+                const r = await fetch('/img/splash.png');
+                if (r.ok) {
+                    const blob = await r.blob();
+                    const logoData = await new Promise<string>((res) => {
+                        const fr = new FileReader(); fr.onloadend = () => res(fr.result as string); fr.readAsDataURL(blob);
+                    });
+                    finalHtml = finalHtml.replace(/src=["']\/img\/splash\.png["']/g, `src="${logoData}"`);
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            const payload = {
+                targets: [{ email: cot.entidad?.correo || '', nombre: cot.entidad?.nombre || '' }],
+                subject: `Cotización #${cot.id} - ${cot.entidad?.nombre || ''}`,
+                bodyHtml: finalHtml,
+                attachments: [{ name: `Cotizacion_${cot.id}.pdf`, contentType, contentBytes: base64 }]
+            };
+
+                const sendResp = await http.post('/correo/enviar-masivo', payload);
+            if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
+                const queued = !!sendResp.data?.queued;
+                const jobId = sendResp.data?.jobId ?? null;
+                const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${cot.entidad?.correo}`;
+                try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
+                                // Registrar envío en cotizaciones-enviadas (no bloquear)
+                                (async () => {
+                                    try {
+                                        await http.post('/cotizaciones/enviadas', {
+                                            cotizacionId: cot.id,
+                                            to: cot.entidad?.correo ?? null,
+                                            subject: payload.subject,
+                                            jobId: sendResp.data.jobId ?? null,
+                                            meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                                        });
+                                    } catch (err: any) {
+                                        console.error('Error registrando cotizacion enviada:', err);
+                                        try {
+                                            const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                                            notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                                        } catch (_) {}
+                                    }
+                                })();
+            } else {
+                notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
+            }
+
+        } catch (err) {
+            console.error('Error al guardar y enviar:', err);
+            notification.error({ message: 'Error', description: 'No se pudo guardar y enviar la cotización.' });
         }
     };
 
@@ -1586,6 +1912,55 @@ const Cotizaciones: React.FC = () => {
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
+    const [showSendMailModal, setShowSendMailModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<'list'|'enviadas'>('list');
+
+    // Estados para filtros de la vista "Cotizaciones Enviadas" (se envían por evento)
+    const [envSearch, setEnvSearch] = useState("");
+    const [envFilterCliente, setEnvFilterCliente] = useState("");
+    const [envFilterGenero, setEnvFilterGenero] = useState("");
+    const [envFilterEnviadoPor, setEnvFilterEnviadoPor] = useState("");
+    const [envMonth, setEnvMonth] = useState("");
+    const [envClientesOptions, setEnvClientesOptions] = useState<string[]>([]);
+    const [envGenerosOptions, setEnvGenerosOptions] = useState<string[]>([]);
+    const [envEnviadosOptions, setEnvEnviadosOptions] = useState<string[]>([]);
+
+    const dispatchCotEnviadasFilters = (partial: any) => {
+        const detail = {
+            search: envSearch,
+            filterCliente: envFilterCliente || null,
+            filterGenero: envFilterGenero || null,
+            filterEnviadoPor: envFilterEnviadoPor || null,
+            dateRange: envMonth ? [envMonth, envMonth] : null,
+            ...partial,
+        };
+        window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:setFilters', { detail }));
+    };
+
+    // Al cambiar de pestaña: ocultar cabecera interna de CotizacionesEnviadas cuando está embebida
+    useEffect(() => {
+        if (activeTab === 'enviadas') {
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:showHeader', { detail: { show: false } }));
+            // enviar filtros iniciales
+            dispatchCotEnviadasFilters({});
+            // pedir recarga
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'));
+        } else {
+            window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:showHeader', { detail: { show: true } }));
+        }
+    }, [activeTab]);
+
+    // Escuchar listas que envía CotizacionesEnviadas para poblar selects del header embebido
+    useEffect(() => {
+        const onLists = (ev: any) => {
+            const d = ev?.detail || {};
+            setEnvClientesOptions(Array.isArray(d.clientes) ? d.clientes : []);
+            setEnvGenerosOptions(Array.isArray(d.generos) ? d.generos : []);
+            setEnvEnviadosOptions(Array.isArray(d.enviados) ? d.enviados : []);
+        };
+        window.addEventListener('cotizacionesEnviadas:lists', onLists as EventListener);
+        return () => window.removeEventListener('cotizacionesEnviadas:lists', onLists as EventListener);
+    }, []);
 
     const handlePreviewRealPDF = async (cot: CotizacionGestioo) => {
         try {
@@ -1826,6 +2201,21 @@ const Cotizaciones: React.FC = () => {
             >
                 <PrinterOutlined />
             </button>
+            <button
+                onClick={async () => {
+                    try {
+                        const data = await apiFetch(`/cotizaciones/${c.id}`);
+                        setSelectedCotizacion(data.data || data);
+                        setShowSendMailModal(true);
+                    } catch (err) {
+                        handleApiError(err, 'Error al preparar envío');
+                    }
+                }}
+                className={mobile ? "rounded-xl border border-yellow-200 p-2 text-yellow-600 hover:bg-yellow-50" : "text-sm text-yellow-600 hover:text-yellow-800"}
+                title="Enviar correo"
+            >
+                <MailOutlined />
+            </button>
             {!isCliente && (
                 <>
                     <button
@@ -1878,10 +2268,29 @@ const Cotizaciones: React.FC = () => {
                                 <p className="text-sm text-slate-500">
                                     Gestión y seguimiento de cotizaciones.
                                 </p>
+                                <div className="mt-3">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('list')}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                        >
+                                            Cotizaciones
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('enviadas')}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                        >
+                                            Cotizaciones Enviadas
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+                            {activeTab === 'list' && (
                             <button
                                 type="button"
                                 onClick={() => fetchCotizaciones(page)}
@@ -1890,6 +2299,7 @@ const Cotizaciones: React.FC = () => {
                                 <ReloadOutlined className="text-xs" />
                                 <span>Recargar</span>
                             </button>
+                            )}
                             {!isCliente && (
                                 <>
                                     <button
@@ -1917,7 +2327,8 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Buscador */}
+                    {/* Buscador — solo visible en tab de cotizaciones */}
+                    {activeTab === 'list' && (
                     <div className="mt-2">
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -1932,95 +2343,154 @@ const Cotizaciones: React.FC = () => {
                             />
                         </div>
                     </div>
+                    )}
 
                     {/* Filtros */}
-                    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Origen
-                            </label>
-                            <select
-                                value={filtrosHistorial.origen}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los orígenes</option>
-                                <option value="RIDS">RIDS</option>
-                                <option value="ECONNET">ECONNET</option>
-                                <option value="OTRO">OTRO</option>
-                            </select>
-                        </div>
+                    <div className="mt-5">
+                        {activeTab === 'list' ? (
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Origen
+                                    </label>
+                                    <select
+                                        value={filtrosHistorial.origen}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los orígenes</option>
+                                        <option value="RIDS">RIDS</option>
+                                        <option value="ECONNET">ECONNET</option>
+                                        <option value="OTRO">OTRO</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Estado
-                            </label>
-                            <select
-                                value={filtrosHistorial.estado}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los estados</option>
-                                <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
-                                <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
-                            </select>
-                        </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Estado
+                                    </label>
+                                    <select
+                                        value={filtrosHistorial.estado}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los estados</option>
+                                        <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
+                                        <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
+                                        <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
+                                        <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Técnico
-                            </label>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Técnico
+                                    </label>
 
-                            <select
-                                value={filtrosHistorial.tecnico || ""}
-                                onChange={(e) =>
-                                    setFiltrosHistorial(prev => ({
-                                        ...prev,
-                                        tecnico: e.target.value
-                                    }))
-                                }
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            >
-                                <option value="">Todos los técnicos</option>
-                                {tecnicos.map(t => (
-                                    <option key={t.id_tecnico} value={t.id_tecnico}>
-                                        {t.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                    <select
+                                        value={filtrosHistorial.tecnico || ""}
+                                        onChange={(e) =>
+                                            setFiltrosHistorial(prev => ({
+                                                ...prev,
+                                                tecnico: e.target.value
+                                            }))
+                                        }
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    >
+                                        <option value="">Todos los técnicos</option>
+                                        {tecnicos.map(t => (
+                                            <option key={t.id_tecnico} value={t.id_tecnico}>
+                                                {t.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Filtrar por Mes
-                            </label>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Filtrar por Mes
+                                    </label>
 
-                            <input
-                                type="month"
-                                value={filtroMes}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    setFiltroMes(value);
-                                    setPage(1);
+                                    <input
+                                        type="month"
+                                        value={filtroMes}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setFiltroMes(value);
+                                            setPage(1);
 
-                                    if (!value) {
-                                        fetchCotizaciones(1);
-                                        return;
-                                    }
-                                }}
-                                className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            />
-                        </div>
+                                            if (!value) {
+                                                fetchCotizaciones(1);
+                                                return;
+                                            }
+                                        }}
+                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
+                                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                        <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar cotización, cliente o estado..."
+                                                className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
+                                                value={envSearch}
+                                                onChange={(e) => {
+                                                    setEnvSearch(e.target.value);
+                                                    dispatchCotEnviadasFilters({ search: e.target.value });
+                                                }}
+                                            />
+                                            <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
+                                                <option value="">Cliente</option>
+                                                {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                                            </select>
+
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
+                                                <option value="">Generado Por</option>
+                                                {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
+                                            </select>
+
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
+                                                <option value="">Enviado Por</option>
+                                                {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
+                                            </select>
+
+                                            <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
+
+                                            <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
+                                        </div>
+                                    </div>
+                            </div>
+                        )}
                     </div>
                 </section>
+                
+
+                <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
+
+                {/* Mostrar la vista de Cotizaciones Enviadas dentro de la misma página cuando esté activa */}
+                {activeTab === 'enviadas' && (
+                    <section className="mt-6">
+                        <CotizacionesEnviadas />
+                    </section>
+                )}
 
                 {/* LISTADO */}
+                {activeTab === 'list' && (
                 <section className="mt-6">
                     <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
                         {/* MOBILE */}
@@ -2241,6 +2711,7 @@ const Cotizaciones: React.FC = () => {
                         </div>
                     </div>
                 </section>
+                )}
             </div>
 
             {/* Agregar el nuevo modal */}
@@ -2351,6 +2822,7 @@ const Cotizaciones: React.FC = () => {
                     onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
                     onVincularEquipo={handleVincularEquipoAItem}
                     onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
+                        
                 />)}
 
             <SelectProductoModal

@@ -1139,3 +1139,4 @@ const generarPDF = async (
 };
 
 export default GenerarPDFModal;
+export { generarPDF };

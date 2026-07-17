@@ -68,22 +68,30 @@ function EstadoConciliacionBadge({ estado }: { estado: string }) {
 }
 
 function EstadoRcvBadge({ estado }: { estado?: string | null }) {
-    const value = String(estado ?? "—").toUpperCase();
+    const raw = String(estado ?? "").trim();
+    const up = raw.toUpperCase();
 
-    const className = value.includes("PENDIENTE")
+    // Normalizar etiquetas: tratar estados de pago/acuse como "Confirmado"
+    const isPendiente = up.includes("PENDIENTE");
+    const isReclamado = up.includes("RECLAMADO");
+    const isConfirmado = up.includes("ACUSADO") || up.includes("CONFIRM") || up.includes("PAG") || up.includes("PAGADA") || up.includes("PAGADO") || up.includes("CONFIRMADA");
+
+    const className = isPendiente
         ? "bg-amber-50 text-amber-700 ring-amber-200"
-        : value.includes("RECLAMADO")
+        : isReclamado
             ? "bg-red-50 text-red-700 ring-red-200"
-            : value.includes("ACUSADO")
-                ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+            : isConfirmado
+                ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                 : "bg-cyan-50 text-cyan-700 ring-cyan-200";
+
+    const label = isPendiente ? "Pendiente" : isReclamado ? "Reclamado" : isConfirmado ? "Confirmado" : (raw || "—");
 
     return (
         <span
             className={`inline-flex max-w-full rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${className}`}
-            title={value}
+            title={raw}
         >
-            <span className="truncate">{value}</span>
+            <span className="truncate">{label}</span>
         </span>
     );
 }

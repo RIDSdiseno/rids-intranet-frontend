@@ -58,14 +58,14 @@ export const handlePrint = async (
             orden.equipo?.tipo ? TipoEquipoLabel[orden.equipo.tipo as TipoEquipoValue] ?? "—" : "—";
 
         const html = `
-<div class="pdf-container" style="
-    width: 1700px;
-    margin: 0 auto;
-    padding: 40px;
-    font-family: Arial, sans-serif;
-    color: #000;
-    font-size: 30px;
-">
+        <div class="pdf-container" style="
+            width: 1000px;
+            margin: 0 auto;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            color: #000;
+            font-size: 14px;
+        ">
 <br>
 <br>
 
@@ -276,14 +276,18 @@ export const handlePrint = async (
 
         pdf.save(`Orden_${codigo}.pdf`);
 
-        document.body.removeChild(container);
-
         if (container.parentNode) {
             container.parentNode.removeChild(container);
         }
-        
+
+        return pdf;
+
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");
     }
+};
+// Generar PDF y retornar el objeto jsPDF (no descargar)
+export const generarOrdenPDF = async (orden: DetalleTrabajoGestioo) => {
+    return await handlePrint(orden);
 };
