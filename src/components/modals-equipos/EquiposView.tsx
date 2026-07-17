@@ -235,6 +235,19 @@ function groupHistoryByDate<T extends { createdAt?: string | null }>(items: T[])
     }, {});
 }
 
+function getHistoryActionLabel(action?: string | null) {
+    const labels: Record<string, string> = {
+        CREATE: "CREACIÓN",
+        UPDATE: "ACTUALIZACIÓN",
+        DELETE: "ELIMINACIÓN",
+        REVIEW: "REVISIÓN",
+    };
+
+    const value = String(action ?? "").trim().toUpperCase();
+
+    return labels[value] ?? actionLabels[value] ?? (value || "Movimiento");
+}
+
 function getHistoryActionClass(action?: string | null) {
     if (action === "CREATE") {
         return "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -242,6 +255,10 @@ function getHistoryActionClass(action?: string | null) {
 
     if (action === "UPDATE") {
         return "border-indigo-200 bg-indigo-50 text-indigo-700";
+    }
+
+    if (action === "REVIEW") {
+        return "border-cyan-200 bg-cyan-50 text-cyan-700";
     }
 
     if (action === "DELETE") {
@@ -254,13 +271,17 @@ function getHistoryActionClass(action?: string | null) {
 function getHistoryDotClass(action?: string | null) {
     if (action === "CREATE") return "bg-emerald-500";
     if (action === "UPDATE") return "bg-indigo-500";
+    if (action === "REVIEW") return "bg-cyan-500";
     if (action === "DELETE") return "bg-rose-500";
+
     return "bg-slate-400";
 }
 
 function getHistoryActorLabel(action?: string | null) {
     if (action === "CREATE") return "Creado por:";
+    if (action === "REVIEW") return "Revisado por:";
     if (action === "DELETE") return "Eliminado por:";
+
     return "Actualizado por:";
 }
 
@@ -1559,8 +1580,7 @@ export default function EquipoViewModal({
                                                                     })
                                                                     : [];
 
-                                                                const actionLabel =
-                                                                    actionLabels[h.action ?? ""] ?? h.action ?? "Movimiento";
+                                                                const actionLabel = getHistoryActionLabel(h.action);
 
                                                                 return (
                                                                     <div

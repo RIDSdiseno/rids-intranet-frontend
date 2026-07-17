@@ -34,8 +34,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../api/api";
 import { useAuth } from "../../components/hooks/useAuth"
 
-const { isCliente } = useAuth();
-
 const API_URL =
     (import.meta as any).env?.VITE_API_URL || "http://localhost:4000/api";
 
@@ -168,6 +166,89 @@ function slaLabel(status?: string) {
         default:
             return "N/A";
     }
+}
+
+type LiveSlaStatus = "PENDING" | "OK" | "BREACHED";
+
+type LiveSlaItem = {
+    dueAt?: string | null;
+    at?: string | null;
+    status?: LiveSlaStatus;
+};
+
+function getLiveSlaStatus(
+    sla: LiveSlaItem | undefined,
+    now: number
+): LiveSlaStatus | undefined {
+    if (!sla) return undefined;
+
+    if (sla.at) {
+        return sla.status;
+    }
+
+    if (!sla.dueAt) {
+        return sla.status;
+    }
+
+    const dueTime = new Date(sla.dueAt).getTime();
+
+    if (Number.isNaN(dueTime)) {
+        return sla.status;
+    }
+
+    return now >= dueTime ? "BREACHED" : "PENDING";
+}
+
+function getSlaRemainingText(
+    sla: LiveSlaItem | undefined,
+    now: number
+): string {
+    if (!sla) {
+        return "Sin información";
+    }
+
+    if (sla.at) {
+        return sla.status === "OK"
+            ? "Finalizado dentro del plazo"
+            : "Finalizado fuera del plazo";
+    }
+
+    if (!sla.dueAt) {
+        return "Sin vencimiento";
+    }
+
+    const dueTime = new Date(sla.dueAt).getTime();
+
+    if (Number.isNaN(dueTime)) {
+        return "Fecha inválida";
+    }
+
+    const difference = dueTime - now;
+    const absoluteMinutes = Math.floor(
+        Math.abs(difference) / 60_000
+    );
+
+    const days = Math.floor(absoluteMinutes / 1440);
+    const hours = Math.floor(
+        (absoluteMinutes % 1440) / 60
+    );
+    const minutes = absoluteMinutes % 60;
+
+    const parts: string[] = [];
+
+    if (days > 0) {
+        parts.push(`${days} d`);
+    }
+
+    if (hours > 0) {
+        parts.push(`${hours} h`);
+    }
+
+    parts.push(`${minutes} min`);
+
+    return difference >= 0
+        ? `Quedan ${parts.join(" ")}`
+        : `Vencido hace ${parts.join(" ")}`;
 }
 
 function formatDateTime(date?: string | Date | null) {
@@ -358,6 +439,7 @@ function getApiErrorMessage(error: any) {
 
 // Componente para mostrar el detalle de un ticket, con su historial de mensajes, información del ticket, y panel de respuesta. Incluye manejo de carga, actualización, y envío de respuestas internas o al cliente, con soporte para archivos adjuntos y visualización de correos enriquecidos.
 export default function TicketDetailPage() {
+    const { isCliente } = useAuth();
     const { id } = useParams();
     const navigate = useNavigate();
 
@@ -365,6 +447,8 @@ export default function TicketDetailPage() {
 
     const [ticketDetalle, setTicketDetalle] = useState<TicketDetail | null>(null);
     const [loadingDetalle, setLoadingDetalle] = useState(true);
+
+    const [now, setNow] = useState(() => Date.now());
 
     const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
 
@@ -375,14 +459,12 @@ export default function TicketDetailPage() {
 
     const [toEmails, setToEmails] = useState<string[]>([]);
     const [ccEmails, setCcEmails] = useState<string[]>([]);
-    const [showCc, setShowCc] = useState(false);
 
     const [contactos, setContactos] = useState<any[]>([]);
     const [loadingContactos, setLoadingContactos] = useState(false);
 
     const [replyFiles, setReplyFiles] = useState<File[]>([]);
 
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const replyFileInputRef = useRef<HTMLInputElement>(null);
 
     const [showReplyPanel, setShowReplyPanel] = useState(false);
@@ -522,12 +604,6 @@ export default function TicketDetailPage() {
         []
     );
 
-    const scrollToBottom = () => {
-        setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-    };
-
     // Determinar si el formulario de respuesta es válido para enviar, basado en que haya texto o archivos adjuntos, y que haya al menos un destinatario
     const loadTecnicos = async () => {
         const { data } = await api.get("/tecnicos");
@@ -535,13 +611,17 @@ export default function TicketDetailPage() {
     };
 
     // Función para cargar el detalle del ticket, incluyendo su información y mensajes, y preparar el formulario de respuesta con destinatarios y texto predefinido. Maneja estados de carga y errores.
-    const loadTicket = async () => {
+    const loadTicket = async (
+        options: {
+            silent?: boolean;
+            initializeReply?: boolean;
+        } = {}
+    ) => {
         if (!id) return;
 
-        setLoadingDetalle(true);
-        setReplyFiles([]);
-        setReplyText("");
-        setInternalNoteText("");
+        if (!options.silent) {
+            setLoadingDetalle(true);
+        }
 
         try {
             const { data } = await api.get(`/helpdesk/tickets/${id}`);
@@ -563,41 +643,54 @@ export default function TicketDetailPage() {
             const uniqueEmails = (emails: Array<string | null | undefined>) =>
                 [...new Set(emails.map(normalizeEmail).filter(Boolean) as string[])];
 
-            setToEmails(
-                uniqueEmails(
-                    ticket.replyRecipients?.to?.length
-                        ? ticket.replyRecipients.to
-                        : [ticket.requester?.email, ticket.fromEmail]
-                )
-            );
+            if (options.initializeReply) {
+                setToEmails(
+                    uniqueEmails(
+                        ticket.replyRecipients?.to?.length
+                            ? ticket.replyRecipients.to
+                            : [
+                                ticket.requester?.email,
+                                ticket.fromEmail,
+                            ]
+                    )
+                );
 
-            const nextCc = uniqueEmails(
-                ticket.replyRecipients?.cc?.length
-                    ? ticket.replyRecipients.cc
-                    : []
-            );
-
-            setCcEmails(nextCc);
-            setShowCc(nextCc.length > 0);
-
-            setCcEmails(
-                uniqueEmails(
+                const nextCc = uniqueEmails(
                     ticket.replyRecipients?.cc?.length
                         ? ticket.replyRecipients.cc
                         : []
-                )
-            );
+                );
 
-            setReplyText(`Estimado(a) ${ticket.requester?.nombre ?? ""},
-                \n\nGracias por contactarnos.\n\nQuedamos atentos a su respuesta.
-                \n\nSaludos cordiales,\nSoporte Técnico`);
+                setCcEmails(nextCc);
+
+                setReplyText(
+                    `Estimado(a) ${ticket.requester?.nombre ?? ""},
+
+                     Gracias por contactarnos.
+
+                     Quedamos atentos a su respuesta.
+
+                     Saludos cordiales,
+                     Soporte Técnico`
+                );
+            }
 
         } catch {
-            message.error("Error al cargar detalle");
+            if (!options.silent) {
+                message.error("Error al cargar detalle");
+            }
         } finally {
-            setLoadingDetalle(false);
+            if (!options.silent) {
+                setLoadingDetalle(false);
+            }
         }
     };
+
+    const loadTicketRef = useRef(loadTicket);
+
+    useEffect(() => {
+        loadTicketRef.current = loadTicket;
+    });
 
     // Función para descargar un archivo adjunto, haciendo una llamada a la API para obtener el archivo y luego creando un enlace de descarga para el usuario.
     const descargarAdjunto = async (att: {
@@ -738,20 +831,23 @@ export default function TicketDetailPage() {
 
             if (isInternal) {
                 setInternalNoteText("");
+                setReplyFiles([]);
+
                 message.success("Nota interna guardada");
-                setReplyFiles([]);
+
                 await loadTicket();
-                scrollToBottom();
-            } else {
-                setReplyText("");
-                setReplyFiles([]);
-                message.success("Respuesta enviada");
-                navigate(`/helpdesk${location.search}`, { replace: true });
                 return;
             }
 
+            setReplyText("");
             setReplyFiles([]);
-            await loadTicket();
+
+            message.success("Respuesta enviada");
+
+            navigate(`/helpdesk${location.search}`, {
+                replace: true,
+            });
+
         } catch (error: any) {
             console.error("❌ Error respondiendo ticket:", {
                 status: error?.response?.status,
@@ -784,21 +880,79 @@ export default function TicketDetailPage() {
         );
     };
 
+    const mensajesOrdenados = useMemo(() => {
+        return [...(ticketDetalle?.messages ?? [])].sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+        );
+    }, [ticketDetalle?.messages]);
+
     useEffect(() => {
-        // Los técnicos solo se necesitan para los selectores internos
-        if (!isCliente) {
-            loadTecnicos();
-        }
+        if (isCliente) return;
+
+        void loadTecnicos();
+    }, [isCliente]);
+
+    useEffect(() => {
+        setReplyText("");
+        setInternalNoteText("");
+        setReplyFiles([]);
+
+        void loadTicket({
+            initializeReply: true,
+        });
+    }, [id]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            setNow(Date.now());
+        }, 30_000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
     }, []);
 
     useEffect(() => {
-        loadTicket();
+        if (!id) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            void loadTicketRef.current({
+                silent: true,
+                initializeReply: false,
+            });
+        }, 2 * 60_000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
     }, [id]);
 
     const lastMessage =
-        ticketDetalle?.messages && ticketDetalle.messages.length > 0
-            ? ticketDetalle.messages[ticketDetalle.messages.length - 1]
-            : null;
+        mensajesOrdenados[0] ?? null;
+
+    const firstResponseSlaStatus = getLiveSlaStatus(
+        ticketDetalle?.sla?.firstResponse,
+        now
+    );
+
+    const resolutionSlaStatus = getLiveSlaStatus(
+        ticketDetalle?.sla?.resolution,
+        now
+    );
+
+    const firstResponseRemainingText = getSlaRemainingText(
+        ticketDetalle?.sla?.firstResponse,
+        now
+    );
+
+    const resolutionRemainingText = getSlaRemainingText(
+        ticketDetalle?.sla?.resolution,
+        now
+    );
 
     const lastActivityBy = lastMessage?.isInternal
         ? "internal"
@@ -898,10 +1052,12 @@ export default function TicketDetailPage() {
                         <div className="flex-1 min-h-0 overflow-y-auto px-7 py-5">
                             <div className="relative">
 
-                                {ticketDetalle.messages
-                                    .filter((m) => {
-                                        // CLIENTE no ve notas internas
-                                        if (isCliente && m.isInternal) return false;
+                                {mensajesOrdenados
+                                    .filter((mensaje) => {
+                                        if (isCliente && mensaje.isInternal) {
+                                            return false;
+                                        }
+
                                         return true;
                                     })
                                     .map((m) => {
@@ -1074,8 +1230,6 @@ export default function TicketDetailPage() {
                                             </div>
                                         );
                                     })}
-
-                                <div ref={messagesEndRef} />
                             </div>
                         </div>
 
@@ -1120,13 +1274,10 @@ export default function TicketDetailPage() {
                                                                     />
                                                                 )}
                                                                 <div className="shrink-0">
-                                                                    <div className="flex justify-between items-center mb-1">
-                                                                        <span className="text-xs text-gray-500">Para:</span>
-                                                                        {!showCc && (
-                                                                            <Button size="small" type="link" onClick={() => setShowCc(true)}>
-                                                                                + CC
-                                                                            </Button>
-                                                                        )}
+                                                                    <div className="mb-1">
+                                                                        <span className="text-xs text-gray-500">
+                                                                            Para:
+                                                                        </span>
                                                                     </div>
 
                                                                     <Select
@@ -1144,25 +1295,28 @@ export default function TicketDetailPage() {
                                                                         style={{ width: "100%" }}
                                                                     />
 
-                                                                    {showCc && (
-                                                                        <div className="mt-3">
-                                                                            <span className="text-xs text-gray-500">CC:</span>
-                                                                            <Select
-                                                                                mode="tags"
-                                                                                showSearch
-                                                                                placeholder="Agregar CC"
-                                                                                value={ccEmails}
-                                                                                onChange={setCcEmails}
-                                                                                onSearch={debouncedSearchContactos}
-                                                                                loading={loadingContactos}
-                                                                                options={contactos.map((c) => ({
-                                                                                    label: `${c.nombre} (${c.email})`,
-                                                                                    value: c.email,
-                                                                                }))}
-                                                                                style={{ width: "100%" }}
-                                                                            />
+                                                                    <div className="mt-3">
+                                                                        <div className="mb-1">
+                                                                            <span className="text-xs text-gray-500">
+                                                                                CC:
+                                                                            </span>
                                                                         </div>
-                                                                    )}
+
+                                                                        <Select
+                                                                            mode="tags"
+                                                                            showSearch
+                                                                            placeholder="Agregar destinatarios en copia"
+                                                                            value={ccEmails}
+                                                                            onChange={setCcEmails}
+                                                                            onSearch={debouncedSearchContactos}
+                                                                            loading={loadingContactos}
+                                                                            options={contactos.map((c) => ({
+                                                                                label: `${c.nombre} (${c.email})`,
+                                                                                value: c.email,
+                                                                            }))}
+                                                                            style={{ width: "100%" }}
+                                                                        />
+                                                                    </div>
                                                                 </div>
 
                                                                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -1460,31 +1614,71 @@ export default function TicketDetailPage() {
                                     <div className="flex h-full min-h-0 flex-col gap-3">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
-                                                <div className="text-xs text-gray-400 mb-0.5">SLA 1ª respuesta</div>
+                                                <div className="text-xs text-gray-400 mb-0.5">
+                                                    SLA 1ª respuesta
+                                                </div>
+
                                                 <div className="text-xs text-gray-600">
                                                     Vence:{" "}
                                                     {ticketDetalle.sla.firstResponse?.dueAt
-                                                        ? formatDateTime(ticketDetalle.sla.firstResponse.dueAt)
+                                                        ? formatDateTime(
+                                                            ticketDetalle.sla.firstResponse.dueAt
+                                                        )
                                                         : "-"}
                                                 </div>
+
+                                                <div
+                                                    className={`mt-1 text-xs font-medium ${firstResponseSlaStatus === "BREACHED"
+                                                        ? "text-red-600"
+                                                        : firstResponseSlaStatus === "OK"
+                                                            ? "text-green-600"
+                                                            : "text-amber-600"
+                                                        }`}
+                                                >
+                                                    {firstResponseRemainingText}
+                                                </div>
                                             </div>
-                                            <Tag color={slaColor(ticketDetalle.sla.firstResponse?.status)} className="m-0">
-                                                {slaLabel(ticketDetalle.sla.firstResponse?.status)}
+
+                                            <Tag
+                                                color={slaColor(firstResponseSlaStatus)}
+                                                className="m-0"
+                                            >
+                                                {slaLabel(firstResponseSlaStatus)}
                                             </Tag>
                                         </div>
 
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
-                                                <div className="text-xs text-gray-400 mb-0.5">SLA cierre</div>
+                                                <div className="text-xs text-gray-400 mb-0.5">
+                                                    SLA cierre
+                                                </div>
+
                                                 <div className="text-xs text-gray-600">
                                                     Vence:{" "}
                                                     {ticketDetalle.sla.resolution?.dueAt
-                                                        ? formatDateTime(ticketDetalle.sla.resolution.dueAt)
+                                                        ? formatDateTime(
+                                                            ticketDetalle.sla.resolution.dueAt
+                                                        )
                                                         : "-"}
                                                 </div>
+
+                                                <div
+                                                    className={`mt-1 text-xs font-medium ${resolutionSlaStatus === "BREACHED"
+                                                        ? "text-red-600"
+                                                        : resolutionSlaStatus === "OK"
+                                                            ? "text-green-600"
+                                                            : "text-amber-600"
+                                                        }`}
+                                                >
+                                                    {resolutionRemainingText}
+                                                </div>
                                             </div>
-                                            <Tag color={slaColor(ticketDetalle.sla.resolution?.status)} className="m-0">
-                                                {slaLabel(ticketDetalle.sla.resolution?.status)}
+
+                                            <Tag
+                                                color={slaColor(resolutionSlaStatus)}
+                                                className="m-0"
+                                            >
+                                                {slaLabel(resolutionSlaStatus)}
                                             </Tag>
                                         </div>
                                     </div>
