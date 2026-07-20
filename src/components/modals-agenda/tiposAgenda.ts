@@ -12,6 +12,14 @@ export interface Empresa {
   nombre: string;
 }
 
+export interface Sucursal {
+  id_sucursal: number;
+  nombre: string;
+  direccion?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+}
+
 export type OrigenVisita = "MANUAL" | "AGENDA";
 
 export interface FormularioVisitaAsociada {
@@ -84,6 +92,10 @@ export interface AgendaVisita {
   estado: EstadoAgenda | string;
   empresa: Empresa | null;
   empresaExternaNombre?: string | null;
+  sucursalId?: number | null;
+  sucursal?: Sucursal | null;
+  destinoNombre?: string | null;
+  destinoDireccion?: string | null;
   tecnicos: TecnicoRelacion[];
   horaInicio?: string | null;
   horaFin?: string | null;
