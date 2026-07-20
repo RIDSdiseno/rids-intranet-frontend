@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   AlertCircle,
+  Building2,
   Clock,
   Loader2,
   LocateFixed,
@@ -10,6 +12,12 @@ import {
   Search,
   UserRound,
 } from "lucide-react";
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvent } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { api } from "../api/api";
 
 type UbicacionTecnico = {
@@ -30,6 +38,35 @@ type UbicacionTecnico = {
   velocidad?: number | null;
   estadoTracking: string;
   createdAt: string;
+};
+
+type DestinoTipo =
+  | "EMPRESA_PRINCIPAL"
+  | "SUCURSAL_UNICA"
+  | "SIN_COORDENADAS"
+  | "MULTIPLES_SUCURSALES";
+
+type DestinoAgenda = {
+  tipo: DestinoTipo;
+  sucursalId: number | null;
+  nombre: string | null;
+  direccion: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  coordenadasDisponibles: boolean;
+  tieneMultiplesSucursales: boolean;
+};
+
+type AgendaMapa = {
+  agendaId: number;
+  fecha: string;
+  estado: string;
+  horaInicio?: string | null;
+  horaFin?: string | null;
+  empresa: { id: number; nombre: string } | null;
+  empresaExternaNombre?: string | null;
+  destino: DestinoAgenda | null;
+  tecnicos: { id: number; nombre: string }[];
 };
 
 const POLLING_MS = 45_000;
@@ -151,37 +188,334 @@ function getEstadoColor(value?: string | null) {
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
-function getOsmUrl(ubicacion: UbicacionTecnico) {
-  const lat = ubicacion.latitud;
-  const lng = ubicacion.longitud;
-  const delta = 0.008;
-  const bbox = [
-    lng - delta,
-    lat - delta,
-    lng + delta,
-    lat + delta,
-  ].join(",");
+const SENAL_COLORS: Record<EstadoSenal, string> = {
+  ACTIVO: "#059669",
+  RECIENTE: "#d97706",
+  SIN_SEÑAL: "#e11d48",
+};
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+// Colores de "estado de agenda" para destinos: deliberadamente distintos de SENAL_COLORS
+// (verde/ámbar/rojo de señal GPS) para no confundir ambos sistemas en el mismo mapa.
+const DESTINO_COLORS: Record<string, string> = {
+  PROGRAMADA: "#64748b",
+  NOTIFICADA: "#64748b",
+  EN_RUTA: "#2563eb",
+  INICIADA: "#9333ea",
+  COMPLETADA: "#15803d",
+  CANCELADA: "#cbd5e1",
+};
+
+function getDestinoColor(estado: string) {
+  return DESTINO_COLORS[estado] ?? "#64748b";
 }
 
-function buildMarkerPositions(ubicaciones: UbicacionTecnico[]) {
-  if (ubicaciones.length === 0) return [];
+// Prioridad para decidir el color/estado representativo del marcador agrupado
+// cuando conviven varias agendas/técnicos en el mismo destino físico.
+// Solo afecta el color del marcador: el popup siempre muestra el estado real
+// de cada agenda individual, sin alterarlo.
+// INICIADA primero porque significa que la atención ya comenzó (más urgente
+// que EN_RUTA, donde el técnico todavía va en camino).
+const ESTADO_PRIORIDAD: Record<string, number> = {
+  INICIADA: 0,
+  EN_RUTA: 1,
+  NOTIFICADA: 2,
+  PROGRAMADA: 3,
+  COMPLETADA: 4,
+  CANCELADA: 5,
+};
 
-  const lats = ubicaciones.map((item) => item.latitud);
-  const lngs = ubicaciones.map((item) => item.longitud);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const latRange = Math.max(maxLat - minLat, 0.0001);
-  const lngRange = Math.max(maxLng - minLng, 0.0001);
+function getEstadoMasPrioritario(estados: string[]): string {
+  return (
+    [...estados].sort(
+      (a, b) => (ESTADO_PRIORIDAD[a] ?? 9) - (ESTADO_PRIORIDAD[b] ?? 9)
+    )[0] ?? "PROGRAMADA"
+  );
+}
 
-  return ubicaciones.map((item) => ({
-    item,
-    left: 8 + ((item.longitud - minLng) / lngRange) * 84,
-    top: 92 - ((item.latitud - minLat) / latRange) * 84,
-  }));
+type DestinoGrupo = {
+  key: string;
+  latitud: number;
+  longitud: number;
+  nombre: string | null;
+  direccion: string | null;
+  tieneMultiplesSucursales: boolean;
+  estadoPrincipal: string;
+  agendas: AgendaMapa[];
+};
+
+function esParCoordenadasValido(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+// Normaliza el texto de una dirección SOLO para construir la clave de
+// agrupación (nunca se usa ni se muestra este valor normalizado al usuario).
+function normalizarDireccionParaClave(direccion: string): string {
+  return direccion
+    .toLowerCase()
+    .trim()
+    .replace(/[.,;:]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+// Clave de agrupación: un mismo destino físico comparte un único marcador,
+// aunque tenga varias agendas o técnicos distintos ese día. Prioridad:
+//   1. SUCURSAL:{sucursalId}              — máxima confianza (misma fila).
+//   2. EMPRESA:{empresaId}:PRINCIPAL      — misma "ubicación principal".
+//   3. COORD:{lat6}:{lng6}                — coordenada redondeada a 6 decimales
+//      (respaldo si no hay sucursal ni tipo EMPRESA_PRINCIPAL claro).
+//   4. EMPRESA:{empresaId}:DIRECCION:...  — dirección de texto normalizada,
+//      último respaldo para casos sin coordenada utilizable.
+// Nunca se agrupa solo por nombre de empresa.
+function getDestinoGroupKey(agenda: AgendaMapa): string | null {
+  const destino = agenda.destino;
+  if (!destino?.coordenadasDisponibles) return null;
+
+  if (destino.sucursalId != null) {
+    return `SUCURSAL:${destino.sucursalId}`;
+  }
+
+  if (agenda.empresa && destino.tipo === "EMPRESA_PRINCIPAL") {
+    return `EMPRESA:${agenda.empresa.id}:PRINCIPAL`;
+  }
+
+  if (esParCoordenadasValido(destino.latitud, destino.longitud)) {
+    const latKey = Number(destino.latitud).toFixed(6);
+    const lngKey = Number(destino.longitud).toFixed(6);
+    return `COORD:${latKey}:${lngKey}`;
+  }
+
+  if (agenda.empresa && destino.direccion) {
+    return `EMPRESA:${agenda.empresa.id}:DIRECCION:${normalizarDireccionParaClave(destino.direccion)}`;
+  }
+
+  return null;
+}
+
+function agruparAgendasPorDestino(agendas: AgendaMapa[]): DestinoGrupo[] {
+  const grupos = new Map<string, DestinoGrupo>();
+
+  for (const agenda of agendas) {
+    const key = getDestinoGroupKey(agenda);
+    if (!key || !agenda.destino || agenda.destino.latitud == null || agenda.destino.longitud == null) {
+      continue;
+    }
+
+    const existente = grupos.get(key);
+    if (existente) {
+      existente.agendas.push(agenda);
+    } else {
+      grupos.set(key, {
+        key,
+        latitud: agenda.destino.latitud,
+        longitud: agenda.destino.longitud,
+        nombre: agenda.destino.nombre,
+        direccion: agenda.destino.direccion,
+        tieneMultiplesSucursales: agenda.destino.tieneMultiplesSucursales,
+        estadoPrincipal: agenda.estado,
+        agendas: [agenda],
+      });
+    }
+  }
+
+  for (const grupo of grupos.values()) {
+    grupo.estadoPrincipal = getEstadoMasPrioritario(grupo.agendas.map((a) => a.estado));
+  }
+
+  return Array.from(grupos.values());
+}
+
+function getFechaLocalHoy() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildTecnicoIcon(senal: EstadoSenal, selected: boolean) {
+  const color = SENAL_COLORS[senal];
+  const size = selected ? 40 : 32;
+
+  const html = renderToStaticMarkup(
+    <div
+      style={{
+        width: size,
+        height: size,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "9999px",
+        background: "#ffffff",
+        border: selected ? "3px solid #06b6d4" : "2px solid #ffffff",
+        boxShadow: selected
+          ? "0 0 0 4px rgba(6,182,212,0.25), 0 4px 10px rgba(15,23,42,0.35)"
+          : "0 2px 6px rgba(15,23,42,0.35)",
+      }}
+    >
+      <MapPin size={selected ? 22 : 18} color={color} fill={color} />
+    </div>
+  );
+
+  return L.divIcon({
+    html,
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+  });
+}
+
+// Ícono de destino (empresa/sucursal agendada): forma cuadrada + Building2, deliberadamente
+// distinto del círculo con MapPin de los técnicos para diferenciarlos de un vistazo.
+function buildDestinoIcon(estado: string, selected: boolean) {
+  const color = getDestinoColor(estado);
+  const size = selected ? 38 : 30;
+
+  const html = renderToStaticMarkup(
+    <div
+      style={{
+        width: size,
+        height: size,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: "8px",
+        background: "#ffffff",
+        border: selected ? `3px solid ${color}` : `2px solid ${color}`,
+        boxShadow: selected
+          ? `0 0 0 4px ${color}33, 0 4px 10px rgba(15,23,42,0.35)`
+          : "0 2px 6px rgba(15,23,42,0.35)",
+      }}
+    >
+      <Building2 size={selected ? 20 : 16} color={color} />
+    </div>
+  );
+
+  return L.divIcon({
+    html,
+    className: "",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+  });
+}
+
+const TECNICO_ICON_CACHE: Record<string, L.DivIcon> = (() => {
+  const cache: Record<string, L.DivIcon> = {};
+
+  (Object.keys(SENAL_COLORS) as EstadoSenal[]).forEach((senal) => {
+    cache[`${senal}_normal`] = buildTecnicoIcon(senal, false);
+    cache[`${senal}_selected`] = buildTecnicoIcon(senal, true);
+  });
+
+  return cache;
+})();
+
+function getTecnicoIcon(senal: EstadoSenal, selected: boolean) {
+  return TECNICO_ICON_CACHE[`${senal}_${selected ? "selected" : "normal"}`];
+}
+
+const DESTINO_ICON_CACHE: Record<string, L.DivIcon> = (() => {
+  const cache: Record<string, L.DivIcon> = {};
+
+  Object.keys(DESTINO_COLORS).forEach((estado) => {
+    cache[`${estado}_normal`] = buildDestinoIcon(estado, false);
+    cache[`${estado}_selected`] = buildDestinoIcon(estado, true);
+  });
+
+  return cache;
+})();
+
+function getDestinoIcon(estado: string, selected: boolean) {
+  const key = `${estado}_${selected ? "selected" : "normal"}`;
+  return DESTINO_ICON_CACHE[key] ?? buildDestinoIcon(estado, selected);
+}
+
+function MapFitBounds({
+  positions,
+  refitKey,
+  userInteractedRef,
+}: {
+  positions: [number, number][];
+  refitKey: string;
+  userInteractedRef: React.MutableRefObject<boolean>;
+}) {
+  const map = useMap();
+  const didFitOnce = useRef(false);
+  const lastRefitKey = useRef(refitKey);
+
+  useEffect(() => {
+    const keyChanged = lastRefitKey.current !== refitKey;
+    lastRefitKey.current = refitKey;
+
+    if (positions.length === 0) return;
+
+    const shouldFit = !didFitOnce.current || (keyChanged && !userInteractedRef.current);
+    if (!shouldFit) return;
+
+    didFitOnce.current = true;
+
+    if (positions.length === 1) {
+      map.setView(positions[0], 13);
+      return;
+    }
+
+    map.fitBounds(L.latLngBounds(positions), { padding: [48, 48] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions, refitKey, map]);
+
+  return null;
+}
+
+function MapFlyToSelected({
+  selectedId,
+  getPosition,
+}: {
+  selectedId: number | null;
+  getPosition: (tecnicoId: number) => [number, number] | null;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    const position = getPosition(selectedId);
+    if (!position) return;
+
+    map.flyTo(position, Math.max(map.getZoom(), 14), { duration: 0.6 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  return null;
+}
+
+function MapInteractionTracker({ onInteract }: { onInteract: () => void }) {
+  useMapEvent("dragstart", onInteract);
+  useMapEvent("zoomstart", onInteract);
+  return null;
+}
+
+function MapRefBridge({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  const map = useMap();
+
+  useEffect(() => {
+    mapRef.current = map;
+    return () => {
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
+    };
+  }, [map, mapRef]);
+
+  return null;
 }
 
 function ordenarPorSenalYFecha(items: UbicacionTecnico[]) {
@@ -208,10 +542,30 @@ export default function MapaTecnicosPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState("TODOS");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedTecnicoId, setSelectedTecnicoId] = useState<number | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaLocalHoy);
+  const [agendas, setAgendas] = useState<AgendaMapa[]>([]);
+  const [agendasLoading, setAgendasLoading] = useState(true);
+  const [agendasError, setAgendasError] = useState<string | null>(null);
+  const [selectedDestinoKey, setSelectedDestinoKey] = useState<string | null>(null);
+
+  const isFetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const agendasAbortRef = useRef<AbortController | null>(null);
+  const agendasRequestIdRef = useRef(0);
+  const userInteractedRef = useRef(false);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+
   const cargarUbicaciones = useCallback(async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       if (silent) {
         setRefreshing(true);
@@ -220,14 +574,20 @@ export default function MapaTecnicosPage() {
       }
 
       setError(null);
-      const { data } = await api.get<UbicacionTecnico[]>("/ubicaciones/tecnicos");
-      setUbicaciones(Array.isArray(data) ? data : []);
+      const { data } = await api.get<UbicacionTecnico[]>("/ubicaciones/tecnicos", {
+        signal: controller.signal,
+      });
+      const lista = Array.isArray(data) ? data : [];
+      setUbicaciones(lista);
       setLastRefresh(new Date());
 
-      if (!selectedId && data?.[0]?.tecnicoId) {
-        setSelectedId(data[0].tecnicoId);
-      }
+      const primerTecnicoId = lista[0]?.tecnicoId ?? null;
+      setSelectedTecnicoId((current) => current ?? primerTecnicoId);
     } catch (err: any) {
+      if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") {
+        return;
+      }
+
       const status = err?.response?.status;
       const message = status === 403
         ? "No tienes permisos para ver el mapa de técnicos. Este módulo es solo para ADMINISTRACION."
@@ -238,20 +598,107 @@ export default function MapaTecnicosPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      isFetchingRef.current = false;
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     cargarUbicaciones(false);
   }, [cargarUbicaciones]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      cargarUbicaciones(true);
-    }, POLLING_MS);
+    let intervalId: number | null = null;
 
-    return () => window.clearInterval(id);
+    const startPolling = () => {
+      if (intervalId != null) return;
+      intervalId = window.setInterval(() => {
+        cargarUbicaciones(true);
+      }, POLLING_MS);
+    };
+
+    const stopPolling = () => {
+      if (intervalId != null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+        return;
+      }
+
+      cargarUbicaciones(true);
+      stopPolling();
+      startPolling();
+    };
+
+    if (!document.hidden) {
+      startPolling();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopPolling();
+      abortControllerRef.current?.abort();
+    };
   }, [cargarUbicaciones]);
+
+  // Carga de agendas del mapa: endpoint y ciclo de vida totalmente separados del
+  // polling GPS de arriba (no comparte intervalo, no se dispara cada 45s).
+  const cargarAgendas = useCallback(async (fecha: string) => {
+    agendasAbortRef.current?.abort();
+    const controller = new AbortController();
+    agendasAbortRef.current = controller;
+    const requestId = ++agendasRequestIdRef.current;
+
+    setAgendasLoading(true);
+    setAgendasError(null);
+
+    try {
+      const { data } = await api.get<AgendaMapa[]>("/mapa/agendas", {
+        params: { fecha },
+        signal: controller.signal,
+      });
+
+      if (requestId !== agendasRequestIdRef.current) return;
+      setAgendas(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") return;
+      if (requestId !== agendasRequestIdRef.current) return;
+
+      const status = err?.response?.status;
+      const message = status === 403
+        ? "No tienes permisos para ver las agendas del mapa."
+        : err?.response?.data?.message ?? "No se pudieron cargar las agendas del mapa";
+      setAgendasError(message);
+      setAgendas([]);
+    } finally {
+      if (requestId === agendasRequestIdRef.current) {
+        setAgendasLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarAgendas(fechaSeleccionada);
+  }, [fechaSeleccionada, cargarAgendas]);
+
+  useEffect(() => {
+    return () => {
+      agendasAbortRef.current?.abort();
+    };
+  }, []);
+
+  const markInteracted = useCallback(() => {
+    userInteractedRef.current = true;
+  }, []);
 
   const estadosDisponibles = useMemo(() => {
     const estados = new Set(
@@ -284,11 +731,66 @@ export default function MapaTecnicosPage() {
   }, [ubicaciones, search, estado]);
 
   const selected =
-    filtradas.find((item) => item.tecnicoId === selectedId) ??
+    filtradas.find((item) => item.tecnicoId === selectedTecnicoId) ??
     filtradas[0] ??
     null;
 
-  const markerPositions = useMemo(() => buildMarkerPositions(filtradas), [filtradas]);
+  const positions = useMemo<[number, number][]>(
+    () => filtradas.map((item) => [item.latitud, item.longitud]),
+    [filtradas]
+  );
+
+  const filtradasRef = useRef<UbicacionTecnico[]>([]);
+  useEffect(() => {
+    filtradasRef.current = filtradas;
+  }, [filtradas]);
+
+  const destinosConCoordenadas = useMemo(
+    () =>
+      agendas.filter(
+        (a): a is AgendaMapa & { destino: DestinoAgenda & { latitud: number; longitud: number } } =>
+          Boolean(a.destino?.coordenadasDisponibles) &&
+          a.destino?.latitud != null &&
+          a.destino?.longitud != null
+      ),
+    [agendas]
+  );
+
+  const agendasSinCoordenadas = useMemo(
+    () => agendas.filter((a) => !a.destino || !a.destino.coordenadasDisponibles),
+    [agendas]
+  );
+
+  const agendasMultiplesSucursalesSinDestino = useMemo(
+    () => agendas.filter((a) => a.destino?.tipo === "MULTIPLES_SUCURSALES"),
+    [agendas]
+  );
+
+  // Un marcador por destino físico: varias agendas/técnicos en la misma sede
+  // (misma sucursal, o la misma "ubicación principal" de una empresa) comparten uno solo.
+  const destinoGrupos = useMemo(() => agruparAgendasPorDestino(agendas), [agendas]);
+
+  const destinoPositions = useMemo<[number, number][]>(
+    () => destinoGrupos.map((g) => [g.latitud, g.longitud]),
+    [destinoGrupos]
+  );
+
+  const combinedPositions = useMemo<[number, number][]>(
+    () => [...positions, ...destinoPositions],
+    [positions, destinoPositions]
+  );
+
+  const handleVerTodos = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map || combinedPositions.length === 0) return;
+
+    if (combinedPositions.length === 1) {
+      map.setView(combinedPositions[0], 13);
+      return;
+    }
+
+    map.fitBounds(L.latLngBounds(combinedPositions), { padding: [48, 48] });
+  }, [combinedPositions]);
 
   const totalEnRuta = ubicaciones.filter((item) => {
     const estadoOperativo = String(getEstadoOperativo(item) ?? "").toUpperCase();
@@ -339,7 +841,7 @@ export default function MapaTecnicosPage() {
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+          <div className="grid gap-3 md:grid-cols-[1fr_200px_170px_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
@@ -364,8 +866,21 @@ export default function MapaTecnicosPage() {
               ))}
             </select>
 
+            <label className="flex flex-col justify-center gap-1">
+              <span className="text-xs font-semibold uppercase text-slate-500">Fecha de agendas</span>
+              <input
+                type="date"
+                value={fechaSeleccionada}
+                onChange={(event) => setFechaSeleccionada(event.target.value)}
+                className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-slate-800 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+              />
+            </label>
+
             <button
-              onClick={() => cargarUbicaciones(true)}
+              onClick={() => {
+                cargarUbicaciones(true);
+                cargarAgendas(fechaSeleccionada);
+              }}
               disabled={refreshing}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-70"
               type="button"
@@ -378,10 +893,53 @@ export default function MapaTecnicosPage() {
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span className="inline-flex items-center gap-1">
               <Clock size={15} />
-              Actualización automática cada 45 segundos
+              Técnicos: actualización automática cada 45 segundos
             </span>
             {lastRefresh && <span>Última actualización del panel: {formatHora(lastRefresh.toISOString())}</span>}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+            <span className="font-semibold text-slate-700">Agendas del {fechaSeleccionada}:</span>
+            <span>{agendas.length} totales</span>
+            <span className="text-emerald-700">{destinosConCoordenadas.length} con destino visible</span>
+            <span className="text-amber-700">{agendasSinCoordenadas.length} sin coordenadas</span>
+            {agendasMultiplesSucursalesSinDestino.length > 0 && (
+              <span className="text-rose-700">
+                {agendasMultiplesSucursalesSinDestino.length} con varias sucursales sin destino único
+              </span>
+            )}
+            {agendasLoading && <Loader2 className="animate-spin text-cyan-600" size={16} />}
+
+            <button
+              type="button"
+              onClick={handleVerTodos}
+              disabled={combinedPositions.length === 0}
+              className="ml-auto rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Ver todos
+            </button>
+          </div>
+
+          {agendasError && <p className="mt-2 text-sm text-red-700">{agendasError}</p>}
+
+          {agendasSinCoordenadas.length > 0 && (
+            <details className="mt-3 text-sm text-slate-600">
+              <summary className="cursor-pointer font-semibold text-slate-700">
+                Ver agendas sin destino en el mapa
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {agendasSinCoordenadas.map((item) => (
+                  <li key={item.agendaId}>
+                    {item.empresa?.nombre ?? item.empresaExternaNombre ?? "Sin empresa asociada"}
+                    {" — "}
+                    {formatEstado(item.estado)}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
 
         {error && (
@@ -421,36 +979,178 @@ export default function MapaTecnicosPage() {
               <div className="border-b border-slate-200 px-5 py-4">
                 <h2 className="text-lg font-bold text-slate-900">Ubicaciones activas</h2>
                 <p className="text-sm text-slate-500">
-                  {filtradas.length} marcador{filtradas.length === 1 ? "" : "es"} según filtros actuales
+                  {filtradas.length} técnico{filtradas.length === 1 ? "" : "s"} · {destinosConCoordenadas.length} destino{destinosConCoordenadas.length === 1 ? "" : "s"} agendado{destinosConCoordenadas.length === 1 ? "" : "s"}
                 </p>
               </div>
 
               <div className="relative h-[460px] overflow-hidden bg-slate-100">
-                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px)] bg-[size:52px_52px]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(16,185,129,0.16),transparent_32%)]" />
-                {markerPositions.map(({ item, left, top }) => {
-                  const isSelected = selected?.tecnicoId === item.tecnicoId;
-                  const signalClass = getEstadoSenal(item.createdAt) === "ACTIVO"
-                    ? "text-emerald-600"
-                    : getEstadoSenal(item.createdAt) === "RECIENTE"
-                      ? "text-amber-600"
-                      : "text-rose-600";
+                <MapContainer
+                  center={[-33.4489, -70.6693]}
+                  zoom={11}
+                  scrollWheelZoom
+                  className="h-full w-full"
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
 
-                  return (
-                    <button
-                      key={item.tecnicoId}
-                      onClick={() => setSelectedId(item.tecnicoId)}
-                      className={`absolute -translate-x-1/2 -translate-y-full rounded-full border-2 bg-white p-2 shadow-lg transition hover:scale-110 ${
-                        isSelected ? "border-cyan-500 ring-4 ring-cyan-100" : "border-white"
-                      }`}
-                      style={{ left: `${left}%`, top: `${top}%` }}
-                      type="button"
-                      title={`${item.tecnicoNombre} - ${getSenalLabel(item.createdAt)} - ${formatRelativo(item.createdAt)}`}
-                    >
-                      <MapPin className={signalClass} size={22} fill="currentColor" />
-                    </button>
-                  );
-                })}
+                  <MapRefBridge mapRef={mapInstanceRef} />
+                  <MapInteractionTracker onInteract={markInteracted} />
+                  <MapFitBounds
+                    positions={combinedPositions}
+                    refitKey={fechaSeleccionada}
+                    userInteractedRef={userInteractedRef}
+                  />
+                  <MapFlyToSelected
+                    selectedId={selectedTecnicoId}
+                    getPosition={(tecnicoId) => {
+                      const item = filtradasRef.current.find((it) => it.tecnicoId === tecnicoId);
+                      return item ? [item.latitud, item.longitud] : null;
+                    }}
+                  />
+
+                  <MarkerClusterGroup chunkedLoading>
+                    {filtradas.map((item) => {
+                      const isSelected = selected?.tecnicoId === item.tecnicoId;
+                      const senal = getEstadoSenal(item.createdAt);
+
+                      return (
+                        <Marker
+                          key={item.tecnicoId}
+                          position={[item.latitud, item.longitud]}
+                          icon={getTecnicoIcon(senal, isSelected)}
+                          eventHandlers={{
+                            click: () => setSelectedTecnicoId(item.tecnicoId),
+                          }}
+                        >
+                          <Popup>
+                            <p className="font-bold text-slate-900">{item.tecnicoNombre}</p>
+                            <p className="text-sm text-slate-600">
+                              {item.empresa ?? "Sin visita asociada"}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {getSenalLabel(item.createdAt)} · {formatRelativo(item.createdAt)}
+                            </p>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                  </MarkerClusterGroup>
+
+                  <MarkerClusterGroup chunkedLoading>
+                    {destinoGrupos.map((grupo) => {
+                      const isSelected = selectedDestinoKey === grupo.key;
+
+                      return (
+                        <Marker
+                          key={`destino-${grupo.key}`}
+                          position={[grupo.latitud, grupo.longitud]}
+                          icon={getDestinoIcon(grupo.estadoPrincipal, isSelected)}
+                          eventHandlers={{
+                            click: () => setSelectedDestinoKey(grupo.key),
+                          }}
+                        >
+                          <Popup>
+                            <div className="min-w-[220px]">
+                              <p className="font-bold text-slate-900">
+                                {grupo.nombre ?? "Ubicación principal"}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {grupo.direccion ?? "Sin dirección asociada"}
+                              </p>
+                              {grupo.tieneMultiplesSucursales && (
+                                <p className="mt-1 text-xs font-semibold text-amber-600">
+                                  Esta empresa tiene varias sucursales
+                                </p>
+                              )}
+
+                              <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
+                                {grupo.agendas.map((agenda) => (
+                                  <div key={agenda.agendaId}>
+                                    <p className="text-xs font-semibold text-slate-700">
+                                      {agenda.empresa?.nombre ?? agenda.empresaExternaNombre ?? "Sin empresa asociada"}
+                                      {" · "}
+                                      {formatEstado(agenda.estado)}
+                                    </p>
+                                    {agenda.tecnicos.length > 0 ? (
+                                      agenda.tecnicos.map((t) => (
+                                        <p key={t.id} className="text-xs text-slate-500">
+                                          {t.nombre} — {agenda.horaInicio ?? "--:--"}
+                                          {agenda.horaFin ? ` a ${agenda.horaFin}` : ""}
+                                        </p>
+                                      ))
+                                    ) : (
+                                      <p className="text-xs text-slate-400">Sin técnicos asignados</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              <p className="mt-2 text-[10px] text-slate-400">
+                                {grupo.agendas.length} agenda{grupo.agendas.length === 1 ? "" : "s"} · IDs:{" "}
+                                {grupo.agendas.map((a) => a.agendaId).join(", ")}
+                              </p>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                  </MarkerClusterGroup>
+                </MapContainer>
+
+                <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm">
+                  <p className="mb-1 font-semibold text-slate-700">Técnicos: señal</p>
+                  <div className="flex flex-col gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: SENAL_COLORS.ACTIVO }}
+                      />
+                      Activo
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: SENAL_COLORS.RECIENTE }}
+                      />
+                      Reciente
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: SENAL_COLORS.SIN_SEÑAL }}
+                      />
+                      Sin señal
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pointer-events-none absolute bottom-3 right-3 z-[1000] rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm">
+                  <p className="mb-1 font-semibold text-slate-700">Destinos: estado agenda</p>
+                  <div className="flex flex-col gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.PROGRAMADA }} />
+                      Programada / Notificada
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.EN_RUTA }} />
+                      En ruta
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.INICIADA }} />
+                      Iniciada
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.COMPLETADA }} />
+                      Completada
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.CANCELADA }} />
+                      Cancelada
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {selected && (
@@ -525,12 +1225,6 @@ export default function MapaTecnicosPage() {
                       Abrir en Maps
                     </a>
                   </div>
-                  <iframe
-                    title={`Mapa de ${selected.tecnicoNombre}`}
-                    src={getOsmUrl(selected)}
-                    className="h-72 w-full rounded-xl border border-slate-200"
-                    loading="lazy"
-                  />
                 </div>
               )}
             </section>
@@ -543,7 +1237,7 @@ export default function MapaTecnicosPage() {
                 return (
                   <button
                     key={item.tecnicoId}
-                    onClick={() => setSelectedId(item.tecnicoId)}
+                    onClick={() => setSelectedTecnicoId(item.tecnicoId)}
                     className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-cyan-300 hover:shadow-md ${
                       isSelected ? "border-cyan-400 ring-4 ring-cyan-100" : "border-slate-200"
                     }`}
