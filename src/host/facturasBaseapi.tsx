@@ -27,9 +27,6 @@ import {
 
 import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
 
-import RcvConciliacionPanel from "../components/modals-facturasBaseapi/RcvConciliacionPanel";
-import CobranzaEmbedded from "./Cobranza";
-
 import DetalleBaseApiModal from "../components/modals-facturasBaseapi/DetalleBaseApiModal";
 import DashboardCharts from "../components/modals-facturasBaseapi/DashboardCharts";
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
@@ -48,13 +45,12 @@ const FacturasBaseapi: React.FC = () => {
     const now = new Date();
     const user = useMemo(() => safeParseUser(), []);
     const isCliente = user?.rol === "CLIENTE";
-    const canViewConciliacion = String(user?.rol ?? "").toUpperCase().trim() === "ADMINISTRACION";
 
     const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
     const [ano, setAno] = useState(String(now.getFullYear()));
     const [activeTab, setActiveTab] = useState<TabRCV>("ventas");
     const [empresa, setEmpresa] = useState<EmpresaKey>("econnet");
-    const [mainTab, setMainTab] = useState<"documentos" | "dashboard" | "conciliacion" | "cobranza">("documentos");
+    const [mainTab, setMainTab] = useState<"documentos" | "dashboard">("documentos");
 
     const [loading, setLoading] = useState(false);
     const [respuesta, setRespuesta] = useState<any>(null);
@@ -83,15 +79,6 @@ const FacturasBaseapi: React.FC = () => {
             setBusqueda("");
         }
     }, [isCliente, activeTab]);
-
-    useEffect(() => {
-        if (isCliente && (mainTab === "conciliacion" || mainTab === "cobranza")) {
-            setMainTab("documentos");
-        }
-        if (!canViewConciliacion && mainTab === "conciliacion") {
-            setMainTab("documentos");
-        }
-    }, [isCliente, canViewConciliacion, mainTab]);
 
     const showError = (msg: string) => {
         setToast({ type: "error", message: msg });
@@ -436,13 +423,7 @@ const FacturasBaseapi: React.FC = () => {
 
                     <div className="flex flex-col gap-3 border-t border-cyan-100 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div className="flex rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
-                            {(
-                                isCliente
-                                    ? (["documentos", "dashboard"] as const)
-                                    : canViewConciliacion
-                                        ? (["documentos", "dashboard", "conciliacion", "cobranza"] as const)
-                                        : (["documentos", "dashboard", "cobranza"] as const)
-                            ).map((tab) => (
+                            {(["documentos", "dashboard"] as const).map((tab) => (
                                 <button
                                     key={tab}
                                     type="button"
@@ -452,13 +433,7 @@ const FacturasBaseapi: React.FC = () => {
                                         : "text-slate-600 hover:bg-cyan-50 hover:text-cyan-700"
                                         }`}
                                 >
-                                    {tab === "documentos"
-                                        ? "Documentos RCV"
-                                        : tab === "dashboard"
-                                            ? "Dashboard RCV"
-                                            : tab === "conciliacion"
-                                                ? "Conciliación RCV"
-                                                : "Cobranza"}
+                                    {tab === "documentos" ? "Documentos RCV" : "Dashboard RCV"}
                                 </button>
                             ))}
                         </div>
@@ -481,7 +456,7 @@ const FacturasBaseapi: React.FC = () => {
                 )}
 
                 {/* Filtros */}
-                {mainTab !== "cobranza" && <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
                     <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <h2 className="text-sm font-bold text-slate-900">
@@ -586,7 +561,7 @@ const FacturasBaseapi: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                </div>}
+                </div>
 
                 {/* Tab: Documentos */}
                 {mainTab === "documentos" && (
@@ -738,17 +713,6 @@ const FacturasBaseapi: React.FC = () => {
                             </>
                         )}
                     </>
-                )}
-                {canViewConciliacion && mainTab === "conciliacion" && (
-                    <RcvConciliacionPanel
-                        empresa={empresa}
-                        activeTab={activeTab}
-                        mes={mes}
-                        ano={ano}
-                    />
-                )}
-                {!isCliente && mainTab === "cobranza" && (
-                    <CobranzaEmbedded embedded />
                 )}
             </div>
         </div>

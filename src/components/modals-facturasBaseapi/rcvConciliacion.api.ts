@@ -71,3 +71,26 @@ export async function observarRcv(payload: {
     const res = await api.post("/baseapi/rcv/conciliacion/observar", payload);
     return res.data;
 }
+
+export type PuntualidadEstado = "SIN_HISTORIAL" | "BUEN_PAGADOR" | "IRREGULAR" | "RIESGO_MORA";
+
+export type PuntualidadCliente = {
+    estado: PuntualidadEstado;
+    score: number | null;
+    totalConciliadas: number;
+    conVencimientoRegistrado: number;
+    aTiempo: number;
+    atrasadas: number;
+    promedioDiasAtraso: number;
+};
+
+export async function fetchPuntualidadCliente(params: { empresa: EmpresaKey; rut: string }): Promise<PuntualidadCliente | null> {
+    try {
+        const res = await api.get("/baseapi/rcv/conciliacion/puntualidad", {
+            params: { empresa: params.empresa, rut: params.rut },
+        });
+        return res.data?.data ?? null;
+    } catch {
+        return null;
+    }
+}

@@ -108,7 +108,7 @@ const RcvConciliacionTable: React.FC<Props> = ({
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
             <div className="border-b border-cyan-100 bg-white p-4 sm:p-5">
                 <h2 className="text-base font-black text-slate-900 sm:text-lg">
-                    Conciliación RCV
+                    Documentos
                 </h2>
                 <p className="text-sm text-slate-500">
                     Mostrando {rows.length} documentos de {tipoRcv === "ventas" ? "ventas" : "compras"}.

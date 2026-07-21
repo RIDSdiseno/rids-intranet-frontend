@@ -378,11 +378,12 @@ export function getTituloResumenPDF(tipoDTE?: string | number) {
 export function getNombreArchivoPDF(empresa: EmpresaKey, tipoDTE: any, folio: any) {
     const tipo = Number(tipoDTE);
 
-    if (tipo === 34) return `Resumen-Factura-Exenta-${empresa}-${folio}.pdf`;
-    if (tipo === 33) return `Resumen-Factura-${empresa}-${folio}.pdf`;
-    if (tipo === 61) return `Resumen-Nota-Credito-${empresa}-${folio}.pdf`;
+    if (tipo === 34) return `Factura_Exenta_${folio}.pdf`;
+    if (tipo === 33) return `Factura_${folio}.pdf`;
+    if (tipo === 61) return `Nota_Credito_${folio}.pdf`;
+    if (tipo === 56) return `Nota_Debito_${folio}.pdf`;
 
-    return `Resumen-DTE-${empresa}-${folio}.pdf`;
+    return `DTE_${folio}.pdf`;
 }
 
 export async function imageUrlToBase64(url: string): Promise<string> {

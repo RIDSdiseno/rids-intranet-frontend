@@ -1,6 +1,7 @@
 // src/components/modals-facturasBaseapi/pdfDocumento.tsx
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import * as bwipjs from "bwip-js";
 
 import type { EmpresaKey, TabRCV } from "./types";
 
@@ -29,24 +30,34 @@ import {
 } from "./utils";
 import type { utils } from "xlsx-js-style";
 
-function extractTimbreFrmtFromXml(xmlRaw: string): string | null {
+/** Extrae el bloque <TED>...</TED> completo (DD + FRMT) tal cual aparece en el XML firmado.
+ *  Es lo que debe codificarse en el PDF417 del Timbre Electrónico SII — el FRMT (firma) solo no basta. */
+function extractTedXml(xmlRaw: string): string | null {
     if (!xmlRaw) return null;
 
     try {
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(xmlRaw, "text/xml");
+        const match = xmlRaw.match(/<TED[^>]*>[\s\S]*?<\/TED>/);
+        return match ? match[0] : null;
+    } catch {
+        return null;
+    }
+}
 
-        const all = Array.from(xml.getElementsByTagName("*")) as any[];
-        const ted = all.find((el) => el.localName === "TED");
-
-        if (!ted) return null;
-
-        const frmtEl = (Array.from(ted.getElementsByTagName("*")) as any[]).find((el) => el.localName === "FRMT");
-
-        const txt = frmtEl?.textContent?.trim() ?? null;
-
-        return txt || null;
+/** Genera el PDF417 del Timbre Electrónico SII a partir del XML del TED, como data URL PNG */
+function generarTimbrePdf417(tedXml: string): string | null {
+    try {
+        const canvas = document.createElement("canvas");
+        bwipjs.toCanvas(canvas, {
+            bcid: "pdf417",
+            text: tedXml,
+            scale: 3,
+            eclevel: 5,
+            includetext: false,
+            backgroundcolor: "FFFFFF",
+        });
+        return canvas.toDataURL("image/png");
     } catch (err) {
+        console.error("Error generando PDF417 del Timbre Electrónico SII:", err);
         return null;
     }
 }
@@ -89,16 +100,17 @@ export async function generarPdfDocumentoSeleccionado(params: {
 
     const itemsVisuales = getItemsVisualesParaPdf(detalleDte);
 
-    // Intentamos obtener el timbre desde la respuesta del backend o extrayéndolo del XML
-    const timbreBase64FromResponse =
+    // Obtenemos el bloque <TED> completo desde la respuesta del backend, o lo extraemos del XML como respaldo
+    const tedXmlFromResponse =
         (detalleDte && (
-            detalleDte.timbre_base64 ??
-            detalleDte.data?.documento?.timbre_base64 ??
-            detalleDte.documento?.timbre_base64 ??
+            detalleDte.ted_xml ??
+            detalleDte.data?.documento?.ted_xml ??
+            detalleDte.documento?.ted_xml ??
             null
         )) ?? null;
 
-    const timbreBase64 = timbreBase64FromResponse || extractTimbreFrmtFromXml(xmlDecodificado);
+    const tedXml = tedXmlFromResponse || extractTedXml(xmlDecodificado);
+    const timbreImgDataUrl = tedXml ? generarTimbrePdf417(tedXml) : null;
 
     const folio =
         dteDocumento?.folio ??
@@ -114,7 +126,7 @@ export async function generarPdfDocumentoSeleccionado(params: {
     const tipoDTELabel = getNombreDtePDF(tipoDTE, tipoDTEString);
     const tituloResumen = getTituloResumenPDF(tipoDTE);
 
-    const nombreArchivo = `documento-${empresa}-${activeTab}-${tipoDTE}-${folio}-${ano}-${mes}.pdf`;
+    const nombreArchivo = getNombreArchivoPDF(empresa, tipoDTE, folio);
 
     const nombre =
         activeTab === "ventas"
@@ -522,18 +534,24 @@ export async function generarPdfDocumentoSeleccionado(params: {
     }
 
     .timbre {
-        position: absolute;
-        left: 54px;
-        bottom: 90px;
+        margin-top: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
     }
 
     .timbre-img {
-        width: 160px;
+        width: 220px;
         height: auto;
         object-fit: contain;
-        border: 1px solid #e5e7eb;
         background: #ffffff;
-        padding: 6px;
+    }
+
+    .timbre-leyenda {
+        font-size: 10px;
+        line-height: 1.5;
+        color: #374151;
+        padding-top: 4px;
     }
 </style>
 </head>
@@ -636,9 +654,15 @@ export async function generarPdfDocumentoSeleccionado(params: {
         <div style="margin-bottom:4px;">Observaciones</div>
         ${escapeHtml(observacion)}
     </div>
+    ${timbreImgDataUrl ? `
     <div class="timbre">
-        ${timbreBase64 ? `<img src="data:image/png;base64,${timbreBase64}" class="timbre-img"/>` : ``}
+        <img src="${timbreImgDataUrl}" class="timbre-img"/>
+        <div class="timbre-leyenda">
+            Timbre Electrónico SII<br/>
+            Res. 80 de 2014 - Verifique documento: www.sii.cl
+        </div>
     </div>
+    ` : ``}
 
     <div class="footer">
         Documento generado automáticamente desde el módulo de facturación.

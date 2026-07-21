@@ -47,6 +47,7 @@ const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
+const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
@@ -250,6 +251,11 @@ export default function App() {
             {/* ── Cobranza (acceso restringido) ───────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "VENTAS"]} />}>
               <Route path="/facturas/cobranza" element={<CobranzaPage />} />
+            </Route>
+
+            {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION"]} />}>
+              <Route path="/conciliacion-rcv" element={<ConciliacionRcvPage />} />
             </Route>
 
           </Route>

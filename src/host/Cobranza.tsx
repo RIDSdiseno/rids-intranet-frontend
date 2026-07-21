@@ -3,12 +3,16 @@ import ReactDOM from "react-dom";
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
 import DetalleBaseApiModal from "../components/modals-facturasBaseapi/DetalleBaseApiModal";
 import CobranzaDetalleModal from "../components/modals-cobranza/CobranzaDetalleModal";
+import ClienteDetalleModal from "../components/modals-cobranza/ClienteDetalleModal";
+import { buscarCorreoPorRut } from "../components/modals-cobranza/buscarCorreoCliente";
 import {
     MESES,
     getDocumentos,
     getResumenPorTipo,
     getValue,
     getMontoTotalDoc,
+    getRutContraparte,
+    getNombreContraparte,
     safeParseUser,
     formatCLP,
     formatFechaVista,
@@ -24,11 +28,15 @@ import {
     ExclamationCircleOutlined,
     CheckCircleOutlined,
     DollarOutlined,
+    ReloadOutlined,
+    InfoCircleOutlined,
+    BankOutlined,
+    CalendarOutlined,
 } from "@ant-design/icons";
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000/api";
 
-export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
+export default function Cobranza() {
     const now = new Date();
     const user = useMemo(() => safeParseUser(), []);
     const isCliente = user?.rol === "CLIENTE";
@@ -46,6 +54,7 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
     const [busqueda, setBusqueda] = useState("");
     const [documentoSeleccionado, setDocumentoSeleccionado] = useState<any | null>(null);
     const [prevCobranzaDoc, setPrevCobranzaDoc] = useState<any | null>(null);
+    const [prevOrigin, setPrevOrigin] = useState<'cobranza' | 'cliente' | null>(null);
     const [detalleDte, setDetalleDte] = useState<any | null>(null);
     const [detalleLoading, setDetalleLoading] = useState(false);
     const [detalleError, setDetalleError] = useState("");
@@ -53,6 +62,8 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
     const [reminderDoc, setReminderDoc] = useState<any | null>(null);
     const [cobranzaModalOpen, setCobranzaModalOpen] = useState(false);
     const [cobranzaSelectedDoc, setCobranzaSelectedDoc] = useState<any | null>(null);
+    const [clienteModalOpen, setClienteModalOpen] = useState(false);
+    const [clienteModalSeedDoc, setClienteModalSeedDoc] = useState<any | null>(null);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editDoc, setEditDoc] = useState<any | null>(null);
     const [editFecha, setEditFecha] = useState<string>("");
@@ -384,11 +395,17 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
         setCobranzaModalOpen(true);
     };
 
+    const handleSeleccionarCliente = (doc: any) => {
+        setClienteModalSeedDoc(doc);
+        setClienteModalOpen(true);
+    };
+
     const openFullDetailFromCobranza = async (doc: any) => {
         // cerrar modal rápido y abrir detalle completo (DetalleBaseApiModal)
         try {
             // guardar referencia para volver
             setPrevCobranzaDoc(doc);
+            setPrevOrigin('cobranza');
             setCobranzaModalOpen(false);
             setCobranzaSelectedDoc(null);
             setDocumentoSeleccionado(doc);
@@ -397,6 +414,20 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
             }
         } catch (e) {
             console.error('Error abriendo detalle completo desde Cobranza:', e);
+        }
+    };
+
+    const openFullDetailFromCliente = async (doc: any) => {
+        // cerrar (sin limpiar) la ficha de cliente y abrir el detalle completo; "Volver" restaura la ficha de cliente
+        try {
+            setPrevOrigin('cliente');
+            setClienteModalOpen(false);
+            setDocumentoSeleccionado(doc);
+            if (activeTab === "ventas") {
+                await fetchDetalleDte(doc, false);
+            }
+        } catch (e) {
+            console.error('Error abriendo detalle completo desde la ficha de cliente:', e);
         }
     };
 
@@ -413,11 +444,19 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
     }, [openFullDetailFromCobranza]);
 
     const handleBackToCobranzaModal = () => {
+        if (prevOrigin === 'cliente') {
+            setDocumentoSeleccionado(null);
+            setClienteModalOpen(true);
+            setPrevOrigin(null);
+            return;
+        }
+
         if (!prevCobranzaDoc) return;
         setDocumentoSeleccionado(null);
         setCobranzaSelectedDoc(prevCobranzaDoc);
         setCobranzaModalOpen(true);
         setPrevCobranzaDoc(null);
+        setPrevOrigin(null);
     };
 
     const fetchDetalleDte = async (doc: any, forceRefresh = false) => {
@@ -610,35 +649,43 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
     };
 
     return (
-        <div className={embedded ? "" : "p-6"}>
-            {!embedded && (
-            <div className="rounded-2xl border border-cyan-100 bg-white p-4 mb-4 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-xl font-semibold">Cobranza</h2>
-                        </div>
-                        <p className="text-slate-600 text-sm mt-1">Resumen de cobranza — facturas y notas por gestionar.</p>
-                    </div>
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 p-6">
 
+            {/* Header */}
+            <div className="rounded-3xl border border-cyan-200 bg-white shadow-sm overflow-hidden">
+                <div className="flex flex-col gap-4 px-6 pt-5 pb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex items-center gap-2">
-                            <div className="rounded-full bg-white px-3 py-1 text-xs text-cyan-700 border">{empresa?.toUpperCase()}</div>
-                            <div className="rounded-full bg-white px-3 py-1 text-xs text-cyan-700 border">Periodo {MESES[Number(mes) - 1]} {ano}</div>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600">
+                            <DollarOutlined style={{ fontSize: 18 }} />
                         </div>
-                        <button onClick={() => fetchDatos(true)} className={`inline-flex items-center gap-2 rounded bg-cyan-700 px-4 py-2 text-white text-sm ${loading ? 'opacity-60' : ''}`}>{loading ? 'Actualizando...' : 'Actualizar'}</button>
+                        <div>
+                            <h1 className="text-xl font-black text-slate-900 leading-tight">Cobranza</h1>
+                            <p className="text-xs text-slate-400">Resumen de cobranza — facturas y notas por gestionar</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+                            <BankOutlined /> {empresa?.toUpperCase()}
+                        </span>
+                        <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+                            <CalendarOutlined /> {MESES[Number(mes) - 1]} {ano}
+                        </span>
+                        <button
+                            onClick={() => fetchDatos(true)}
+                            disabled={loading}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100 transition disabled:opacity-60"
+                        >
+                            <ReloadOutlined className={loading ? "animate-spin" : ""} /> {loading ? "Actualizando..." : "Actualizar"}
+                        </button>
                     </div>
                 </div>
 
                 {respuesta && (
-                    <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">Datos cargados desde cache si estaban disponibles</div>
+                    <div className="border-t border-slate-100 bg-emerald-50/60 px-6 py-2.5 text-xs font-medium text-emerald-700 flex items-center gap-2">
+                        <InfoCircleOutlined /> Datos cargados desde cache si estaban disponibles
+                    </div>
                 )}
             </div>
-            )}
-
-            {embedded && respuesta && (
-                <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">Datos cargados desde cache si estaban disponibles</div>
-            )}
 
             <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5 overflow-visible">
                     <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -716,7 +763,7 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
                     </div>
                 </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                     <div className="mb-2 flex items-center gap-2">
                         <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 text-sm">
@@ -781,6 +828,7 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
                 busqueda={busqueda}
                 onBusquedaChange={(v) => { setBusqueda(v); setPage(1); }}
                 onSelectDocumento={handleSeleccionarDocumento}
+                onSelectCliente={handleSeleccionarCliente}
                 mode="cobranza"
                 renderRowActions={(doc) => {
                     const ActionMenu: React.FC = () => {
@@ -929,11 +977,52 @@ export default function Cobranza({ embedded = false }: { embedded?: boolean }) {
                             documentosAll={filtered}
                             onClose={() => { setCobranzaModalOpen(false); setCobranzaSelectedDoc(null); }}
                             onOpenFullDetail={openFullDetailFromCobranza}
+                            onOpenCliente={(doc) => { setCobranzaModalOpen(false); setCobranzaSelectedDoc(null); handleSeleccionarCliente(doc); }}
                         />
                     );
                 })()
             )}
 
+
+            {clienteModalOpen && clienteModalSeedDoc && (
+                (() => {
+                    const all = getDocumentos(respuesta) || documentos;
+                    const tipoRcv = activeTab === "ventas" ? "ventas" : "compras";
+                    const rutSeedRaw = String(getRutContraparte(clienteModalSeedDoc, tipoRcv));
+                    const rutThis = rutSeedRaw.replace(/[^0-9kK]/g, '').toLowerCase();
+                    const nombreThis = String(getValue(clienteModalSeedDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '—'));
+
+                    const documentosCliente = rutThis
+                        ? (all || []).filter((d: any) => {
+                            const rut = String(getRutContraparte(d, tipoRcv)).replace(/[^0-9kK]/g, '').toLowerCase();
+                            return rut === rutThis;
+                        })
+                        : [clienteModalSeedDoc];
+
+                    return (
+                        <ClienteDetalleModal
+                            documentos={documentosCliente}
+                            nombre={nombreThis}
+                            rut={rutSeedRaw}
+                            empresa={empresa}
+                            activeTab={activeTab === "ventas" ? "ventas" : "compras"}
+                            mes={mes}
+                            ano={ano}
+                            onClose={() => { setClienteModalOpen(false); setClienteModalSeedDoc(null); }}
+                            onOpenFullDetail={openFullDetailFromCliente}
+                            onDescargar={handleDescargarFactura}
+                            onRecordatorio={(doc) => { setReminderDoc(doc); setReminderModalOpen(true); }}
+                            onEditarVencimiento={(doc) => {
+                                const initialFecha = String(getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], "")).slice(0, 10);
+                                setEditDoc(doc);
+                                setEditFecha(initialFecha || "");
+                                setEditModalOpen(true);
+                            }}
+                            onHistorial={(doc) => { setHistorialDoc(doc); setHistorialModalOpen(true); }}
+                        />
+                    );
+                })()
+            )}
 
             <DetalleBaseApiModal
                 documento={documentoSeleccionado}
@@ -1054,10 +1143,30 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
     const [manualNombre, setManualNombre] = React.useState<string>("");
     const [observacion, setObservacion] = React.useState<string>("");
     const [generando, setGenerando] = React.useState(false);
+    const [buscandoCorreo, setBuscandoCorreo] = React.useState(false);
     const [showPreviewHtml, setShowPreviewHtml] = React.useState(false);
     const [previewHtml, setPreviewHtml] = React.useState<string>("");
 
     const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualEmail.trim());
+
+    // Al abrir el recordatorio, buscar automáticamente el correo y nombre del cliente por su RUT
+    React.useEffect(() => {
+        if (!reminderDoc) return;
+
+        const nombreDoc = String(getNombreContraparte(reminderDoc) ?? "");
+        if (nombreDoc && nombreDoc !== "Sin razón social") setManualNombre(nombreDoc);
+
+        const rutDoc = String(getRutContraparte(reminderDoc, activeTab === "ventas" ? "ventas" : "compras") ?? "");
+        if (!rutDoc || rutDoc === "Sin RUT") return;
+
+        let mounted = true;
+        setBuscandoCorreo(true);
+        buscarCorreoPorRut(rutDoc).then((found) => {
+            if (mounted && found) setManualEmail(found);
+            if (mounted) setBuscandoCorreo(false);
+        });
+        return () => { mounted = false; };
+    }, [reminderDoc, activeTab]);
 
     return (
         <div className="mt-4">
@@ -1106,7 +1215,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
                         type="email"
                         value={manualEmail}
                         onChange={(e) => setManualEmail(e.target.value)}
-                        placeholder="correo@ejemplo.com"
+                        placeholder={buscandoCorreo ? "Buscando correo..." : "correo@ejemplo.com"}
                         className={`h-10 w-full rounded border px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100 ${manualEmail && !emailValido ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}
                     />
                     {manualEmail && !emailValido && (
