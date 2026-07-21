@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal, Select, DatePicker, Alert } from "antd";
 import dayjs from "dayjs";
-import type { Tecnico, Empresa } from "./tiposAgenda";
+import type { Tecnico, Empresa, Sucursal } from "./tiposAgenda";
 import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
 
 export interface CrearVisitaManualProps {
@@ -10,14 +10,18 @@ export interface CrearVisitaManualProps {
   errorText?: string;
   fecha: string;
   empresaId: number | null;
+  sucursalId: number | null;
   tecnicoId: number | null;
   horaInicio: string;
   horaFin: string;
   notas: string;
   empresasDisponibles: Empresa[];
+  sucursalesDisponibles: Sucursal[];
+  sucursalesLoading?: boolean;
   tecnicosDisponibles: Tecnico[];
   onFechaChange: (fecha: string) => void;
   onEmpresaChange: (id: number) => void;
+  onSucursalChange: (id: number | null) => void;
   onTecnicoChange: (id: number) => void;
   onHoraInicioChange: (v: string) => void;
   onHoraFinChange: (v: string) => void;
@@ -32,14 +36,18 @@ export function CrearVisitaManual({
   errorText,
   fecha,
   empresaId,
+  sucursalId,
   tecnicoId,
   horaInicio,
   horaFin,
   notas,
   empresasDisponibles,
+  sucursalesDisponibles,
+  sucursalesLoading,
   tecnicosDisponibles,
   onFechaChange,
   onEmpresaChange,
+  onSucursalChange,
   onTecnicoChange,
   onHoraInicioChange,
   onHoraFinChange,
@@ -94,6 +102,26 @@ export function CrearVisitaManual({
             }
           />
         </div>
+
+        {sucursalesDisponibles.length > 0 && (
+          <div>
+            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>
+              Sucursal de destino
+            </p>
+            <Select
+              style={{ width: "100%" }}
+              placeholder="Ubicación principal de la empresa"
+              value={sucursalId}
+              onChange={(v) => onSucursalChange(v ?? null)}
+              loading={sucursalesLoading}
+              allowClear
+              options={sucursalesDisponibles.map((s) => ({
+                label: s.nombre,
+                value: s.id_sucursal,
+              }))}
+            />
+          </div>
+        )}
 
         <div>
           <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Técnico</p>

@@ -1,22 +1,26 @@
 import { Modal, Select, Button, Popconfirm } from "antd";
 import dayjs from "dayjs";
-import type { AgendaVisita, Tecnico, Empresa } from "./tiposAgenda";
+import type { AgendaVisita, Tecnico, Empresa, Sucursal } from "./tiposAgenda";
 import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
 
 export interface EditarVisitaProps {
   open: boolean;
   visita: AgendaVisita | null;
   empresaId: number | null;
+  sucursalId: number | null;
   tecnicoIds: number[];
   horaInicio: string;
   horaFin: string;
   notas: string;
   empresasDisponibles: Empresa[];
+  sucursalesDisponibles: Sucursal[];
+  sucursalesLoading?: boolean;
   tecnicosDisponibles: Tecnico[];
   saving: boolean;
   sendingNota: boolean;
   deleting: boolean;
   onEmpresaChange: (id: number) => void;
+  onSucursalChange: (id: number | null) => void;
   onTecnicosChange: (ids: number[]) => void;
   onHoraInicioChange: (v: string) => void;
   onHoraFinChange: (v: string) => void;
@@ -31,16 +35,20 @@ export function EditarVisita({
   open,
   visita,
   empresaId,
+  sucursalId,
   tecnicoIds,
   horaInicio,
   horaFin,
   notas,
   empresasDisponibles,
+  sucursalesDisponibles,
+  sucursalesLoading,
   tecnicosDisponibles,
   saving,
   sendingNota,
   deleting,
   onEmpresaChange,
+  onSucursalChange,
   onTecnicosChange,
   onHoraInicioChange,
   onHoraFinChange,
@@ -120,6 +128,44 @@ export function EditarVisita({
               }
             />
           </div>
+
+          {(visita.destinoNombre || visita.destinoDireccion) && (
+            <div>
+              <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>
+                Destino guardado
+              </p>
+              <p style={{ color: "#334155", fontSize: 13, margin: 0 }}>
+                {visita.sucursal?.nombre ?? visita.destinoNombre ?? "Ubicación principal"}
+                {visita.destinoDireccion ? ` — ${visita.destinoDireccion}` : ""}
+              </p>
+            </div>
+          )}
+
+          {sucursalesDisponibles.length > 0 && (
+            <div>
+              <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>
+                Sucursal de destino
+              </p>
+              <Select
+                style={{ width: "100%" }}
+                placeholder="Ubicación principal de la empresa"
+                value={sucursalId}
+                onChange={(v) => onSucursalChange(v ?? null)}
+                loading={sucursalesLoading}
+                allowClear
+                options={sucursalesDisponibles.map((s) => ({
+                  label: s.nombre,
+                  value: s.id_sucursal,
+                }))}
+              />
+              {sucursalId != null && !sucursalesDisponibles.some((s) => s.id_sucursal === sucursalId) && (
+                <p style={{ color: "#b45309", fontSize: 12, marginTop: 4 }}>
+                  La sucursal original ya no está disponible; el destino guardado arriba se conserva
+                  igual si no eliges una nueva.
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Técnicos</p>
