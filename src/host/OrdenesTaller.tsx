@@ -13,7 +13,6 @@ import {
     CloseCircleOutlined,
     EditOutlined,
     SwapOutlined,
-    FileTextOutlined
 } from "@ant-design/icons";
 import { MailOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
@@ -68,7 +67,6 @@ import { useAuth } from "../components/hooks/useAuth"
 
 import {
     PDF_ORIGEN_DATA,
-    normalizarPdfOrigen,
     type PdfOrigenKey,
 } from "../components/modals-gestioo/pdfOrigen";
 
@@ -808,7 +806,7 @@ const OrdenesTaller: React.FC = () => {
                                 <ToolOutlined className="text-cyan-600" />
                                 Órdenes de Taller
                             </h1>
-                            <p className="text-slate-600 text-sm mt-1">Control y seguimiento de trabajos técnicos (Entidad, Equipo).</p>
+                            <p className="text-slate-600 text-sm mt-1">Control y seguimiento de trabajos técnicos.</p>
                         </div>
 
                         {/* Acciones principales */}

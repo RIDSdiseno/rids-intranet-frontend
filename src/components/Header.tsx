@@ -13,7 +13,6 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  CalendarRange,
   UserCog,
   MonitorCog,
   ClipboardList,
@@ -22,6 +21,14 @@ import {
   Handshake,
   FileText,
   MapPin,
+  Wrench,
+  ChevronDown,
+  LaptopMinimalCheck,
+  CalendarCheck2,
+  Calendar1,
+  Mails,
+  Receipt,
+  BriefcaseBusiness
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -39,6 +46,7 @@ const VISITAS_PATH = "/visitas";
 const MANTENCIONES_REMOTAS_PATH = "/mantenciones-remotas";
 const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
+const MANTENCIONES_GENERALES_PATH = "/mantenciones-generales";
 const ORDENESTALLER = "/ordenes-taller";
 const COTIZACIONES = "/Cotizaciones";
 const MAILER_PATH = "/rids/mailer";
@@ -52,11 +60,23 @@ const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
 
-type NavItem = {
+type NavLinkItem = {
+  type?: "link";
   label: string;
   to: string;
   icon: ReactNode;
 };
+
+type NavSubmenuItem = {
+  type: "submenu";
+  id: string;
+  label: string;
+  icon: ReactNode;
+  match: string[];
+  children: NavLinkItem[];
+};
+
+type NavItem = NavLinkItem | NavSubmenuItem;
 
 type NavLink = NavItem & {
   type: "link";
@@ -103,8 +123,28 @@ const NAV: NavEntry[] = [
       { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
       { label: "Bitácora Técnico", to: BITACORA_TECNICO_PATH, icon: <FileText size={20} /> },
       { label: "Mapa técnicos", to: MAPA_TECNICOS_PATH, icon: <MapPin size={20} /> },
-      { label: "Calendario visitas", to: CALENDARIO_PATH, icon: <CalendarRange size={20} /> },
-      { label: "Atenciones y Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
+      {
+        type: "submenu",
+        id: "visitas",
+        label: "Visitas",
+        icon: <CalendarDays size={20} />,
+        match: [
+          CALENDARIO_PATH,
+          VISITAS_PATH,
+        ],
+        children: [
+          {
+            label: "Calendario",
+            to: CALENDARIO_PATH,
+            icon: <Calendar1 size={18} />,
+          },
+          {
+            label: "Atenciones",
+            to: VISITAS_PATH,
+            icon: <CalendarCheck2 size={18} />,
+          },
+        ],
+      },
     ],
     match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH],
   },
@@ -112,22 +152,43 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "RIDS",
     items: [
-      { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
-      { label: "Equipos", to: EQUIPOS_PATH, icon: <Laptop size={20} /> },
-          { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
-      { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Empresas", to: EMPRESAS_PATH, icon: <Building2 size={20} /> },
-          { label: "Mailer", to: MAILER_PATH, icon: <FileText size={20} /> },
+      { label: "Solicitantes", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
+      {
+        type: "submenu",
+        id: "inventario",
+        label: "Inventario",
+        icon: <LaptopMinimalCheck size={20} />,
+        match: [
+          EQUIPOS_PATH,
+          MANTENCIONES_GENERALES_PATH,
+        ],
+        children: [
+          {
+            label: "Equipos",
+            to: EQUIPOS_PATH,
+            icon: <Laptop size={18} />,
+          },
+          {
+            label: "Mantenciones",
+            to: MANTENCIONES_GENERALES_PATH,
+            icon: <Wrench size={18} />,
+          },
+        ],
+      },
+      { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
+      { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
+      { label: "Mailer", to: MAILER_PATH, icon: <Mails size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_GENERALES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
     label: "ECONNET",
     items: [
-      { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
-      { label: "Clientes", to: "/clientes", icon: <Users size={20} /> },
+      { label: "Cotizaciones", to: COTIZACIONES, icon: <Receipt size={20} /> },
+      { label: "Clientes", to: "/clientes", icon: <BriefcaseBusiness size={20} /> },
       { label: "Productos", to: "/productos", icon: <Package size={20} /> },
       // Facturas SII removido de aquí — ahora solo en Cobranza (acceso restringido)
     ],
@@ -139,7 +200,7 @@ const NAV: NavEntry[] = [
     items: [{ label: "Reportes", to: REPORTES_PATH, icon: <BarChart3 size={20} /> }],
     match: [REPORTES_PATH],
   },
-  
+
   {
     type: "group",
     label: "Facturas",
@@ -187,6 +248,32 @@ const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
+    inventario:
+      isActivePath(pathname, EQUIPOS_PATH) ||
+      isActivePath(pathname, MANTENCIONES_GENERALES_PATH),
+
+    visitas:
+      isActivePath(pathname, CALENDARIO_PATH) ||
+      isActivePath(pathname, VISITAS_PATH),
+  });
+
+  useEffect(() => {
+    setOpenSubmenus((current) => ({
+      ...current,
+
+      inventario:
+        current.inventario ||
+        isActivePath(pathname, EQUIPOS_PATH) ||
+        isActivePath(pathname, MANTENCIONES_GENERALES_PATH),
+
+      visitas:
+        current.visitas ||
+        isActivePath(pathname, CALENDARIO_PATH) ||
+        isActivePath(pathname, VISITAS_PATH),
+    }));
+  }, [pathname]);
+
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
     const update = () => setIsMobile(media.matches);
@@ -221,8 +308,6 @@ const Header = () => {
   const isCliente = user?.rol === "CLIENTE";
 
   const userRole = String(user?.rol ?? "").toUpperCase().trim();
-  const userEmail = String(user?.email ?? "").toLowerCase().trim();
-
   const canAccessFacturas =
     userRole === "ADMINISTRACION" || userRole === "VENTAS" || userRole === "CLIENTE";
 
@@ -249,14 +334,19 @@ const Header = () => {
           return entry;
         }
 
-        if (entry.type === "group" && entry.label === "Técnicos y Visitas") {
+        if (
+          entry.type === "group" &&
+          entry.label === "Técnicos y Visitas"
+        ) {
           const items = entry.items.filter((item) => {
-            // Técnicos: pueden ver ADMIN, ADMINISTRACION, TECNICO y VENTAS
+            if (item.type === "submenu") {
+              return true;
+            }
+
             if (item.to === TECNICOS_PATH) {
               return canAccessTecnicos;
             }
 
-            // Clientes Externos: solo ADMIN y ADMINISTRACION
             if (item.to === CLIENTES_EXT_PATH) {
               return canAccessGestionTecnicosClientes;
             }
@@ -265,14 +355,17 @@ const Header = () => {
               return canAccessMapaTecnicos;
             }
 
-            // Visitas, calendario, etc.
             return true;
           });
 
           return {
             ...entry,
             items,
-            match: items.map((item) => item.to),
+            match: items.flatMap((item) =>
+              item.type === "submenu"
+                ? item.match
+                : [item.to]
+            ),
           };
         }
 
@@ -312,7 +405,7 @@ const Header = () => {
           { label: "Listado de Usuarios", to: SOLICITANTES_PATH, icon: <Users size={20} /> },
           { label: "Atenciones y Visitas", to: VISITAS_PATH, icon: <CalendarDays size={20} /> },
           { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
-           { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
+          { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
           { label: "Tickets de Soporte", to: HELPDESK_PATH, icon: <Headset size={20} /> },
           { label: "Cotizaciones", to: COTIZACIONES, icon: <ReceiptText size={20} /> },
           { label: "Informes Mensuales", to: REPORTES_PATH, icon: <BarChart3 size={20} /> },
@@ -446,30 +539,144 @@ const Header = () => {
                     {entry.label}
                   </div>
                 )}
-                {entry.items.map((it) => (
-                  <Link
-                    key={it.label}
-                    to={it.to}
-                    className={`
-                      relative flex items-center gap-4 px-3 py-2.5 rounded-lg
-                      transition-all duration-200 group
-                      ${pathname === it.to
-                        ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                        : "text-slate-600 hover:bg-slate-100"
+                {entry.items.map((it) => {
+                  if (it.type === "submenu") {
+                    const submenuActive = it.match.some((path) =>
+                      isActivePath(pathname, path)
+                    );
+
+                    const submenuOpen =
+                      openSubmenus[it.id] ?? submenuActive;
+
+                    return (
+                      <div
+                        key={it.label}
+                        className="space-y-1"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenSubmenus((current) => ({
+                              ...current,
+                              [it.id]: !(current[it.id] ?? submenuActive),
+                            }));
+                          }}
+                          className={`
+            relative flex w-full items-center gap-4 rounded-lg px-3 py-2.5
+            transition-all duration-200 group
+            ${submenuActive
+                              ? "text-cyan-700 font-medium"
+                              : "text-slate-600 hover:bg-slate-100"
+                            }
+            ${sidebarCollapsed ? "justify-center" : "pl-6"}
+          `}
+                          title={
+                            sidebarCollapsed
+                              ? it.label
+                              : undefined
+                          }
+                          aria-expanded={submenuOpen}
+                        >
+                          <span className="shrink-0">
+                            {it.icon}
+                          </span>
+
+                          {!sidebarCollapsed && (
+                            <>
+                              <span className="min-w-0 flex-1 text-left">
+                                {it.label}
+                              </span>
+
+                              <ChevronDown
+                                size={16}
+                                className={`
+                  shrink-0 transition-transform duration-200
+                  ${submenuOpen
+                                    ? "rotate-180"
+                                    : ""
+                                  }
+                `}
+                              />
+                            </>
+                          )}
+
+                          {sidebarCollapsed && (
+                            <span className="absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 pointer-events-none group-hover:opacity-100">
+                              {it.label}
+                            </span>
+                          )}
+                        </button>
+
+                        {!sidebarCollapsed && submenuOpen && (
+                          <div className="ml-8 space-y-1 border-l border-slate-200 pl-2">
+                            {it.children.map((child) => {
+                              const childActive =
+                                isActivePath(pathname, child.to);
+
+                              return (
+                                <Link
+                                  key={child.to}
+                                  to={child.to}
+                                  className={`
+  flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm
+  transition-all duration-200
+  ${childActive
+                                      ? "bg-cyan-50 font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-100"
+                                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                    }
+`}
+                                >
+                                  <span className="shrink-0">
+                                    {child.icon}
+                                  </span>
+
+                                  <span className="min-w-0 leading-5">
+                                    {child.label}
+                                  </span>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={it.label}
+                      to={it.to}
+                      className={`
+        relative flex items-center gap-4 px-3 py-2.5 rounded-lg
+        transition-all duration-200 group
+        ${pathname === it.to
+                          ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
+                          : "text-slate-600 hover:bg-slate-100"
+                        }
+        ${sidebarCollapsed ? "justify-center" : "pl-6"}
+      `}
+                      title={
+                        sidebarCollapsed
+                          ? it.label
+                          : undefined
                       }
-                      ${sidebarCollapsed ? "justify-center" : "pl-6"}
-                    `}
-                    title={sidebarCollapsed ? it.label : undefined}
-                  >
-                    <span className="shrink-0">{it.icon}</span>
-                    {!sidebarCollapsed && <span>{it.label}</span>}
-                    {sidebarCollapsed && (
-                      <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                        {it.label}
+                    >
+                      <span className="shrink-0">
+                        {it.icon}
                       </span>
-                    )}
-                  </Link>
-                ))}
+
+                      {!sidebarCollapsed && (
+                        <span>{it.label}</span>
+                      )}
+
+                      {sidebarCollapsed && (
+                        <span className="absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 pointer-events-none group-hover:opacity-100">
+                          {it.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             )
           )}

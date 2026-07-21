@@ -666,12 +666,12 @@ export default function TicketDetailPage() {
                 setReplyText(
                     `Estimado(a) ${ticket.requester?.nombre ?? ""},
 
-                     Gracias por contactarnos.
+Gracias por contactarnos.
 
-                     Quedamos atentos a su respuesta.
+Quedamos atentos a su respuesta.
 
-                     Saludos cordiales,
-                     Soporte Técnico`
+Saludos cordiales,
+Soporte Técnico`
                 );
             }
 

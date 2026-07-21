@@ -751,7 +751,6 @@ export default function TicketeraRids() {
     const loadSlaRef = useRef(loadSla);
     const socketViewConfigRef = useRef({
         isCliente,
-        showResumen,
     });
 
     useEffect(() => {
@@ -765,9 +764,8 @@ export default function TicketeraRids() {
     useEffect(() => {
         socketViewConfigRef.current = {
             isCliente,
-            showResumen,
         };
-    }, [isCliente, showResumen]);
+    }, [isCliente]);
 
     // Guardamos en localStorage la preferencia de mostrar u ocultar el resumen para mantenerla entre recargas de página
     useEffect(() => {
@@ -811,8 +809,10 @@ export default function TicketeraRids() {
 
             const currentView = socketViewConfigRef.current;
 
-            if (!currentView.isCliente && currentView.showResumen) {
-                void loadSlaRef.current();
+            if (!currentView.isCliente) {
+                void loadSlaRef.current({
+                    silent: true,
+                });
             }
         };
 
@@ -833,8 +833,10 @@ export default function TicketeraRids() {
 
             const currentView = socketViewConfigRef.current;
 
-            if (!currentView.isCliente && currentView.showResumen) {
-                void loadSlaRef.current();
+            if (!currentView.isCliente) {
+                void loadSlaRef.current({
+                    silent: true,
+                });
             }
         };
 
@@ -857,8 +859,10 @@ export default function TicketeraRids() {
 
             const currentView = socketViewConfigRef.current;
 
-            if (!currentView.isCliente && currentView.showResumen) {
-                void loadSlaRef.current();
+            if (!currentView.isCliente) {
+                void loadSlaRef.current({
+                    silent: true,
+                });
             }
         };
 
@@ -896,7 +900,7 @@ export default function TicketeraRids() {
     }, []);
 
     useEffect(() => {
-        if (isCliente || !showResumen) {
+        if (isCliente) {
             return;
         }
 
@@ -909,7 +913,7 @@ export default function TicketeraRids() {
         return () => {
             window.clearInterval(intervalId);
         };
-    }, [isCliente, showResumen]);
+    }, [isCliente]);
 
     useEffect(() => {
         void loadTickets();
@@ -925,13 +929,12 @@ export default function TicketeraRids() {
     ]);
 
     useEffect(() => {
-        if (isCliente || !showResumen) return;
+        if (isCliente) return;
 
         void loadSla();
     }, [
         dateRange,
         isCliente,
-        showResumen,
     ]);
 
     // Cada vez que cambian los filtros, la búsqueda o la paginación, actualizamos los parámetros de la URL para reflejar el estado actual de la aplicación y permitir compartir enlaces con los mismos filtros aplicados. Solo incluimos en los parámetros aquellos filtros que tienen un valor diferente al predeterminado para mantener la URL limpia.
@@ -1451,7 +1454,7 @@ export default function TicketeraRids() {
                                 onClick={() => {
                                     void loadTickets();
 
-                                    if (!isCliente && showResumen) {
+                                    if (!isCliente) {
                                         void loadSla();
                                     }
                                 }}

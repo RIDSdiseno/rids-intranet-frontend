@@ -31,17 +31,17 @@ import { http } from "../../service/http";
 import type { TipoEquipoValue } from "../modals-gestioo/types";
 import { TipoEquipoLabel } from "../modals-gestioo/types";
 
+type EquipoViewTab = "principal" | "historial" | "eventos" | "mantenciones";
+
 type Props = {
     open: boolean;
     row: EquipoRow | null;
     historial: EquipoHistorialItem[];
     histLoading: boolean;
     histError: string | null;
+    initialTab?: EquipoViewTab;
     onClose: () => void;
 };
-
-type EquipoViewTab = "principal" | "historial" | "eventos" | "mantenciones";
-
 const EQUIPO_VIEW_TABS: Array<{
     key: EquipoViewTab;
     label: string;
@@ -457,6 +457,7 @@ export default function EquipoViewModal({
     historial,
     histLoading,
     histError,
+    initialTab = "principal",
     onClose,
 }: Props) {
     const [agentLoading, setAgentLoading] = useState(false);
@@ -467,12 +468,13 @@ export default function EquipoViewModal({
     const [mantencionesError, setMantencionesError] = useState<string | null>(null);
     const [mantenciones, setMantenciones] = useState<EquipoMantencion[]>([]);
 
-    const [activeTab, setActiveTab] = useState<EquipoViewTab>("principal");
+    const [activeTab, setActiveTab] =
+        useState<EquipoViewTab>(initialTab);
 
     useEffect(() => {
         if (!open || !row) return;
 
-        setActiveTab("principal");
+        setActiveTab(initialTab);
 
         const idEquipo = row.id_equipo;
         const c = new AbortController();
@@ -531,7 +533,7 @@ export default function EquipoViewModal({
         void fetchMantencionesEquipo();
 
         return () => c.abort();
-    }, [open, row?.id_equipo]);
+    }, [open, row?.id_equipo, initialTab]);
 
     if (!open || !row) return null;
 

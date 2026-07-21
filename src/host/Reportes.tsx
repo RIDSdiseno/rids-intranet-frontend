@@ -29,17 +29,11 @@ import { WizardSelector } from "../components/modals-reportes/WizardSelector";
 import { PdfModal } from "../components/modals-reportes/PdfModal";
 import { ReporteExportView } from "../components/modals-reportes/ReportExportView";
 
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-import InformeResumenVisual from "../components/modals-reportes/InformeResumenVisual";
 import ReportePreviewEmailModal from "../components/modals-reportes/ReportePreviewEmailModal";
 
 // Utils
 import {
   TEXTO_FIJO,
-  generarFolio,
-  contarMantenimientos,
-  contarExtras,
 } from "../components/modals-reportes/UtilsReportes";
 
 import { http } from "../service/http";
@@ -69,6 +63,12 @@ type InformeEmailGenerado = {
 
   // MIME del preview.
   previewMimeType?: string;
+};
+
+export type ContenidoAdicionalInforme = {
+  introduccion: string;
+  observaciones: string;
+  conclusion: string;
 };
 
 const DATE_RANGE_PRESETS: {
@@ -148,6 +148,15 @@ const ReportesPage: React.FC = () => {
   // ── Informe IA por correo ──
   const [showInformeIAEmailModal, setShowInformeIAEmailModal] = useState(false);
 
+  const [
+    contenidoAdicionalInforme,
+    setContenidoAdicionalInforme,
+  ] = useState<ContenidoAdicionalInforme>({
+    introduccion: "",
+    observaciones: "",
+    conclusion: "",
+  });
+
   const [informeIAGenerado, setInformeIAGenerado] =
     useState<InformeEmailGenerado | null>(null);
 
@@ -157,7 +166,7 @@ const ReportesPage: React.FC = () => {
   // ── Historial ──
   const [historialReportes, setHistorialReportes] = useState<HistorialReporteRow[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
-  const [historialVisible, setHistorialVisible] = useState(true);
+  const [historialVisible, setHistorialVisible] = useState(false);
   const [filtroFecha, setFiltroFecha] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
   // ── Derived ──
@@ -179,9 +188,6 @@ const ReportesPage: React.FC = () => {
     exportDOCX,
     exportDOCXIABeta,
     generarDOCXIABetaBlob,
-    exportXLSX,
-    generarPdfBlob,
-    exportPDFToStorage,
   } = useExportReportes({
     empresaFiltro,
     selectedYear,
@@ -399,7 +405,9 @@ const ReportesPage: React.FC = () => {
     void cargarHistorialReportes();
   }, [cargarHistorialReportes]);
 
-  const generarInformeIADocxEmail = async (): Promise<InformeEmailGenerado | null> => {
+  const generarInformeIADocxEmail = async (
+    contenido?: ContenidoAdicionalInforme
+  ): Promise<InformeEmailGenerado | null> => {
     if (!canGenerate) {
       message.warning("Selecciona empresa, año y mes");
       return null;
@@ -409,7 +417,9 @@ const ReportesPage: React.FC = () => {
       setGenerandoInformeIAEmail(true);
 
       // 1. Genera el Word IA original.
-      const { blob, fileName } = await generarDOCXIABetaBlob();
+      const { blob, fileName } = await generarDOCXIABetaBlob({
+        contenidoAdicional: contenido,
+      });
 
       // 2. Convierte el DOCX original a base64 para enviarlo por correo.
       const fileBase64 = await blobToBase64(blob);
@@ -476,10 +486,48 @@ const ReportesPage: React.FC = () => {
     }
   };
 
+  const liberarUrlsInforme = (
+    informe?: InformeEmailGenerado | null
+  ) => {
+    if (informe?.previewUrl) {
+      URL.revokeObjectURL(informe.previewUrl);
+    }
+
+    if (informe?.downloadUrl) {
+      URL.revokeObjectURL(informe.downloadUrl);
+    }
+  };
+
+  const handleRegenerarInformeIA = async (
+    contenido: ContenidoAdicionalInforme
+  ) => {
+    const informeActualizado =
+      await generarInformeIADocxEmail(contenido);
+
+    if (!informeActualizado) {
+      throw new Error(
+        "No fue posible regenerar el Word y su vista previa."
+      );
+    }
+
+    liberarUrlsInforme(informeIAGenerado);
+
+    setContenidoAdicionalInforme(contenido);
+    setInformeIAGenerado(informeActualizado);
+
+    message.success(
+      "El Word y la vista previa PDF fueron actualizados."
+    );
+  };
+
   const handleAbrirEnvioInformeIA = async () => {
-    const informe = await generarInformeIADocxEmail();
+    const informe = await generarInformeIADocxEmail(
+      contenidoAdicionalInforme
+    );
 
     if (!informe) return;
+
+    liberarUrlsInforme(informeIAGenerado);
 
     setInformeIAGenerado(informe);
     setShowInformeIAEmailModal(true);
@@ -947,20 +995,27 @@ const ReportesPage: React.FC = () => {
         show={showInformeIAEmailModal}
         reporte={informeIAGenerado}
         loading={enviandoInformeIAEmail}
+        regenerandoDocumento={
+          generandoInformeIAEmail
+        }
+        contenidoInicial={
+          contenidoAdicionalInforme
+        }
+        onRegenerarDocumento={
+          handleRegenerarInformeIA
+        }
         onClose={() => {
           setShowInformeIAEmailModal(false);
 
-          if (informeIAGenerado?.previewUrl) {
-            URL.revokeObjectURL(informeIAGenerado.previewUrl);
-          }
-
-          if (informeIAGenerado?.downloadUrl) {
-            URL.revokeObjectURL(informeIAGenerado.downloadUrl);
-          }
+          liberarUrlsInforme(
+            informeIAGenerado
+          );
 
           setInformeIAGenerado(null);
         }}
-        onEnviarCorreo={handleEnviarInformeIACorreo}
+        onEnviarCorreo={
+          handleEnviarInformeIACorreo
+        }
       />
 
       {/* ── Loading overlay ── */}

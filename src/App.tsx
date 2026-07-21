@@ -13,6 +13,7 @@ const HomePage = lazy(() => import("./host/Home"));
 const SolicitantesPage = lazy(() => import("./host/Solicitantes"));
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
+const MantencionesGeneralesPage  = lazy(() => import("./components/modals-equipos/mant-general-page/MantencionesGeneralesPage"));
 const TicketsPage = lazy(() => import("./host/Ticket"));
 const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
 const ReportesPage = lazy(() => import("./host/Reportes"));
@@ -212,6 +213,7 @@ export default function App() {
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
               <Route path="/empresas" element={<EmpresasPage />} />
               <Route path="/equipos" element={<EquiposPage />} />
+              <Route path="/mantenciones-generales" element={<MantencionesGeneralesPage />}/>
               <Route path="/solicitantes" element={<SolicitantesPage />} />
               <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/visitas" element={<VisitasPage />} />

@@ -767,7 +767,13 @@ const VisitasPage: React.FC = () => {
 
   // Funciones para determinar elegibilidad de visitas para el resumen
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
+    <div
+      className="
+    visitas-page
+    min-h-screen relative overflow-hidden
+    bg-gradient-to-b from-white via-white to-cyan-50
+  "
+    >
       {/* Fondo */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
@@ -1569,6 +1575,9 @@ const VisitasPage: React.FC = () => {
                   ) : (
                     <div className="space-y-4">
                       {resumenDia.tecnicos.map((item) => {
+                        const tienePendientes =
+                          item.resumen.pendientes > 0;
+
                         const estaExpandido =
                           tecnicosExpandidos.has(
                             item.tecnico.id_tecnico
@@ -1645,20 +1654,29 @@ const VisitasPage: React.FC = () => {
                         return (
                           <article
                             key={item.tecnico.id_tecnico}
-                            className="
-    overflow-hidden rounded-2xl
-    border border-cyan-200/80
-    bg-white
-    shadow-[0_10px_28px_-22px_rgba(8,145,178,0.55)]
-    transition duration-200
-    hover:border-cyan-300
-  "
+                            className={clsx(
+                              "overflow-hidden rounded-2xl border bg-white",
+                              "shadow-[0_10px_28px_-22px_rgba(8,145,178,0.55)]",
+                              "transition duration-200",
+
+                              tienePendientes
+                                ? "border-amber-300 ring-1 ring-amber-200 hover:border-amber-400"
+                                : "border-cyan-200/80 hover:border-cyan-300"
+                            )}
                           >
                             {/* Encabezado del técnico */}
                             <header
                               className={clsx(
-                                "flex flex-col gap-3 bg-white p-4 sm:flex-row sm:items-center sm:justify-between",
-                                estaExpandido && "border-b border-cyan-100"
+                                "flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between",
+
+                                tienePendientes
+                                  ? "bg-gradient-to-r from-amber-50/80 to-white"
+                                  : "bg-white",
+
+                                estaExpandido &&
+                                (tienePendientes
+                                  ? "border-b border-amber-100"
+                                  : "border-b border-cyan-100")
                               )}
                             >
                               <div>
@@ -1667,7 +1685,21 @@ const VisitasPage: React.FC = () => {
                                     {item.tecnico.nombre}
                                   </h3>
 
-                                  {item.tieneAgenda ? (
+                                  {item.resumen.pendientes > 0 ? (
+                                    <span
+                                      className="
+      inline-flex items-center gap-1
+      rounded-full
+      bg-amber-100
+      px-2.5 py-1
+      text-xs font-semibold text-amber-800
+      ring-1 ring-amber-300
+    "
+                                    >
+                                      <ClockCircleOutlined />
+                                      Pendiente
+                                    </span>
+                                  ) : item.tieneAgenda ? (
                                     <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-700">
                                       Programado
                                     </span>
@@ -1696,6 +1728,26 @@ const VisitasPage: React.FC = () => {
                                   <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                                     {item.resumen.totalJornadas} jornadas
                                   </span>
+
+                                  {item.resumen.pendientes > 0 && (
+                                    <span
+                                      className="
+      inline-flex items-center gap-1
+      rounded-full
+      bg-amber-100
+      px-3 py-1
+      text-xs font-semibold text-amber-800
+      ring-1 ring-amber-300
+    "
+                                      title="Visitas pendientes por cerrar"
+                                    >
+                                      <ClockCircleOutlined />
+                                      {item.resumen.pendientes}{" "}
+                                      {item.resumen.pendientes === 1
+                                        ? "pendiente"
+                                        : "pendientes"}
+                                    </span>
+                                  )}
 
                                   {item.resumen.atencionesFueraAgenda > 0 && (
                                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
@@ -1780,6 +1832,15 @@ const VisitasPage: React.FC = () => {
                                                   const fechaAgenda =
                                                     agenda.fecha.slice(0, 10);
 
+                                                  const estadoAgenda = String(
+                                                    agenda.estado ?? ""
+                                                  )
+                                                    .trim()
+                                                    .toUpperCase();
+
+                                                  const esPendiente =
+                                                    estadoAgenda === "PENDIENTE";
+
                                                   const estaSeleccionada =
                                                     agenda.empresaId !== null &&
                                                     seleccionAgenda?.empresaId ===
@@ -1854,8 +1915,12 @@ const VisitasPage: React.FC = () => {
                                                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400",
 
                                                         estaSeleccionada
-                                                          ? "border-cyan-500 bg-cyan-100 shadow-sm ring-1 ring-cyan-300"
-                                                          : "border-cyan-100 bg-cyan-50/40 hover:border-cyan-300 hover:bg-cyan-50",
+                                                          ? esPendiente
+                                                            ? "border-amber-500 bg-amber-100 shadow-sm ring-1 ring-amber-300"
+                                                            : "border-cyan-500 bg-cyan-100 shadow-sm ring-1 ring-cyan-300"
+                                                          : esPendiente
+                                                            ? "border-amber-300 bg-amber-50 hover:border-amber-400 hover:bg-amber-100/70"
+                                                            : "border-cyan-100 bg-cyan-50/40 hover:border-cyan-300 hover:bg-cyan-50",
 
                                                         !puedeSeleccionarse &&
                                                         "cursor-not-allowed opacity-60"
@@ -1869,7 +1934,15 @@ const VisitasPage: React.FC = () => {
                                                             </p>
 
                                                             {estaSeleccionada && (
-                                                              <span className="rounded-full bg-cyan-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                                              <span
+                                                                className={clsx(
+                                                                  "rounded-full px-2 py-0.5 text-[10px] font-semibold text-white",
+
+                                                                  esPendiente
+                                                                    ? "bg-amber-600"
+                                                                    : "bg-cyan-600"
+                                                                )}
+                                                              >
                                                                 Seleccionada
                                                               </span>
                                                             )}
@@ -1896,8 +1969,12 @@ const VisitasPage: React.FC = () => {
                                                                 "mt-2 text-xs font-medium",
 
                                                                 estaSeleccionada
-                                                                  ? "text-cyan-800"
-                                                                  : "text-cyan-600"
+                                                                  ? esPendiente
+                                                                    ? "text-amber-800"
+                                                                    : "text-cyan-800"
+                                                                  : esPendiente
+                                                                    ? "text-amber-700"
+                                                                    : "text-cyan-600"
                                                               )}
                                                             >
                                                               {
@@ -1911,8 +1988,28 @@ const VisitasPage: React.FC = () => {
                                                           )}
                                                         </div>
 
-                                                        <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-200">
-                                                          {agenda.estado}
+                                                        <span
+                                                          className={clsx(
+                                                            "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ring-1",
+
+                                                            esPendiente
+                                                              ? "bg-amber-100 text-amber-800 ring-amber-300"
+                                                              : estadoAgenda === "COMPLETADA"
+                                                                ? "bg-emerald-100 text-emerald-800 ring-emerald-300"
+                                                                : estadoAgenda === "CANCELADA"
+                                                                  ? "bg-rose-100 text-rose-800 ring-rose-300"
+                                                                  : "bg-white text-cyan-700 ring-cyan-200"
+                                                          )}
+                                                        >
+                                                          {esPendiente && <ClockCircleOutlined />}
+
+                                                          {estadoAgenda === "PENDIENTE"
+                                                            ? "Pendiente"
+                                                            : estadoAgenda === "COMPLETADA"
+                                                              ? "Completada"
+                                                              : estadoAgenda === "CANCELADA"
+                                                                ? "Cancelada"
+                                                                : agenda.estado}
                                                         </span>
                                                       </div>
                                                     </button>

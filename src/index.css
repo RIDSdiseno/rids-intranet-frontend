@@ -3519,3 +3519,355 @@ html.a11y-theme-dark iframe {
 .ant-drawer {
   zoom: 1;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VISITAS — Agenda y atenciones en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .visitas-page {
+  background:
+    radial-gradient(circle at top left,
+      rgba(8, 145, 178, 0.08),
+      transparent 34%),
+    radial-gradient(circle at bottom right,
+      rgba(99, 102, 241, 0.07),
+      transparent 36%),
+    var(--color-bg) !important;
+
+  color: var(--color-text-primary) !important;
+}
+
+/* Panel principal superior */
+html.a11y-theme-dark .visitas-page .rounded-2xl.border.border-cyan-200.bg-white\/80,
+html.a11y-theme-dark .visitas-page .rounded-3xl.border.border-cyan-200.bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.94) !important;
+  border-color: #334155 !important;
+  box-shadow:
+    0 22px 55px -32px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+}
+
+/* Panel de filtros de agenda */
+html.a11y-theme-dark .visitas-page .bg-gradient-to-br.from-white.via-white.to-cyan-50\/60 {
+  background:
+    linear-gradient(135deg,
+      rgba(15, 23, 42, 0.98),
+      rgba(2, 6, 23, 0.96)) !important;
+
+  border-color: #334155 !important;
+}
+
+/* Títulos */
+html.a11y-theme-dark .visitas-page h1,
+html.a11y-theme-dark .visitas-page h2,
+html.a11y-theme-dark .visitas-page h3,
+html.a11y-theme-dark .visitas-page h4 {
+  color: #f8fafc !important;
+}
+
+/* Descripciones */
+html.a11y-theme-dark .visitas-page .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.a11y-theme-dark .visitas-page .text-slate-500,
+html.a11y-theme-dark .visitas-page .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* Separadores */
+html.a11y-theme-dark .visitas-page .border-cyan-100 {
+  border-color: #1e3a4a !important;
+}
+
+html.a11y-theme-dark .visitas-page .border-cyan-200 {
+  border-color: #155e75 !important;
+}
+
+html.a11y-theme-dark .visitas-page .bg-cyan-100 {
+  background-color: #164e63 !important;
+}
+
+/* Tabs superiores */
+html.a11y-theme-dark .visitas-page button[class*="rounded-t-lg"] {
+  color: #94a3b8 !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+html.a11y-theme-dark .visitas-page button[class*="rounded-t-lg"][class*="text-cyan-700"] {
+  color: #67e8f9 !important;
+  background-color: rgba(15, 23, 42, 0.98) !important;
+  border-color: #155e75 !important;
+  border-bottom-color: rgba(15, 23, 42, 0.98) !important;
+}
+
+html.a11y-theme-dark .visitas-page button[class*="rounded-t-lg"]:hover {
+  color: #22d3ee !important;
+}
+
+/* KPI */
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.rounded-2xl.border {
+  background:
+    linear-gradient(145deg,
+      rgba(15, 23, 42, 0.98),
+      rgba(17, 24, 39, 0.94)) !important;
+
+  border-color: #334155 !important;
+  box-shadow:
+    0 14px 30px -22px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+}
+
+/* KPI: mantener acento por tipo */
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.border-cyan-200 {
+  border-color: #155e75 !important;
+}
+
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.border-blue-200 {
+  border-color: #1e40af !important;
+}
+
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.border-indigo-200 {
+  border-color: #3730a3 !important;
+}
+
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.border-emerald-200 {
+  border-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .visitas-page .grid.grid-cols-2>.border-amber-200 {
+  border-color: #92400e !important;
+}
+
+/* Contenedor "Técnicos del periodo" */
+html.a11y-theme-dark .visitas-page .rounded-2xl.border.border-slate-200.bg-white\/80 {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  border-color: #334155 !important;
+}
+
+/* Tarjeta normal de técnico */
+html.a11y-theme-dark .visitas-page article {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow:
+    0 14px 34px -24px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Tarjeta con pendientes */
+html.a11y-theme-dark .visitas-page article.border-amber-300 {
+  background:
+    linear-gradient(100deg,
+      rgba(69, 26, 3, 0.26),
+      rgba(15, 23, 42, 0.98) 38%) !important;
+
+  border-color: #d97706 !important;
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.12),
+    0 16px 36px -24px rgba(245, 158, 11, 0.3) !important;
+
+  --tw-ring-color: rgba(245, 158, 11, 0.18) !important;
+}
+
+/* Header del técnico */
+html.a11y-theme-dark .visitas-page article>header {
+  background-color: transparent !important;
+}
+
+html.a11y-theme-dark .visitas-page article.border-amber-300>header {
+  background:
+    linear-gradient(90deg,
+      rgba(120, 53, 15, 0.2),
+      transparent 45%) !important;
+}
+
+/* Badges: programadas */
+html.a11y-theme-dark .visitas-page .bg-blue-100.text-blue-700 {
+  background-color: #172554 !important;
+  color: #93c5fd !important;
+}
+
+/* Badges: atenciones */
+html.a11y-theme-dark .visitas-page .bg-emerald-100.text-emerald-700 {
+  background-color: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+/* Badges: jornadas */
+html.a11y-theme-dark .visitas-page .bg-indigo-100.text-indigo-700 {
+  background-color: #1e1b4b !important;
+  color: #c7d2fe !important;
+}
+
+/* Badge Programado */
+html.a11y-theme-dark .visitas-page .bg-cyan-100.text-cyan-700 {
+  background-color: #164e63 !important;
+  color: #67e8f9 !important;
+}
+
+/* Badge Pendiente */
+html.a11y-theme-dark .visitas-page .bg-amber-100.text-amber-800 {
+  background-color: rgba(120, 53, 15, 0.65) !important;
+  color: #fde68a !important;
+  --tw-ring-color: #d97706 !important;
+}
+
+/* Botones expandir/minimizar */
+html.a11y-theme-dark .visitas-page .ant-btn-default {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-btn-default:hover {
+  background-color: #334155 !important;
+  border-color: #22d3ee !important;
+  color: #67e8f9 !important;
+}
+
+/* Botones circulares para expandir técnicos */
+html.a11y-theme-dark .visitas-page .ant-btn-text.ant-btn-circle {
+  background-color: transparent !important;
+  border: 1px solid #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-btn-text.ant-btn-circle:hover {
+  background-color: #1e293b !important;
+  border-color: #22d3ee !important;
+  color: #67e8f9 !important;
+}
+
+/* Calendario dentro del técnico */
+html.a11y-theme-dark .visitas-page article .lg\:grid-cols-2 {
+  background-color: #020617 !important;
+}
+
+/* Cabecera del día */
+html.a11y-theme-dark .visitas-page span.bg-cyan-50.text-cyan-800 {
+  background-color: #164e63 !important;
+  color: #a5f3fc !important;
+  --tw-ring-color: #155e75 !important;
+}
+
+/* Líneas de división del día */
+html.a11y-theme-dark .visitas-page .h-px.bg-cyan-100 {
+  background-color: #164e63 !important;
+}
+
+/* Visita programada normal */
+html.a11y-theme-dark .visitas-page button.border-cyan-100.bg-cyan-50\/40 {
+  background-color: rgba(8, 47, 73, 0.35) !important;
+  border-color: #155e75 !important;
+}
+
+html.a11y-theme-dark .visitas-page button.border-cyan-100.bg-cyan-50\/40:hover {
+  background-color: rgba(8, 73, 94, 0.5) !important;
+  border-color: #22d3ee !important;
+}
+
+/* Visita pendiente */
+html.a11y-theme-dark .visitas-page button.border-amber-300.bg-amber-50 {
+  background-color: rgba(69, 26, 3, 0.48) !important;
+  border-color: #b45309 !important;
+}
+
+html.a11y-theme-dark .visitas-page button.border-amber-300.bg-amber-50:hover {
+  background-color: rgba(120, 53, 15, 0.48) !important;
+  border-color: #fbbf24 !important;
+}
+
+/* Visita seleccionada */
+html.a11y-theme-dark .visitas-page button.border-cyan-500.bg-cyan-100 {
+  background-color: rgba(8, 145, 178, 0.25) !important;
+  border-color: #22d3ee !important;
+  --tw-ring-color: rgba(34, 211, 238, 0.28) !important;
+}
+
+html.a11y-theme-dark .visitas-page button.border-amber-500.bg-amber-100 {
+  background-color: rgba(180, 83, 9, 0.3) !important;
+  border-color: #fbbf24 !important;
+  --tw-ring-color: rgba(251, 191, 36, 0.28) !important;
+}
+
+/* Panel derecho sin empresa seleccionada */
+html.a11y-theme-dark .visitas-page .border-dashed.border-cyan-200.bg-cyan-50\/40 {
+  background-color: rgba(8, 47, 73, 0.22) !important;
+  border-color: #155e75 !important;
+}
+
+/* Panel derecho sin atenciones */
+html.a11y-theme-dark .visitas-page .border-amber-200.bg-amber-50 {
+  background-color: rgba(69, 26, 3, 0.38) !important;
+  border-color: #92400e !important;
+}
+
+/* Atenciones registradas */
+html.a11y-theme-dark .visitas-page button.border-emerald-100.bg-emerald-50\/40 {
+  background-color: rgba(6, 78, 59, 0.28) !important;
+  border-color: #065f46 !important;
+}
+
+html.a11y-theme-dark .visitas-page button.border-emerald-100.bg-emerald-50\/40:hover {
+  background-color: rgba(6, 95, 70, 0.42) !important;
+  border-color: #34d399 !important;
+}
+
+/* Selects */
+html.a11y-theme-dark .visitas-page .ant-select-selector {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-select-selection-item {
+  color: #f8fafc !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-select-selection-placeholder {
+  color: #94a3b8 !important;
+}
+
+/* RangePicker */
+html.a11y-theme-dark .visitas-page .ant-picker {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-picker-input>input {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-picker-separator,
+html.a11y-theme-dark .visitas-page .ant-picker-suffix {
+  color: #94a3b8 !important;
+}
+
+/* Botón Actualizar */
+html.a11y-theme-dark .visitas-page .ant-btn-primary {
+  background:
+    linear-gradient(90deg,
+      #0891b2,
+      #0d9488) !important;
+
+  border-color: #22d3ee !important;
+  color: #ecfeff !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-btn-primary:hover {
+  filter: brightness(1.12);
+}
+
+/* Botones de rangos rápidos */
+html.a11y-theme-dark .visitas-page .ant-space .ant-btn-default {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+html.a11y-theme-dark .visitas-page .ant-space .ant-btn-default:hover {
+  background-color: #334155 !important;
+  border-color: #22d3ee !important;
+  color: #67e8f9 !important;
+}
