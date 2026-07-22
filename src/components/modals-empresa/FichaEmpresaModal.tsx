@@ -160,7 +160,7 @@ const FichaEmpresaModal: React.FC<
 
                 <div className="mt-1">
                   La información permanece disponible
-                  para consulta histórica, pero no se
+                  para consulta, pero no se
                   permiten modificaciones hasta reactivar
                   la empresa.
                 </div>

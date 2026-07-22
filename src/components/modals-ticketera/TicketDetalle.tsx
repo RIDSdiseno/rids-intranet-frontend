@@ -1379,7 +1379,7 @@ Soporte Técnico`
                                                                         </Tag>
                                                                     ))}
 
-                                                                    {puedeCerrarTicket() && (
+                                                                    {ticketDetalle.status !== "CLOSED" && (
                                                                         <Button onClick={() => updateTicket({ status: "CLOSED" })}>
                                                                             Cerrar ticket
                                                                         </Button>
@@ -1535,10 +1535,6 @@ Soporte Técnico`
                                             <Select
                                                 value={ticketDetalle.status}
                                                 onChange={(v) => {
-                                                    if (v === "CLOSED" && !puedeCerrarTicket()) {
-                                                        message.warning("Debes responder o agregar una nota antes de cerrar");
-                                                        return;
-                                                    }
                                                     updateTicket({ status: v });
                                                 }}
                                                 options={[

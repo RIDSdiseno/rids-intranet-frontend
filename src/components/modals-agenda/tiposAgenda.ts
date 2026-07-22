@@ -10,6 +10,7 @@ export interface TecnicoRelacion {
 export interface Empresa {
   id_empresa: number;
   nombre: string;
+  isActive?: boolean;
 }
 
 export interface Sucursal {

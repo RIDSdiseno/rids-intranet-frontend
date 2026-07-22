@@ -532,6 +532,7 @@ const generarPDF = async (
         };
     };
 
+    // Columnas del encabezado + grupos de ancho (colgroup) para cada variante.
     const theadCols = mostrarTotales
         ? `<th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Código</th>
        <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
@@ -546,6 +547,26 @@ const generarPDF = async (
         : `<th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Código</th>
        <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
        <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>`;
+
+    // Da más ancho a la columna "Nombre" para que la descripción se vea completa.
+    const colGroup = mostrarTotales
+        ? `<colgroup>
+               <col style="width:8%" />
+               <col style="width:26%" />
+               <col style="width:5%" />
+               <col style="width:9%" />
+               <col style="width:9%" />
+               <col style="width:6%" />
+               <col style="width:8%" />
+               <col style="width:6%" />
+               <col style="width:8%" />
+               <col style="width:9%" />
+           </colgroup>`
+        : `<colgroup>
+               <col style="width:15%" />
+               <col style="width:70%" />
+               <col style="width:15%" />
+           </colgroup>`;
 
     const buildEquipoDetalle = (item: any) => {
         if (!item.equipo) return "";
@@ -573,6 +594,23 @@ const generarPDF = async (
         `;
     };
 
+    // Descripción con salto de línea (ya no se corta a una sola línea).
+    const buildDescripcion = (item: any) => {
+        if (!item.descripcion) return "";
+
+        return `
+            <div style="
+                font-size:9px;
+                color:#6b7280;
+                line-height:1.35;
+                white-space:normal;
+                word-break:break-word;
+                overflow-wrap:anywhere;
+                margin-top:2px;
+            ">${truncarTexto(item.descripcion, 150)}</div>
+        `;
+    };
+
     const buildItemRow = (
         item: any,
         valores: ReturnType<typeof calcularLineaItem>
@@ -585,13 +623,7 @@ const generarPDF = async (
                         <div style="font-weight:600;font-size:11px;margin-bottom:3px;color:#111827;">
                             ${item.nombre}
                         </div>
-                        ${item.descripcion
-                    ? `<div style="font-size:9px;color:#4b5563;line-height:1.4;">${truncarTexto(
-                        item.descripcion,
-                        250
-                    )}</div>`
-                    : ""
-                }
+                        ${buildDescripcion(item)}
                         ${buildEquipoDetalle(item)}
                     </td>
                     <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
@@ -613,13 +645,7 @@ const generarPDF = async (
                     <div style="font-weight:600;font-size:11px;margin-bottom:3px;color:#111827;">
                         ${item.nombre}
                     </div>
-                    ${item.descripcion
-                ? `<div style="font-size:9px;color:#4b5563;line-height:1.4;">${truncarTexto(
-                    item.descripcion,
-                    250
-                )}</div>`
-                : ""
-            }
+                    ${buildDescripcion(item)}
                     ${buildEquipoDetalle(item)}
                 </td>
                 <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
@@ -670,6 +696,7 @@ const generarPDF = async (
                     </div>
 
                     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+                        ${colGroup}
                         <thead>
                             <tr style="background:#e9ecef;">
                                 ${theadCols}
@@ -713,6 +740,7 @@ const generarPDF = async (
 
         seccionesHtml = `
             <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+                ${colGroup}
                 <thead>
                     <tr style="background:#e9ecef;">
                         ${theadCols}
@@ -836,18 +864,22 @@ const generarPDF = async (
                     }
 
                     table {
-                        width: 90%;
-                        font-size: 9px;
-                        background: #ffffff !important;
-                    }
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse;
+    font-size: 9px;
+    background: #ffffff !important;
+}
 
-                    th,
-                    td {
-                        border: 1px solid #d0d0d0;
-                        line-height: 1.2;
-                        font-size: 10px;
-                        color: #111827 !important;
-                    }
+th,
+td {
+    border: 1px solid #d0d0d0;
+    line-height: 1.2;
+    font-size: 10px;
+    color: #111827 !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
 
                     thead th {
                         background: #e9ecef !important;
@@ -865,7 +897,7 @@ const generarPDF = async (
                     tbody td {
                         border: 1px solid #d0d0d0;
                         padding: 6px 4px;
-                        vertical-align: middle !important;
+                        vertical-align: top !important;
                         text-align: center;
                     }
 

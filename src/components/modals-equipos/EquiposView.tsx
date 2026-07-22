@@ -587,7 +587,6 @@ export default function EquipoViewModal({
 
                             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                                 Visualización completa del equipo, agente, software e historial.
-                                Visualización completa del equipo, agente, software e historial.
                             </p>
                         </div>
 

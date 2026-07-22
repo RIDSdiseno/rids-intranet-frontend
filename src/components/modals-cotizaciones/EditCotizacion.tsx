@@ -101,7 +101,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                     ...i,
                     nombre: itemEditado.nombre ?? i.nombre,
                     descripcion:
-                        itemEditado.descripcion?.trim() === "" ? null : itemEditado.descripcion ?? i.descripcion,
+                        itemEditado.descripcion !== undefined
+                            ? itemEditado.descripcion.trim().slice(0, 150)
+                            : i.descripcion ?? "",
                     precioCosto: itemEditado.precioCosto ?? i.precioCosto,
                     porcGanancia: itemEditado.porcGanancia ?? i.porcGanancia,
                     precioOriginalCLP: itemEditado.precioOriginalCLP ?? i.precioOriginalCLP,
@@ -1297,25 +1299,25 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 )}
                             </button>
 
-                                {onGuardarYEnviar && (
-                                    <button
-                                        type="button"
-                                        onClick={onGuardarYEnviar}
-                                        disabled={itemsLocal.length === 0 || apiLoading}
-                                        className="px-8 py-3.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-                                    >
-                                        {apiLoading ? (
-                                            <>
-                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                <span>Procesando...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>Guardar y Enviar</span>
-                                            </>
-                                        )}
-                                    </button>
-                                )}
+                            {onGuardarYEnviar && (
+                                <button
+                                    type="button"
+                                    onClick={onGuardarYEnviar}
+                                    disabled={itemsLocal.length === 0 || apiLoading}
+                                    className="px-8 py-3.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                                >
+                                    {apiLoading ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            <span>Procesando...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>Guardar y Enviar</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

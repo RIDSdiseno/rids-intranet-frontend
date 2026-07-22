@@ -183,14 +183,94 @@ export default function AgendaPage() {
     } catch { /* silencioso */ }
   }, []);
 
-  const fetchEmpresas = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/agenda/empresas`, { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const data: Empresa[] = await res.json();
-      setEmpresasDisponibles(Array.isArray(data) ? data : []);
-    } catch { /* silencioso */ }
-  }, []);
+  const fetchEmpresas =
+    useCallback(async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/agenda/empresas`,
+          {
+            headers: authHeaders(),
+            credentials: "include",
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(
+            await errorMsg(
+              res,
+              "No se pudieron cargar las empresas"
+            )
+          );
+        }
+
+        const data: Empresa[] =
+          await res.json();
+
+        const empresasActivas =
+          Array.isArray(data)
+            ? data.filter(
+              (empresa) =>
+                empresa.isActive !==
+                false
+            )
+            : [];
+
+        setEmpresasDisponibles(
+          empresasActivas
+        );
+
+        /*
+         * Limpia selecciones que hayan quedado
+         * apuntando a una empresa desactivada.
+         */
+        setManualEmpresaId(
+          (current) =>
+            current !== null &&
+              !empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa ===
+                  current
+              )
+              ? null
+              : current
+        );
+
+        setSelectedEmpresaId(
+          (current) =>
+            current !== null &&
+              !empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa ===
+                  current
+              )
+              ? null
+              : current
+        );
+
+        setSelectedEmpresaIds(
+          (current) =>
+            current.filter((id) =>
+              empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa === id
+              )
+            )
+        );
+      } catch (error) {
+        console.error(
+          "Error cargando empresas de agenda:",
+          error
+        );
+
+        setEmpresasDisponibles([]);
+
+        message.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las empresas"
+        );
+      }
+    }, []);
 
   // Reutiliza el endpoint de sucursales ya existente del módulo de Empresas
   // (no se creó uno nuevo bajo /agenda).
