@@ -816,7 +816,7 @@ const VisitasPage: React.FC = () => {
                   : "text-slate-500 hover:text-cyan-600"
                   }`}
               >
-                Lista de visitas
+                Lista de atenciones y visitas
               </button>
               <button
                 type="button"

@@ -62,6 +62,8 @@ export interface EmpresaLite {
     dominios?: string[];
     dominioPrincipal?: string | null;
     detalleEmpresa?: DetalleEmpresa | null;
+    isActive: boolean;
+    deactivatedAt?: string | null;
 }
 
 export interface FichaEmpresa {
