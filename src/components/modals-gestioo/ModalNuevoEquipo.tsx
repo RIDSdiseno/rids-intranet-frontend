@@ -372,8 +372,6 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
             return;
         }
 
-        const propiedad = empresaSeleccionada?.nombre ?? "";
-
         setLoading(true);
 
         try {
@@ -389,7 +387,7 @@ export const ModalNuevoEquipo: React.FC<ModalNuevoEquipoProps> = ({
                 ram: requiresRam ? ram.trim() : "N/A",
                 disco: requiresDisco ? disco.trim() : "N/A",
 
-                propiedad,
+                propiedad: "Empresa",
                 idSolicitante: idSolicitante ? Number(idSolicitante) : null,
             };
 
