@@ -128,6 +128,12 @@ export default function EquipoEditModal({
     const [solOpts, setSolOpts] = useState<SolicitanteLite[]>([]);
     const [solLoading, setSolLoading] = useState(false);
 
+    const relacionInconsistente =
+        row?.empresaId != null &&
+        row?.solicitanteEmpresaId != null &&
+        row.empresaId !==
+        row.solicitanteEmpresaId;
+
     useEffect(() => {
         if (!open || !row) return;
 
@@ -173,8 +179,17 @@ export default function EquipoEditModal({
 
     useEffect(() => {
         if (!open) return;
-        void loadSolicitantes(empresaId, solSearchDeb);
-    }, [open, empresaId, solSearchDeb]);
+
+        void loadSolicitantes(
+            empresaId,
+            solSearchDeb
+        );
+    }, [
+        open,
+        empresaId,
+        solSearchDeb,
+        row,
+    ]);
 
     async function fetchSolicitantesByEmpresa(
         empresaIdValue: number,
@@ -196,16 +211,31 @@ export default function EquipoEditModal({
             nombre: string;
             email?: string | null;
             rut?: string | null;
-        }) => ({
-            id_solicitante: it.id,
-            nombre: it.nombre,
-            email: it.email ?? null,
-            rut: it.rut ?? null,
-            empresa: { id_empresa: empresaIdValue, nombre: "" },
-        }));
+            empresaId?: number | null;
+        }) => {
+            const solicitanteEmpresaId =
+                it.empresaId ?? empresaIdValue;
+
+            return {
+                id_solicitante: it.id,
+                nombre: it.nombre,
+                email: it.email ?? null,
+                rut: it.rut ?? null,
+
+                empresaId: solicitanteEmpresaId,
+
+                empresa: {
+                    id_empresa: solicitanteEmpresaId,
+                    nombre: "",
+                },
+            };
+        });
     }
 
-    async function loadSolicitantes(empresaIdValue: number | null, term: string) {
+    async function loadSolicitantes(
+        empresaIdValue: number | null,
+        term: string
+    ) {
         if (empresaIdValue == null) {
             setSolOpts([]);
             return;
@@ -214,7 +244,77 @@ export default function EquipoEditModal({
         setSolLoading(true);
 
         try {
-            const solicitantes = await fetchSolicitantesByEmpresa(empresaIdValue, term);
+            const solicitantes =
+                await fetchSolicitantesByEmpresa(
+                    empresaIdValue,
+                    term
+                );
+
+            const solicitanteActualId =
+                row?.idSolicitante ?? null;
+
+            const solicitanteActualIncluido =
+                solicitanteActualId != null &&
+                solicitantes.some(
+                    (item) =>
+                        item.id_solicitante ===
+                        solicitanteActualId
+                );
+
+            const solicitantePerteneceAOtraEmpresa =
+                row?.solicitanteEmpresaId != null &&
+                row.solicitanteEmpresaId !==
+                empresaIdValue;
+
+            /*
+             * Solo mostramos la asociación histórica incompatible
+             * cuando no existe una búsqueda activa.
+             */
+            if (
+                solicitanteActualId != null &&
+                row?.solicitante &&
+                !solicitanteActualIncluido &&
+                solicitantePerteneceAOtraEmpresa &&
+                !term.trim()
+            ) {
+                const solicitanteHistorico: SolicitanteLite = {
+                    id_solicitante:
+                        solicitanteActualId,
+
+                    nombre:
+                        `${row.solicitante} — empresa diferente`,
+
+                    email:
+                        row.solicitanteEmail ??
+                        null,
+
+                    rut:
+                        row.solicitanteRut ??
+                        null,
+
+                    empresaId:
+                        row.solicitanteEmpresaId,
+
+                    empresa:
+                        row.solicitanteEmpresaId != null
+                            ? {
+                                id_empresa:
+                                    row.solicitanteEmpresaId,
+                                nombre:
+                                    row.solicitanteEmpresa ??
+                                    "",
+                            }
+                            : null,
+                };
+
+                setSolOpts([
+                    solicitanteHistorico,
+                    ...solicitantes,
+                ]);
+
+                return;
+            }
+
             setSolOpts(solicitantes);
         } catch {
             setSolOpts([]);
@@ -271,6 +371,31 @@ export default function EquipoEditModal({
 
         if (!solicitanteId) {
             setEditError("Debes seleccionar un solicitante.");
+            return;
+        }
+
+        const solicitanteSeleccionado =
+            solOpts.find(
+                (item) =>
+                    item.id_solicitante ===
+                    solicitanteId
+            );
+
+        const empresaSolicitanteSeleccionado =
+            solicitanteSeleccionado?.empresaId ??
+            solicitanteSeleccionado?.empresa
+                ?.id_empresa ??
+            null;
+
+        if (
+            empresaSolicitanteSeleccionado != null &&
+            empresaSolicitanteSeleccionado !==
+            empresaId
+        ) {
+            setEditError(
+                "El solicitante seleccionado pertenece a una empresa diferente. Selecciona un solicitante de la empresa actual."
+            );
+
             return;
         }
 
@@ -396,6 +521,35 @@ export default function EquipoEditModal({
                                 </p>
                             </div>
 
+                            {relacionInconsistente && (
+                                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    <div className="font-semibold">
+                                        Asociación de empresa inconsistente
+                                    </div>
+
+                                    <div className="mt-1">
+                                        El equipo está registrado en{" "}
+                                        <strong>
+                                            {row.empresa ||
+                                                "una empresa"}
+                                        </strong>
+                                        , pero el solicitante{" "}
+                                        <strong>
+                                            {row.solicitante ||
+                                                "actual"}
+                                        </strong>{" "}
+                                        pertenece a{" "}
+                                        <strong>
+                                            {row.solicitanteEmpresa ||
+                                                "otra empresa"}
+                                        </strong>
+                                        . Selecciona un solicitante
+                                        perteneciente a la empresa del
+                                        equipo antes de guardar.
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                 <label className="text-sm">
                                     <span className="mb-1 block text-slate-700">
@@ -405,11 +559,18 @@ export default function EquipoEditModal({
                                     <select
                                         value={empresaId ?? ""}
                                         onChange={(e) => {
-                                            const val = e.target.value ? Number(e.target.value) : null;
+                                            const val =
+                                                e.target.value
+                                                    ? Number(e.target.value)
+                                                    : null;
+
                                             setEmpresaId(val);
                                             setSolicitanteId(null);
                                             setSolSearch("");
                                             setSolOpts([]);
+
+                                            setEditError(null);
+                                            setEditFieldError(null);
                                         }}
                                         className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                     >
@@ -445,7 +606,15 @@ export default function EquipoEditModal({
 
                                     <select
                                         value={solicitanteId ?? ""}
-                                        onChange={(e) => setSolicitanteId(e.target.value ? Number(e.target.value) : null)}
+                                        onChange={(e) => {
+                                            setSolicitanteId(
+                                                e.target.value
+                                                    ? Number(e.target.value)
+                                                    : null
+                                            );
+
+                                            setEditError(null);
+                                        }}
                                         className="mt-2 w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                         disabled={empresaId == null}
                                     >
