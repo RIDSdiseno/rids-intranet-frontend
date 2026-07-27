@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  Activity,
   AlertCircle,
   Building2,
   Clock,
   Loader2,
   LocateFixed,
   MapPin,
+  Maximize2,
   Navigation,
   RefreshCw,
   Search,
+  Users,
   UserRound,
+  WifiOff,
 } from "lucide-react";
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvent } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
@@ -550,6 +554,8 @@ export default function MapaTecnicosPage() {
   const [agendasLoading, setAgendasLoading] = useState(true);
   const [agendasError, setAgendasError] = useState<string | null>(null);
   const [selectedDestinoKey, setSelectedDestinoKey] = useState<string | null>(null);
+  const [coordAddress, setCoordAddress] = useState<string | null>(null);
+  const [coordAddressLoading, setCoordAddressLoading] = useState(false);
 
   const isFetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -558,6 +564,7 @@ export default function MapaTecnicosPage() {
   const agendasRequestIdRef = useRef(0);
   const userInteractedRef = useRef(false);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const geocodeCacheRef = useRef<Map<string, string>>(new Map());
 
   const cargarUbicaciones = useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
@@ -745,6 +752,48 @@ export default function MapaTecnicosPage() {
     filtradasRef.current = filtradas;
   }, [filtradas]);
 
+  // Dirección aproximada del técnico a partir de sus coordenadas (geocodificación
+  // inversa vía Nominatim/OSM). Solo se consulta para el técnico seleccionado y
+  // cuando la agenda activa no aporta una dirección de destino, para minimizar el
+  // volumen de llamadas. Los resultados se cachean por coordenada redondeada.
+  useEffect(() => {
+    if (!selected || selected.direccion) {
+      setCoordAddress(null);
+      setCoordAddressLoading(false);
+      return;
+    }
+
+    const key = `${selected.latitud.toFixed(5)},${selected.longitud.toFixed(5)}`;
+    const cached = geocodeCacheRef.current.get(key);
+    if (cached !== undefined) {
+      setCoordAddress(cached);
+      setCoordAddressLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCoordAddress(null);
+    setCoordAddressLoading(true);
+
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${selected.latitud}&lon=${selected.longitud}&accept-language=es&zoom=18`,
+      { signal: controller.signal, headers: { Accept: "application/json" } }
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const address: string | null = data?.display_name ?? null;
+        if (address) geocodeCacheRef.current.set(key, address);
+        setCoordAddress(address);
+      })
+      .catch(() => {
+        /* Silencioso: si falla la geocodificación, se muestra el texto por defecto. */
+      })
+      .finally(() => setCoordAddressLoading(false));
+
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.tecnicoId, selected?.latitud, selected?.longitud, selected?.direccion]);
+
   const destinosConCoordenadas = useMemo(
     () =>
       agendas.filter(
@@ -803,44 +852,68 @@ export default function MapaTecnicosPage() {
   const sinResultados = ubicaciones.length > 0 && filtradas.length === 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-cyan-100 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-5">
+        <section className="relative overflow-hidden rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-6 shadow-sm sm:p-8">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-cyan-200/30 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 right-32 h-52 w-52 rounded-full bg-sky-200/30 blur-3xl" />
+
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-cyan-600">
+              <span className="inline-flex items-center gap-2 rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+                <MapPin size={14} />
                 Supervisión en terreno
-              </p>
-              <h1 className="mt-1 text-3xl font-black text-slate-900 sm:text-4xl">
+              </span>
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
                 Mapa de técnicos
               </h1>
-              <p className="mt-2 max-w-3xl text-slate-600">
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
                 Última ubicación conocida enviada por la app móvil en ruta o jornada.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase text-slate-500">Con ubicación</p>
-                <p className="text-2xl font-black text-slate-900">{ubicaciones.length}</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:w-auto">
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Con ubicación</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                    <Users size={14} />
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl font-black text-slate-900">{ubicaciones.length}</p>
               </div>
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase text-blue-600">En ruta</p>
-                <p className="text-2xl font-black text-blue-700">{totalEnRuta}</p>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4 shadow-sm backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">En ruta</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                    <Navigation size={14} />
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl font-black text-blue-700">{totalEnRuta}</p>
               </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase text-emerald-600">Activos</p>
-                <p className="text-2xl font-black text-emerald-700">{totalActivos}</p>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 shadow-sm backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Activos</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+                    <Activity size={14} />
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl font-black text-emerald-700">{totalActivos}</p>
               </div>
-              <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase text-rose-600">Sin señal reciente</p>
-                <p className="text-2xl font-black text-rose-700">{totalSinSenal}</p>
+              <div className="rounded-2xl border border-rose-100 bg-rose-50/80 p-4 shadow-sm backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Sin señal</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
+                    <WifiOff size={14} />
+                  </span>
+                </div>
+                <p className="mt-2 text-3xl font-black text-rose-700">{totalSinSenal}</p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="grid gap-3 md:grid-cols-[1fr_200px_170px_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -899,7 +972,7 @@ export default function MapaTecnicosPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
             <span className="font-semibold text-slate-700">Agendas del {fechaSeleccionada}:</span>
             <span>{agendas.length} totales</span>
@@ -953,16 +1026,18 @@ export default function MapaTecnicosPage() {
         )}
 
         {loading ? (
-          <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-white">
-            <div className="flex items-center gap-3 text-slate-600">
-              <Loader2 className="animate-spin text-cyan-600" size={24} />
-              Cargando ubicaciones...
+          <div className="flex min-h-[70vh] items-center justify-center rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col items-center gap-3 text-slate-600">
+              <Loader2 className="animate-spin text-cyan-600" size={32} />
+              <span className="font-medium">Cargando ubicaciones...</span>
             </div>
           </div>
         ) : filtradas.length === 0 ? (
-          <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+          <div className="flex min-h-[70vh] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
             <div>
-              <LocateFixed className="mx-auto text-slate-400" size={42} />
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                <LocateFixed className="text-slate-400" size={34} />
+              </div>
               <h2 className="mt-4 text-xl font-bold text-slate-900">
                 {sinDatos ? "Sin ubicaciones registradas" : "Sin resultados para los filtros"}
               </h2>
@@ -974,16 +1049,33 @@ export default function MapaTecnicosPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-5 py-4">
-                <h2 className="text-lg font-bold text-slate-900">Ubicaciones activas</h2>
-                <p className="text-sm text-slate-500">
-                  {filtradas.length} técnico{filtradas.length === 1 ? "" : "s"} · {destinosConCoordenadas.length} destino{destinosConCoordenadas.length === 1 ? "" : "s"} agendado{destinosConCoordenadas.length === 1 ? "" : "s"}
-                </p>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Ubicaciones en vivo</h2>
+                    <p className="text-xs text-slate-500">
+                      {filtradas.length} técnico{filtradas.length === 1 ? "" : "s"} · {destinosConCoordenadas.length} destino{destinosConCoordenadas.length === 1 ? "" : "s"} agendado{destinosConCoordenadas.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleVerTodos}
+                  disabled={combinedPositions.length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Maximize2 size={15} />
+                  Centrar todo
+                </button>
               </div>
 
-              <div className="relative h-[460px] overflow-hidden bg-slate-100">
+              <div className="relative h-[76vh] min-h-[600px] overflow-hidden bg-slate-100">
                 <MapContainer
                   center={[-33.4489, -70.6693]}
                   zoom={11}
@@ -1099,8 +1191,8 @@ export default function MapaTecnicosPage() {
                   </MarkerClusterGroup>
                 </MapContainer>
 
-                <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm">
-                  <p className="mb-1 font-semibold text-slate-700">Técnicos: señal</p>
+                <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] rounded-xl border border-slate-200 bg-white/95 px-3.5 py-2.5 text-xs text-slate-600 shadow-lg backdrop-blur-md">
+                  <p className="mb-1.5 font-bold uppercase tracking-wide text-slate-700">Técnicos: señal</p>
                   <div className="flex flex-col gap-1">
                     <span className="flex items-center gap-1.5">
                       <span
@@ -1126,8 +1218,8 @@ export default function MapaTecnicosPage() {
                   </div>
                 </div>
 
-                <div className="pointer-events-none absolute bottom-3 right-3 z-[1000] rounded-lg border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm">
-                  <p className="mb-1 font-semibold text-slate-700">Destinos: estado agenda</p>
+                <div className="pointer-events-none absolute bottom-3 right-3 z-[1000] rounded-xl border border-slate-200 bg-white/95 px-3.5 py-2.5 text-xs text-slate-600 shadow-lg backdrop-blur-md">
+                  <p className="mb-1.5 font-bold uppercase tracking-wide text-slate-700">Destinos: estado agenda</p>
                   <div className="flex flex-col gap-1">
                     <span className="flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-sm" style={{ background: DESTINO_COLORS.PROGRAMADA }} />
@@ -1155,18 +1247,23 @@ export default function MapaTecnicosPage() {
 
               {selected && (
                 <div className="border-t border-slate-200 p-4">
-                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-2xl border border-cyan-100 bg-gradient-to-br from-white to-cyan-50/50 p-4 shadow-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Técnico seleccionado
-                        </p>
-                        <h3 className="mt-1 text-2xl font-black text-slate-900">
-                          {selected.tecnicoNombre}
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {selected.empresa ?? "Sin visita asociada"}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-600 text-white shadow-sm">
+                          <UserRound size={22} />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-600">
+                            Técnico seleccionado
+                          </p>
+                          <h3 className="mt-0.5 text-2xl font-black text-slate-900">
+                            {selected.tecnicoNombre}
+                          </h3>
+                          <p className="mt-0.5 text-sm text-slate-600">
+                            {selected.empresa ?? "Sin visita asociada"}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getEstadoColor(selected.estadoTracking)}`}>
@@ -1186,7 +1283,18 @@ export default function MapaTecnicosPage() {
                     <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                       <div>
                         <p className="font-semibold text-slate-500">Dirección</p>
-                        <p className="text-slate-900">{selected.direccion ?? "Sin dirección asociada"}</p>
+                        {selected.direccion ? (
+                          <p className="text-slate-900">{selected.direccion}</p>
+                        ) : coordAddressLoading ? (
+                          <p className="text-slate-400">Buscando dirección…</p>
+                        ) : coordAddress ? (
+                          <p className="text-slate-900">
+                            {coordAddress}
+                            <span className="mt-0.5 block text-xs text-slate-400">Ubicación aproximada por GPS</span>
+                          </p>
+                        ) : (
+                          <p className="text-slate-900">Sin dirección asociada</p>
+                        )}
                       </div>
                       <div>
                         <p className="font-semibold text-slate-500">Latitud</p>
@@ -1219,7 +1327,7 @@ export default function MapaTecnicosPage() {
                       href={`https://www.google.com/maps?q=${selected.latitud},${selected.longitud}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-50"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700"
                     >
                       <Navigation size={16} />
                       Abrir en Maps
@@ -1229,7 +1337,10 @@ export default function MapaTecnicosPage() {
               )}
             </section>
 
-            <aside className="space-y-3">
+            <aside className="space-y-3 xl:max-h-[calc(76vh+4rem)] xl:overflow-y-auto xl:pr-1">
+              <div className="sticky top-0 z-[5] -mx-1 flex items-center justify-between bg-slate-50/95 px-1 pb-2 pt-0.5 backdrop-blur-sm">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Técnicos ({filtradas.length})</h2>
+              </div>
               {filtradas.map((item) => {
                 const isSelected = selected?.tecnicoId === item.tecnicoId;
                 const senal = getEstadoSenal(item.createdAt);
@@ -1245,8 +1356,14 @@ export default function MapaTecnicosPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
-                          <UserRound size={21} />
+                        <div className="relative shrink-0">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
+                            <UserRound size={21} />
+                          </div>
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white"
+                            style={{ background: SENAL_COLORS[senal] }}
+                          />
                         </div>
                         <div className="min-w-0">
                           <p className="truncate text-lg font-black text-slate-900">
