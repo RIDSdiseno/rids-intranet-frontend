@@ -93,6 +93,14 @@ export const fieldLabels: Record<string, string> = {
     redEthernet: "Red Ethernet (MAC)",
     claveTv: "Clave TeamViewer",
     revisado: "Revisado",
+
+    oneDriveEstado: "Estado OneDrive",
+    oneDriveUsuario: "Usuario OneDrive",
+    oneDriveOperativo: "OneDrive operativo",
+    oneDriveInstalado: "OneDrive instalado",
+    oneDriveEnEjecucion: "OneDrive en ejecución",
+    oneDriveVersion: "Versión OneDrive",
+
     adicionalesResumen: "Adicionales",
 };
 

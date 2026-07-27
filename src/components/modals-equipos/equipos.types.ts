@@ -38,9 +38,23 @@ export type EquipoRow = {
   solicitanteRut?: string | null;
   solicitanteEmail?: string | null;
 
+  /**
+   * Empresa directa asignada al equipo.
+   */
   empresa: string | null;
-  idSolicitante: number | null;
   empresaId: number | null;
+
+  /**
+   * Solicitante asociado actualmente.
+   */
+  idSolicitante: number | null;
+
+  /**
+   * Empresa real a la que pertenece el solicitante.
+   * Sirve para detectar asociaciones históricas inconsistentes.
+   */
+  solicitanteEmpresaId?: number | null;
+  solicitanteEmpresa?: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -68,8 +82,19 @@ export type EquipoRow = {
   tipoDd?: string | null;
   estadoAlm?: string | null;
   office?: string | null;
+
+  oneDrive?: string | null;
+  oneDriveEstado?: string | null;
+  oneDriveInstalado?: boolean | null;
+  oneDriveEnEjecucion?: boolean | null;
+  oneDriveOperativo?: boolean | null;
+  oneDriveVersion?: string | null;
+  oneDriveUsuario?: string | null;
+  oneDriveDetalle?: unknown;
+
   teamViewer?: string | null;
   claveTv?: string | null;
+
   revisado?: string | null;
   adminRidsUsuario?: string | null;
   adminRidsPassword?: string | null;
@@ -100,6 +125,9 @@ export type SolicitanteLite = {
   nombre: string;
   email?: string | null;
   rut?: string | null;
+
+  empresaId?: number | null;
+
   empresa?: {
     id_empresa: number;
     nombre: string;
@@ -204,6 +232,15 @@ export type EquipoDetalleAgent = {
   office?: string | null;
   teamViewer?: string | null;
 
+  oneDrive?: string | null;
+  oneDriveEstado?: string | null;
+  oneDriveInstalado?: boolean | null;
+  oneDriveEnEjecucion?: boolean | null;
+  oneDriveOperativo?: boolean | null;
+  oneDriveVersion?: string | null;
+  oneDriveUsuario?: string | null;
+  oneDriveDetalle?: unknown;
+
   antivirusNombre?: string | null;
   antivirusActivo?: boolean | null;
   firewallActivo?: boolean | null;
@@ -247,6 +284,10 @@ export type EmpresaDTO = {
 export type SolicitanteDTO = {
   id_solicitante: number;
   nombre: string;
+
+  email?: string | null;
+  rut?: string | null;
+
   empresaId: number | null;
   empresa: EmpresaDTO | null;
 };
@@ -254,21 +295,28 @@ export type SolicitanteDTO = {
 export type EquipoDTO = {
   id_equipo: number;
   serial: string;
+  tipo?: TipoEquipoValue | null;
   marca: string;
   modelo: string;
+
   anioPc?: number | null;
   anioPcOrigen?: "AUTO" | "MANUAL" | "NO_DETERMINADO" | null;
+
   procesador: string;
   ram: string;
   disco: string;
+
   propiedad?: PropiedadEquipo | string | null;
   propietarioExterno?: string | null;
+
   estado: EstadoEquipo;
   observaciones?: string | null;
-  idSolicitante: number;
+
+  empresaId: number | null;
+  idSolicitante: number | null;
+
   solicitante: SolicitanteDTO | null;
 };
-
 export type EquipoAdicionalInput = {
   tipo: string;
   descripcion?: string | null;

@@ -362,6 +362,56 @@ function boolTag(value?: boolean | null) {
     return <span className="text-slate-500" >—</span>;
 }
 
+function oneDriveBoolTag(
+    value?: boolean | null,
+    labels?: {
+        trueLabel?: string;
+        falseLabel?: string;
+    }
+) {
+    if (value === true) {
+        return (
+            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                {labels?.trueLabel || "Sí"}
+            </span>
+        );
+    }
+
+    if (value === false) {
+        return (
+            <span className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800">
+                {labels?.falseLabel || "No"}
+            </span>
+        );
+    }
+
+    return <span className="text-slate-500">—</span>;
+}
+
+function getOneDriveStatusClass(operativo?: boolean | null, estado?: string | null) {
+    const normalized = String(estado ?? "").toLowerCase();
+
+    if (operativo === true) {
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    }
+
+    if (
+        normalized.includes("no configurado") ||
+        normalized.includes("sin usuario") ||
+        normalized.includes("no esta en ejecucion") ||
+        normalized.includes("no está en ejecución") ||
+        normalized.includes("sin carpetas")
+    ) {
+        return "border-amber-200 bg-amber-50 text-amber-700";
+    }
+
+    if (normalized.includes("no instalado")) {
+        return "border-slate-200 bg-slate-100 text-slate-500";
+    }
+
+    return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
 function splitAgentText(value?: string | null) {
     if (!value) return [];
 
@@ -545,10 +595,6 @@ export default function EquipoViewModal({
 
     const isMacAgent = latestAgentMetadata.platform === "MACOS";
 
-    const agentPlatformLabel = isMacAgent ? "macOS" : "Windows";
-    const agentTitle = isMacAgent ? "Agente macOS" : "Agente Windows";
-
-    const uptimeValue =
         latestAgentMetadata.uptimeText ||
         formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
         formatUptimeFromLastBoot(viewAgent?.lastBootAt);
@@ -564,9 +610,17 @@ export default function EquipoViewModal({
     const agenteVersion = viewAgent?.agenteVersion || row.agenteVersion;
     const agenteHostname = viewAgent?.hostname || row.hostname;
     const agenteUsuario = viewAgent?.usuarioActual || row.usuarioActual;
-    const agenteIpLocal = viewAgent?.localIp || row.localIp;
-    const agenteMac = viewAgent?.macAddress || row.macAddress;
     const agenteUltimoArranque = viewAgent?.lastBootAt || row.lastBootAt;
+
+    const oneDriveDetalle = viewAgent?.detalle;
+
+    const oneDriveEstado = oneDriveDetalle?.oneDriveEstado;
+    const oneDriveResumen = oneDriveDetalle?.oneDrive;
+    const oneDriveInstalado = oneDriveDetalle?.oneDriveInstalado;
+    const oneDriveEnEjecucion = oneDriveDetalle?.oneDriveEnEjecucion;
+    const oneDriveOperativo = oneDriveDetalle?.oneDriveOperativo;
+    const oneDriveVersion = oneDriveDetalle?.oneDriveVersion;
+    const oneDriveUsuario = oneDriveDetalle?.oneDriveUsuario;
 
     return (
         <div
@@ -1057,7 +1111,7 @@ export default function EquipoViewModal({
                                             </p>
                                         </div>
 
-                                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_0.85fr]">
+                                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                                             {/* Office / Licencia */}
                                             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1068,6 +1122,116 @@ export default function EquipoViewModal({
                                                     label=""
                                                     value={viewAgent.detalle?.office || viewAgent.office || row?.office}
                                                 />
+                                            </div>
+
+                                            {/* OneDrive */}
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                <div className="mb-3 flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                            OneDrive
+                                                        </div>
+                                                        <p className="mt-1 text-[11px] text-slate-500">
+                                                            Estado operativo, versión y usuario detectado.
+                                                        </p>
+                                                    </div>
+
+                                                    <span
+                                                        className={clsx(
+                                                            "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                                                            getOneDriveStatusClass(oneDriveOperativo, oneDriveEstado)
+                                                        )}
+                                                    >
+                                                        {(() => {
+                                                            const estado = String(oneDriveEstado ?? "").toLowerCase();
+
+                                                            if (oneDriveOperativo) return "Operativo";
+                                                            if (estado.includes("no configurado")) return "No configurado";
+                                                            if (
+                                                                estado.includes("no esta en ejecucion") ||
+                                                                estado.includes("no está en ejecución")
+                                                            ) {
+                                                                return "No ejecutándose";
+                                                            }
+                                                            if (estado.includes("no instalado")) return "No instalado";
+                                                            if (!estado) return "Sin información";
+
+                                                            return "Revisar";
+                                                        })()}
+                                                    </span>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                        <div className="text-[11px] font-medium text-slate-500">
+                                                            Usuario
+                                                        </div>
+                                                        <div className="mt-1 break-all font-semibold text-slate-800">
+                                                            {oneDriveUsuario || "—"}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                Versión
+                                                            </div>
+                                                            <div className="mt-1 break-all font-mono text-sm font-bold text-slate-800">
+                                                                {oneDriveVersion || "—"}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                Operativo
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                {oneDriveBoolTag(oneDriveOperativo, {
+                                                                    trueLabel: "Operativo",
+                                                                    falseLabel: "No operativo",
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                Instalado
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                {oneDriveBoolTag(oneDriveInstalado, {
+                                                                    trueLabel: "Instalado",
+                                                                    falseLabel: "No instalado",
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                En ejecución
+                                                            </div>
+                                                            <div className="mt-1">
+                                                                {oneDriveBoolTag(oneDriveEnEjecucion, {
+                                                                    trueLabel: "En ejecución",
+                                                                    falseLabel: "No ejecutándose",
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {oneDriveResumen ? (
+                                                        <details className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                            <summary className="cursor-pointer text-[11px] font-medium text-slate-500">
+                                                                Ver resumen técnico
+                                                            </summary>
+
+                                                            <div className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-700">
+                                                                {oneDriveResumen}
+                                                            </div>
+                                                        </details>
+                                                    ) : null}
+                                                </div>
                                             </div>
 
                                             {/* Acceso remoto */}
