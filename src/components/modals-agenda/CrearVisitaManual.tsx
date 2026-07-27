@@ -65,7 +65,7 @@ export function CrearVisitaManual({
       okText="Crear visita"
       cancelText="Cancelar"
       okButtonProps={{
-        disabled: !fecha || empresaId === null || tecnicoId === null,
+        disabled: !fecha || empresaId === null || tecnicoId === null || !horaInicio || !horaFin,
       }}
       destroyOnHidden
     >
@@ -143,21 +143,21 @@ export function CrearVisitaManual({
 
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Hora inicio</p>
+            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Hora inicio *</p>
             <input
               type="time"
               value={horaInicio}
               onChange={(e) => onHoraInicioChange(e.target.value)}
-              style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: "1px solid #d9d9d9", fontSize: 14 }}
+              style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: horaInicio ? "1px solid #d9d9d9" : "1px solid #f87171", fontSize: 14 }}
             />
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Hora fin</p>
+            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Hora fin *</p>
             <input
               type="time"
               value={horaFin}
               onChange={(e) => onHoraFinChange(e.target.value)}
-              style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: "1px solid #d9d9d9", fontSize: 14 }}
+              style={{ width: "100%", padding: "4px 8px", borderRadius: 6, border: horaFin ? "1px solid #d9d9d9" : "1px solid #f87171", fontSize: 14 }}
             />
           </div>
         </div>

@@ -513,13 +513,13 @@ export default function AgendaPage() {
       const res = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
         method: "DELETE", headers: authHeaders(), credentials: "include",
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errorMsg(res, "Error al eliminar la visita"));
       message.success("Visita eliminada");
       setModalOpen(false);
       setDetalleOpen(false);
       fetchVisitas(currentDate);
-    } catch {
-      message.error("Error al eliminar la visita");
+    } catch (err) {
+      message.error(err instanceof Error && err.message ? err.message : "Error al eliminar la visita");
     } finally {
       setDeletingVisitaId(false);
     }
