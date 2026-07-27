@@ -59,6 +59,7 @@ const FACTURAS_BASEAPI_PATH = "/facturas";
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
+const ENTREGAS_PATH = "/entregas";
 
 type NavLinkItem = {
   type?: "link";
@@ -145,8 +146,9 @@ const NAV: NavEntry[] = [
           },
         ],
       },
+      { label: "PickUP", to: ENTREGAS_PATH, icon: <Package size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH, ENTREGAS_PATH],
   },
   {
     type: "group",
