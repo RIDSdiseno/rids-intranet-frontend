@@ -20,6 +20,7 @@ import {
   Headset,
   Handshake,
   FileText,
+  FileSpreadsheet,
   MapPin,
   Wrench,
   ChevronDown,
@@ -57,9 +58,11 @@ const REPORTES_PATH = "/reportes";
 const HELPDESK_PATH = "/helpdesk";
 const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
+const CONCILIACION_PATH = "/conciliacion-rcv";
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
+const ENTREGAS_PATH = "/entregas";
 
 type NavLinkItem = {
   type?: "link";
@@ -146,8 +149,9 @@ const NAV: NavEntry[] = [
           },
         ],
       },
+      { label: "PickUP", to: ENTREGAS_PATH, icon: <Package size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH],
+    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH, ENTREGAS_PATH],
   },
   {
     type: "group",
@@ -210,11 +214,13 @@ const NAV: NavEntry[] = [
 
   {
     type: "group",
-    label: "Facturas",
+    label: "Finanzas",
     items: [
       { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
+      { label: "Conciliación", to: CONCILIACION_PATH, icon: <Handshake size={20} /> },
+      { label: "Cobranza", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
     ],
-    match: [FACTURAS_BASEAPI_PATH, COBRANZA_PATH],
+    match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH],
   },
   /*
   {
@@ -224,14 +230,6 @@ const NAV: NavEntry[] = [
       { label: "Tickets (Histórico)", to: TICKETS_PATH, icon: <Ticket size={20} /> },
     ],
     match: [TICKETS_PATH],
-  },
-  {
-    type: "group",
-    label: "Cobranza",
-    items: [
-      { label: "Facturas SII", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
-    ],
-    match: [COBRANZA_PATH],
   },*/
 ];
 
@@ -331,6 +329,11 @@ const Header = () => {
 
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
+  const canAccessCobranza =
+    userRole === "ADMIN" || userRole === "ADMINISTRACION";
+
+  const canAccessConciliacion = userRole === "ADMINISTRACION";
+
   /*
   const canAccessGestionTecnicosClientes =
     USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail) */
@@ -338,9 +341,21 @@ const Header = () => {
   const filteredNav: NavEntry[] = useMemo(() => {
     const nav = NAV
       .map((entry): NavEntry | null => {
-        if (entry.type === "group" && entry.label === "Facturas") {
-          if (!canAccessFacturas) return null;
-          return entry;
+        if (entry.type === "group" && entry.label === "Finanzas") {
+          const items = entry.items.filter((item) => {
+            if (item.to === FACTURAS_BASEAPI_PATH) return canAccessFacturas;
+            if (item.to === CONCILIACION_PATH) return canAccessConciliacion;
+            if (item.to === COBRANZA_PATH) return canAccessCobranza;
+            return true;
+          });
+
+          if (items.length === 0) return null;
+
+          return {
+            ...entry,
+            items,
+            match: items.map((item) => item.to),
+          };
         }
 
         if (
@@ -428,6 +443,8 @@ const Header = () => {
     canAccessTecnicos,
     canAccessGestionTecnicosClientes,
     canAccessMapaTecnicos,
+    canAccessCobranza,
+    canAccessConciliacion,
   ]);
 
   const handleLogout = async () => {

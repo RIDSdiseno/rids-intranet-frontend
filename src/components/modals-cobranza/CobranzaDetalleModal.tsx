@@ -1,13 +1,31 @@
 import React, { useMemo } from "react";
-import { FileDoneOutlined, CloseOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
+import {
+    FileTextOutlined,
+    ExclamationCircleOutlined,
+    UserOutlined,
+    EyeOutlined,
+    DollarOutlined,
+} from "@ant-design/icons";
 import { getValue, formatFechaVista, formatCLP } from "../modals-facturasBaseapi/utils";
+
+function estadoFromDoc(doc: any) {
+    const pago = getValue(doc, ["estadoPago", "EstadoPago", "estado_pago"], null);
+    if (pago) return String(pago).toUpperCase();
+    return String(getValue(doc, ["Estado", "estado", "Estado Documento", "estadoDocumento"], "")).toUpperCase();
+}
+
+function esPagada(doc: any) {
+    const s = estadoFromDoc(doc);
+    return s.includes("CONFIRM") || s.includes("PAG");
+}
 
 const CobranzaDetalleModal: React.FC<{
     documento: any | null;
     documentosAll: any[];
     onClose: () => void;
     onOpenFullDetail: (doc: any) => void;
-}> = ({ documento, documentosAll, onClose, onOpenFullDetail }) => {
+    onOpenCliente?: (doc: any) => void;
+}> = ({ documento, documentosAll, onClose, onOpenFullDetail, onOpenCliente }) => {
     if (!documento) return null;
 
     const folio = Number(String(getValue(documento, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "") || 0);
@@ -269,72 +287,122 @@ const CobranzaDetalleModal: React.FC<{
     const hasNC = Boolean(documento?.hasNC || documento?.hasNC === true);
     const hasND = Boolean(documento?.hasND || documento?.hasND === true);
 
-    return (
-        <div className="fixed inset-0 z-60 flex items-start justify-center pt-10">
-            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+    const nombreCliente = String(getValue(documento, ["Razon Social", "Razón Social", "razonSocial", "razonSocialReceptor", "razonSocialProveedor"], "—"));
+    const total = formatCLP(getValue(documento, ["Monto total", "Monto Total", "montoTotal"], 0));
+    const pagada = esPagada(documento);
 
-            <div className="relative w-full max-w-3xl rounded-lg bg-white p-6 shadow-lg">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h2 className="text-lg font-semibold flex items-center gap-2">{`Documento #${folio}`}</h2>
-                        <p className="text-sm text-slate-500">Vista rápida (Cobranza)</p>
+    return (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4">
+            <div className="flex w-full max-w-3xl flex-col rounded-3xl bg-white shadow-2xl max-h-[92vh]">
+
+                {/* Header */}
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600">
+                            <FileTextOutlined style={{ fontSize: 18 }} />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 className="truncate text-lg font-black text-slate-900">Documento #{folio}</h2>
+                            <p className="text-xs text-slate-400">Vista rápida · {nombreCliente}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50 transition shrink-0">
+                        Cerrar
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-auto px-6 py-5 flex flex-col gap-4">
+
+                    {(hasNC || hasND) && (
+                        <div className="flex flex-wrap gap-2">
+                            {hasNC && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-100">
+                                    <ExclamationCircleOutlined /> Nota de Crédito adjunta
+                                </span>
+                            )}
+                            {hasND && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
+                                    <ExclamationCircleOutlined /> Nota de Débito adjunta
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="mb-2 flex items-center gap-2">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 text-sm">
+                                    <FileTextOutlined />
+                                </span>
+                                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Tipo · Folio</span>
+                            </div>
+                            <p className="text-lg font-black text-slate-900">{getValue(documento, ["Tipo Doc", "tipoDoc", "tipoDTE"], "—")} · #{folio}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="mb-2 flex items-center gap-2">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600 text-sm">
+                                    <DollarOutlined />
+                                </span>
+                                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                            </div>
+                            <p className="text-lg font-black text-slate-900">{total}</p>
+                        </div>
+                        <div className={`rounded-2xl border p-4 ${pagada ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                            <div className="mb-2 flex items-center gap-2">
+                                <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm ${pagada ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>
+                                    <ExclamationCircleOutlined />
+                                </span>
+                                <span className={`text-[11px] font-bold uppercase tracking-wide ${pagada ? "text-emerald-600" : "text-amber-600"}`}>Estado</span>
+                            </div>
+                            <p className={`text-lg font-black ${pagada ? "text-emerald-700" : "text-amber-700"}`}>{pagada ? "Pagada" : "Pendiente"}</p>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        {hasNC && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-100">
-                                <ExclamationCircleOutlined /> Nota de Crédito adjunta
-                            </span>
-                        )}
+                    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                        <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
+                            <p className="text-sm font-bold text-slate-800">Documentos que referencian este folio</p>
+                            <span className="text-xs text-slate-400">{referencing.length} encontrado{referencing.length !== 1 ? "s" : ""}</span>
+                        </div>
 
-                        {hasND && (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
-                                <ExclamationCircleOutlined /> Nota de Débito adjunta
-                            </span>
-                        )}
+                        <div className="p-4">
+                            {referencing.length === 0 && (
+                                <div className="text-sm text-slate-400">No se encontraron NC/ND que referencien este folio en el payload actual.</div>
+                            )}
 
-                        <button onClick={onClose} className="text-slate-500 hover:text-slate-700"> <CloseOutlined /> </button>
+                            <div className="flex flex-col gap-2">
+                                {referencing.map((r, idx) => (
+                                    <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3">
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-800">{r.razon || '—'}</div>
+                                            <div className="text-xs text-slate-500">Tipo {r.tipo} · Folio {r.folio} · {r.fecha}</div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-sm font-bold text-slate-700">{formatCLP(r.total || 0)}</div>
+                                            <button className="rounded-lg bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition" onClick={() => onOpenFullDetail(r.raw)}>Abrir detalle</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                    <div className="rounded-lg border border-cyan-100 bg-cyan-50/30 p-3">
-                        <div className="text-sm text-slate-700 font-semibold">Resumen</div>
-                        <div className="mt-2 text-sm text-slate-600">Tipo: {getValue(documento, ["Tipo Doc", "tipoDoc", "tipoDTE"], "—")} · Folio: {getValue(documento, ["Folio", "folio"], '—')}</div>
-                        <div className="mt-1 text-sm text-slate-600">Total: {formatCLP(getValue(documento, ["Monto total", "Monto Total", "montoTotal"], 0))}</div>
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                        <div className="flex items-center justify-between">
-                            <div className="text-sm font-bold text-slate-800">Documentos que referencian este folio</div>
-                            <div className="text-xs text-slate-500">{referencing.length} encontrados</div>
-                        </div>
-
-                        <div className="mt-3">
-                            {referencing.length === 0 && (
-                                <div className="text-sm text-slate-500">No se encontraron NC/ND que referencien este folio en el payload actual.</div>
-                            )}
-
-                            {referencing.map((r, idx) => (
-                                <div key={idx} className="mt-2 flex items-center justify-between rounded-lg border border-slate-100 p-2">
-                                    <div>
-                                        <div className="text-sm font-semibold">{r.razon || '—'}</div>
-                                        <div className="text-xs text-slate-500">Tipo {r.tipo} · Folio {r.folio} · {r.fecha}</div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <div className="text-sm font-bold">{formatCLP(r.total || 0)}</div>
-                                        <button className="ml-2 rounded bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700" onClick={() => onOpenFullDetail(r.raw)}>Abrir detalle</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                        <button onClick={() => onOpenFullDetail(documento)} className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-600 px-4 py-2 text-sm font-bold text-white">Ver detalle completo</button>
-                        <button onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">Cerrar</button>
-                    </div>
+                {/* Footer */}
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                    {onOpenCliente && (
+                        <button
+                            onClick={() => onOpenCliente(documento)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-700 hover:bg-cyan-100 transition"
+                        >
+                            <UserOutlined /> Ver ficha del cliente
+                        </button>
+                    )}
+                    <button onClick={() => onOpenFullDetail(documento)} className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-500 transition">
+                        <EyeOutlined /> Ver detalle completo
+                    </button>
+                    <button onClick={onClose} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition">Cerrar</button>
                 </div>
             </div>
         </div>

@@ -49,9 +49,11 @@ const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
+const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
+const EntregasPage = lazy(() => import("./host/EntregasPage"));
 
 /* =========================
    Auth helpers
@@ -210,6 +212,9 @@ export default function App() {
               <Route path="/mapa-tecnicos" element={<MapaTecnicosPage />} />
             </Route>
 
+            {/* ── Entregas (comprobantes) · todos los roles ────────────── */}
+            <Route path="/entregas" element={<EntregasPage />} />
+
             {/* ── Internos + CLIENTE (backend filtra por empresa) ─────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
               <Route path="/empresas" element={<EmpresasPage />} />
@@ -251,9 +256,14 @@ export default function App() {
               <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
             </Route>
 
-            {/* ── Cobranza (acceso restringido) ───────────────────────────── */}
-            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "VENTAS"]} />}>
+            {/* ── Cobranza (acceso restringido: solo Administración) ──────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
               <Route path="/facturas/cobranza" element={<CobranzaPage />} />
+            </Route>
+
+            {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION"]} />}>
+              <Route path="/conciliacion-rcv" element={<ConciliacionRcvPage />} />
             </Route>
 
           </Route>
