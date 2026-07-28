@@ -122,6 +122,7 @@ export default function AgendaPage() {
   const [selectedHoraInicio, setSelectedHoraInicio] = useState("");
   const [selectedHoraFin, setSelectedHoraFin] = useState("");
   const [selectedNotas, setSelectedNotas] = useState("");
+  const [editFechasAdicionales, setEditFechasAdicionales] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [sendingNota, setSendingNota] = useState(false);
   const [deletingVisitaId, setDeletingVisitaId] = useState(false);
@@ -441,6 +442,7 @@ export default function AgendaPage() {
     setSelectedHoraInicio(visita.horaInicio ?? "");
     setSelectedHoraFin(visita.horaFin ?? "");
     setSelectedNotas(visita.notas ?? "");
+    setEditFechasAdicionales([]);
     setSendingNota(false);
     setDetalleOpen(false);
     setModalOpen(true);
@@ -478,8 +480,39 @@ export default function AgendaPage() {
         prev ? { ...prev, empresa: updatedEmpresa, horaInicio: selectedHoraInicio || null, horaFin: selectedHoraFin || null, notas: selectedNotas } : prev
       );
 
-      message.success("Visita actualizada");
+      if (editFechasAdicionales.length > 0 && selectedTecnicos.length === 1) {
+        const resLote = await fetch(`${API_URL}/agenda/manual/lote`, {
+          method: "POST", headers: authHeaders(), credentials: "include",
+          body: JSON.stringify({
+            empresaId: selectedEmpresaId,
+            sucursalId: selectedSucursalId,
+            tecnicoId: selectedTecnicos[0],
+            ...(selectedNotas.trim() && { notas: selectedNotas.trim() }),
+            fechas: editFechasAdicionales.map((fecha) => ({
+              fecha,
+              horaInicio: selectedHoraInicio,
+              horaFin: selectedHoraFin,
+            })),
+          }),
+        });
+        if (resLote.ok) {
+          const dataLote = await resLote.json();
+          if (dataLote.errores?.length > 0) {
+            message.warning(
+              `Visita actualizada. ${dataLote.creadas.length} día(s) más creado(s), ${dataLote.errores.length} fallaron (revisa conflictos de horario).`
+            );
+          } else {
+            message.success(`Visita actualizada y repetida en ${dataLote.creadas.length} día(s) más`);
+          }
+        } else {
+          message.warning("Visita actualizada, pero no se pudo repetir en los días adicionales.");
+        }
+      } else {
+        message.success("Visita actualizada");
+      }
+
       setModalOpen(false);
+      setEditFechasAdicionales([]);
       fetchVisitas(currentDate);
     } catch (e) {
       Modal.error({
@@ -1089,6 +1122,8 @@ export default function AgendaPage() {
         saving={saving}
         sendingNota={sendingNota}
         deleting={deletingVisitaId}
+        fechasAdicionales={editFechasAdicionales}
+        onFechasAdicionalesChange={setEditFechasAdicionales}
         onEmpresaChange={(id) => {
           setSelectedEmpresaId(id);
           setSelectedSucursalId(null);
