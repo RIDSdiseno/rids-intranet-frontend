@@ -29,7 +29,8 @@ import {
   Calendar1,
   Mails,
   Receipt,
-  BriefcaseBusiness
+  BriefcaseBusiness,
+  Funnel
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -214,6 +215,12 @@ const NAV: NavEntry[] = [
       { label: "Cobranza", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
     ],
     match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH],
+  },
+  {
+    type: "group",
+    label: "Administración",
+    items: [{ label: "Funnel", to: "/funnel", icon: <Funnel size={20} /> }],
+    match: ["/funnel"],
   },
   /*
   {

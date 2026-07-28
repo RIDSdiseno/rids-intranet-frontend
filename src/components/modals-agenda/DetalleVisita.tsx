@@ -10,6 +10,7 @@ export interface DetalleVisitaProps {
   deleting: boolean;
   onEditar: (visita: AgendaVisita) => void;
   onEliminar: () => void;
+  onEliminarVarias: () => void;
   onCancel: () => void;
 }
 
@@ -19,6 +20,7 @@ export function DetalleVisita({
   deleting,
   onEditar,
   onEliminar,
+  onEliminarVarias,
   onCancel,
 }: DetalleVisitaProps) {
   if (!visita) return null;
@@ -31,17 +33,26 @@ export function DetalleVisita({
       onCancel={onCancel}
       footer={
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <Popconfirm
-            title="¿Eliminar esta visita?"
-            onConfirm={onEliminar}
-            okText="Sí, eliminar"
-            cancelText="Cancelar"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger loading={deleting}>
-              Eliminar
+          <div style={{ display: "flex", gap: 8 }}>
+            <Popconfirm
+              title="¿Eliminar esta visita?"
+              onConfirm={onEliminar}
+              okText="Sí, eliminar"
+              cancelText="Cancelar"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger loading={deleting}>
+                Eliminar
+              </Button>
+            </Popconfirm>
+            <Button
+              danger
+              type="text"
+              onClick={onEliminarVarias}
+            >
+              Eliminar varias
             </Button>
-          </Popconfirm>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Button onClick={onCancel}>Cerrar</Button>
             <Button type="primary" onClick={() => onEditar(visita)}>
