@@ -398,6 +398,21 @@ const ClienteDetalleModal: React.FC<Props> = ({ documentos, nombre, rut, empresa
           </td>
         </tr>
         <tr>
+          <td style="padding:0 28px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; font-size:13px;">
+              <tr><td style="background-color:#f8fafc; padding:10px 16px; font-weight:700; color:#334155; border-bottom:1px solid #e5e7eb;">Datos para el pago</td></tr>
+              <tr><td style="padding:12px 16px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr><td style="padding:3px 0; color:#64748b;">Banco</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">Itaú</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">Cuenta corriente</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">0213150814</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">RUT</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">76.758.352-4</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">Correo de pagos</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">pagos@rids.cl</td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
           <td style="border-top:1px solid #eef2f5; background-color:#f8fbfd; padding:16px 28px; font-size:11px; color:#94a3b8;">
             <div style="font-weight:700; color:#475569; margin-bottom:2px;">${escapeHtml(empresaPdf.nombre)}</div>
             <div>${escapeHtml(empresaPdf.direccion)} · RUT ${escapeHtml(empresaPdf.rut)}</div>

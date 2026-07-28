@@ -234,7 +234,7 @@ const Header = () => {
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
   const canAccessCobranza =
-    userRole === "ADMIN" || userRole === "ADMINISTRACION" || userRole === "VENTAS";
+    userRole === "ADMIN" || userRole === "ADMINISTRACION";
 
   const canAccessConciliacion = userRole === "ADMINISTRACION";
 

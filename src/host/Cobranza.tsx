@@ -1320,6 +1320,23 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
           </td>
         </tr>
 
+        <!-- Datos para el pago -->
+        <tr>
+          <td style="padding:0 28px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; font-size:13px;">
+              <tr><td style="background-color:#f8fafc; padding:10px 16px; font-weight:700; color:#334155; border-bottom:1px solid #e5e7eb;">Datos para el pago</td></tr>
+              <tr><td style="padding:12px 16px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr><td style="padding:3px 0; color:#64748b;">Banco</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">Itaú</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">Cuenta corriente</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">0213150814</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">RUT</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">76.758.352-4</td></tr>
+                  <tr><td style="padding:3px 0; color:#64748b;">Correo de pagos</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">pagos@rids.cl</td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+
         <!-- Footer -->
         <tr>
           <td style="border-top:1px solid #eef2f5; background-color:#f8fbfd; padding:16px 28px; font-size:11px; color:#94a3b8;">

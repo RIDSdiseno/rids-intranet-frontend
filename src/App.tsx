@@ -248,8 +248,8 @@ export default function App() {
               <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
             </Route>
 
-            {/* ── Cobranza (acceso restringido) ───────────────────────────── */}
-            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "VENTAS"]} />}>
+            {/* ── Cobranza (acceso restringido: solo Administración) ──────── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
               <Route path="/facturas/cobranza" element={<CobranzaPage />} />
             </Route>
 
