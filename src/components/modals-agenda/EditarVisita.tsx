@@ -1,7 +1,10 @@
-import { Modal, Select, Button, Popconfirm } from "antd";
+import { useState } from "react";
+import { Modal, Select, Button, Popconfirm, Popover } from "antd";
+import { CalendarOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { AgendaVisita, Tecnico, Empresa, Sucursal } from "./tiposAgenda";
 import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
+import SeleccionarFechasCalendario from "./SeleccionarFechasCalendario";
 
 export interface EditarVisitaProps {
   open: boolean;
@@ -19,6 +22,10 @@ export interface EditarVisitaProps {
   saving: boolean;
   sendingNota: boolean;
   deleting: boolean;
+  // Fechas adicionales para replicar esta misma visita (mismo destino, técnico
+  // único y horario) en otros días — para cuando falto agregar un día al crearla.
+  fechasAdicionales: string[];
+  onFechasAdicionalesChange: (fechas: string[]) => void;
   onEmpresaChange: (id: number) => void;
   onSucursalChange: (id: number | null) => void;
   onTecnicosChange: (ids: number[]) => void;
@@ -47,6 +54,8 @@ export function EditarVisita({
   saving,
   sendingNota,
   deleting,
+  fechasAdicionales,
+  onFechasAdicionalesChange,
   onEmpresaChange,
   onSucursalChange,
   onTecnicosChange,
@@ -59,6 +68,16 @@ export function EditarVisita({
   onCancel,
 }: EditarVisitaProps) {
   const canSendNota = Boolean(visita && Number.isFinite(visita.id) && visita.id > 0);
+  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+  const puedeRepetirEnOtrosDias = tecnicoIds.length === 1;
+
+  function toggleFechaAdicional(fechaClave: string) {
+    if (fechasAdicionales.includes(fechaClave)) {
+      onFechasAdicionalesChange(fechasAdicionales.filter((f) => f !== fechaClave));
+    } else {
+      onFechasAdicionalesChange([...fechasAdicionales, fechaClave].sort());
+    }
+  }
 
   return (
     <Modal
@@ -93,7 +112,9 @@ export function EditarVisita({
           disabled={tecnicoIds.length === 0 || sendingNota}
           onClick={onSave}
         >
-          Guardar cambios
+          {fechasAdicionales.length > 0
+            ? `Guardar cambios (+${fechasAdicionales.length} día${fechasAdicionales.length === 1 ? "" : "s"})`
+            : "Guardar cambios"}
         </Button>,
         ...(canSendNota
           ? [
@@ -180,6 +201,83 @@ export function EditarVisita({
                 value: t.id_tecnico,
               }))}
             />
+          </div>
+
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "#64748b" }}>
+                Repetir esta visita en otros días
+              </span>
+              <Popover
+                trigger="click"
+                open={calendarioAbierto}
+                onOpenChange={(next) => puedeRepetirEnOtrosDias && setCalendarioAbierto(next)}
+                placement="bottomLeft"
+                getPopupContainer={() => document.body}
+                content={
+                  <div style={{ width: 260 }}>
+                    <SeleccionarFechasCalendario
+                      fechasSeleccionadas={fechasAdicionales}
+                      onToggleFecha={toggleFechaAdicional}
+                    />
+                  </div>
+                }
+              >
+                <button
+                  type="button"
+                  aria-label="Abrir calendario"
+                  disabled={!puedeRepetirEnOtrosDias}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 28,
+                    height: 28,
+                    color: puedeRepetirEnOtrosDias ? "#0891b2" : "#94a3b8",
+                    background: calendarioAbierto ? "#e0f2fe" : "none",
+                    border: `1px solid ${puedeRepetirEnOtrosDias ? "#0891b2" : "#cbd5e1"}`,
+                    borderRadius: 6,
+                    cursor: puedeRepetirEnOtrosDias ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <CalendarOutlined />
+                </button>
+              </Popover>
+            </div>
+            {!puedeRepetirEnOtrosDias && (
+              <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>
+                Selecciona un solo técnico para poder repetir la visita en otros días.
+              </p>
+            )}
+            {fechasAdicionales.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                {fechasAdicionales.map((f) => (
+                  <span
+                    key={f}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      borderRadius: 999,
+                      padding: "2px 8px",
+                      fontSize: 12,
+                    }}
+                  >
+                    {dayjs(f).format("DD/MM/YYYY")}
+                    <button
+                      type="button"
+                      onClick={() => toggleFechaAdicional(f)}
+                      aria-label="Quitar fecha"
+                      style={{ background: "none", border: "none", color: "#0369a1", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>

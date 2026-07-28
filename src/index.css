@@ -3871,3 +3871,11 @@ html.a11y-theme-dark .visitas-page .ant-space .ant-btn-default:hover {
   border-color: #22d3ee !important;
   color: #67e8f9 !important;
 }
+
+/* Permite que los motivos largos (pérdida/postergación) se vean completos en
+   vez de cortarse con "..." — se envuelven en varias líneas. */
+.motivo-select-dropdown .ant-select-item-option-content {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}

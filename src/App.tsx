@@ -21,6 +21,7 @@ const ReportesPage = lazy(() => import("./host/Reportes"));
 const DocumentosPage = lazy(() => import("./host/DocumentosPage"));
 const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
+const FunnelPage = lazy(() => import("./host/Funnel"));
 const CotizacionesEnviadasPage = lazy(() => import("./host/CotizacionesEnviadas"));
 const MailerPage = lazy(() => import("./host/Mailer"));
 const CobranzaPage = lazy(() => import("./host/Cobranza"));
@@ -264,6 +265,11 @@ export default function App() {
             {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION"]} />}>
               <Route path="/conciliacion-rcv" element={<ConciliacionRcvPage />} />
+            </Route>
+
+            {/* ── Funnel comercial (mismos roles que el backend /api/oportunidades) ── */}
+            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "VENTAS"]} />}>
+              <Route path="/funnel" element={<FunnelPage />} />
             </Route>
 
           </Route>

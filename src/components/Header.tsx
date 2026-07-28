@@ -30,7 +30,8 @@ import {
   Mails,
   Receipt,
   BriefcaseBusiness,
-  ChartNetwork
+  ChartNetwork,
+  Funnel
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -233,6 +234,12 @@ const NAV: NavEntry[] = [
     ],
     match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH],
   },
+  {
+    type: "group",
+    label: "Administración",
+    items: [{ label: "Funnel", to: "/funnel", icon: <Funnel size={20} /> }],
+    match: ["/funnel"],
+  },
   /*
   {
     type: "group",
@@ -345,6 +352,9 @@ const Header = () => {
 
   const canAccessConciliacion = userRole === "ADMINISTRACION";
 
+  const canAccessFunnel =
+    userRole === "ADMIN" || userRole === "ADMINISTRACION" || userRole === "VENTAS";
+
   /*
   const canAccessGestionTecnicosClientes =
     USUARIOS_GESTION_TECNICOS_CLIENTES.includes(userEmail) */
@@ -435,6 +445,21 @@ const Header = () => {
           };
         }
 
+        if (entry.type === "group" && entry.label === "Administración") {
+          const items = entry.items.filter((item) => {
+            if (item.to === "/funnel") return canAccessFunnel;
+            return true;
+          });
+
+          if (items.length === 0) return null;
+
+          return {
+            ...entry,
+            items,
+            match: items.map((item) => item.to),
+          };
+        }
+
         return entry;
       })
       .filter((entry): entry is NavEntry => {
@@ -487,6 +512,7 @@ const Header = () => {
     canAccessMapaTecnicos,
     canAccessCobranza,
     canAccessConciliacion,
+    canAccessFunnel,
   ]);
 
   const handleLogout = async () => {

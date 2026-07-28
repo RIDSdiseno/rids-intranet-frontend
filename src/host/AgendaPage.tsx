@@ -16,7 +16,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/es";
 import type { AgendaVisita, Tecnico, Empresa, Sucursal } from "../components/modals-agenda/tiposAgenda";
 import { getAgendaEstadoEventColor } from "../components/modals-agenda/tiposAgenda";
-import { CrearVisitaManual } from "../components/modals-agenda/CrearVisitaManual";
+import { CrearVisitaManual, type FechaLote } from "../components/modals-agenda/CrearVisitaManual";
 import { EditarVisita } from "../components/modals-agenda/EditarVisita";
 import { DiaAgenda } from "../components/modals-agenda/DiaAgenda";
 import { CrearVisitaAutomatica } from "../components/modals-agenda/CrearVisitaAutomatica";
@@ -122,6 +122,7 @@ export default function AgendaPage() {
   const [selectedHoraInicio, setSelectedHoraInicio] = useState("");
   const [selectedHoraFin, setSelectedHoraFin] = useState("");
   const [selectedNotas, setSelectedNotas] = useState("");
+  const [editFechasAdicionales, setEditFechasAdicionales] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [sendingNota, setSendingNota] = useState(false);
   const [deletingVisitaId, setDeletingVisitaId] = useState(false);
@@ -135,7 +136,6 @@ export default function AgendaPage() {
   const [createError, setCreateError] = useState("");
   const [calendarError, setCalendarError] = useState("");
   const [creating, setCreating] = useState(false);
-  const [manualFecha, setManualFecha] = useState<string>("");
   const [manualEmpresaId, setManualEmpresaId] = useState<number | null>(null);
   const [manualSucursalId, setManualSucursalId] = useState<number | null>(null);
   const [manualSucursalesDisponibles, setManualSucursalesDisponibles] = useState<Sucursal[]>([]);
@@ -144,7 +144,12 @@ export default function AgendaPage() {
   const [manualHoraInicio, setManualHoraInicio] = useState("");
   const [manualHoraFin, setManualHoraFin] = useState("");
   const [manualNotas, setManualNotas] = useState("");
+  const [manualFechasLote, setManualFechasLote] = useState<FechaLote[]>([]);
   const [empresasDisponibles, setEmpresasDisponibles] = useState<Empresa[]>([]);
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [filtroTecnico, setFiltroTecnico] = useState("");
   const [filtroEmpresa, setFiltroEmpresa] = useState("");
@@ -355,21 +360,23 @@ export default function AgendaPage() {
         : `${tecLabel} · ${empresa}${estadoLabel}`;
       const allDay = !v.horaInicio;
       const colors = tecnicoColor(v.tecnicos[0]?.tecnico?.nombre);
+      const isSelected = selectionMode && selectedIds.includes(v.id);
       return {
         id: String(v.id),
         title,
         start: allDay ? v.fecha : `${v.fecha}T${v.horaInicio}`,
         end: !allDay && v.horaFin ? `${v.fecha}T${v.horaFin}` : undefined,
         allDay,
-        editable: !isPast,
-        startEditable: !isPast,
-        durationEditable: !isPast,
+        editable: !isPast && !selectionMode,
+        startEditable: !isPast && !selectionMode,
+        durationEditable: !isPast && !selectionMode,
         extendedProps: { visita: v },
+        classNames: isSelected ? ["agenda-event-selected"] : undefined,
         ...colors,
         borderColor: getAgendaEstadoEventColor(v.estado),
       };
     }),
-    [visitas]);
+    [visitas, selectionMode, selectedIds]);
 
   useEffect(() => {
     if (dayModalOpen && dayModalDateKey) {
@@ -435,6 +442,7 @@ export default function AgendaPage() {
     setSelectedHoraInicio(visita.horaInicio ?? "");
     setSelectedHoraFin(visita.horaFin ?? "");
     setSelectedNotas(visita.notas ?? "");
+    setEditFechasAdicionales([]);
     setSendingNota(false);
     setDetalleOpen(false);
     setModalOpen(true);
@@ -472,7 +480,39 @@ export default function AgendaPage() {
         prev ? { ...prev, empresa: updatedEmpresa, horaInicio: selectedHoraInicio || null, horaFin: selectedHoraFin || null, notas: selectedNotas } : prev
       );
 
-      message.success("Visita actualizada");
+      if (editFechasAdicionales.length > 0 && selectedTecnicos.length === 1) {
+        const resLote = await fetch(`${API_URL}/agenda/manual/lote`, {
+          method: "POST", headers: authHeaders(), credentials: "include",
+          body: JSON.stringify({
+            empresaId: selectedEmpresaId,
+            sucursalId: selectedSucursalId,
+            tecnicoId: selectedTecnicos[0],
+            ...(selectedNotas.trim() && { notas: selectedNotas.trim() }),
+            fechas: editFechasAdicionales.map((fecha) => ({
+              fecha,
+              horaInicio: selectedHoraInicio,
+              horaFin: selectedHoraFin,
+            })),
+          }),
+        });
+        if (resLote.ok) {
+          const dataLote = await resLote.json();
+          if (dataLote.errores?.length > 0) {
+            message.warning(
+              `Visita actualizada. ${dataLote.creadas.length} día(s) más creado(s), ${dataLote.errores.length} fallaron (revisa conflictos de horario).`
+            );
+          } else {
+            message.success(`Visita actualizada y repetida en ${dataLote.creadas.length} día(s) más`);
+          }
+        } else {
+          message.warning("Visita actualizada, pero no se pudo repetir en los días adicionales.");
+        }
+      } else {
+        message.success("Visita actualizada");
+      }
+
+      setModalOpen(false);
+      setEditFechasAdicionales([]);
       fetchVisitas(currentDate);
     } catch (e) {
       Modal.error({
@@ -525,29 +565,76 @@ export default function AgendaPage() {
     }
   };
 
+  const handleEliminarVarias = () => {
+    setDetalleOpen(false);
+    setSelectedIds([]);
+    setSelectionMode(true);
+  };
+
+  const toggleSeleccionVisita = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const handleEliminarSeleccionadas = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch(`${API_URL}/agenda/lote`, {
+        method: "DELETE", headers: authHeaders(), credentials: "include",
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      if (!res.ok) throw new Error(await errorMsg(res, "Error al eliminar las visitas"));
+      const data = await res.json();
+      if (data.errores?.length > 0) {
+        message.warning(
+          `${data.eliminadas.length} visita(s) eliminada(s), ${data.errores.length} fallaron.`
+        );
+      } else {
+        message.success(`${data.eliminadas.length} visita(s) eliminada(s) correctamente`);
+      }
+      setSelectedIds([]);
+      setSelectionMode(false);
+      fetchVisitas(currentDate);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Error al eliminar las visitas");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleCrearManual = async () => {
-    if (!manualFecha || manualEmpresaId === null || manualTecnicoId === null) return;
+    if (manualEmpresaId === null || manualTecnicoId === null || manualFechasLote.length === 0) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API_URL}/agenda/manual`, {
+      const res = await fetch(`${API_URL}/agenda/manual/lote`, {
         method: "POST", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
-          fecha: manualFecha,
           empresaId: manualEmpresaId,
           sucursalId: manualSucursalId,
           tecnicoId: manualTecnicoId,
-          ...(manualHoraInicio && { horaInicio: manualHoraInicio }),
-          ...(manualHoraFin && { horaFin: manualHoraFin }),
           ...(manualNotas.trim() && { notas: manualNotas.trim() }),
+          fechas: manualFechasLote.map((f) => ({
+            fecha: f.fecha,
+            horaInicio: f.horaInicio,
+            horaFin: f.horaFin,
+          })),
         }),
       });
-      if (!res.ok) throw new Error(await errorMsg(res, "Error al crear la visita"));
-      message.success("Visita creada correctamente");
+      if (!res.ok) throw new Error(await errorMsg(res, "Error al crear la(s) visita(s)"));
+      const data = await res.json();
+      if (data.errores?.length > 0) {
+        message.warning(
+          `${data.creadas.length} visita(s) creada(s), ${data.errores.length} fallaron (revisa conflictos de horario).`
+        );
+      } else {
+        message.success(`${data.creadas.length} visita(s) creada(s) correctamente`);
+      }
       setCreateError("");
       setCreateModalOpen(false);
+      setManualFechasLote([]);
       fetchVisitas(currentDate);
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Error al crear la visita");
+      setCreateError(e instanceof Error ? e.message : "Error al crear la(s) visita(s)");
     } finally {
       setCreating(false);
     }
@@ -633,6 +720,10 @@ export default function AgendaPage() {
         }
         .agenda-calendar-compact .fc-daygrid-day-frame {
           min-height: 90px;
+        }
+        .agenda-calendar-compact .fc-event.agenda-event-selected {
+          outline: 3px solid #ef4444;
+          outline-offset: 1px;
         }
 
         /* ── Dark mode: sobreescribe lo que FullCalendar pone inline ── */
@@ -763,7 +854,7 @@ export default function AgendaPage() {
             size="middle"
             onClick={() => {
               setCreateError("");
-              setManualFecha(dayjs().format("YYYY-MM-DD"));
+              setManualFechasLote([{ fecha: dayjs().format("YYYY-MM-DD"), horaInicio: "", horaFin: "" }]);
               setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
               setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
               setCreateModalOpen(true);
@@ -785,8 +876,48 @@ export default function AgendaPage() {
               Eliminar Malla Mensual
             </Button>
           </Popconfirm>
+
+          {selectionMode && (
+            <>
+              <Button
+                size="middle"
+                onClick={() => { setSelectionMode(false); setSelectedIds([]); }}
+                style={{ borderRadius: 8 }}
+              >
+                Cancelar selección
+              </Button>
+              <Popconfirm
+                title={`¿Eliminar ${selectedIds.length} visita(s) seleccionada(s)?`}
+                onConfirm={handleEliminarSeleccionadas}
+                okText="Sí, eliminar"
+                cancelText="Cancelar"
+                okButtonProps={{ danger: true, disabled: selectedIds.length === 0 }}
+                disabled={selectedIds.length === 0}
+                placement="bottomRight"
+              >
+                <Button
+                  danger
+                  size="middle"
+                  loading={bulkDeleting}
+                  disabled={selectedIds.length === 0}
+                  style={{ borderRadius: 8 }}
+                >
+                  Eliminar seleccionadas ({selectedIds.length})
+                </Button>
+              </Popconfirm>
+            </>
+          )}
         </div>
       </div>
+
+      {selectionMode && (
+        <Alert
+          type="info"
+          showIcon
+          message="Modo selección activo: haz clic sobre las visitas del calendario para marcarlas y luego elimínalas juntas."
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       {/* ── Filtros ── */}
       <div
@@ -875,7 +1006,14 @@ export default function AgendaPage() {
             eventDisplay="block"
             editable
             droppable
-            eventClick={(info) => handleVisitaClick(info.event.extendedProps.visita as AgendaVisita)}
+            eventClick={(info) => {
+              const visita = info.event.extendedProps.visita as AgendaVisita;
+              if (selectionMode) {
+                toggleSeleccionVisita(visita.id);
+                return;
+              }
+              handleVisitaClick(visita);
+            }}
             eventDrop={handleEventDrop}
             eventResize={handleEventResize}
             datesSet={(dateInfo) => {
@@ -923,7 +1061,7 @@ export default function AgendaPage() {
         onAgregarVisita={() => {
           setDayModalOpen(false);
           setCreateError("");
-          setManualFecha(dayModalDateKey);
+          setManualFechasLote([{ fecha: dayModalDateKey, horaInicio: "", horaFin: "" }]);
           setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
           setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
           setCreateModalOpen(true);
@@ -936,7 +1074,6 @@ export default function AgendaPage() {
         open={createModalOpen}
         creating={creating}
         errorText={createError}
-        fecha={manualFecha}
         empresaId={manualEmpresaId}
         tecnicoId={manualTecnicoId}
         horaInicio={manualHoraInicio}
@@ -947,7 +1084,6 @@ export default function AgendaPage() {
         sucursalesDisponibles={manualSucursalesDisponibles}
         sucursalesLoading={manualSucursalesLoading}
         tecnicosDisponibles={tecnicosDisponibles}
-        onFechaChange={setManualFecha}
         onEmpresaChange={(id) => { setManualEmpresaId(id); setManualSucursalId(null); }}
         onSucursalChange={setManualSucursalId}
         onTecnicoChange={setManualTecnicoId}
@@ -955,7 +1091,9 @@ export default function AgendaPage() {
         onHoraFinChange={setManualHoraFin}
         onNotasChange={setManualNotas}
         onOk={handleCrearManual}
-        onCancel={() => { setCreateError(""); setCreateModalOpen(false); }}
+        onCancel={() => { setCreateError(""); setCreateModalOpen(false); setManualFechasLote([]); }}
+        fechasLote={manualFechasLote}
+        onFechasLoteChange={setManualFechasLote}
       />
 
       <DetalleVisita
@@ -964,6 +1102,7 @@ export default function AgendaPage() {
         deleting={deletingVisitaId}
         onEditar={handleOpenEditar}
         onEliminar={handleEliminarVisita}
+        onEliminarVarias={handleEliminarVarias}
         onCancel={() => setDetalleOpen(false)}
       />
 
@@ -983,6 +1122,8 @@ export default function AgendaPage() {
         saving={saving}
         sendingNota={sendingNota}
         deleting={deletingVisitaId}
+        fechasAdicionales={editFechasAdicionales}
+        onFechasAdicionalesChange={setEditFechasAdicionales}
         onEmpresaChange={(id) => {
           setSelectedEmpresaId(id);
           setSelectedSucursalId(null);
