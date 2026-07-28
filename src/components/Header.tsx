@@ -29,7 +29,8 @@ import {
   Calendar1,
   Mails,
   Receipt,
-  BriefcaseBusiness
+  BriefcaseBusiness,
+  ChartNetwork
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -82,7 +83,7 @@ type NavSubmenuItem = {
 
 type NavItem = NavLinkItem | NavSubmenuItem;
 
-type NavLink = NavItem & {
+type NavLink = NavLinkItem & {
   type: "link";
   match: string[];
 };
@@ -95,6 +96,16 @@ type NavGroup = {
 };
 
 type NavEntry = NavLink | NavGroup;
+
+/*
+ * Permite que TypeScript distinga correctamente entre
+ * un enlace normal y un elemento que contiene un submenú.
+ */
+function isNavLinkItem(
+  item: NavItem
+): item is NavLinkItem {
+  return item.type !== "submenu";
+}
 
 type StoredUser = {
   nombre?: string;
@@ -183,7 +194,7 @@ const NAV: NavEntry[] = [
           {
             label: "Dashboard Script",
             to: DASHBOARD_AGENTES_PATH,
-            icon: <BarChart3 size={18} />,
+            icon: <ChartNetwork size={18} />,
           },
         ],
       },
@@ -341,15 +352,40 @@ const Header = () => {
   const filteredNav: NavEntry[] = useMemo(() => {
     const nav = NAV
       .map((entry): NavEntry | null => {
-        if (entry.type === "group" && entry.label === "Finanzas") {
-          const items = entry.items.filter((item) => {
-            if (item.to === FACTURAS_BASEAPI_PATH) return canAccessFacturas;
-            if (item.to === CONCILIACION_PATH) return canAccessConciliacion;
-            if (item.to === COBRANZA_PATH) return canAccessCobranza;
-            return true;
-          });
+        if (
+          entry.type === "group" &&
+          entry.label === "Finanzas"
+        ) {
+          /*
+           * Finanzas contiene solamente enlaces normales.
+           * El predicado también informa a TypeScript que
+           * el resultado será NavLinkItem[].
+           */
+          const items = entry.items.filter(
+            (item): item is NavLinkItem => {
+              if (!isNavLinkItem(item)) {
+                return false;
+              }
 
-          if (items.length === 0) return null;
+              if (item.to === FACTURAS_BASEAPI_PATH) {
+                return canAccessFacturas;
+              }
+
+              if (item.to === CONCILIACION_PATH) {
+                return canAccessConciliacion;
+              }
+
+              if (item.to === COBRANZA_PATH) {
+                return canAccessCobranza;
+              }
+
+              return true;
+            }
+          );
+
+          if (items.length === 0) {
+            return null;
+          }
 
           return {
             ...entry,
@@ -363,10 +399,16 @@ const Header = () => {
           entry.label === "Técnicos y Visitas"
         ) {
           const items = entry.items.filter((item) => {
-            if (item.type === "submenu") {
+            /*
+             * Los submenús se conservan.
+             */
+            if (!isNavLinkItem(item)) {
               return true;
             }
 
+            /*
+             * Desde este punto TypeScript sabe que item tiene "to".
+             */
             if (item.to === TECNICOS_PATH) {
               return canAccessTecnicos;
             }
@@ -386,9 +428,9 @@ const Header = () => {
             ...entry,
             items,
             match: items.flatMap((item) =>
-              item.type === "submenu"
-                ? item.match
-                : [item.to]
+              isNavLinkItem(item)
+                ? [item.to]
+                : item.match
             ),
           };
         }

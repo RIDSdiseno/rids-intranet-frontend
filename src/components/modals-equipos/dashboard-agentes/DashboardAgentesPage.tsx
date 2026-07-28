@@ -8,7 +8,6 @@ import {
 
 import {
     ClearOutlined,
-    LoadingOutlined,
     ReloadOutlined,
     SearchOutlined,
 } from "@ant-design/icons";
@@ -361,7 +360,7 @@ function KpiCard({
     return (
         <div
             className={clsx(
-                "flex flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+                "flex min-w-0 flex-col rounded-2xl border bg-white p-3 shadow-sm transition sm:p-4 sm:hover:-translate-y-0.5 sm:hover:shadow-md",
                 t.border
             )}
         >
@@ -382,7 +381,7 @@ function KpiCard({
                 )}
             </div>
 
-            <div className="mt-3 text-3xl font-extrabold tabular-nums text-slate-900">
+            <div className="mt-3 break-words text-2xl font-extrabold tabular-nums text-slate-900 sm:text-3xl">
                 {formatNumber(value)}
             </div>
 
@@ -437,14 +436,14 @@ function KpiSection({
      */
     const gridColumnsClass =
         columns === 6
-            ? "xl:grid-cols-3 2xl:grid-cols-6"
+            ? "md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6"
             : columns === 3
-                ? "xl:grid-cols-3"
-                : "xl:grid-cols-4";
+                ? "md:grid-cols-3"
+                : "md:grid-cols-2 xl:grid-cols-4";
 
     return (
         <section>
-            <div className="mb-3 flex items-baseline justify-between gap-3">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h2 className="text-sm font-bold tracking-tight text-slate-700">
                         {title}
@@ -458,7 +457,7 @@ function KpiSection({
                 </div>
 
                 {hint && (
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                    <span className="w-fit rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-500">
                         {hint}
                     </span>
                 )}
@@ -466,7 +465,7 @@ function KpiSection({
 
             <div
                 className={clsx(
-                    "grid grid-cols-1 gap-4 sm:grid-cols-2",
+                    "grid grid-cols-1 gap-3 sm:gap-4",
                     gridColumnsClass
                 )}
             >
@@ -511,7 +510,7 @@ function MiniBarChart({
 
     return (
         <div className="mt-6">
-            <div className="mb-2 flex items-center justify-between text-[11px] font-medium">
+            <div className="mb-2 flex flex-col gap-1 text-[11px] font-medium sm:flex-row sm:items-center sm:justify-between">
                 <span className="inline-flex items-center gap-1.5 text-cyan-700">
                     <span className="inline-block h-0 w-4 border-t border-dashed border-cyan-400" />
                     Promedio {formatNumber(promedio)}/día
@@ -521,8 +520,8 @@ function MiniBarChart({
                 </span>
             </div>
 
-            <div className="overflow-x-auto">
-                <div className="min-w-[720px]">
+            <div className="-mx-1 overflow-x-auto px-1 pb-2">
+                <div className="min-w-[560px] sm:min-w-[680px] lg:min-w-[720px]">
                     <div
                         className="relative"
                         style={{ height: 200 }}
@@ -639,7 +638,7 @@ function EmpresaCoverage({
                 </div>
 
                 {empresas.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                    <div className="grid grid-cols-1 gap-1 text-xs text-slate-500 sm:flex sm:flex-wrap sm:items-center sm:gap-x-4">
                         <span>
                             <strong className="text-slate-800">
                                 {formatNumber(empresas.length)}
@@ -676,7 +675,7 @@ function EmpresaCoverage({
                         {empresas.map((empresa) => (
                             <div
                                 key={empresa.nombre}
-                                className="grid grid-cols-[1fr_auto] items-center gap-x-3"
+                                className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3"
                             >
                                 <div className="min-w-0">
                                     <div className="flex items-center justify-between gap-2">
@@ -710,7 +709,7 @@ function EmpresaCoverage({
                                     </div>
                                 </div>
 
-                                <div className="w-16 text-right">
+                                <div className="flex items-center justify-between gap-2 sm:block sm:w-16 sm:text-right">
                                     <span
                                         className={clsx(
                                             "inline-flex justify-center rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums",
@@ -845,11 +844,12 @@ function DetailField({
     value: React.ReactNode;
 }) {
     return (
-        <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 py-1.5 last:border-none">
-            <span className="text-xs font-medium text-slate-500">
+        <div className="flex flex-col gap-1 border-b border-slate-100 py-2 last:border-none sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <span className="shrink-0 text-xs font-medium text-slate-500">
                 {label}
             </span>
-            <span className="text-right text-sm text-slate-800">
+
+            <span className="min-w-0 break-words text-left text-sm text-slate-800 sm:text-right">
                 {value}
             </span>
         </div>
@@ -862,8 +862,8 @@ function EquipoExpandedDetail({
     item: DashboardAgenteItem;
 }) {
     return (
-        <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-3">
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="grid grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center gap-2">
                     <CpuChipIcon className="h-4 w-4 text-slate-500" />
                     <h4 className="text-sm font-semibold text-slate-800">
@@ -926,7 +926,7 @@ function EquipoExpandedDetail({
                 </div>
             </section>
 
-            <section className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
+            <section className="min-w-0 rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
                 <div className="flex items-center gap-2">
                     <CloudIcon className="h-4 w-4 text-cyan-600" />
                     <h4 className="text-sm font-semibold text-slate-800">
@@ -983,11 +983,11 @@ function EquipoExpandedDetail({
                 </div>
             </section>
 
-            <section className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+            <section className="min-w-0 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
                 <div className="flex items-center gap-2">
                     <ClipboardDocumentCheckIcon className="h-4 w-4 text-indigo-600" />
                     <h4 className="text-sm font-semibold text-slate-800">
-                        Operatividad mensual de Onedrive
+                        Operatividad mensual de OneDrive
                     </h4>
                 </div>
 
@@ -1111,6 +1111,172 @@ function FilterField({
 
             {children}
         </div>
+    );
+}
+
+function EquipoMobileCard({
+    item,
+    expanded,
+    onToggle,
+}: {
+    item: DashboardAgenteItem;
+    expanded: boolean;
+    onToggle: () => void;
+}) {
+    const hasAlertas = item.alertas.length > 0;
+
+    return (
+        <article
+            className={clsx(
+                "overflow-hidden rounded-2xl border bg-white shadow-sm",
+                hasAlertas
+                    ? "border-amber-200"
+                    : "border-slate-200",
+                expanded && "ring-2 ring-cyan-100"
+            )}
+        >
+            <button
+                type="button"
+                onClick={onToggle}
+                className="flex w-full items-start justify-between gap-3 p-4 text-left"
+                aria-expanded={expanded}
+            >
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <ComputerDesktopIcon className="h-5 w-5 shrink-0 text-cyan-600" />
+
+                        <span className="truncate font-semibold text-slate-900">
+                            {item.agente.hostname ||
+                                `Equipo #${item.idEquipo}`}
+                        </span>
+                    </div>
+
+                    <div className="mt-1 truncate text-xs text-slate-500">
+                        {item.serial || "Sin serial"}
+                    </div>
+
+                    <div className="mt-0.5 truncate text-xs text-slate-400">
+                        {[item.marca, item.modelo]
+                            .filter(Boolean)
+                            .join(" ") || "Sin marca y modelo"}
+                    </div>
+                </div>
+
+                <ChevronDownIcon
+                    className={clsx(
+                        "mt-1 h-5 w-5 shrink-0 text-slate-400 transition-transform",
+                        expanded && "rotate-180 text-cyan-600"
+                    )}
+                />
+            </button>
+
+            <div className="grid grid-cols-1 gap-3 border-t border-slate-100 bg-slate-50/50 p-4 min-[420px]:grid-cols-2">
+                <div className="min-w-0">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        Empresa
+                    </div>
+                    <div className="mt-1 truncate text-sm font-medium text-slate-700">
+                        {item.empresa?.nombre || "Sin empresa"}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                        {item.solicitante?.nombre || "Sin solicitante"}
+                    </div>
+                </div>
+
+                <div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        Análisis
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-700">
+                        {item.analisisMes.cantidad}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        {item.analisisMes.diasAnalizados} día(s)
+                    </div>
+                </div>
+
+                <div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        Agente
+                    </div>
+                    <span
+                        className={clsx(
+                            "mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                            getAgentStateClass(item.agente.estado)
+                        )}
+                    >
+                        {getAgentStateLabel(item.agente.estado)}
+                    </span>
+                </div>
+
+                <div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        OneDrive
+                    </div>
+                    <span
+                        className={clsx(
+                            "mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                            getOneDriveStateClass(item.oneDrive.estado)
+                        )}
+                    >
+                        {getOneDriveStateLabel(item.oneDrive.estado)}
+                    </span>
+                </div>
+
+                <div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        Salud mensual
+                    </div>
+                    <span
+                        className={clsx(
+                            "mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                            getOneDriveHealthClass(
+                                item.oneDrive.saludMes.estado
+                            )
+                        )}
+                    >
+                        {getOneDriveHealthLabel(
+                            item.oneDrive.saludMes.estado
+                        )}
+                    </span>
+                </div>
+
+                <div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        Operatividad
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-700">
+                        {getOperatividadText(
+                            item.oneDrive.saludMes.estado,
+                            item.oneDrive.saludMes.porcentajeOperativo
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-1 border-t border-slate-100 px-4 py-3 text-xs min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                <span className="text-slate-500">
+                    Última conexión
+                </span>
+
+                <span className="font-medium text-slate-700">
+                    {formatDateTimeCL(item.agente.ultimaConexion)}
+                </span>
+            </div>
+
+            {hasAlertas && (
+                <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">
+                    <ExclamationTriangleIcon className="h-4 w-4" />
+                    {item.alertas.length} alerta(s)
+                </div>
+            )}
+
+            {expanded && (
+                <div className="border-t border-cyan-100 bg-slate-50/80">
+                    <EquipoExpandedDetail item={item} />
+                </div>
+            )}
+        </article>
     );
 }
 
@@ -1432,10 +1598,6 @@ export default function DashboardAgentesPage() {
         setExpandedId(null);
     };
 
-    const selectClass =
-        "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20";
-
-
     /*
  * La paginación se realiza localmente porque el backend
  * ya devuelve los equipos filtrados del dashboard.
@@ -1471,8 +1633,8 @@ export default function DashboardAgentesPage() {
     );
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-white via-white to-cyan-50/60">
-            <div className="mx-auto max-w-[1900px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50/60">
+            <div className="mx-auto w-full max-w-[1900px] space-y-4 px-3 py-4 sm:space-y-6 sm:px-5 sm:py-6 lg:px-8">
                 {/* ============ ENCABEZADO Y FILTROS ============ */}
                 <ConfigProvider
                     theme={{
@@ -1500,17 +1662,17 @@ export default function DashboardAgentesPage() {
                     }}
                 >
                     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                        <div className="border-b border-slate-100 bg-gradient-to-r from-cyan-50/70 via-white to-indigo-50/70 p-5 sm:p-7">
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                <div>
-                                    <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+                        <div className="border-b border-slate-100 bg-gradient-to-r from-cyan-50/70 via-white to-indigo-50/70 p-4 sm:p-6 lg:p-7">
+                            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                                <div className="min-w-0">
+                                    <h1 className="mt-1.5 break-words text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
                                         Dashboard Script y Equipos{" "}
                                         <span className="bg-gradient-to-r from-cyan-600 to-indigo-600 bg-clip-text text-transparent">
                                             RIDS.CL
                                         </span>
                                     </h1>
 
-                                    <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                                    <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600 sm:text-sm">
                                         Inventarios realizados, estado
                                         del agente y operatividad de
                                         OneDrive durante el mes
@@ -1530,19 +1692,22 @@ export default function DashboardAgentesPage() {
                                     )}
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-2">
+                                <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                                     {/* Limpia todos los filtros opcionales del dashboard. */}
                                     <Badge
                                         count={activeFilters}
                                         size="small"
                                         offset={[-3, 3]}
                                         overflowCount={9}
+                                        className="w-full sm:w-auto"
                                     >
                                         <Button
                                             size="large"
                                             icon={<ClearOutlined />}
                                             onClick={clearFilters}
                                             disabled={activeFilters === 0}
+                                            block
+                                            className="sm:!w-auto"
                                         >
                                             Limpiar filtros
                                         </Button>
@@ -1555,6 +1720,8 @@ export default function DashboardAgentesPage() {
                                         icon={<ReloadOutlined />}
                                         loading={loading}
                                         onClick={() => void fetchDashboard()}
+                                        block
+                                        className="sm:!w-auto"
                                     >
                                         Recargar
                                     </Button>
@@ -1562,16 +1729,16 @@ export default function DashboardAgentesPage() {
                             </div>
                         </div>
 
-                        <div className="p-5 sm:p-6">
+                        <div className="p-4 sm:p-6">
                             {/*
      * ConfigProvider aplica la identidad visual del dashboard
      * solo a esta sección de filtros.
      */}
                             {/* ============ FILTROS PRINCIPALES ============ */}
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-7">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
                                 <FilterField
                                     label="Buscar equipo"
-                                    className="xl:col-span-2"
+                                    className="sm:col-span-2 lg:col-span-2 xl:col-span-2 2xl:col-span-2"
                                 >
                                     <Input
                                         size="large"
@@ -1711,7 +1878,7 @@ export default function DashboardAgentesPage() {
                             </div>
 
                             {/* ============ FILTROS DE ONEDRIVE ============ */}
-                            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                                 <FilterField label="Estado actual de OneDrive">
                                     <Select<
                                         "TODOS" | DashboardEstadoOneDrive
@@ -1756,7 +1923,7 @@ export default function DashboardAgentesPage() {
                                     />
                                 </FilterField>
 
-                                <FilterField label="Presentó al menos un estado de Onedrive no operativo durante el mes.">
+                                <FilterField label="Estado mensual de OneDrive">
                                     <Select<
                                         "TODOS" | DashboardSaludOneDrive
                                     >
@@ -1794,6 +1961,10 @@ export default function DashboardAgentesPage() {
                                             },
                                         ]}
                                     />
+
+                                    <p className="mt-1.5 text-[11px] leading-4 text-slate-400">
+                                        Indica si presentó estados no operativos durante el mes.
+                                    </p>
                                 </FilterField>
                             </div>
                         </div>
@@ -1985,7 +2156,7 @@ export default function DashboardAgentesPage() {
 
                         {/* ============ GRÁFICO + CONFIGURACIÓN ============ */}
                         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
                                 <div className="flex items-center gap-2">
                                     <ComputerDesktopIcon className="h-5 w-5 text-cyan-600" />
                                     <h3 className="text-sm font-semibold text-slate-800">
@@ -2007,7 +2178,7 @@ export default function DashboardAgentesPage() {
                                 />
                             </div>
 
-                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheckIcon className="h-5 w-5 text-cyan-600" />
                                     <h3 className="text-sm font-semibold text-slate-800">
@@ -2028,7 +2199,7 @@ export default function DashboardAgentesPage() {
                                                         ?.configuracion
                                                         .horasSinConexion
                                                 }{" "}
-                                                horas
+                                                horas (2 semanas)
                                             </span>{" "}
                                             sin reportar.
                                         </div>
@@ -2084,9 +2255,9 @@ export default function DashboardAgentesPage() {
                         </section>
 
                         {/* ============ TABLA DETALLE ============ */}
-                        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
                             <div className="flex flex-col gap-2 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
+                                <div className="min-w-0">
                                     <h3 className="font-semibold text-slate-900">
                                         Detalle por equipo
                                     </h3>
@@ -2098,7 +2269,7 @@ export default function DashboardAgentesPage() {
                                     </p>
                                 </div>
 
-                                <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                                <div className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
                                     {formatNumber(
                                         data?.items.length ?? 0
                                     )}{" "}
@@ -2106,348 +2277,388 @@ export default function DashboardAgentesPage() {
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-[1500px] border-collapse">
-                                    <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
-                                        <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                            <th className="px-4 py-3 font-semibold">
-                                                Equipo
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                Empresa
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                Agente
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                Última conexión
-                                            </th>
-                                            <th className="px-4 py-3 text-right font-semibold">
-                                                Análisis mes
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                OneDrive actual
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                Usuario
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold">
-                                                Salud mensual
-                                            </th>
-                                            <th className="px-4 py-3 text-right font-semibold">
-                                                Operatividad
-                                            </th>
-                                            <th className="px-4 py-3 text-center font-semibold">
-                                                Alertas
-                                            </th>
-                                        </tr>
-                                    </thead>
+                            {/* Vista móvil y tablet pequeña */}
+                            <div className="space-y-3 p-3 md:hidden">
+                                {paginatedItems.map((item) => (
+                                    <EquipoMobileCard
+                                        key={item.idEquipo}
+                                        item={item}
+                                        expanded={expandedId === item.idEquipo}
+                                        onToggle={() =>
+                                            setExpandedId((current) =>
+                                                current === item.idEquipo
+                                                    ? null
+                                                    : item.idEquipo
+                                            )
+                                        }
+                                    />
+                                ))}
 
-                                    <tbody>
-                                        {paginatedItems.map((item) => {
-                                            const isExpanded =
-                                                expandedId ===
-                                                item.idEquipo;
+                                {data?.items.length === 0 && (
+                                    <div className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-12 text-center">
+                                        <ComputerDesktopIcon className="h-8 w-8 text-slate-300" />
 
-                                            const hasAlertas =
-                                                item.alertas
-                                                    .length >
-                                                0;
+                                        <p className="text-sm font-medium text-slate-600">
+                                            No se encontraron equipos
+                                        </p>
 
-                                            return (
-                                                <Fragment
-                                                    key={
-                                                        item.idEquipo
-                                                    }
-                                                >
-                                                    <tr
-                                                        onClick={() =>
-                                                            setExpandedId(
-                                                                (
-                                                                    current
-                                                                ) =>
-                                                                    current ===
-                                                                        item.idEquipo
-                                                                        ? null
-                                                                        : item.idEquipo
-                                                            )
+                                        <p className="text-xs text-slate-400">
+                                            Ajusta los filtros para ampliar la búsqueda.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="hidden border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-[11px] text-slate-500 md:block xl:hidden">
+                                Desliza horizontalmente para visualizar todas las columnas.
+                            </div>
+
+                            {/* Vista de tabla para pantallas medianas y grandes */}
+                            <div className="hidden w-full min-w-0 overflow-x-auto overscroll-x-contain pb-2 md:block">
+                                <div className="w-max min-w-full">
+                                    <table className="min-w-[1180px] border-collapse xl:min-w-[1380px] 2xl:min-w-[1500px]">
+                                        <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
+                                            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                                                <th className="sticky left-0 z-20 min-w-[250px] bg-slate-50 px-4 py-3 font-semibold">
+                                                    Equipo
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold">
+                                                    Empresa
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold">
+                                                    Agente
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold">
+                                                    Última conexión
+                                                </th>
+                                                <th className="px-4 py-3 text-right font-semibold">
+                                                    Análisis mes
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold">
+                                                    OneDrive actual
+                                                </th>
+                                                <th className="hidden px-4 py-3 font-semibold xl:table-cell">
+                                                    Usuario
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold">
+                                                    Salud mensual
+                                                </th>
+                                                <th className="hidden px-4 py-3 text-right font-semibold lg:table-cell">
+                                                    Operatividad
+                                                </th>
+                                                <th className="hidden px-4 py-3 text-center font-semibold lg:table-cell">
+                                                    Alertas
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {paginatedItems.map((item) => {
+                                                const isExpanded =
+                                                    expandedId ===
+                                                    item.idEquipo;
+
+                                                const hasAlertas =
+                                                    item.alertas
+                                                        .length >
+                                                    0;
+
+                                                return (
+                                                    <Fragment
+                                                        key={
+                                                            item.idEquipo
                                                         }
-                                                        className={clsx(
-                                                            "cursor-pointer border-t border-slate-100 text-sm transition",
-                                                            isExpanded
-                                                                ? "bg-cyan-50/60"
-                                                                : "hover:bg-slate-50",
-                                                            hasAlertas &&
-                                                            "border-l-2 border-l-amber-300"
-                                                        )}
                                                     >
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-start gap-2">
-                                                                <ChevronDownIcon
-                                                                    className={clsx(
-                                                                        "mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform",
-                                                                        isExpanded &&
-                                                                        "rotate-180 text-cyan-600"
-                                                                    )}
-                                                                />
+                                                        <tr
+                                                            onClick={() =>
+                                                                setExpandedId(
+                                                                    (
+                                                                        current
+                                                                    ) =>
+                                                                        current ===
+                                                                            item.idEquipo
+                                                                            ? null
+                                                                            : item.idEquipo
+                                                                )
+                                                            }
+                                                            className={clsx(
+                                                                "cursor-pointer border-t border-slate-100 text-sm transition",
+                                                                isExpanded
+                                                                    ? "bg-cyan-50/60"
+                                                                    : "hover:bg-slate-50",
+                                                                hasAlertas &&
+                                                                "border-l-2 border-l-amber-300"
+                                                            )}
+                                                        >
+                                                            <td className="sticky left-0 z-10 min-w-[250px] bg-inherit px-4 py-3">
+                                                                <div className="flex items-start gap-2">
+                                                                    <ChevronDownIcon
+                                                                        className={clsx(
+                                                                            "mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform",
+                                                                            isExpanded &&
+                                                                            "rotate-180 text-cyan-600"
+                                                                        )}
+                                                                    />
 
-                                                                <div>
-                                                                    <div className="font-semibold text-slate-800">
-                                                                        {item
-                                                                            .agente
-                                                                            .hostname ||
-                                                                            `Equipo #${item.idEquipo}`}
-                                                                    </div>
+                                                                    <div>
+                                                                        <div className="font-semibold text-slate-800">
+                                                                            {item
+                                                                                .agente
+                                                                                .hostname ||
+                                                                                `Equipo #${item.idEquipo}`}
+                                                                        </div>
 
-                                                                    <div className="text-xs text-slate-500">
-                                                                        {item.serial ||
-                                                                            "Sin serial"}
-                                                                    </div>
+                                                                        <div className="text-xs text-slate-500">
+                                                                            {item.serial ||
+                                                                                "Sin serial"}
+                                                                        </div>
 
-                                                                    <div className="text-xs text-slate-400">
-                                                                        {
-                                                                            item.marca
-                                                                        }{" "}
-                                                                        {
-                                                                            item.modelo
-                                                                        }
+                                                                        <div className="text-xs text-slate-400">
+                                                                            {
+                                                                                item.marca
+                                                                            }{" "}
+                                                                            {
+                                                                                item.modelo
+                                                                            }
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        </td>
+                                                            </td>
 
-                                                        <td className="px-4 py-3">
-                                                            <div className="font-medium text-slate-700">
-                                                                {item
-                                                                    .empresa
-                                                                    ?.nombre ||
-                                                                    "Sin empresa"}
-                                                            </div>
+                                                            <td className="px-4 py-3">
+                                                                <div className="font-medium text-slate-700">
+                                                                    {item
+                                                                        .empresa
+                                                                        ?.nombre ||
+                                                                        "Sin empresa"}
+                                                                </div>
 
-                                                            <div className="text-xs text-slate-500">
-                                                                {item
-                                                                    .solicitante
-                                                                    ?.nombre ||
-                                                                    "Sin solicitante"}
-                                                            </div>
-                                                        </td>
+                                                                <div className="text-xs text-slate-500">
+                                                                    {item
+                                                                        .solicitante
+                                                                        ?.nombre ||
+                                                                        "Sin solicitante"}
+                                                                </div>
+                                                            </td>
 
-                                                        <td className="px-4 py-3">
-                                                            <span
-                                                                className={clsx(
-                                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                                    getAgentStateClass(
+                                                            <td className="px-4 py-3">
+                                                                <span
+                                                                    className={clsx(
+                                                                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                        getAgentStateClass(
+                                                                            item
+                                                                                .agente
+                                                                                .estado
+                                                                        )
+                                                                    )}
+                                                                >
+                                                                    {getAgentStateLabel(
                                                                         item
                                                                             .agente
                                                                             .estado
-                                                                    )
-                                                                )}
-                                                            >
-                                                                {getAgentStateLabel(
+                                                                    )}
+                                                                </span>
+
+                                                                <div className="mt-1 text-xs text-slate-500">
+                                                                    {item
+                                                                        .agente
+                                                                        .version ||
+                                                                        "Sin versión"}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="px-4 py-3 text-xs text-slate-600">
+                                                                {formatDateTimeCL(
                                                                     item
                                                                         .agente
-                                                                        .estado
+                                                                        .ultimaConexion
                                                                 )}
-                                                            </span>
+                                                            </td>
 
-                                                            <div className="mt-1 text-xs text-slate-500">
-                                                                {item
-                                                                    .agente
-                                                                    .version ||
-                                                                    "Sin versión"}
-                                                            </div>
-                                                        </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <div className="font-semibold tabular-nums text-slate-700">
+                                                                    {
+                                                                        item
+                                                                            .analisisMes
+                                                                            .cantidad
+                                                                    }
+                                                                </div>
 
-                                                        <td className="px-4 py-3 text-xs text-slate-600">
-                                                            {formatDateTimeCL(
-                                                                item
-                                                                    .agente
-                                                                    .ultimaConexion
-                                                            )}
-                                                        </td>
+                                                                <div className="text-xs text-slate-500">
+                                                                    {
+                                                                        item
+                                                                            .analisisMes
+                                                                            .diasAnalizados
+                                                                    }{" "}
+                                                                    día(s)
+                                                                </div>
+                                                            </td>
 
-                                                        <td className="px-4 py-3 text-right">
-                                                            <div className="font-semibold tabular-nums text-slate-700">
-                                                                {
-                                                                    item
-                                                                        .analisisMes
-                                                                        .cantidad
-                                                                }
-                                                            </div>
-
-                                                            <div className="text-xs text-slate-500">
-                                                                {
-                                                                    item
-                                                                        .analisisMes
-                                                                        .diasAnalizados
-                                                                }{" "}
-                                                                día(s)
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="px-4 py-3">
-                                                            <span
-                                                                className={clsx(
-                                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                                    getOneDriveStateClass(
+                                                            <td className="px-4 py-3">
+                                                                <span
+                                                                    className={clsx(
+                                                                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                        getOneDriveStateClass(
+                                                                            item
+                                                                                .oneDrive
+                                                                                .estado
+                                                                        )
+                                                                    )}
+                                                                >
+                                                                    {getOneDriveStateLabel(
                                                                         item
                                                                             .oneDrive
                                                                             .estado
-                                                                    )
-                                                                )}
-                                                            >
-                                                                {getOneDriveStateLabel(
-                                                                    item
+                                                                    )}
+                                                                </span>
+
+                                                                <div className="mt-1 text-xs text-slate-500">
+                                                                    {item
                                                                         .oneDrive
-                                                                        .estado
-                                                                )}
-                                                            </span>
+                                                                        .version ||
+                                                                        "Sin versión"}
+                                                                </div>
+                                                            </td>
 
-                                                            <div className="mt-1 text-xs text-slate-500">
-                                                                {item
-                                                                    .oneDrive
-                                                                    .version ||
-                                                                    "Sin versión"}
-                                                            </div>
-                                                        </td>
+                                                            <td className="hidden max-w-[220px] px-4 py-3 xl:table-cell">
+                                                                <div className="truncate text-xs text-slate-700">
+                                                                    {item
+                                                                        .oneDrive
+                                                                        .usuario ||
+                                                                        "No detectado"}
+                                                                </div>
+                                                            </td>
 
-                                                        <td className="max-w-[220px] px-4 py-3">
-                                                            <div className="truncate text-xs text-slate-700">
-                                                                {item
-                                                                    .oneDrive
-                                                                    .usuario ||
-                                                                    "No detectado"}
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="px-4 py-3">
-                                                            <span
-                                                                className={clsx(
-                                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                                    getOneDriveHealthClass(
+                                                            <td className="px-4 py-3">
+                                                                <span
+                                                                    className={clsx(
+                                                                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                        getOneDriveHealthClass(
+                                                                            item
+                                                                                .oneDrive
+                                                                                .saludMes
+                                                                                .estado
+                                                                        )
+                                                                    )}
+                                                                >
+                                                                    {getOneDriveHealthLabel(
                                                                         item
                                                                             .oneDrive
                                                                             .saludMes
                                                                             .estado
-                                                                    )
-                                                                )}
-                                                            >
-                                                                {getOneDriveHealthLabel(
-                                                                    item
-                                                                        .oneDrive
-                                                                        .saludMes
-                                                                        .estado
-                                                                )}
-                                                            </span>
-                                                        </td>
-
-                                                        <td className="px-4 py-3 text-right">
-                                                            <div className="inline-flex items-center gap-2">
-                                                                <div className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100">
-                                                                    <div
-                                                                        className={clsx(
-                                                                            "h-full rounded-full",
-                                                                            getOperatividadBarClass(
-                                                                                item.oneDrive.saludMes.estado,
-                                                                                item.oneDrive.saludMes.porcentajeOperativo
-                                                                            )
-                                                                        )}
-                                                                        style={{
-                                                                            /*
-                                                                             * Para estados sin porcentaje medible se deja una
-                                                                             * pequeña marca gris, en vez de una barra roja vacía.
-                                                                             */
-                                                                            width:
-                                                                                item.oneDrive.saludMes.estado === "SIN_DATOS" ||
-                                                                                    item.oneDrive.saludMes.estado === "NO_INSTALADO"
-                                                                                    ? "12%"
-                                                                                    : `${item.oneDrive.saludMes.porcentajeOperativo}%`,
-                                                                        }}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Evita mostrar 0% cuando no existen datos medibles. */}
-                                                                <span className="whitespace-nowrap text-sm font-semibold text-slate-700">
-                                                                    {getOperatividadText(
-                                                                        item.oneDrive.saludMes.estado,
-                                                                        item.oneDrive.saludMes
-                                                                            .porcentajeOperativo
                                                                     )}
                                                                 </span>
-                                                            </div>
-                                                        </td>
+                                                            </td>
 
-                                                        <td className="px-4 py-3 text-center">
-                                                            <span
-                                                                className={clsx(
-                                                                    "inline-flex h-6 min-w-[24px] items-center justify-center rounded-full border px-2 text-xs font-semibold tabular-nums",
-                                                                    hasAlertas
-                                                                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                                                                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                                                )}
-                                                            >
-                                                                {
-                                                                    item
-                                                                        .alertas
-                                                                        .length
-                                                                }
-                                                            </span>
-                                                        </td>
-                                                    </tr>
+                                                            <td className="hidden px-4 py-3 text-right lg:table-cell">
+                                                                <div className="inline-flex items-center gap-2">
+                                                                    <div className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100">
+                                                                        <div
+                                                                            className={clsx(
+                                                                                "h-full rounded-full",
+                                                                                getOperatividadBarClass(
+                                                                                    item.oneDrive.saludMes.estado,
+                                                                                    item.oneDrive.saludMes.porcentajeOperativo
+                                                                                )
+                                                                            )}
+                                                                            style={{
+                                                                                /*
+                                                                                 * Para estados sin porcentaje medible se deja una
+                                                                                 * pequeña marca gris, en vez de una barra roja vacía.
+                                                                                 */
+                                                                                width:
+                                                                                    item.oneDrive.saludMes.estado === "SIN_DATOS" ||
+                                                                                        item.oneDrive.saludMes.estado === "NO_INSTALADO"
+                                                                                        ? "12%"
+                                                                                        : `${item.oneDrive.saludMes.porcentajeOperativo}%`,
+                                                                            }}
+                                                                        />
+                                                                    </div>
 
-                                                    {isExpanded && (
-                                                        <tr className="border-t border-cyan-100 bg-slate-50/80">
-                                                            <td
-                                                                colSpan={
-                                                                    10
-                                                                }
-                                                            >
-                                                                <EquipoExpandedDetail
-                                                                    item={
+                                                                    {/* Evita mostrar 0% cuando no existen datos medibles. */}
+                                                                    <span className="whitespace-nowrap text-sm font-semibold text-slate-700">
+                                                                        {getOperatividadText(
+                                                                            item.oneDrive.saludMes.estado,
+                                                                            item.oneDrive.saludMes
+                                                                                .porcentajeOperativo
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="hidden px-4 py-3 text-center lg:table-cell">
+                                                                <span
+                                                                    className={clsx(
+                                                                        "inline-flex h-6 min-w-[24px] items-center justify-center rounded-full border px-2 text-xs font-semibold tabular-nums",
+                                                                        hasAlertas
+                                                                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                                            : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                                    )}
+                                                                >
+                                                                    {
                                                                         item
+                                                                            .alertas
+                                                                            .length
                                                                     }
-                                                                />
+                                                                </span>
                                                             </td>
                                                         </tr>
-                                                    )}
-                                                </Fragment>
-                                            );
-                                        }
-                                        )}
 
-                                        {data?.items.length ===
-                                            0 && (
-                                                <tr>
-                                                    <td
-                                                        colSpan={10}
-                                                        className="px-4 py-16 text-center"
-                                                    >
-                                                        <div className="flex flex-col items-center gap-2">
-                                                            <ComputerDesktopIcon className="h-8 w-8 text-slate-300" />
-                                                            <p className="text-sm font-medium text-slate-600">
-                                                                No se
-                                                                encontraron
-                                                                equipos
-                                                            </p>
-                                                            <p className="text-xs text-slate-400">
-                                                                Ajusta
-                                                                los
-                                                                filtros
-                                                                para
-                                                                ampliar
-                                                                la
-                                                                búsqueda.
-                                                            </p>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                        {isExpanded && (
+                                                            <tr className="border-t border-cyan-100 bg-slate-50/80">
+                                                                <td
+                                                                    colSpan={
+                                                                        10
+                                                                    }
+                                                                >
+                                                                    <EquipoExpandedDetail
+                                                                        item={
+                                                                            item
+                                                                        }
+                                                                    />
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </Fragment>
+                                                );
+                                            }
                                             )}
-                                    </tbody>
-                                </table>
+
+                                            {data?.items.length ===
+                                                0 && (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={10}
+                                                            className="px-4 py-16 text-center"
+                                                        >
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <ComputerDesktopIcon className="h-8 w-8 text-slate-300" />
+                                                                <p className="text-sm font-medium text-slate-600">
+                                                                    No se
+                                                                    encontraron
+                                                                    equipos
+                                                                </p>
+                                                                <p className="text-xs text-slate-400">
+                                                                    Ajusta
+                                                                    los
+                                                                    filtros
+                                                                    para
+                                                                    ampliar
+                                                                    la
+                                                                    búsqueda.
+                                                                </p>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
+
                             {/* ============ PAGINACIÓN DE LA TABLA ============ */}
                             {(data?.items.length ?? 0) > 0 && (
-                                <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
                                     <div className="text-xs text-slate-500">
                                         Mostrando{" "}
                                         <strong className="text-slate-700">
@@ -2464,7 +2675,7 @@ export default function DashboardAgentesPage() {
                                         equipos
                                     </div>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 sm:flex sm:w-auto">
                                         <button
                                             type="button"
                                             disabled={tablePage <= 1}
@@ -2475,12 +2686,12 @@ export default function DashboardAgentesPage() {
                                                     Math.max(1, current - 1)
                                                 );
                                             }}
-                                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                                         >
                                             Anterior
                                         </button>
 
-                                        <span className="min-w-[90px] text-center text-xs font-medium text-slate-500">
+                                        <span className="min-w-[76px] text-center text-[11px] font-medium text-slate-500 sm:min-w-[90px] sm:text-xs">
                                             Página {tablePage} de {tableTotalPages}
                                         </span>
 
@@ -2497,7 +2708,7 @@ export default function DashboardAgentesPage() {
                                                     )
                                                 );
                                             }}
-                                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                                         >
                                             Siguiente
                                         </button>
