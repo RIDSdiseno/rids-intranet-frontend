@@ -43,6 +43,7 @@ import type {
 } from "../modals-empresa/types";
 
 import { toTimestamp, toDateStringCL } from "../modals-empresa/types";
+import CoordinatesMapPicker from "../modals-empresa/CoordinatesMapPicker";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -348,6 +349,8 @@ const EmpresaInfoGeneral: React.FC<{
       email: empresa.detalleEmpresa.email,
       telefono: empresa.detalleEmpresa.telefono,
       direccion: empresa.detalleEmpresa.direccion,
+      latitud: empresa.detalleEmpresa.latitud,
+      longitud: empresa.detalleEmpresa.longitud,
     });
   }, [empresa]);
 
@@ -421,6 +424,22 @@ const EmpresaInfoGeneral: React.FC<{
 
           <div><b>Dirección:</b> {empresa.detalleEmpresa?.direccion ?? "No especificado"}</div>
 
+          <div>
+            <b>Coordenadas:</b>{" "}
+            {empresa.detalleEmpresa?.latitud != null && empresa.detalleEmpresa?.longitud != null ? (
+              <a
+                href={`https://www.google.com/maps?q=${empresa.detalleEmpresa.latitud},${empresa.detalleEmpresa.longitud}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-700 underline"
+              >
+                Ver en mapa
+              </a>
+            ) : (
+              "Sin coordenadas"
+            )}
+          </div>
+
           {contactoPrincipal?.nombre && (
             <div>
               <b>Encargado principal:</b> {contactoPrincipal.nombre}
@@ -434,6 +453,9 @@ const EmpresaInfoGeneral: React.FC<{
           <Form.Item name="email" label="Email"><Input /></Form.Item>
           <Form.Item name="telefono" label="Teléfono"><Input /></Form.Item>
           <Form.Item name="direccion" label="Dirección"><Input /></Form.Item>
+          <Form.Item label="Ubicación en el mapa">
+            <CoordinatesMapPicker form={form} />
+          </Form.Item>
         </Form>
       )}
     </Card>

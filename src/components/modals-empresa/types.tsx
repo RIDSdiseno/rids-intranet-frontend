@@ -47,6 +47,8 @@ export interface DetalleEmpresa {
     rut?: string | null;
     direccion?: string | null;
     direcciones?: DireccionEmpresa[] | null;
+    latitud?: number | null;
+    longitud?: number | null;
     telefono?: string | null;
     email?: string | null;
     sitioWeb?: string | null;
@@ -60,6 +62,8 @@ export interface EmpresaLite {
     dominios?: string[];
     dominioPrincipal?: string | null;
     detalleEmpresa?: DetalleEmpresa | null;
+    isActive: boolean;
+    deactivatedAt?: string | null;
 }
 
 export interface FichaEmpresa {
@@ -333,6 +337,8 @@ export interface Sucursal {
     id_sucursal: number;
     nombre: string;
     direccion?: string | null;
+    latitud?: number | null;
+    longitud?: number | null;
     telefono?: string | null;
     responsableSucursals: ResponsableSucursal[];
     redSucursal?: RedSucursal | null;

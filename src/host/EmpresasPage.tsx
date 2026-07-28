@@ -15,9 +15,13 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
   MinusOutlined,
+  StopOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { Modal } from "antd";
+
+import { motion } from "framer-motion";
 
 import {
   ResponsiveContainer,
@@ -110,6 +114,11 @@ type EmpresaDashboardData = {
   }>;
 };
 
+type EstadoEmpresaFiltro =
+  | "ACTIVAS"
+  | "INACTIVAS"
+  | "TODAS";
+
 /* ====================== Type guards ====================== */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -158,14 +167,35 @@ function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
   const id = asNumberOr(e.id_empresa, NaN);
   const dominios = asStringArrayOr(e.dominios, []);
+
   return {
     id_empresa: Number.isFinite(id) ? id : -1,
     nombre: asStringOr(e.nombre, ""),
     tieneSucursales: Boolean(e.tieneSucursales),
     dominios,
-    dominioPrincipal: asNullableStringOr(e.dominioPrincipal, dominios[0] ?? null),
-    detalleEmpresa: normalizeDetalleEmpresa(e.detalleEmpresa),
-    estadisticas: normalizeEstadisticas(e.estadisticas),
+
+    dominioPrincipal: asNullableStringOr(
+      e.dominioPrincipal,
+      dominios[0] ?? null
+    ),
+
+    detalleEmpresa: normalizeDetalleEmpresa(
+      e.detalleEmpresa
+    ),
+
+    estadisticas: normalizeEstadisticas(
+      e.estadisticas
+    ),
+
+    isActive:
+      typeof e.isActive === "boolean"
+        ? e.isActive
+        : true,
+
+    deactivatedAt:
+      typeof e.deactivatedAt === "string"
+        ? e.deactivatedAt
+        : null,
   };
 }
 
@@ -1043,11 +1073,21 @@ const EmpresasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const { isCliente } = useAuth();
+  const {
+    isCliente,
+    isAdminLike,
+  } = useAuth();
+
   const canEditEmpresa = !isCliente;
+
+  const canManageEmpresaStatus = isAdminLike;
   const [activeTab, setActiveTab] = useState<EmpresaTab>("overview");
 
-  useEffect(() => { if (isCliente) setActiveTab("overview"); }, [isCliente]);
+  useEffect(() => {
+    if (isCliente) {
+      setActiveTab("overview");
+    }
+  }, [isCliente]);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -1071,12 +1111,46 @@ const EmpresasPage: React.FC = () => {
   const [fichaData, setFichaData] = useState<FichaEmpresaCompleta | null>(null);
   const [createEmpresaOpen, setCreateEmpresaOpen] = useState(false);
 
+  const [estadoEmpresaFiltro, setEstadoEmpresaFiltro] =
+    useState<EstadoEmpresaFiltro>("ACTIVAS");
+
+  const [changingEmpresaStatusId, setChangingEmpresaStatusId] =
+    useState<number | null>(null);
+
+  const [
+    empresaPendienteEstado,
+    setEmpresaPendienteEstado,
+  ] = useState<Empresa | null>(null);
+
+  const [
+    statusModalOpen,
+    setStatusModalOpen,
+  ] = useState(false);
+
+  useEffect(() => {
+    if (
+      activeTab !== "companies" &&
+      estadoEmpresaFiltro !== "ACTIVAS"
+    ) {
+      setEstadoEmpresaFiltro("ACTIVAS");
+    }
+  }, [activeTab, estadoEmpresaFiltro]);
+
   /* ===================== FETCH EMPRESAS ===================== */
   const fetchEmpresas = async (showRefresh = false) => {
     try {
       if (showRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
-      const { data: raw } = await http.get("/empresas", { params: { withStats: 1 } });
+      const { data: raw } = await http.get("/empresas",
+        {
+          params: {
+            withStats: 1,
+            estado: isCliente
+              ? "ACTIVAS"
+              : estadoEmpresaFiltro,
+          },
+        }
+      );
       let items: unknown = [];
       if (isRecord(raw)) {
         if (Array.isArray(raw.data)) items = raw.data;
@@ -1091,7 +1165,181 @@ const EmpresasPage: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchEmpresas(); }, []);
+  const solicitarCambioEstadoEmpresa = (
+    empresa: Empresa
+  ) => {
+    if (!canManageEmpresaStatus) {
+      console.warn(
+        "El usuario no tiene permisos para cambiar el estado de empresas"
+      );
+      return;
+    }
+
+    console.log(
+      "Abriendo confirmación para empresa:",
+      {
+        id: empresa.id_empresa,
+        nombre: empresa.nombre,
+        isActive: empresa.isActive,
+      }
+    );
+
+    setEmpresaPendienteEstado(empresa);
+    setStatusModalOpen(true);
+  };
+
+  const cerrarModalEstadoEmpresa = () => {
+    if (changingEmpresaStatusId !== null) {
+      return;
+    }
+
+    setStatusModalOpen(false);
+    setEmpresaPendienteEstado(null);
+  };
+
+  const confirmarCambioEstadoEmpresa =
+    async () => {
+      if (
+        !empresaPendienteEstado ||
+        !canManageEmpresaStatus
+      ) {
+        return;
+      }
+
+      const empresa =
+        empresaPendienteEstado;
+
+      const nuevoEstado =
+        !empresa.isActive;
+
+      try {
+        setChangingEmpresaStatusId(
+          empresa.id_empresa
+        );
+
+        console.log(
+          "Enviando cambio de estado:",
+          {
+            empresaId:
+              empresa.id_empresa,
+            nuevoEstado,
+            endpoint:
+              `/empresas/${empresa.id_empresa}/status`,
+          }
+        );
+
+        const response =
+          await http.patch(
+            `/empresas/${empresa.id_empresa}/status`,
+            {
+              isActive:
+                nuevoEstado,
+            }
+          );
+
+        console.log(
+          "Respuesta cambio de estado:",
+          response.data
+        );
+
+        if (
+          empresaSel?.id_empresa ===
+          empresa.id_empresa
+        ) {
+          setEmpresaSel((current) =>
+            current
+              ? {
+                ...current,
+                isActive:
+                  nuevoEstado,
+                deactivatedAt:
+                  nuevoEstado
+                    ? null
+                    : new Date().toISOString(),
+              }
+              : current
+          );
+        }
+
+        if (
+          fichaData?.empresa
+            ?.id_empresa ===
+          empresa.id_empresa
+        ) {
+          setFichaData((current) =>
+            current
+              ? {
+                ...current,
+                empresa: {
+                  ...current.empresa,
+                  isActive:
+                    nuevoEstado,
+                  deactivatedAt:
+                    nuevoEstado
+                      ? null
+                      : new Date().toISOString(),
+                },
+              }
+              : current
+          );
+        }
+
+        setStatusModalOpen(false);
+        setEmpresaPendienteEstado(null);
+
+        await fetchEmpresas(true);
+
+        Modal.success({
+          title: nuevoEstado
+            ? "Empresa reactivada"
+            : "Empresa desactivada",
+
+          content: nuevoEstado
+            ? `La empresa "${empresa.nombre}" fue reactivada correctamente.`
+            : `La empresa "${empresa.nombre}" fue desactivada correctamente. Sus datos históricos se conservaron.`,
+        });
+      } catch (error: any) {
+        console.error(
+          "Error cambiando estado de empresa:",
+          {
+            error,
+            status:
+              error?.response?.status,
+            data:
+              error?.response?.data,
+            message:
+              error?.message,
+          }
+        );
+
+        const mensaje =
+          error?.response?.data
+            ?.error ??
+          error?.response?.data
+            ?.message ??
+          error?.message ??
+          "No se pudo cambiar el estado de la empresa";
+
+        Modal.error({
+          title:
+            "No se pudo cambiar el estado",
+          content: mensaje,
+        });
+      } finally {
+        setChangingEmpresaStatusId(
+          null
+        );
+      }
+    };
+
+  useEffect(() => {
+    void fetchEmpresas(empresas.length > 0);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    estadoEmpresaFiltro,
+    isCliente,
+  ]);
 
   /* ===================== FETCH SOLICITANTES PAGINADOS ===================== */
   const fetchAllSolicitantesByEmpresa = async (empresaId: number): Promise<SolicitanteLite[]> => {
@@ -1146,7 +1394,31 @@ const EmpresasPage: React.FC = () => {
 
   /* ===================== OPEN DETAILS ===================== */
   const openDetails = async (empresa: Empresa) => {
-    setEmpresaSel({ id_empresa: empresa.id_empresa, nombre: empresa.nombre, detalleEmpresa: empresa.detalleEmpresa });
+    setEmpresaSel({
+      id_empresa:
+        empresa.id_empresa,
+
+      nombre:
+        empresa.nombre,
+
+      detalleEmpresa:
+        empresa.detalleEmpresa,
+
+      tieneSucursales:
+        empresa.tieneSucursales,
+
+      dominios:
+        empresa.dominios,
+
+      dominioPrincipal:
+        empresa.dominioPrincipal,
+
+      isActive:
+        empresa.isActive,
+
+      deactivatedAt:
+        empresa.deactivatedAt,
+    });
     setSolicitantesSel([]); setEquiposSel([]); setVisitasSel([]); setContactosSel([]);
     setDetailsError(null); setDetailsLoading(true); setDetailsOpen(true);
     try {
@@ -1163,27 +1435,150 @@ const EmpresasPage: React.FC = () => {
   };
 
   /* ===================== FICHA ===================== */
-  const refreshEmpresaCompleta = async (empresaId: number) => {
+  const refreshEmpresaCompleta = async (
+    empresaId: number
+  ) => {
     try {
-      const { data } = await http.get(`/ficha-empresa/${empresaId}/completa`);
-      setFichaData({ ...data });
-      setEmpresaSel(() => ({ ...data.empresa, detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa) }));
+      const { data } = await http.get(
+        `/ficha-empresa/${empresaId}/completa`
+      );
+
+      if (!data?.empresa) {
+        return;
+      }
+
+      const empresaActualizada = {
+        ...data.empresa,
+
+        dominios: Array.isArray(
+          data.empresa.dominios
+        )
+          ? data.empresa.dominios
+          : [],
+
+        dominioPrincipal:
+          Array.isArray(
+            data.empresa.dominios
+          )
+            ? data.empresa.dominios[0] ?? null
+            : null,
+
+        detalleEmpresa:
+          normalizeDetalleEmpresa(
+            data.empresa.detalleEmpresa
+          ),
+
+        isActive:
+          typeof data.empresa.isActive === "boolean"
+            ? data.empresa.isActive
+            : true,
+
+        deactivatedAt:
+          typeof data.empresa.deactivatedAt === "string"
+            ? data.empresa.deactivatedAt
+            : null,
+      };
+
+      setFichaData({
+        ...data,
+        empresa: empresaActualizada,
+      });
+
+      setEmpresaSel((current) => {
+        if (
+          current?.id_empresa !==
+          empresaActualizada.id_empresa
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          ...empresaActualizada,
+        };
+      });
+
       setEmpresas((prev) =>
-        prev.map((e) => e.id_empresa === data.empresa.id_empresa
-          ? { ...e, nombre: data.empresa.nombre, dominios: Array.isArray(data.empresa.dominios) ? data.empresa.dominios : [], dominioPrincipal: Array.isArray(data.empresa.dominios) ? data.empresa.dominios[0] ?? null : null, detalleEmpresa: normalizeDetalleEmpresa(data.empresa.detalleEmpresa) }
-          : e
+        prev.map((empresa) =>
+          empresa.id_empresa ===
+            empresaActualizada.id_empresa
+            ? {
+              ...empresa,
+              nombre:
+                empresaActualizada.nombre,
+
+              tieneSucursales:
+                Boolean(
+                  empresaActualizada.tieneSucursales
+                ),
+
+              dominios:
+                empresaActualizada.dominios,
+
+              dominioPrincipal:
+                empresaActualizada.dominioPrincipal,
+
+              detalleEmpresa:
+                empresaActualizada.detalleEmpresa,
+
+              isActive:
+                empresaActualizada.isActive,
+
+              deactivatedAt:
+                empresaActualizada.deactivatedAt,
+            }
+            : empresa
         )
       );
-    } catch { /* silencioso */ }
+    } catch (error) {
+      console.error(
+        "Error actualizando ficha completa:",
+        error
+      );
+    }
   };
 
-  const openFichaEmpresa = async (empresa: EmpresaLite) => {
+  const openFichaEmpresa = async (
+    empresa: EmpresaLite
+  ) => {
     try {
-      setFichaOpen(true); setFichaLoading(true); setFichaError(null);
-      const { data } = await http.get(`/ficha-empresa/${empresa.id_empresa}/completa`);
-      setFichaData(data);
-    } catch { setFichaError("No se pudo cargar la ficha"); }
-    finally { setFichaLoading(false); }
+      setFichaOpen(true);
+      setFichaLoading(true);
+      setFichaError(null);
+
+      const { data } = await http.get(
+        `/ficha-empresa/${empresa.id_empresa}/completa`
+      );
+
+      if (!data?.empresa) {
+        throw new Error(
+          "La respuesta no contiene los datos de la empresa"
+        );
+      }
+
+      setFichaData({
+        ...data,
+        empresa: {
+          ...data.empresa,
+          isActive:
+            typeof data.empresa.isActive === "boolean"
+              ? data.empresa.isActive
+              : empresa.isActive,
+          deactivatedAt:
+            data.empresa.deactivatedAt ??
+            empresa.deactivatedAt ??
+            null,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error cargando ficha de empresa:",
+        error
+      );
+      setFichaError("No se pudo cargar la ficha");
+    } finally {
+      setFichaLoading(false);
+    }
   };
 
   /* ===================== Derivados ===================== */
@@ -1328,13 +1723,40 @@ const EmpresasPage: React.FC = () => {
     ];
   }, [isCliente, empresaDashboard, empresaDashboardLoading, refreshing, statsTotales, empresasConAlerta, mesDashboard, anoDashboard]);
 
-  const filteredEmpresas = useMemo(
-    () => empresas.filter((e) =>
-      e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.detalleEmpresa?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-    [empresas, searchTerm]
-  );
+  const filteredEmpresas = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    if (!term) {
+      return empresas;
+    }
+
+    return empresas.filter((empresa) => {
+      const coincideNombre =
+        empresa.nombre.toLowerCase().includes(term);
+
+      const coincideEmail =
+        empresa.detalleEmpresa?.email
+          ?.toLowerCase()
+          .includes(term) ?? false;
+
+      const coincideRut =
+        empresa.detalleEmpresa?.rut
+          ?.toLowerCase()
+          .includes(term) ?? false;
+
+      const coincideDominio =
+        empresa.dominios?.some((dominio) =>
+          dominio.toLowerCase().includes(term)
+        ) ?? false;
+
+      return (
+        coincideNombre ||
+        coincideEmail ||
+        coincideRut ||
+        coincideDominio
+      );
+    });
+  }, [empresas, searchTerm]);
 
   /* ===================== Render: loading / error ===================== */
   if (loading) {
@@ -1666,13 +2088,80 @@ const EmpresasPage: React.FC = () => {
               initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <h2 className="text-lg font-semibold text-slate-900">Lista de Empresas</h2>
-                <div className="flex items-center gap-3">
-                  <input type="text" placeholder="Buscar empresas..." value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30" />
-                  {!isCliente && (
-                    <button onClick={() => setCreateEmpresaOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-white bg-gradient-to-tr from-cyan-600 to-indigo-600 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)] hover:brightness-110 transition">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {!isCliente && canManageEmpresaStatus && (
+                    <select
+                      value={estadoEmpresaFiltro}
+                      onChange={(event) =>
+                        setEstadoEmpresaFiltro(
+                          event.target
+                            .value as EstadoEmpresaFiltro
+                        )
+                      }
+                      className="
+        rounded-xl
+        border border-slate-200
+        bg-white
+        px-3 py-2
+        text-sm text-slate-700
+        focus:outline-none
+        focus:ring-2
+        focus:ring-cyan-500/30
+      "
+                    >
+                      <option value="ACTIVAS">
+                        Empresas activas
+                      </option>
+
+                      <option value="INACTIVAS">
+                        Empresas inactivas
+                      </option>
+
+                      <option value="TODAS">
+                        Todas las empresas
+                      </option>
+                    </select>
+                  )}
+
+                  <input
+                    type="text"
+                    placeholder="Buscar empresas..."
+                    value={searchTerm}
+                    onChange={(event) =>
+                      setSearchTerm(
+                        event.target.value
+                      )
+                    }
+                    className="
+      rounded-xl
+      border border-slate-200
+      bg-white
+      px-4 py-2
+      text-sm
+      focus:outline-none
+      focus:ring-2
+      focus:ring-cyan-500/30
+    "
+                  />
+
+                  {canManageEmpresaStatus && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCreateEmpresaOpen(true)
+                      }
+                      className="
+        inline-flex items-center gap-2
+        rounded-xl
+        px-4 py-2
+        text-sm font-medium text-white
+        bg-gradient-to-tr
+        from-cyan-600 to-indigo-600
+        shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]
+        hover:brightness-110
+        transition
+      "
+                    >
                       + Nueva empresa
                     </button>
                   )}
@@ -1687,7 +2176,17 @@ const EmpresasPage: React.FC = () => {
                 ) : (
                   filteredEmpresas.map((empresa, index) => (
                     <motion.div key={empresa.id_empresa}
-                      className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all duration-300 group"
+                      className={`
+  flex items-center justify-between
+  p-4
+  border rounded-lg
+  transition-all duration-300
+  group
+  ${empresa.isActive
+                          ? "border-slate-200 hover:bg-slate-50"
+                          : "border-slate-200 bg-slate-50/70 opacity-80"
+                        }
+`}
                       initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
                       <div className="flex items-start space-x-4 min-w-0">
                         <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors shrink-0">
@@ -1696,6 +2195,33 @@ const EmpresasPage: React.FC = () => {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">{empresa.nombre}</h3>
+                            <span
+                              className={
+                                empresa.isActive
+                                  ? `
+        inline-flex items-center
+        rounded-full
+        border border-emerald-200
+        bg-emerald-50
+        px-2 py-0.5
+        text-[11px] font-medium
+        text-emerald-700
+      `
+                                  : `
+        inline-flex items-center
+        rounded-full
+        border border-slate-300
+        bg-slate-100
+        px-2 py-0.5
+        text-[11px] font-medium
+        text-slate-600
+      `
+                              }
+                            >
+                              {empresa.isActive
+                                ? "Activa"
+                                : "Inactiva"}
+                            </span>
                             <span className="text-sm text-slate-500">
                               • {empresa.estadisticas.totalSolicitantes} solicitantes • {empresa.estadisticas.totalEquipos} equipos
                             </span>
@@ -1706,6 +2232,18 @@ const EmpresasPage: React.FC = () => {
                           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
                             <p><span className="font-medium text-slate-600">RUT:</span> {empresa.detalleEmpresa?.rut || "Sin RUT"}</p>
                             <p><span className="font-medium text-slate-600">Dirección:</span> {empresa.detalleEmpresa?.direccion || "Sin dirección"}</p>
+
+                            {!empresa.isActive &&
+                              empresa.deactivatedAt && (
+                                <p className="text-amber-700">
+                                  <span className="font-medium">
+                                    Desactivada:
+                                  </span>{" "}
+                                  {new Date(
+                                    empresa.deactivatedAt
+                                  ).toLocaleDateString("es-CL")}
+                                </p>
+                              )}
                           </div>
                           {empresa.dominios?.length ? (
                             <div className="mt-2 flex flex-wrap gap-1">
@@ -1716,9 +2254,77 @@ const EmpresasPage: React.FC = () => {
                           ) : <p className="mt-1 text-xs text-slate-400">Sin dominios</p>}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4">
-                        <button onClick={() => openFichaEmpresa(empresa)} className="text-emerald-700 hover:text-emerald-900 font-medium transition">Ver ficha →</button>
-                        <button onClick={() => openDetails(empresa)} className="text-blue-700 hover:text-blue-900 font-medium transition">Ver detalles →</button>
+                      <div className="flex items-center gap-3 flex-wrap justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openFichaEmpresa(empresa)
+                          }
+                          className="
+      text-emerald-700
+      hover:text-emerald-900
+      font-medium
+      transition
+    "
+                        >
+                          Ver ficha →
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openDetails(empresa)
+                          }
+                          className="
+      text-blue-700
+      hover:text-blue-900
+      font-medium
+      transition
+    "
+                        >
+                          Ver detalles →
+                        </button>
+
+                        {canManageEmpresaStatus && (
+                          <button
+                            type="button"
+                            disabled={
+                              changingEmpresaStatusId ===
+                              empresa.id_empresa
+                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+
+                              console.log(
+                                "Botón estado presionado:",
+                                empresa.id_empresa
+                              );
+
+                              solicitarCambioEstadoEmpresa(
+                                empresa
+                              );
+                            }}
+                            className={
+                              empresa.isActive
+                                ? "relative z-20 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                : "relative z-20 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            }
+                          >
+                            {changingEmpresaStatusId ===
+                              empresa.id_empresa ? (
+                              <LoadingOutlined />
+                            ) : empresa.isActive ? (
+                              <StopOutlined />
+                            ) : (
+                              <PlayCircleOutlined />
+                            )}
+
+                            {empresa.isActive
+                              ? "Desactivar"
+                              : "Reactivar"}
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))
@@ -1759,18 +2365,97 @@ const EmpresasPage: React.FC = () => {
 
       {/* Modales */}
       <EmpresaDetailsModal
-        open={detailsOpen} onClose={() => setDetailsOpen(false)} loading={detailsLoading} error={detailsError}
-        empresa={empresaSel} solicitantes={solicitantesSel} equipos={equiposSel} visitas={visitasSel} contactos={contactosSel}
-        onUpdated={() => { if (empresaSel?.id_empresa) refreshEmpresaCompleta(empresaSel.id_empresa); }}
-        canEdit={canEditEmpresa}
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        loading={detailsLoading}
+        error={detailsError}
+        empresa={empresaSel}
+        solicitantes={solicitantesSel}
+        equipos={equiposSel}
+        visitas={visitasSel}
+        contactos={contactosSel}
+        onUpdated={() => {
+          if (empresaSel?.id_empresa) {
+            void refreshEmpresaCompleta(
+              empresaSel.id_empresa
+            );
+          }
+        }}
+        canEdit={
+          canEditEmpresa &&
+          empresaSel?.isActive !== false
+        }
       />
       <FichaEmpresaModal
         open={fichaOpen} onClose={() => setFichaOpen(false)} loading={fichaLoading}
         empresa={fichaData?.empresa ?? null} ficha={fichaData?.ficha ?? null} checklist={fichaData?.checklist ?? null}
         detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null} contactos={fichaData?.contactos ?? []}
-        canEdit={canEditEmpresa}
+        canEdit={
+          canEditEmpresa &&
+          fichaData?.empresa?.isActive !== false
+        }
         onUpdated={() => { if (fichaData?.empresa?.id_empresa) refreshEmpresaCompleta(fichaData.empresa.id_empresa); }}
       />
+      <Modal
+        open={statusModalOpen}
+        title={
+          empresaPendienteEstado
+            ?.isActive
+            ? "¿Desactivar empresa?"
+            : "¿Reactivar empresa?"
+        }
+        okText={
+          empresaPendienteEstado
+            ?.isActive
+            ? "Desactivar"
+            : "Reactivar"
+        }
+        cancelText="Cancelar"
+        confirmLoading={
+          changingEmpresaStatusId !==
+          null
+        }
+        okButtonProps={{
+          danger:
+            empresaPendienteEstado
+              ?.isActive === true,
+        }}
+        closable={
+          changingEmpresaStatusId ===
+          null
+        }
+        maskClosable={
+          changingEmpresaStatusId ===
+          null
+        }
+        onCancel={
+          cerrarModalEstadoEmpresa
+        }
+        onOk={() => {
+          void confirmarCambioEstadoEmpresa();
+        }}
+      >
+        {empresaPendienteEstado && (
+          <div className="space-y-3">
+            <p className="text-slate-700">
+              {empresaPendienteEstado
+                .isActive
+                ? `La empresa "${empresaPendienteEstado.nombre}" dejará de aparecer en los selectores y filtros normales de la intranet.`
+                : `La empresa "${empresaPendienteEstado.nombre}" volverá a aparecer en los selectores y filtros normales de la intranet.`}
+            </p>
+
+            {empresaPendienteEstado
+              .isActive && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Los equipos, solicitantes,
+                  tickets, visitas y demás
+                  información histórica no serán
+                  eliminados.
+                </div>
+              )}
+          </div>
+        )}
+      </Modal>
       {createEmpresaOpen && (
         <CrearEmpresaModal open={createEmpresaOpen} onClose={() => setCreateEmpresaOpen(false)}
           onCreated={() => { setCreateEmpresaOpen(false); fetchEmpresas(); }} />

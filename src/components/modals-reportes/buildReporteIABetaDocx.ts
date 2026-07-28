@@ -141,10 +141,17 @@ type PayloadIABeta = {
   conclusion?: string;
 };
 
+export type ContenidoAdicionalInforme = {
+  introduccion?: string;
+  observaciones?: string;
+  conclusion?: string;
+};
+
 export type BuildReporteIABetaDocxParams = {
   payload: PayloadIABeta;
   empresaNombre: string;
   periodoTexto: string;
+  contenidoAdicional?: ContenidoAdicionalInforme;
   chartImages?: ChartImageItem[];
   mantencionesRemotas?: MantencionRemotaRow[];
   ticketsDetalle?: TicketDetalleRow[];
@@ -182,6 +189,73 @@ const THEME = {
 } as const;
 
 // ── Helpers de párrafo ─────────────────────────────────────────────────────
+
+// ── Limpieza de emojis / caracteres no imprimibles ─────────────────────────
+//
+// La fuente del documento (Calibri) NO tiene glifos de emoji, así que cualquier
+// emoji en el texto se dibuja como un cuadro/rombo roto ("��"). Esta función los
+// elimina para que el informe se vea limpio y profesional.
+// Conserva acentos, ñ, viñetas (•), guiones y símbolos normales.
+function stripEmoji(text: string): string {
+  return text
+    // Emoji del plano astral (🖥️ 🔒 🔑 📋 ✅ etc.)
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    // Símbolos misceláneos y dingbats usados como emoji (2600–27BF)
+    .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    // Símbolos y flechas suplementarios
+    .replace(/[\u{2B00}-\u{2BFF}]/gu, "")
+    // Selectores de variación (el ️ que acompaña a muchos emoji)
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+    // Zero-width joiner y caracteres de reemplazo (el rombo "�")
+    .replace(/[\u200D\uFFFD]/g, "")
+    // Colapsa los espacios que queden tras quitar un emoji
+    .replace(/[ \t]{2,}/g, " ");
+}
+
+function buildTextParagraphs(value?: string | null): Paragraph[] {
+  if (!value?.trim()) {
+    return [];
+  }
+
+  return value
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => {
+      const cleanLine = line.trim();
+
+      if (!cleanLine) {
+        return spacer(60);
+      }
+
+      const isBullet =
+        cleanLine.startsWith("•") || cleanLine.startsWith("- ");
+
+      const rawText = isBullet
+        ? cleanLine.replace(/^(•|-)\s*/, "")
+        : cleanLine;
+
+      // Quita emojis rotos y limpia el espacio que dejan.
+      const text = stripEmoji(rawText).trim();
+
+      // Si tras limpiar no queda nada (era solo un emoji), omite la línea.
+      if (!text) {
+        return spacer(40);
+      }
+
+      return new Paragraph({
+        keepLines: true,
+        bullet: isBullet ? { level: 0 } : undefined,
+        spacing: { after: 120, line: 320 },
+        children: [
+          new TextRun({
+            text,
+            color: THEME.text,
+            size: 22,
+          }),
+        ],
+      });
+    });
+}
 
 const body = (text: string) =>
   new Paragraph({
@@ -939,6 +1013,7 @@ export async function buildReporteIABetaDocxBlob({
   payload,
   empresaNombre,
   periodoTexto,
+  contenidoAdicional,
   chartImages = [],
   mantencionesRemotas = [],
   ticketsDetalle = [],
@@ -1155,6 +1230,15 @@ export async function buildReporteIABetaDocxBlob({
         ...buildSectionHeader("Análisis complementario", "Visualizaciones adicionales sugeridas"),
         ...buildChartBlocks(grupoOtros),
         spacer(80),
+      ]
+      : []),
+
+    // ── Contenido adicional (Análisis y Recomendaciones) ──────────────────────
+    ...(contenidoAdicional?.conclusion?.trim()
+      ? [
+        ...buildSectionHeader("Análisis y Recomendaciones del periodo"),
+        ...buildTextParagraphs(contenidoAdicional.conclusion),
+        spacer(50),
       ]
       : []),
 

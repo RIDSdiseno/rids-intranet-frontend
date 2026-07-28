@@ -42,6 +42,8 @@ type Tecnico = {
   email: string;
   status: boolean;
   rol: string;
+  area?: string | null;
+  cargo?: string | null;
 };
 
 function getCurrentMonthKey() {
@@ -70,6 +72,45 @@ function formatMonthTitle(monthKey: string) {
 type TecnicosTab = "lista" | "horas";
 
 const ROLES_VISIBLES = ["ADMINISTRACION", "ADMIN", "TECNICO", "VENTAS"];
+
+export const AREA_OPTIONS = [
+  {
+    value: "SOPORTE TECNICO",
+    label: "Soporte Técnico",
+  },
+  {
+    value: "INFORMATICA",
+    label: "Informática",
+  },
+  {
+    value: "SOPORTE TECNICO E INFORMATICA",
+    label: "Soporte Técnico e Informática",
+  },
+  {
+    value: "VENTAS",
+    label: "Ventas",
+  },
+  {
+    value: "ADMINISTRACION",
+    label: "Administración",
+  },
+];
+
+export function getAreaLabel(area?: string | null): string {
+  const areaOriginal = area?.trim();
+
+  if (!areaOriginal) {
+    return "Sin área";
+  }
+
+  const areaNormalizada = areaOriginal.toUpperCase();
+
+  return (
+    AREA_OPTIONS.find(
+      (option) => option.value === areaNormalizada
+    )?.label ?? areaOriginal
+  );
+}
 
 // ── RolBadge ─────────────────────────────────────────────────────────────────
 const RolBadge: React.FC<{ rol: string }> = ({ rol }) => {
@@ -121,12 +162,17 @@ const TecnicosPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState("");
   const [formStatus, setFormStatus] = useState(true);
   const [formRol, setFormRol] = useState("TECNICO");
+  const [formArea, setFormArea] = useState("");
+  const [formCargo, setFormCargo] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [creando, setCreando] = useState(false);
   const [newNombre, setNewNombre] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [mostrarNewPassword, setMostrarNewPassword] = useState(false);
   const [newRol, setNewRol] = useState("TECNICO");
+  const [newArea, setNewArea] = useState("");
+  const [newCargo, setNewCargo] = useState("");
   const [newStatus, setNewStatus] = useState(true);
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -198,8 +244,13 @@ const TecnicosPage: React.FC = () => {
   useEffect(() => { setPage((p) => Math.min(p, totalPages)); }, [totalPages]);
 
   const onClickEdit = (t: Tecnico) => {
-    setEditando(t); setFormNombre(t.nombre); setFormEmail(t.email);
-    setFormStatus(t.status); setFormRol(t.rol ?? "TECNICO");
+    setEditando(t);
+    setFormNombre(t.nombre);
+    setFormEmail(t.email);
+    setFormStatus(t.status);
+    setFormRol(t.rol ?? "TECNICO");
+    setFormArea(t.area ?? "");
+    setFormCargo(t.cargo ?? "");
   };
 
   const onGuardar = async () => {
@@ -209,10 +260,12 @@ const TecnicosPage: React.FC = () => {
       setGuardando(true);
 
       await http.put(`/tecnicos/${editando.id_tecnico}`, {
-        nombre: formNombre,
-        email: formEmail,
+        nombre: formNombre.trim(),
+        email: formEmail.trim().toLowerCase(),
         status: formStatus,
         rol: formRol,
+        area: formArea || null,
+        cargo: formCargo.trim() || null,
       });
 
       setEditando(null);
@@ -263,16 +316,51 @@ const TecnicosPage: React.FC = () => {
   };
 
   const onCrearTecnico = async () => {
+    if (!newNombre.trim() || !newEmail.trim() || !newPassword.trim()) {
+      showNotice(
+        "warning",
+        "Nombre, email y contraseña son obligatorios"
+      );
+      return;
+    }
+
     try {
       setGuardandoNuevo(true);
-      await http.post("/tecnicos", { nombre: newNombre, email: newEmail, password: newPassword, rol: newRol, status: newStatus });
-      setCreando(false); setNewNombre(""); setNewEmail(""); setNewPassword(""); setNewRol("TECNICO"); setNewStatus(true);
+
+      await http.post("/tecnicos", {
+        nombre: newNombre.trim(),
+        email: newEmail.trim().toLowerCase(),
+        password: newPassword,
+        rol: newRol,
+        status: newStatus,
+        area: newArea || null,
+        cargo: newCargo.trim() || null,
+      });
+
+      setCreando(false);
+      setNewNombre("");
+      setNewEmail("");
+      setNewPassword("");
+      setMostrarNewPassword(false);
+      setNewRol("TECNICO");
+      setNewArea("");
+      setNewCargo("");
+      setNewStatus(true);
+
       await fetchTecnicos();
-      showNotice("success", "Técnico creado correctamente");
+
+      showNotice(
+        "success",
+        "Técnico creado correctamente"
+      );
     } catch (err: any) {
-      showNotice("error", getErrorMessage(err, "Error al crear técnico"));
+      showNotice(
+        "error",
+        getErrorMessage(err, "Error al crear técnico")
+      );
+    } finally {
+      setGuardandoNuevo(false);
     }
-    finally { setGuardandoNuevo(false); }
   };
 
   const pageNumbers = useMemo(() => {
@@ -484,10 +572,36 @@ const TecnicosPage: React.FC = () => {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-slate-800 text-sm">{t.nombre}</span>
+                            <span className="font-semibold text-slate-800 text-sm">
+                              {t.nombre}
+                            </span>
+
                             <RolBadge rol={t.rol ?? "TECNICO"} />
                           </div>
-                          <p className="text-xs text-slate-500 mt-0.5 break-all">{t.email}</p>
+
+                          <p className="text-xs text-slate-500 mt-0.5 break-all">
+                            {t.email}
+                          </p>
+
+                          <div className="mt-2 space-y-1 text-xs text-slate-500">
+                            <p>
+                              <span className="font-medium text-slate-600">
+                                Área:
+                              </span>{" "}
+                              {t.area
+                                ? AREA_OPTIONS.find(
+                                  (option) => option.value === t.area
+                                )?.label ?? t.area
+                                : "Sin área"}
+                            </p>
+
+                            <p>
+                              <span className="font-medium text-slate-600">
+                                Cargo:
+                              </span>{" "}
+                              {t.cargo || "Sin cargo"}
+                            </p>
+                          </div>
                         </div>
                         <span className={`shrink-0 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${t.status ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"}`}>
                           {t.status ? <CheckCircleOutlined /> : <StopOutlined />}
@@ -536,7 +650,7 @@ const TecnicosPage: React.FC = () => {
 
                 {/* Vista desktop */}
                 <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full min-w-[680px] text-sm">
+                  <table className="w-full min-w-[980px] text-sm">
                     <thead className="border-b border-cyan-200 text-xs uppercase text-slate-500"
                       /*
                         CAMBIO: reemplaza el gradiente from-cyan-50 to-indigo-50
@@ -550,6 +664,8 @@ const TecnicosPage: React.FC = () => {
                         <th className="px-4 py-3 text-left">Nombre</th>
                         <th className="px-4 py-3 text-left">Email</th>
                         <th className="px-4 py-3 text-left">Rol</th>
+                        <th className="px-4 py-3 text-left">Área</th>
+                        <th className="px-4 py-3 text-left">Cargo</th>
                         <th className="px-4 py-3 text-left">Estado</th>
                         {isAdminLike && <th className="px-4 py-3 text-left">Acciones</th>}
                       </tr>
@@ -557,7 +673,7 @@ const TecnicosPage: React.FC = () => {
                     <tbody>
                       {tecnicosPaginados.length === 0 ? (
                         <tr>
-                          <td colSpan={isAdminLike ? 6 : 5} className="px-4 py-10 text-center text-slate-400">
+                          <td colSpan={isAdminLike ? 8 : 7} className="px-4 py-10 text-center text-slate-400">
                             {tecnicos.length === 0 ? "Sin técnicos." : "Sin coincidencias."}
                           </td>
                         </tr>
@@ -577,6 +693,17 @@ const TecnicosPage: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-slate-500">{t.email}</td>
                           <td className="px-4 py-3"><RolBadge rol={t.rol ?? "TECNICO"} /></td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {t.area
+                              ? AREA_OPTIONS.find(
+                                (option) => option.value === t.area
+                              )?.label ?? t.area
+                              : "Sin área"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-500">
+                            {t.cargo || "Sin cargo"}
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${t.status ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"}`}>
                               {t.status ? <CheckCircleOutlined /> : <StopOutlined />}
@@ -702,19 +829,80 @@ const TecnicosPage: React.FC = () => {
 
       {/* ════ MODAL CREAR ════ */}
       {creando && (
-        <Modal title="Nuevo técnico" onClose={() => setCreando(false)}>
+        <Modal
+          title="Nuevo técnico"
+          onClose={() => {
+            if (guardandoNuevo) return;
+
+            setCreando(false);
+            setMostrarNewPassword(false);
+          }}
+        >
           <div className="space-y-4">
             {[
-              { label: "Nombre", value: newNombre, set: setNewNombre, type: "text" },
-              { label: "Email", value: newEmail, set: setNewEmail, type: "email" },
-              { label: "Contraseña", value: newPassword, set: setNewPassword, type: "password" },
+              {
+                label: "Nombre",
+                value: newNombre,
+                set: setNewNombre,
+                type: "text",
+              },
+              {
+                label: "Email",
+                value: newEmail,
+                set: setNewEmail,
+                type: "email",
+              },
             ].map(({ label, value, set, type }) => (
               <div key={label}>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                <input type={type} value={value} onChange={(e) => set(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  {label}
+                </label>
+
+                <input
+                  type={type}
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                />
               </div>
             ))}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Contraseña
+              </label>
+
+              <div className="relative">
+                <input
+                  type={mostrarNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                  autoComplete="new-password"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setMostrarNewPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label={
+                    mostrarNewPassword
+                      ? "Ocultar contraseña"
+                      : "Mostrar contraseña"
+                  }
+                  title={
+                    mostrarNewPassword
+                      ? "Ocultar contraseña"
+                      : "Mostrar contraseña"
+                  }
+                >
+                  {mostrarNewPassword ? (
+                    <EyeInvisibleOutlined />
+                  ) : (
+                    <EyeOutlined />
+                  )}
+                </button>
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Rol</label>
               <select value={newRol} onChange={(e) => setNewRol(e.target.value)}
@@ -724,6 +912,40 @@ const TecnicosPage: React.FC = () => {
                 <option value="TECNICO">TECNICO</option>
                 <option value="VENTAS">VENTAS</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Área
+              </label>
+
+              <select
+                value={newArea}
+                onChange={(e) => setNewArea(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              >
+                <option value="">Sin área asignada</option>
+
+                {AREA_OPTIONS.map((area) => (
+                  <option key={area.value} value={area.value}>
+                    {area.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Cargo
+              </label>
+
+              <input
+                type="text"
+                value={newCargo}
+                onChange={(e) => setNewCargo(e.target.value)}
+                placeholder="Ej: Técnico de soporte"
+                maxLength={150}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={newStatus} onChange={(e) => setNewStatus(e.target.checked)} className="rounded" />
@@ -762,6 +984,40 @@ const TecnicosPage: React.FC = () => {
                 <option value="TECNICO">TECNICO</option>
                 <option value="VENTAS">VENTAS</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Área
+              </label>
+
+              <select
+                value={formArea}
+                onChange={(e) => setFormArea(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              >
+                <option value="">Sin área asignada</option>
+
+                {AREA_OPTIONS.map((area) => (
+                  <option key={area.value} value={area.value}>
+                    {area.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Cargo
+              </label>
+
+              <input
+                type="text"
+                value={formCargo}
+                onChange={(e) => setFormCargo(e.target.value)}
+                placeholder="Ej: Jefe de soporte"
+                maxLength={150}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
             </div>
             <div className="flex gap-4">
               {[true, false].map((val) => (
@@ -844,14 +1100,12 @@ const TecnicosPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (guardandoPassword) return;
+                  if (guardandoNuevo) return;
 
-                  setPasswordTecnico(null);
-                  setPasswordNueva("");
-                  setPasswordConfirmacion("");
+                  setCreando(false);
+                  setMostrarNewPassword(false);
                 }}
-                disabled={guardandoPassword}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 sm:w-auto"
               >
                 Cancelar
               </button>

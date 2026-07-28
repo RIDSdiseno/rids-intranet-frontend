@@ -1,5 +1,5 @@
 // src/components/modals-reportes/ReportePreviewEmailModal.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     CloseOutlined,
     DownloadOutlined,
@@ -19,11 +19,26 @@ type InformeEmailGenerado = {
     previewMimeType?: string;
 };
 
+type ContenidoAdicionalInforme = {
+    introduccion: string;
+    observaciones: string;
+    conclusion: string;
+};
+
 type Props = {
     show: boolean;
     reporte: InformeEmailGenerado | null;
     loading?: boolean;
+    regenerandoDocumento?: boolean;
+
+    contenidoInicial?: ContenidoAdicionalInforme;
+
     onClose: () => void;
+
+    onRegenerarDocumento: (
+        contenido: ContenidoAdicionalInforme
+    ) => Promise<void>;
+
     onEnviarCorreo: (payload: {
         destinatarios: string[];
         cc: string[];
@@ -37,7 +52,10 @@ export default function ReportePreviewEmailModal({
     show,
     reporte,
     loading = false,
+    regenerandoDocumento = false,
+    contenidoInicial,
     onClose,
+    onRegenerarDocumento,
     onEnviarCorreo,
 }: Props) {
     const [destinatario, setDestinatario] = useState("");
@@ -48,6 +66,44 @@ export default function ReportePreviewEmailModal({
     const [errorLocal, setErrorLocal] = useState<string | null>(null);
 
     const [cc, setCc] = useState("");
+
+    const [introduccion, setIntroduccion] = useState(
+        contenidoInicial?.introduccion ?? ""
+    );
+
+    const [observaciones, setObservaciones] = useState(
+        contenidoInicial?.observaciones ?? ""
+    );
+
+    const [conclusion, setConclusion] = useState(
+        contenidoInicial?.conclusion ?? ""
+    );
+
+    const [documentoModificado, setDocumentoModificado] =
+        useState(false);
+
+    useEffect(() => {
+        if (!show) return;
+
+        setIntroduccion(
+            contenidoInicial?.introduccion ?? ""
+        );
+
+        setObservaciones(
+            contenidoInicial?.observaciones ?? ""
+        );
+
+        setConclusion(
+            contenidoInicial?.conclusion ?? ""
+        );
+
+        setDocumentoModificado(false);
+    }, [
+        show,
+        contenidoInicial?.introduccion,
+        contenidoInicial?.observaciones,
+        contenidoInicial?.conclusion,
+    ]);
 
     const parseEmailList = (value: string): string[] => {
         return value
@@ -135,6 +191,13 @@ export default function ReportePreviewEmailModal({
     };
 
     const handleEnviar = async () => {
+        if (documentoModificado) {
+            setErrorLocal(
+                "Tienes cambios pendientes. Presiona “Aplicar cambios al documento” antes de enviar."
+            );
+            return;
+        }
+
         const destinatarios = parseEmailList(destinatario);
         const ccList = parseEmailList(cc);
 
@@ -299,6 +362,86 @@ export default function ReportePreviewEmailModal({
                             )}
                         </div>
 
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-800">
+                                        Contenido adicional del informe
+                                    </h3>
+
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Estos textos se incorporarán al archivo Word y a la
+                                        vista previa PDF.
+                                    </p>
+                                </div>
+
+                                {documentoModificado && (
+                                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                        Cambios sin aplicar
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Conclusión
+                                    </label>
+
+                                    <textarea
+                                        value={conclusion}
+                                        rows={4}
+                                        onChange={(event) => {
+                                            setConclusion(event.target.value);
+                                            setDocumentoModificado(true);
+                                            setErrorLocal(null);
+                                        }}
+                                        placeholder="Agrega una conclusión para el informe..."
+                                        className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        regenerandoDocumento ||
+                                        !documentoModificado
+                                    }
+                                    onClick={async () => {
+                                        setErrorLocal(null);
+
+                                        try {
+                                            await onRegenerarDocumento({
+                                                introduccion: introduccion.trim(),
+                                                observaciones: observaciones.trim(),
+                                                conclusion: conclusion.trim(),
+                                            });
+
+                                            setDocumentoModificado(false);
+                                        } catch (error: any) {
+                                            setErrorLocal(
+                                                error?.message ??
+                                                "No fue posible actualizar el documento."
+                                            );
+                                        }
+                                    }}
+                                    className="
+        inline-flex w-full items-center justify-center gap-2
+        rounded-xl bg-indigo-600 px-4 py-2
+        text-sm font-semibold text-white
+        hover:bg-indigo-700
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
+                                >
+                                    <FileWordOutlined />
+
+                                    {regenerandoDocumento
+                                        ? "Actualizando documento..."
+                                        : "Aplicar cambios al documento"}
+                                </button>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="mb-1 block text-sm font-semibold text-slate-700">
                                 CC
@@ -406,11 +549,29 @@ export default function ReportePreviewEmailModal({
                     <button
                         type="button"
                         onClick={handleEnviar}
-                        disabled={loading}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        disabled={
+                            loading ||
+                            regenerandoDocumento ||
+                            documentoModificado
+                        }
+                        className="
+    inline-flex w-full items-center justify-center gap-2
+    rounded-xl bg-cyan-600 px-4 py-2
+    text-sm font-semibold text-white
+    hover:bg-cyan-700
+    disabled:cursor-not-allowed disabled:opacity-60
+    sm:w-auto
+  "
                     >
                         <MailOutlined />
-                        {loading ? "Enviando..." : "Enviar por correo"}
+
+                        {loading
+                            ? "Enviando..."
+                            : regenerandoDocumento
+                                ? "Actualizando documento..."
+                                : documentoModificado
+                                    ? "Aplica los cambios primero"
+                                    : "Enviar por correo"}
                     </button>
                 </div>
             </div>

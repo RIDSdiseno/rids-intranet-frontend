@@ -10,6 +10,15 @@ export interface TecnicoRelacion {
 export interface Empresa {
   id_empresa: number;
   nombre: string;
+  isActive?: boolean;
+}
+
+export interface Sucursal {
+  id_sucursal: number;
+  nombre: string;
+  direccion?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
 }
 
 export type OrigenVisita = "MANUAL" | "AGENDA";
@@ -84,6 +93,10 @@ export interface AgendaVisita {
   estado: EstadoAgenda | string;
   empresa: Empresa | null;
   empresaExternaNombre?: string | null;
+  sucursalId?: number | null;
+  sucursal?: Sucursal | null;
+  destinoNombre?: string | null;
+  destinoDireccion?: string | null;
   tecnicos: TecnicoRelacion[];
   horaInicio?: string | null;
   horaFin?: string | null;

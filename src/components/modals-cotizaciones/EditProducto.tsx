@@ -11,6 +11,8 @@ import {
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import { useApi } from "./UseApi";
 
+const MAX_DESCRIPCION_PRODUCTO = 150;
+
 //  Props del modal de edición de producto
 interface EditProductoModalProps {
     show: boolean;
@@ -169,7 +171,7 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         onSave({
             id: producto.id,
             nombre: formData.nombre,
-            descripcion: formData.descripcion,
+            descripcion: formData.descripcion?.trim().slice(0, MAX_DESCRIPCION_PRODUCTO) || "",
             precioCosto: formData.precio,
             porcGanancia: formData.porcGanancia,
             categoria: formData.categoria,
@@ -284,16 +286,22 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             Descripción
                         </label>
                         <textarea
-                            value={formData.descripcion}
+                            value={formData.descripcion ?? ""}
+                            maxLength={MAX_DESCRIPCION_PRODUCTO}
                             onChange={(e) =>
                                 setFormData((p) => ({
                                     ...p,
-                                    descripcion: e.target.value,
+                                    descripcion: e.target.value.slice(0, MAX_DESCRIPCION_PRODUCTO),
                                 }))
                             }
                             rows={3}
                             className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm resize-none"
+                            placeholder="Descripción opcional del producto"
                         />
+
+                        <div className="mt-1 text-right text-xs text-slate-400">
+                            {(formData.descripcion?.length || 0)}/{MAX_DESCRIPCION_PRODUCTO}
+                        </div>
                     </div>
 
                     {/* PRECIOS */}

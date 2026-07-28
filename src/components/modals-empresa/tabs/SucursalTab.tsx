@@ -28,6 +28,7 @@ import {
     DeleteOutlined,
 } from "@ant-design/icons";
 import { http } from "../../../service/http";
+import CoordinatesMapPicker from "../CoordinatesMapPicker";
 
 interface Props {
     empresaId: number;
@@ -78,6 +79,8 @@ const SucursalesTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                     form.setFieldsValue({
                         nombre: data.nombre ?? "",
                         direccion: data.direccion ?? "",
+                        latitud: data.latitud ?? null,
+                        longitud: data.longitud ?? null,
                         telefono: data.telefono ?? "",
                         responsableSucursals: data.responsableSucursals ?? [],
                     });
@@ -299,6 +302,17 @@ const SucursalesTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                                                 </div>
                                             </div>
                                         )}
+
+                                        {sucursal.latitud != null && sucursal.longitud != null && (
+                                            <a
+                                                href={`https://www.google.com/maps?q=${sucursal.latitud},${sucursal.longitud}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-xs text-cyan-700 underline"
+                                            >
+                                                Ver en mapa
+                                            </a>
+                                        )}
                                     </div>
 
                                     {sucursal.redSucursal ? (
@@ -422,6 +436,12 @@ const SucursalesTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                                         placeholder="Teléfono"
                                         prefix={<PhoneOutlined className="text-gray-300" />}
                                     />
+                                </Form.Item>
+                            </Col>
+
+                            <Col span={24}>
+                                <Form.Item label="Ubicación en el mapa">
+                                    <CoordinatesMapPicker form={form} />
                                 </Form.Item>
                             </Col>
                         </Row>

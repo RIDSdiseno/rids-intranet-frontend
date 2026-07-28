@@ -9,12 +9,12 @@
 //  FullCalendar no expone via tokens y que necesitan tema-awareness.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Alert, Button, message, Modal, Spin, Popconfirm, AutoComplete } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
-import type { AgendaVisita, Tecnico, Empresa } from "../components/modals-agenda/tiposAgenda";
+import type { AgendaVisita, Tecnico, Empresa, Sucursal } from "../components/modals-agenda/tiposAgenda";
 import { getAgendaEstadoEventColor } from "../components/modals-agenda/tiposAgenda";
 import { CrearVisitaManual } from "../components/modals-agenda/CrearVisitaManual";
 import { EditarVisita } from "../components/modals-agenda/EditarVisita";
@@ -110,6 +110,15 @@ export default function AgendaPage() {
   const [tecnicosDisponibles, setTecnicosDisponibles] = useState<Tecnico[]>([]);
   const [selectedTecnicos, setSelectedTecnicos] = useState<number[]>([]);
   const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | null>(null);
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null);
+  // Solo se envía sucursalId al guardar si el usuario realmente lo tocó (o cambió
+  // de empresa) en esta sesión de edición. Si no, se omite del PATCH para que el
+  // backend preserve el snapshot existente — evita reenviar una sucursal histórica
+  // que ya no existe (lo que rechazaría CUALQUIER guardado con 400, aunque el
+  // cambio real fuera solo la hora o las notas).
+  const selectedSucursalTouchedRef = useRef(false);
+  const [selectedSucursalesDisponibles, setSelectedSucursalesDisponibles] = useState<Sucursal[]>([]);
+  const [selectedSucursalesLoading, setSelectedSucursalesLoading] = useState(false);
   const [selectedHoraInicio, setSelectedHoraInicio] = useState("");
   const [selectedHoraFin, setSelectedHoraFin] = useState("");
   const [selectedNotas, setSelectedNotas] = useState("");
@@ -128,6 +137,9 @@ export default function AgendaPage() {
   const [creating, setCreating] = useState(false);
   const [manualFecha, setManualFecha] = useState<string>("");
   const [manualEmpresaId, setManualEmpresaId] = useState<number | null>(null);
+  const [manualSucursalId, setManualSucursalId] = useState<number | null>(null);
+  const [manualSucursalesDisponibles, setManualSucursalesDisponibles] = useState<Sucursal[]>([]);
+  const [manualSucursalesLoading, setManualSucursalesLoading] = useState(false);
   const [manualTecnicoId, setManualTecnicoId] = useState<number | null>(null);
   const [manualHoraInicio, setManualHoraInicio] = useState("");
   const [manualHoraFin, setManualHoraFin] = useState("");
@@ -171,13 +183,109 @@ export default function AgendaPage() {
     } catch { /* silencioso */ }
   }, []);
 
-  const fetchEmpresas = useCallback(async () => {
+  const fetchEmpresas =
+    useCallback(async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/agenda/empresas`,
+          {
+            headers: authHeaders(),
+            credentials: "include",
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(
+            await errorMsg(
+              res,
+              "No se pudieron cargar las empresas"
+            )
+          );
+        }
+
+        const data: Empresa[] =
+          await res.json();
+
+        const empresasActivas =
+          Array.isArray(data)
+            ? data.filter(
+              (empresa) =>
+                empresa.isActive !==
+                false
+            )
+            : [];
+
+        setEmpresasDisponibles(
+          empresasActivas
+        );
+
+        /*
+         * Limpia selecciones que hayan quedado
+         * apuntando a una empresa desactivada.
+         */
+        setManualEmpresaId(
+          (current) =>
+            current !== null &&
+              !empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa ===
+                  current
+              )
+              ? null
+              : current
+        );
+
+        setSelectedEmpresaId(
+          (current) =>
+            current !== null &&
+              !empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa ===
+                  current
+              )
+              ? null
+              : current
+        );
+
+        setSelectedEmpresaIds(
+          (current) =>
+            current.filter((id) =>
+              empresasActivas.some(
+                (empresa) =>
+                  empresa.id_empresa === id
+              )
+            )
+        );
+      } catch (error) {
+        console.error(
+          "Error cargando empresas de agenda:",
+          error
+        );
+
+        setEmpresasDisponibles([]);
+
+        message.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar las empresas"
+        );
+      }
+    }, []);
+
+  // Reutiliza el endpoint de sucursales ya existente del módulo de Empresas
+  // (no se creó uno nuevo bajo /agenda).
+  const fetchSucursalesPorEmpresa = useCallback(async (empresaId: number | null): Promise<Sucursal[]> => {
+    if (!empresaId) return [];
     try {
-      const res = await fetch(`${API_URL}/agenda/empresas`, { headers: authHeaders(), credentials: "include" });
-      if (!res.ok) return;
-      const data: Empresa[] = await res.json();
-      setEmpresasDisponibles(Array.isArray(data) ? data : []);
-    } catch { /* silencioso */ }
+      const res = await fetch(`${API_URL}/ficha-empresa/${empresaId}/sucursales`, {
+        headers: authHeaders(), credentials: "include",
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   }, []);
 
   useEffect(() => {
@@ -191,6 +299,39 @@ export default function AgendaPage() {
   useEffect(() => { fetchVisitas(currentDate); }, [currentDate, fetchVisitas]);
   useEffect(() => { fetchTecnicos(); }, [fetchTecnicos]);
   useEffect(() => { fetchEmpresas(); }, [fetchEmpresas]);
+
+  // Solo cargan la LISTA de sucursales de la empresa elegida; el reseteo del
+  // sucursalId seleccionado lo maneja el propio handler de cambio de empresa
+  // (para no pisar la sucursal precargada al abrir "Editar").
+  useEffect(() => {
+    let activo = true;
+    if (!manualEmpresaId) {
+      setManualSucursalesDisponibles([]);
+      return;
+    }
+    setManualSucursalesLoading(true);
+    fetchSucursalesPorEmpresa(manualEmpresaId).then((sucursales) => {
+      if (!activo) return;
+      setManualSucursalesDisponibles(sucursales);
+      setManualSucursalesLoading(false);
+    });
+    return () => { activo = false; };
+  }, [manualEmpresaId, fetchSucursalesPorEmpresa]);
+
+  useEffect(() => {
+    let activo = true;
+    if (!selectedEmpresaId) {
+      setSelectedSucursalesDisponibles([]);
+      return;
+    }
+    setSelectedSucursalesLoading(true);
+    fetchSucursalesPorEmpresa(selectedEmpresaId).then((sucursales) => {
+      if (!activo) return;
+      setSelectedSucursalesDisponibles(sucursales);
+      setSelectedSucursalesLoading(false);
+    });
+    return () => { activo = false; };
+  }, [selectedEmpresaId, fetchSucursalesPorEmpresa]);
 
   const visitasByDate = useMemo(() =>
     visitas.reduce<Record<string, AgendaVisita[]>>((acc, v) => {
@@ -289,6 +430,8 @@ export default function AgendaPage() {
     setSelectedVisita(visita);
     setSelectedTecnicos(visita.tecnicos.map((t) => t.tecnico.id_tecnico));
     setSelectedEmpresaId(visita.empresa?.id_empresa ?? empresaRids?.id_empresa ?? null);
+    setSelectedSucursalId(visita.sucursalId ?? visita.sucursal?.id_sucursal ?? null);
+    selectedSucursalTouchedRef.current = false;
     setSelectedHoraInicio(visita.horaInicio ?? "");
     setSelectedHoraFin(visita.horaFin ?? "");
     setSelectedNotas(visita.notas ?? "");
@@ -305,6 +448,7 @@ export default function AgendaPage() {
         method: "PATCH", headers: authHeaders(), credentials: "include",
         body: JSON.stringify({
           empresaId: selectedEmpresaId,
+          ...(selectedSucursalTouchedRef.current && { sucursalId: selectedSucursalId }),
           ...(selectedHoraInicio && { horaInicio: selectedHoraInicio }),
           ...(selectedHoraFin && { horaFin: selectedHoraFin }),
           notas: selectedNotas,
@@ -369,13 +513,13 @@ export default function AgendaPage() {
       const res = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
         method: "DELETE", headers: authHeaders(), credentials: "include",
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errorMsg(res, "Error al eliminar la visita"));
       message.success("Visita eliminada");
       setModalOpen(false);
       setDetalleOpen(false);
       fetchVisitas(currentDate);
-    } catch {
-      message.error("Error al eliminar la visita");
+    } catch (err) {
+      message.error(err instanceof Error && err.message ? err.message : "Error al eliminar la visita");
     } finally {
       setDeletingVisitaId(false);
     }
@@ -390,6 +534,7 @@ export default function AgendaPage() {
         body: JSON.stringify({
           fecha: manualFecha,
           empresaId: manualEmpresaId,
+          sucursalId: manualSucursalId,
           tecnicoId: manualTecnicoId,
           ...(manualHoraInicio && { horaInicio: manualHoraInicio }),
           ...(manualHoraFin && { horaFin: manualHoraFin }),
@@ -619,7 +764,7 @@ export default function AgendaPage() {
             onClick={() => {
               setCreateError("");
               setManualFecha(dayjs().format("YYYY-MM-DD"));
-              setManualEmpresaId(null); setManualTecnicoId(null);
+              setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
               setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
               setCreateModalOpen(true);
             }}
@@ -779,7 +924,7 @@ export default function AgendaPage() {
           setDayModalOpen(false);
           setCreateError("");
           setManualFecha(dayModalDateKey);
-          setManualEmpresaId(null); setManualTecnicoId(null);
+          setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
           setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
           setCreateModalOpen(true);
         }}
@@ -798,9 +943,13 @@ export default function AgendaPage() {
         horaFin={manualHoraFin}
         notas={manualNotas}
         empresasDisponibles={empresasDisponibles}
+        sucursalId={manualSucursalId}
+        sucursalesDisponibles={manualSucursalesDisponibles}
+        sucursalesLoading={manualSucursalesLoading}
         tecnicosDisponibles={tecnicosDisponibles}
         onFechaChange={setManualFecha}
-        onEmpresaChange={setManualEmpresaId}
+        onEmpresaChange={(id) => { setManualEmpresaId(id); setManualSucursalId(null); }}
+        onSucursalChange={setManualSucursalId}
         onTecnicoChange={setManualTecnicoId}
         onHoraInicioChange={setManualHoraInicio}
         onHoraFinChange={setManualHoraFin}
@@ -827,11 +976,22 @@ export default function AgendaPage() {
         horaFin={selectedHoraFin}
         notas={selectedNotas}
         empresasDisponibles={empresasDisponibles}
+        sucursalId={selectedSucursalId}
+        sucursalesDisponibles={selectedSucursalesDisponibles}
+        sucursalesLoading={selectedSucursalesLoading}
         tecnicosDisponibles={tecnicosDisponibles}
         saving={saving}
         sendingNota={sendingNota}
         deleting={deletingVisitaId}
-        onEmpresaChange={setSelectedEmpresaId}
+        onEmpresaChange={(id) => {
+          setSelectedEmpresaId(id);
+          setSelectedSucursalId(null);
+          selectedSucursalTouchedRef.current = true;
+        }}
+        onSucursalChange={(id) => {
+          setSelectedSucursalId(id);
+          selectedSucursalTouchedRef.current = true;
+        }}
         onTecnicosChange={setSelectedTecnicos}
         onHoraInicioChange={setSelectedHoraInicio}
         onHoraFinChange={setSelectedHoraFin}

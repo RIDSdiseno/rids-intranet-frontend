@@ -37,6 +37,12 @@ import {
   buildReporteIABetaFileName,
 } from "./buildReporteIABetaDocx";
 
+export type ContenidoAdicionalInforme = {
+  introduccion?: string;
+  observaciones?: string;
+  conclusion?: string;
+};
+
 // ─── XLSX helpers ─────────────────────────────────────────────────────────
 
 const applyBasicStyles = (ws: XLSX.WorkSheet): XLSX.WorkSheet => {
@@ -817,17 +823,27 @@ export const useExportReportes = ({
     }
   };
 
-  const generarDOCXIABetaBlob = async (): Promise<{
+  const generarDOCXIABetaBlob = async (
+    options?: {
+      contenidoAdicional?: ContenidoAdicionalInforme;
+    }
+  ): Promise<{
     blob: Blob;
     fileName: string;
   }> => {
     /*
       Genera el mismo Word IA que se descarga,
       pero devuelve el Blob para enviarlo por correo.
+  
+      Cuando recibe contenidoAdicional, también lo incorpora
+      al Word y, por consecuencia, al PDF de vista previa.
     */
 
     try {
-      setExportStatus({ exporting: true, error: null });
+      setExportStatus({
+        exporting: true,
+        error: null,
+      });
 
       const {
         iaPayload,
@@ -841,28 +857,48 @@ export const useExportReportes = ({
       } = await prepararReporteIABeta();
 
       const blob = await buildReporteIABetaDocxBlob({
-        payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
+        payload: {
+          ...iaPayload,
+          graficos_sugeridos: graficosCombinados,
+        },
+
         empresaNombre,
         periodoTexto,
+
+        contenidoAdicional:
+          options?.contenidoAdicional,
+
         chartImages,
-        mantencionesRemotas: dataBase.mantencionesRemotas || [],
-        ticketsDetalle: dataBase.tickets || [],
-        visitasDetalle: dataBase.visitas || [],
-        extrasTotales: extras.totales || [],
-        extrasDetalle: extras.detalles || [],
-        solicitantesDetalle: dataBase.solicitantes || [],
-        equiposDetalle: equiposDetalleReporte,
-        licencias: dataBase.licencias,
+        mantencionesRemotas:
+          dataBase.mantencionesRemotas || [],
+        ticketsDetalle:
+          dataBase.tickets || [],
+        visitasDetalle:
+          dataBase.visitas || [],
+        extrasTotales:
+          extras.totales || [],
+        extrasDetalle:
+          extras.detalles || [],
+        solicitantesDetalle:
+          dataBase.solicitantes || [],
+        equiposDetalle:
+          equiposDetalleReporte,
+        licencias:
+          dataBase.licencias,
         logoBytes,
         headerLogoBytes,
       });
 
-      const fileName = buildReporteIABetaFileName(
-        empresaNombre,
-        periodoTexto || "Periodo"
-      );
+      const fileName =
+        buildReporteIABetaFileName(
+          empresaNombre,
+          periodoTexto || "Periodo"
+        );
 
-      setExportStatus({ exporting: false, error: null });
+      setExportStatus({
+        exporting: false,
+        error: null,
+      });
 
       return {
         blob,
@@ -873,7 +909,8 @@ export const useExportReportes = ({
 
       setExportStatus({
         exporting: false,
-        error: "No se pudo generar el Word IA para correo.",
+        error:
+          "No se pudo generar el Word IA para correo.",
       });
 
       throw e;

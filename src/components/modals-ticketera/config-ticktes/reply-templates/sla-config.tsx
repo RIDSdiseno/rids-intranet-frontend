@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/config-tickets/reply-tempates/sla-config.tsx
 import { useEffect, useState } from "react";
 import { Card, InputNumber, Button, message, Tag, Spin } from "antd";
 import { api } from "../../../../api/api";

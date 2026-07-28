@@ -13,6 +13,7 @@ const HomePage = lazy(() => import("./host/Home"));
 const SolicitantesPage = lazy(() => import("./host/Solicitantes"));
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
+const MantencionesGeneralesPage  = lazy(() => import("./components/modals-equipos/mant-general-page/MantencionesGeneralesPage"));
 const TicketsPage = lazy(() => import("./host/Ticket"));
 const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
 const ReportesPage = lazy(() => import("./host/Reportes"));
@@ -51,6 +52,7 @@ const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
+const EntregasPage = lazy(() => import("./host/EntregasPage"));
 
 /* =========================
    Auth helpers
@@ -209,10 +211,14 @@ export default function App() {
               <Route path="/mapa-tecnicos" element={<MapaTecnicosPage />} />
             </Route>
 
+            {/* ── Entregas (comprobantes) · todos los roles ────────────── */}
+            <Route path="/entregas" element={<EntregasPage />} />
+
             {/* ── Internos + CLIENTE (backend filtra por empresa) ─────── */}
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
               <Route path="/empresas" element={<EmpresasPage />} />
               <Route path="/equipos" element={<EquiposPage />} />
+              <Route path="/mantenciones-generales" element={<MantencionesGeneralesPage />}/>
               <Route path="/solicitantes" element={<SolicitantesPage />} />
               <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/visitas" element={<VisitasPage />} />

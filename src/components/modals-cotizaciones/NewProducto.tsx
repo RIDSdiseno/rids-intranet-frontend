@@ -14,6 +14,8 @@ import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import type { ProductoForm } from "./types";
 import { useApi } from "./UseApi";
 
+const MAX_DESCRIPCION_PRODUCTO = 150;
+
 interface NewProductoModalProps {
     show: boolean;
     onClose: () => void;
@@ -95,7 +97,7 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                 method: "POST",
                 body: JSON.stringify({
                     nombre: nombreLimpio,
-                    descripcion: formData.descripcion,
+                    descripcion: formData.descripcion?.trim().slice(0, MAX_DESCRIPCION_PRODUCTO) || "",
                     precio: formData.precio,
                     porcGanancia: formData.porcGanancia,
                     precioTotal:
@@ -311,12 +313,21 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                         </label>
                         <textarea
                             rows={3}
-                            value={formData.descripcion}
+                            value={formData.descripcion ?? ""}
+                            maxLength={MAX_DESCRIPCION_PRODUCTO}
                             onChange={(e) =>
-                                onFormChange("descripcion", e.target.value)
+                                onFormChange(
+                                    "descripcion",
+                                    e.target.value.slice(0, MAX_DESCRIPCION_PRODUCTO)
+                                )
                             }
                             className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm resize-none"
+                            placeholder="Descripción opcional del producto"
                         />
+
+                        <div className="mt-1 text-right text-xs text-slate-400">
+                            {(formData.descripcion?.length || 0)}/{MAX_DESCRIPCION_PRODUCTO}
+                        </div>
                     </div>
 
                     {/* PRECIOS */}

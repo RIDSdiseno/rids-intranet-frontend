@@ -1102,7 +1102,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
                                                         {/* Mostrar DESCRIPCIÓN si existe */}
                                                         {item.descripcion && (
-                                                            <p className="text-slate-600 whitespace-pre-line mt-1">
+                                                            <p className="text-slate-600 whitespace-pre-wrap break-words [overflow-wrap:anywhere] mt-1 max-w-full">
                                                                 {item.descripcion}
                                                             </p>
                                                         )}

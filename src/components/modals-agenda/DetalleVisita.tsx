@@ -75,6 +75,16 @@ export function DetalleVisita({
           </strong>
         </div>
 
+        {(visita.sucursal?.nombre || visita.destinoNombre || visita.destinoDireccion) && (
+          <div>
+            <span style={{ color: "#94a3b8" }}>Destino: </span>
+            <span style={{ color: "#334155" }}>
+              {visita.sucursal?.nombre ?? visita.destinoNombre ?? "Ubicación principal"}
+              {visita.destinoDireccion ? ` — ${visita.destinoDireccion}` : ""}
+            </span>
+          </div>
+        )}
+
         {(visita.horaInicio || visita.horaFin) && (
           <div>
             <span style={{ color: "#94a3b8" }}>Horario: </span>

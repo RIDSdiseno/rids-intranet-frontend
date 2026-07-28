@@ -72,6 +72,7 @@ import SelectEquipoModal from "../components/modals-cotizaciones/SelectEquipo";
 
 import { useAuth } from "../components/hooks/useAuth"
 import CotizacionesMasivasManager from "../components/modals-cotizaciones/cotizaciones-masivas/CotizacionesMasivasManager";
+import { normalizarPdfOrigen } from "../components/modals-gestioo/pdfOrigen";
 
 const { isCliente } = useAuth();
 
@@ -319,10 +320,10 @@ const Cotizaciones: React.FC = () => {
 
     // escapeHtml and formatCurrency moved to src/lib/emailTemplates
 
-        function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
-                                const nombre = cot.entidad?.nombre || '';
-                                const total = Array.isArray(cot.items) ? cot.items.reduce((s: number, it: any) => s + ((Number(it.precio) || 0) * (Number(it.cantidad) || 1)), 0) : cot.total || 0;
-                                return `
+    function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
+        const nombre = cot.entidad?.nombre || '';
+        const total = Array.isArray(cot.items) ? cot.items.reduce((s: number, it: any) => s + ((Number(it.precio) || 0) * (Number(it.cantidad) || 1)), 0) : cot.total || 0;
+        return `
                                 <div style="font-family:Arial,Helvetica,sans-serif;background:#eef2f7;padding:32px 16px;">
                                   <div style="max-width:600px;margin:0 auto;">
 
@@ -372,7 +373,7 @@ const Cotizaciones: React.FC = () => {
 
                                   </div>
                                 </div>`;
-        }
+    }
 
     const fetchTecnicos = async () => {
         try {
@@ -1008,7 +1009,11 @@ const Cotizaciones: React.FC = () => {
 
             // Generar el PDF programáticamente y enviarlo
             try {
-                const pdf = await generarPDF(created, false, true);
+                const pdf = await generarPDF(
+                    created,
+                    true,
+                    normalizarPdfOrigen(created.entidad?.origen ?? "RIDS")
+                );
                 let dataUrl: string | null = null;
                 try { dataUrl = pdf.output('datauristring'); } catch (e) {
                     const blob = pdf.output('blob');
@@ -1025,7 +1030,7 @@ const Cotizaciones: React.FC = () => {
                 const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
 
                 // armar HTML con logo embebido (simple replacement)
-                let finalHtml = buildDefaultHtml(created as any);
+                let finalHtml = buildDefaultHtmlForSend(created as any);
                 try {
                     const resp = await fetch('/img/splash.png');
                     if (resp.ok) {
@@ -1051,26 +1056,26 @@ const Cotizaciones: React.FC = () => {
                     const queued = !!sendResp.data?.queued;
                     const jobId = sendResp.data?.jobId ?? null;
                     const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${created.entidad?.correo}`;
-                    try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                    try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) { }
                     notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
-                                        // Registrar envío en cotizaciones-enviadas (no bloquear)
-                                        (async () => {
-                                            try {
-                                                await http.post('/cotizaciones/enviadas', {
-                                                    cotizacionId: created.id,
-                                                    to: created.entidad?.correo ?? null,
-                                                    subject: payload.subject,
-                                                    jobId: sendResp.data.jobId ?? null,
-                                                    meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
-                                                });
-                                            } catch (err: any) {
-                                                console.error('Error registrando cotizacion enviada:', err);
-                                                try {
-                                                    const msg = err?.response?.data?.error ?? err?.message ?? String(err);
-                                                    notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
-                                                } catch (_) {}
-                                            }
-                                        })();
+                    // Registrar envío en cotizaciones-enviadas (no bloquear)
+                    (async () => {
+                        try {
+                            await http.post('/cotizaciones/enviadas', {
+                                cotizacionId: created.id,
+                                to: created.entidad?.correo ?? null,
+                                subject: payload.subject,
+                                jobId: sendResp.data.jobId ?? null,
+                                meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                            });
+                        } catch (err: any) {
+                            console.error('Error registrando cotizacion enviada:', err);
+                            try {
+                                const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                                notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                            } catch (_) { }
+                        }
+                    })();
                 } else {
                     notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
                 }
@@ -1099,7 +1104,11 @@ const Cotizaciones: React.FC = () => {
             const cot = resp.data || resp;
 
             // Generar PDF
-            const pdf = await generarPDF(cot, false, true);
+            const pdf = await generarPDF(
+                cot,
+                true,
+                normalizarPdfOrigen(cot.entidad?.origen ?? "RIDS")
+            );
             let dataUrl: string | null = null;
             try { dataUrl = pdf.output('datauristring'); } catch (e) {
                 const blob = pdf.output('blob');
@@ -1137,31 +1146,31 @@ const Cotizaciones: React.FC = () => {
                 attachments: [{ name: `Cotizacion_${cot.id}.pdf`, contentType, contentBytes: base64 }]
             };
 
-                const sendResp = await http.post('/correo/enviar-masivo', payload);
+            const sendResp = await http.post('/correo/enviar-masivo', payload);
             if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
                 const queued = !!sendResp.data?.queued;
                 const jobId = sendResp.data?.jobId ?? null;
                 const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${cot.entidad?.correo}`;
-                try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) {}
+                try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) { }
                 notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
-                                // Registrar envío en cotizaciones-enviadas (no bloquear)
-                                (async () => {
-                                    try {
-                                        await http.post('/cotizaciones/enviadas', {
-                                            cotizacionId: cot.id,
-                                            to: cot.entidad?.correo ?? null,
-                                            subject: payload.subject,
-                                            jobId: sendResp.data.jobId ?? null,
-                                            meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
-                                        });
-                                    } catch (err: any) {
-                                        console.error('Error registrando cotizacion enviada:', err);
-                                        try {
-                                            const msg = err?.response?.data?.error ?? err?.message ?? String(err);
-                                            notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
-                                        } catch (_) {}
-                                    }
-                                })();
+                // Registrar envío en cotizaciones-enviadas (no bloquear)
+                (async () => {
+                    try {
+                        await http.post('/cotizaciones/enviadas', {
+                            cotizacionId: cot.id,
+                            to: cot.entidad?.correo ?? null,
+                            subject: payload.subject,
+                            jobId: sendResp.data.jobId ?? null,
+                            meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
+                        });
+                    } catch (err: any) {
+                        console.error('Error registrando cotizacion enviada:', err);
+                        try {
+                            const msg = err?.response?.data?.error ?? err?.message ?? String(err);
+                            notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
+                        } catch (_) { }
+                    }
+                })();
             } else {
                 notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
             }
@@ -1557,7 +1566,7 @@ const Cotizaciones: React.FC = () => {
                             ...i,
                             productoId: producto.id,
                             nombre: producto.nombre,
-                            descripcion: producto.descripcion || i.descripcion,
+                            descripcion: producto.descripcion ?? "",
                             precioCosto: producto.precio,
                             porcGanancia: producto.porcGanancia,
                             precioOriginalCLP: producto.precioTotal ?? producto.precio,
@@ -1580,7 +1589,7 @@ const Cotizaciones: React.FC = () => {
                             ...i,
                             productoId: producto.id,
                             nombre: producto.nombre,
-                            descripcion: producto.descripcion || i.descripcion,
+                            descripcion: producto.descripcion ?? "",
                             precioCosto: producto.precio,
                             porcGanancia: producto.porcGanancia,
                             precioOriginalCLP: producto.precioTotal ?? producto.precio,
@@ -1913,7 +1922,7 @@ const Cotizaciones: React.FC = () => {
     const [pdfURL, setPdfURL] = useState<string | null>(null);
     const [showPdfViewerModal, setShowPdfViewerModal] = useState(false);
     const [showSendMailModal, setShowSendMailModal] = useState(false);
-    const [activeTab, setActiveTab] = useState<'list'|'enviadas'>('list');
+    const [activeTab, setActiveTab] = useState<'list' | 'enviadas'>('list');
 
     // Estados para filtros de la vista "Cotizaciones Enviadas" (se envían por evento)
     const [envSearch, setEnvSearch] = useState("");
@@ -2273,14 +2282,14 @@ const Cotizaciones: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setActiveTab('list')}
-                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab === 'list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             Cotizaciones
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setActiveTab('enviadas')}
-                                            className={`px-3 py-1 rounded-full text-sm ${activeTab==='enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                            className={`px-3 py-1 rounded-full text-sm ${activeTab === 'enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             Cotizaciones Enviadas
                                         </button>
@@ -2291,14 +2300,14 @@ const Cotizaciones: React.FC = () => {
 
                         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
                             {activeTab === 'list' && (
-                            <button
-                                type="button"
-                                onClick={() => fetchCotizaciones(page)}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm text-cyan-700 transition hover:bg-cyan-50 sm:w-auto"
-                            >
-                                <ReloadOutlined className="text-xs" />
-                                <span>Recargar</span>
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fetchCotizaciones(page)}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm text-cyan-700 transition hover:bg-cyan-50 sm:w-auto"
+                                >
+                                    <ReloadOutlined className="text-xs" />
+                                    <span>Recargar</span>
+                                </button>
                             )}
                             {!isCliente && (
                                 <>
@@ -2329,20 +2338,20 @@ const Cotizaciones: React.FC = () => {
 
                     {/* Buscador — solo visible en tab de cotizaciones */}
                     {activeTab === 'list' && (
-                    <div className="mt-2">
-                        <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                <SearchOutlined />
-                            </span>
-                            <input
-                                type="text"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Buscar cotización, cliente o estado..."
-                                className="w-full rounded-full border border-cyan-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                            />
+                        <div className="mt-2">
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <SearchOutlined />
+                                </span>
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Buscar cotización, cliente o estado..."
+                                    className="w-full rounded-full border border-cyan-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                />
+                            </div>
                         </div>
-                    </div>
                     )}
 
                     {/* Filtros */}
@@ -2435,50 +2444,50 @@ const Cotizaciones: React.FC = () => {
                         ) : (
                             <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
                                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                                        <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
-                                            <input
-                                                type="text"
-                                                placeholder="Buscar cotización, cliente o estado..."
-                                                className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
-                                                value={envSearch}
-                                                onChange={(e) => {
-                                                    setEnvSearch(e.target.value);
-                                                    dispatchCotEnviadasFilters({ search: e.target.value });
-                                                }}
-                                            />
-                                            <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-                                                </svg>
-                                            </button>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
-                                                <option value="">Cliente</option>
-                                                {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
-                                            </select>
-
-                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
-                                                <option value="">Generado Por</option>
-                                                {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
-                                            </select>
-
-                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
-                                                <option value="">Enviado Por</option>
-                                                {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
-                                            </select>
-
-                                            <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
-
-                                            <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
-                                        </div>
+                                    <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar cotización, cliente o estado..."
+                                            className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
+                                            value={envSearch}
+                                            onChange={(e) => {
+                                                setEnvSearch(e.target.value);
+                                                dispatchCotEnviadasFilters({ search: e.target.value });
+                                            }}
+                                        />
+                                        <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                                            </svg>
+                                        </button>
                                     </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
+                                            <option value="">Cliente</option>
+                                            {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                                        </select>
+
+                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
+                                            <option value="">Generado Por</option>
+                                            {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
+                                        </select>
+
+                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
+                                            <option value="">Enviado Por</option>
+                                            {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
+                                        </select>
+
+                                        <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
+
+                                        <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
                 </section>
-                
+
 
                 <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
 
@@ -2491,226 +2500,226 @@ const Cotizaciones: React.FC = () => {
 
                 {/* LISTADO */}
                 {activeTab === 'list' && (
-                <section className="mt-6">
-                    <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
-                        {/* MOBILE */}
-                        <div className="block md:hidden">
-                            {cotizaciones.length === 0 ? (
-                                <div className="py-6 text-center text-sm text-gray-500">
-                                    Sin resultados.
-                                </div>
-                            ) : (
-                                <div className="divide-y divide-cyan-100">
-                                    {cotizaciones.map((c: CotRow) => (
-                                        <div key={c.id} className="px-4 py-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <div className="text-base font-semibold text-slate-800">
-                                                        Cotización #{c.id}
+                    <section className="mt-6">
+                        <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
+                            {/* MOBILE */}
+                            <div className="block md:hidden">
+                                {cotizaciones.length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-gray-500">
+                                        Sin resultados.
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-cyan-100">
+                                        {cotizaciones.map((c: CotRow) => (
+                                            <div key={c.id} className="px-4 py-4">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="text-base font-semibold text-slate-800">
+                                                            Cotización #{c.id}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            {new Date(c.fecha).toLocaleDateString("es-CL")}
+                                                        </div>
                                                     </div>
-                                                    <div className="mt-1 text-sm text-slate-500">
-                                                        {new Date(c.fecha).toLocaleDateString("es-CL")}
+
+                                                    <div className="relative shrink-0">
+                                                        {renderEstadoButton(c)}
                                                     </div>
                                                 </div>
 
-                                                <div className="relative shrink-0">
-                                                    {renderEstadoButton(c)}
+                                                <div className="mt-3 space-y-1 text-sm text-slate-600">
+                                                    <div><b>Técnico:</b> {c.tecnico?.nombre || "---"}</div>
+                                                    <div><b>Cliente:</b> {c.entidad?.nombre || "---"}</div>
+                                                    <div>
+                                                        <b>Total:</b>{" "}
+                                                        {formatearPrecio(
+                                                            c.total,
+                                                            c.moneda || "CLP",
+                                                            c.tasaCambio ?? 1
+                                                        )}
+                                                    </div>
+                                                    {!isCliente && (
+                                                        <div>
+                                                            <b>Factura:</b>{" "}
+                                                            <span className="inline-block align-middle">
+                                                                {renderFacturaContent(c)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-4">
+                                                    {renderActionButtons(c, true)}
                                                 </div>
                                             </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
 
-                                            <div className="mt-3 space-y-1 text-sm text-slate-600">
-                                                <div><b>Técnico:</b> {c.tecnico?.nombre || "---"}</div>
-                                                <div><b>Cliente:</b> {c.entidad?.nombre || "---"}</div>
-                                                <div>
-                                                    <b>Total:</b>{" "}
+                            {/* DESKTOP */}
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full min-w-[1100px] divide-y divide-gray-200">
+                                    <thead className="bg-cyan-50">
+                                        <tr>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                N°
+                                            </th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Fecha Cotización
+                                            </th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Estado
+                                            </th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Cotización generado por:
+                                            </th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Cliente
+                                            </th>
+                                            {!isCliente && (
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Factura
+                                                </th>
+                                            )}
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Total
+                                            </th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                Acciones
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="divide-y divide-gray-200">
+                                        {cotizaciones.map((c: CotRow) => (
+                                            <tr key={c.id} className="transition hover:bg-cyan-50">
+                                                <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
+                                                    {c.id}
+                                                </td>
+
+                                                <td className="px-4 py-3 text-center text-sm text-slate-600">
+                                                    {new Date(c.fecha).toLocaleDateString("es-CL")}
+                                                </td>
+
+                                                <td className="relative px-4 py-3 text-center">
+                                                    {renderEstadoButton(c)}
+                                                </td>
+
+                                                <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                    {c.tecnico?.nombre || "---"}
+                                                </td>
+
+                                                <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                    {c.entidad?.nombre || "---"}
+                                                </td>
+                                                {!isCliente && (
+                                                    <td className="px-4 py-3 text-center text-sm">
+                                                        {renderFacturaContent(c)}
+                                                    </td>
+                                                )}
+
+                                                <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
                                                     {formatearPrecio(
                                                         c.total,
                                                         c.moneda || "CLP",
                                                         c.tasaCambio ?? 1
                                                     )}
-                                                </div>
-                                                {!isCliente && (
-                                                    <div>
-                                                        <b>Factura:</b>{" "}
-                                                        <span className="inline-block align-middle">
-                                                            {renderFacturaContent(c)}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="mt-4">
-                                                {renderActionButtons(c, true)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* DESKTOP */}
-                        <div className="hidden md:block overflow-x-auto">
-                            <table className="w-full min-w-[1100px] divide-y divide-gray-200">
-                                <thead className="bg-cyan-50">
-                                    <tr>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            N°
-                                        </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Fecha Cotización
-                                        </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Estado
-                                        </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Cotización generado por:
-                                        </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Cliente
-                                        </th>
-                                        {!isCliente && (
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Factura
-                                            </th>
-                                        )}
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Total
-                                        </th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y divide-gray-200">
-                                    {cotizaciones.map((c: CotRow) => (
-                                        <tr key={c.id} className="transition hover:bg-cyan-50">
-                                            <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
-                                                {c.id}
-                                            </td>
-
-                                            <td className="px-4 py-3 text-center text-sm text-slate-600">
-                                                {new Date(c.fecha).toLocaleDateString("es-CL")}
-                                            </td>
-
-                                            <td className="relative px-4 py-3 text-center">
-                                                {renderEstadoButton(c)}
-                                            </td>
-
-                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                {c.tecnico?.nombre || "---"}
-                                            </td>
-
-                                            <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                {c.entidad?.nombre || "---"}
-                                            </td>
-                                            {!isCliente && (
-                                                <td className="px-4 py-3 text-center text-sm">
-                                                    {renderFacturaContent(c)}
                                                 </td>
-                                            )}
 
-                                            <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
-                                                {formatearPrecio(
-                                                    c.total,
-                                                    c.moneda || "CLP",
-                                                    c.tasaCambio ?? 1
-                                                )}
-                                            </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {renderActionButtons(c, false)}
+                                                </td>
+                                            </tr>
+                                        ))}
 
-                                            <td className="px-4 py-3 text-center">
-                                                {renderActionButtons(c, false)}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                        {cotizaciones.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={9}
+                                                    className="py-6 text-center text-sm text-gray-500"
+                                                >
+                                                    Sin resultados.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                    {cotizaciones.length === 0 && (
-                                        <tr>
-                                            <td
-                                                colSpan={9}
-                                                className="py-6 text-center text-sm text-gray-500"
-                                            >
-                                                Sin resultados.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                            {/* Footer */}
+                            <div className="flex flex-col gap-3 border-t border-cyan-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <span className="whitespace-nowrap text-xs text-slate-500">
+                                    Mostrando {cotizaciones.length} de {totalCotizaciones} cotizaciones
+                                </span>
 
-                        {/* Footer */}
-                        <div className="flex flex-col gap-3 border-t border-cyan-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                            <span className="whitespace-nowrap text-xs text-slate-500">
-                                Mostrando {cotizaciones.length} de {totalCotizaciones} cotizaciones
-                            </span>
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+                                    <button
+                                        onClick={() => fetchCotizaciones(page - 1)}
+                                        disabled={page <= 1}
+                                        className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        ← Anterior
+                                    </button>
 
-                            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
-                                <button
-                                    onClick={() => fetchCotizaciones(page - 1)}
-                                    disabled={page <= 1}
-                                    className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    ← Anterior
-                                </button>
+                                    {(() => {
+                                        const visiblePages: (number | "...")[] = [];
 
-                                {(() => {
-                                    const visiblePages: (number | "...")[] = [];
+                                        const start = Math.max(1, page - 1);
+                                        const end = Math.min(totalPages, page + 1);
 
-                                    const start = Math.max(1, page - 1);
-                                    const end = Math.min(totalPages, page + 1);
+                                        if (start > 1) {
+                                            visiblePages.push(1);
+                                            if (start > 2) visiblePages.push("...");
+                                        }
 
-                                    if (start > 1) {
-                                        visiblePages.push(1);
-                                        if (start > 2) visiblePages.push("...");
-                                    }
+                                        for (let i = start; i <= end; i++) {
+                                            visiblePages.push(i);
+                                        }
 
-                                    for (let i = start; i <= end; i++) {
-                                        visiblePages.push(i);
-                                    }
+                                        if (end < totalPages) {
+                                            if (end < totalPages - 1) visiblePages.push("...");
+                                            visiblePages.push(totalPages);
+                                        }
 
-                                    if (end < totalPages) {
-                                        if (end < totalPages - 1) visiblePages.push("...");
-                                        visiblePages.push(totalPages);
-                                    }
+                                        return visiblePages.map((p, idx) =>
+                                            p === "..." ? (
+                                                <span
+                                                    key={`e-${idx}`}
+                                                    className="px-1 text-sm text-slate-400"
+                                                >
+                                                    …
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => fetchCotizaciones(p)}
+                                                    className={`h-8 w-8 rounded-lg text-sm font-medium transition ${page === p
+                                                        ? "bg-cyan-600 text-white shadow-sm"
+                                                        : "border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                                                        }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            )
+                                        );
+                                    })()}
 
-                                    return visiblePages.map((p, idx) =>
-                                        p === "..." ? (
-                                            <span
-                                                key={`e-${idx}`}
-                                                className="px-1 text-sm text-slate-400"
-                                            >
-                                                …
-                                            </span>
-                                        ) : (
-                                            <button
-                                                key={p}
-                                                onClick={() => fetchCotizaciones(p)}
-                                                className={`h-8 w-8 rounded-lg text-sm font-medium transition ${page === p
-                                                    ? "bg-cyan-600 text-white shadow-sm"
-                                                    : "border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
-                                                    }`}
-                                            >
-                                                {p}
-                                            </button>
-                                        )
-                                    );
-                                })()}
-
-                                <button
-                                    onClick={() => {
-                                        const next = page + 1;
-                                        setPage(next);
-                                        fetchCotizaciones(next);
-                                    }}
-                                    disabled={page >= totalPages}
-                                    className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    Siguiente →
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            const next = page + 1;
+                                            setPage(next);
+                                            fetchCotizaciones(next);
+                                        }}
+                                        disabled={page >= totalPages}
+                                        className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Siguiente →
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
                 )}
             </div>
 
@@ -2822,7 +2831,7 @@ const Cotizaciones: React.FC = () => {
                     onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
                     onVincularEquipo={handleVincularEquipoAItem}
                     onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
-                        
+
                 />)}
 
             <SelectProductoModal

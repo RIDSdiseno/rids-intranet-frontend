@@ -1,3 +1,4 @@
+// src/components/modals-ticketera/config-tickets/reply-tempates/TicketEmailTemplate.tsx
 import { useEffect, useState } from "react";
 import {
     Card,
@@ -22,6 +23,8 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../../../../api/api";
 import TicketTemplateEditor from "../reply-templates/TemplateEditor";
+
+import { AREA_OPTIONS, getAreaLabel } from "../../../../host/TecnicosPage"
 
 const { Text } = Typography;
 
@@ -847,15 +850,21 @@ export default function TicketEmailTemplatesPage() {
                                                                     }
                                                                 />
 
-                                                                <Input
+                                                                <Select
                                                                     placeholder="Área"
-                                                                    value={signature.area}
-                                                                    onChange={(e) =>
+                                                                    value={signature.area || undefined}
+                                                                    onChange={(value) =>
                                                                         setSignature((prev) => ({
                                                                             ...prev,
-                                                                            area: e.target.value,
+                                                                            area: value,
                                                                         }))
                                                                     }
+                                                                    options={AREA_OPTIONS.map((area) => ({
+                                                                        value: area.value,
+                                                                        label: area.label,
+                                                                    }))}
+                                                                    allowClear
+                                                                    style={{ width: "100%" }}
                                                                 />
 
                                                                 <Input
@@ -971,6 +980,24 @@ export default function TicketEmailTemplatesPage() {
                                                                         value: t.id_tecnico,
                                                                         label: t.nombre,
                                                                     }))}
+                                                                    style={{ width: "100%" }}
+                                                                    popupMatchSelectWidth={false}
+                                                                    dropdownStyle={{
+                                                                        minWidth: 260,
+                                                                        maxWidth: 380,
+                                                                    }}
+                                                                    optionRender={(option) => (
+                                                                        <span
+                                                                            title={String(option.label ?? "")}
+                                                                            style={{
+                                                                                display: "block",
+                                                                                whiteSpace: "normal",
+                                                                                wordBreak: "break-word",
+                                                                            }}
+                                                                        >
+                                                                            {option.label}
+                                                                        </span>
+                                                                    )}
                                                                 />
 
                                                                 <Input
@@ -985,16 +1012,22 @@ export default function TicketEmailTemplatesPage() {
                                                                     disabled={!selectedTecnicoId}
                                                                 />
 
-                                                                <Input
+                                                                <Select
                                                                     placeholder="Área"
-                                                                    value={tecnicoSignature.area || ""}
-                                                                    onChange={(e) =>
+                                                                    value={tecnicoSignature.area || undefined}
+                                                                    onChange={(value) =>
                                                                         setTecnicoSignature((prev) => ({
                                                                             ...prev,
-                                                                            area: e.target.value,
+                                                                            area: value,
                                                                         }))
                                                                     }
+                                                                    options={AREA_OPTIONS.map((area) => ({
+                                                                        value: area.value,
+                                                                        label: area.label,
+                                                                    }))}
                                                                     disabled={!selectedTecnicoId}
+                                                                    allowClear
+                                                                    style={{ width: "100%" }}
                                                                 />
 
                                                                 <Input.TextArea
@@ -1127,7 +1160,7 @@ export default function TicketEmailTemplatesPage() {
                                                                                     </span>
                                                                                     <br />
                                                                                     <span style={{ color: "#555" }}>
-                                                                                        {tecnicoSignature.area || "Sin área"}
+                                                                                        {getAreaLabel(tecnicoSignature.area)}
                                                                                     </span>
                                                                                     <br />
                                                                                     <a

@@ -31,17 +31,17 @@ import { http } from "../../service/http";
 import type { TipoEquipoValue } from "../modals-gestioo/types";
 import { TipoEquipoLabel } from "../modals-gestioo/types";
 
+type EquipoViewTab = "principal" | "historial" | "eventos" | "mantenciones";
+
 type Props = {
     open: boolean;
     row: EquipoRow | null;
     historial: EquipoHistorialItem[];
     histLoading: boolean;
     histError: string | null;
+    initialTab?: EquipoViewTab;
     onClose: () => void;
 };
-
-type EquipoViewTab = "principal" | "historial" | "eventos" | "mantenciones";
-
 const EQUIPO_VIEW_TABS: Array<{
     key: EquipoViewTab;
     label: string;
@@ -235,6 +235,19 @@ function groupHistoryByDate<T extends { createdAt?: string | null }>(items: T[])
     }, {});
 }
 
+function getHistoryActionLabel(action?: string | null) {
+    const labels: Record<string, string> = {
+        CREATE: "CREACIÓN",
+        UPDATE: "ACTUALIZACIÓN",
+        DELETE: "ELIMINACIÓN",
+        REVIEW: "REVISIÓN",
+    };
+
+    const value = String(action ?? "").trim().toUpperCase();
+
+    return labels[value] ?? actionLabels[value] ?? (value || "Movimiento");
+}
+
 function getHistoryActionClass(action?: string | null) {
     if (action === "CREATE") {
         return "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -242,6 +255,10 @@ function getHistoryActionClass(action?: string | null) {
 
     if (action === "UPDATE") {
         return "border-indigo-200 bg-indigo-50 text-indigo-700";
+    }
+
+    if (action === "REVIEW") {
+        return "border-cyan-200 bg-cyan-50 text-cyan-700";
     }
 
     if (action === "DELETE") {
@@ -254,13 +271,17 @@ function getHistoryActionClass(action?: string | null) {
 function getHistoryDotClass(action?: string | null) {
     if (action === "CREATE") return "bg-emerald-500";
     if (action === "UPDATE") return "bg-indigo-500";
+    if (action === "REVIEW") return "bg-cyan-500";
     if (action === "DELETE") return "bg-rose-500";
+
     return "bg-slate-400";
 }
 
 function getHistoryActorLabel(action?: string | null) {
     if (action === "CREATE") return "Creado por:";
+    if (action === "REVIEW") return "Revisado por:";
     if (action === "DELETE") return "Eliminado por:";
+
     return "Actualizado por:";
 }
 
@@ -436,6 +457,7 @@ export default function EquipoViewModal({
     historial,
     histLoading,
     histError,
+    initialTab = "principal",
     onClose,
 }: Props) {
     const [agentLoading, setAgentLoading] = useState(false);
@@ -446,12 +468,13 @@ export default function EquipoViewModal({
     const [mantencionesError, setMantencionesError] = useState<string | null>(null);
     const [mantenciones, setMantenciones] = useState<EquipoMantencion[]>([]);
 
-    const [activeTab, setActiveTab] = useState<EquipoViewTab>("principal");
+    const [activeTab, setActiveTab] =
+        useState<EquipoViewTab>(initialTab);
 
     useEffect(() => {
         if (!open || !row) return;
 
-        setActiveTab("principal");
+        setActiveTab(initialTab);
 
         const idEquipo = row.id_equipo;
         const c = new AbortController();
@@ -510,7 +533,7 @@ export default function EquipoViewModal({
         void fetchMantencionesEquipo();
 
         return () => c.abort();
-    }, [open, row?.id_equipo]);
+    }, [open, row?.id_equipo, initialTab]);
 
     if (!open || !row) return null;
 
@@ -563,7 +586,6 @@ export default function EquipoViewModal({
                             </h3>
 
                             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                                Visualización completa del equipo, agente, software e historial.
                                 Visualización completa del equipo, agente, software e historial.
                             </p>
                         </div>
@@ -1559,8 +1581,7 @@ export default function EquipoViewModal({
                                                                     })
                                                                     : [];
 
-                                                                const actionLabel =
-                                                                    actionLabels[h.action ?? ""] ?? h.action ?? "Movimiento";
+                                                                const actionLabel = getHistoryActionLabel(h.action);
 
                                                                 return (
                                                                     <div
