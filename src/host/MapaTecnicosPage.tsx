@@ -76,7 +76,43 @@ type AgendaMapa = {
 const POLLING_MS = 45_000;
 const MINUTO_MS = 60_000;
 
-type EstadoSenal = "ACTIVO" | "RECIENTE" | "SIN_SEÑAL";
+type EstadoSenal = "ACTIVO" | "RECIENTE" | "SIN_SEÑAL" | "FUERA_JORNADA";
+
+// Umbrales de vitalidad. La app movil late cada 3 minutos mientras esta en
+// pantalla, pero cuando queda en segundo plano iOS solo entrega ubicaciones si
+// el tecnico se mueve: dentro de un edificio, en una reunion o almorzando no
+// se genera un punto durante un buen rato aunque todo funcione. Por eso
+// ACTIVO da margen sobre el latido y RECIENTE cubre una visita en sitio; solo
+// despues de 45 minutos se considera que realmente dejo de reportar.
+const MINUTOS_ACTIVO = 10;
+const MINUTOS_RECIENTE = 45;
+
+// Jornada laboral (hora de Chile), la misma que respeta la app movil:
+//   Lunes a viernes 08:00 - 18:30 · Sabado 08:30 - 14:00 · Domingo sin jornada
+const JORNADA = {
+  LUN_VIE: { inicio: 8 * 60, fin: 18 * 60 + 30 },
+  SABADO: { inicio: 8 * 60 + 30, fin: 14 * 60 },
+};
+
+function dentroDeJornada(date = new Date()) {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Santiago",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const weekday = partes.find((p) => p.type === "weekday")?.value ?? "";
+  const horaRaw = Number(partes.find((p) => p.type === "hour")?.value ?? "0");
+  const hora = horaRaw === 24 ? 0 : horaRaw;
+  const minuto = Number(partes.find((p) => p.type === "minute")?.value ?? "0");
+  const minutos = hora * 60 + minuto;
+
+  if (weekday === "Sun") return false;
+  if (weekday === "Sat") return minutos >= JORNADA.SABADO.inicio && minutos <= JORNADA.SABADO.fin;
+  return minutos >= JORNADA.LUN_VIE.inicio && minutos <= JORNADA.LUN_VIE.fin;
+}
 
 function getDiffMinutes(value?: string | null) {
   if (!value) return Number.POSITIVE_INFINITY;
@@ -88,13 +124,23 @@ function getDiffMinutes(value?: string | null) {
 function getEstadoSenal(value?: string | null): EstadoSenal {
   const minutes = getDiffMinutes(value);
 
-  if (minutes <= 5) return "ACTIVO";
-  if (minutes <= 15) return "RECIENTE";
+  if (minutes <= MINUTOS_ACTIVO) return "ACTIVO";
+  if (minutes <= MINUTOS_RECIENTE) return "RECIENTE";
+  // Fuera del horario laboral la app deja de registrar a proposito, asi que
+  // una ubicacion antigua no es una falla: no se pinta como alerta.
+  if (!dentroDeJornada()) return "FUERA_JORNADA";
   return "SIN_SEÑAL";
 }
 
+const SENAL_LABELS: Record<EstadoSenal, string> = {
+  ACTIVO: "ACTIVO",
+  RECIENTE: "RECIENTE",
+  SIN_SEÑAL: "SIN REPORTE",
+  FUERA_JORNADA: "FUERA DE JORNADA",
+};
+
 function getSenalLabel(value?: string | null) {
-  return getEstadoSenal(value).replace("_", " ");
+  return SENAL_LABELS[getEstadoSenal(value)];
 }
 
 function getSenalColor(value?: string | null) {
@@ -106,6 +152,10 @@ function getSenalColor(value?: string | null) {
 
   if (estado === "RECIENTE") {
     return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (estado === "FUERA_JORNADA") {
+    return "border-slate-200 bg-slate-50 text-slate-600";
   }
 
   return "border-rose-200 bg-rose-50 text-rose-700";
@@ -196,6 +246,7 @@ const SENAL_COLORS: Record<EstadoSenal, string> = {
   ACTIVO: "#059669",
   RECIENTE: "#d97706",
   SIN_SEÑAL: "#e11d48",
+  FUERA_JORNADA: "#94a3b8",
 };
 
 // Colores de "estado de agenda" para destinos: deliberadamente distintos de SENAL_COLORS
@@ -527,6 +578,7 @@ function ordenarPorSenalYFecha(items: UbicacionTecnico[]) {
     ACTIVO: 0,
     RECIENTE: 1,
     SIN_SEÑAL: 2,
+    FUERA_JORNADA: 3,
   };
 
   return [...items].sort((a, b) => {
@@ -868,7 +920,7 @@ export default function MapaTecnicosPage() {
                 Mapa de técnicos
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Última ubicación conocida enviada por la app móvil en ruta o jornada.
+                Última ubicación conocida enviada por la app móvil en ruta o jornada. Activo hasta 10 min, reciente hasta 45 min.
               </p>
             </div>
 
@@ -902,7 +954,7 @@ export default function MapaTecnicosPage() {
               </div>
               <div className="rounded-2xl border border-rose-100 bg-rose-50/80 p-4 shadow-sm backdrop-blur-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Sin señal</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Sin reporte</span>
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
                     <WifiOff size={14} />
                   </span>
@@ -1213,7 +1265,14 @@ export default function MapaTecnicosPage() {
                         className="h-2 w-2 rounded-full"
                         style={{ background: SENAL_COLORS.SIN_SEÑAL }}
                       />
-                      Sin señal
+                      Sin reporte
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: SENAL_COLORS.FUERA_JORNADA }}
+                      />
+                      Fuera de jornada
                     </span>
                   </div>
                 </div>
