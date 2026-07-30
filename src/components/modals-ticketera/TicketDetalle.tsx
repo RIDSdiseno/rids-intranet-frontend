@@ -78,11 +78,18 @@ type TicketDetail = {
         cc: string[];
     };
     sla?: {
+        // Indica que el SLA está pausado, por ejemplo cuando el ticket está en PENDING.
+        paused?: boolean;
+
+        // Indica que el SLA aún no inicia porque el ticket no tiene técnico asignado.
+        waitingAssignment?: boolean;
+
         firstResponse?: {
             dueAt?: string;
             at?: string | null;
             status?: "PENDING" | "OK" | "BREACHED";
         };
+
         resolution?: {
             dueAt?: string;
             at?: string | null;
@@ -166,6 +173,14 @@ function slaLabel(status?: string) {
         default:
             return "N/A";
     }
+}
+
+// Fuerza la actualización inmediata de la campana global de recordatorios.
+// Se usa cuando el detalle cambia el estado del ticket.
+function actualizarCampanaRecordatorios() {
+    window.dispatchEvent(
+        new Event("recordatorios:actualizar")
+    );
 }
 
 type LiveSlaStatus = "PENDING" | "OK" | "BREACHED";
@@ -744,6 +759,19 @@ Soporte Técnico`
 
             message.success("Ticket actualizado");
 
+            /*
+             * Si el cambio de estado crea o cancela recordatorios automáticos,
+             * refrescamos la campana global inmediatamente.
+             */
+            if (
+                payload.status === "PENDING" ||
+                payload.status === "OPEN" ||
+                payload.status === "CLOSED" ||
+                payload.status === "RESOLVED"
+            ) {
+                actualizarCampanaRecordatorios();
+            }
+
             if (payload.status === "CLOSED") {
                 navigate(`/helpdesk${location.search}`, { replace: true });
                 return;
@@ -944,15 +972,23 @@ Soporte Técnico`
         now
     );
 
-    const firstResponseRemainingText = getSlaRemainingText(
-        ticketDetalle?.sla?.firstResponse,
-        now
-    );
+    const slaPaused = Boolean(ticketDetalle?.sla?.paused);
 
-    const resolutionRemainingText = getSlaRemainingText(
-        ticketDetalle?.sla?.resolution,
-        now
-    );
+    const firstResponseRemainingText =
+        slaPaused && !ticketDetalle?.sla?.firstResponse?.at
+            ? "Pausado mientras el ticket esté pendiente"
+            : getSlaRemainingText(
+                ticketDetalle?.sla?.firstResponse,
+                now
+            );
+
+    const resolutionRemainingText =
+        slaPaused && !ticketDetalle?.sla?.resolution?.at
+            ? "Pausado mientras el ticket esté pendiente"
+            : getSlaRemainingText(
+                ticketDetalle?.sla?.resolution,
+                now
+            );
 
     const lastActivityBy = lastMessage?.isInternal
         ? "internal"
@@ -1606,7 +1642,24 @@ Soporte Técnico`
                             {/* SLA — solo para internos */}
                             {!isCliente && ticketDetalle.sla && (
                                 <div className="rounded-2xl bg-white border border-gray-200 p-4 shadow-sm">
-                                    <div className="font-semibold text-sm text-gray-800 mb-3">SLA</div>
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <div className="font-semibold text-sm text-gray-800">
+                                            SLA
+                                        </div>
+
+                                        {ticketDetalle.sla.paused && (
+                                            <Tag color="purple" className="m-0">
+                                                Pausado
+                                            </Tag>
+                                        )}
+                                    </div>
+
+                                    {ticketDetalle.sla.paused && (
+                                        <div className="mb-3 rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-xs text-purple-700">
+                                            SLA pausado mientras el ticket permanezca en estado pendiente.
+                                        </div>
+                                    )}
+
                                     <div className="flex h-full min-h-0 flex-col gap-3">
                                         <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                                             <div>
@@ -1624,11 +1677,13 @@ Soporte Técnico`
                                                 </div>
 
                                                 <div
-                                                    className={`mt-1 text-xs font-medium ${firstResponseSlaStatus === "BREACHED"
-                                                        ? "text-red-600"
-                                                        : firstResponseSlaStatus === "OK"
-                                                            ? "text-green-600"
-                                                            : "text-amber-600"
+                                                    className={`mt-1 text-xs font-medium ${ticketDetalle.sla?.paused && !ticketDetalle.sla.firstResponse?.at
+                                                        ? "text-purple-600"
+                                                        : firstResponseSlaStatus === "BREACHED"
+                                                            ? "text-red-600"
+                                                            : firstResponseSlaStatus === "OK"
+                                                                ? "text-green-600"
+                                                                : "text-amber-600"
                                                         }`}
                                                 >
                                                     {firstResponseRemainingText}
@@ -1659,11 +1714,13 @@ Soporte Técnico`
                                                 </div>
 
                                                 <div
-                                                    className={`mt-1 text-xs font-medium ${resolutionSlaStatus === "BREACHED"
-                                                        ? "text-red-600"
-                                                        : resolutionSlaStatus === "OK"
-                                                            ? "text-green-600"
-                                                            : "text-amber-600"
+                                                    className={`mt-1 text-xs font-medium ${ticketDetalle.sla?.paused && !ticketDetalle.sla.resolution?.at
+                                                        ? "text-purple-600"
+                                                        : resolutionSlaStatus === "BREACHED"
+                                                            ? "text-red-600"
+                                                            : resolutionSlaStatus === "OK"
+                                                                ? "text-green-600"
+                                                                : "text-amber-600"
                                                         }`}
                                                 >
                                                     {resolutionRemainingText}

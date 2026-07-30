@@ -70,6 +70,7 @@ type TicketSla = {
         status: "PENDING" | "OK" | "BREACHED";
         remainingMinutes?: number | null;
     };
+    paused?: boolean;
 };
 
 type Ticket = {
@@ -222,6 +223,14 @@ function getLiveRemainingMinutes(
     }
 
     return Math.ceil((dueTime - now) / 60_000);
+}
+
+// Fuerza la actualización inmediata de la campana global de recordatorios.
+// Esto evita esperar los 60 segundos del polling automático.
+function actualizarCampanaRecordatorios() {
+    window.dispatchEvent(
+        new Event("recordatorios:actualizar")
+    );
 }
 
 function formatRemainingSla(minutes: number | null): string {
@@ -821,6 +830,7 @@ export default function TicketeraRids() {
                 ignoreNextSocketReload.current = false;
                 return;
             }
+
             notification.warning({
                 message: "Nueva respuesta del solicitante",
                 description: payload?.subject
@@ -829,6 +839,13 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
+
+            /*
+             * Refresca la campana para mostrar el recordatorio
+             * generado por la respuesta del solicitante.
+             */
+            actualizarCampanaRecordatorios();
+
             void loadTicketsRef.current();
 
             const currentView = socketViewConfigRef.current;
@@ -845,8 +862,38 @@ export default function TicketeraRids() {
                 ignoreNextSocketReload.current = false;
                 return;
             }
+
             const newStatusLabel =
                 STATUS_LABELS[payload?.newStatus] || payload?.newStatus || "Actualizado";
+
+            if (payload?.newStatus === "PENDING") {
+                notification.warning({
+                    message: "Ticket marcado como pendiente",
+                    description: payload?.subject
+                        ? `#${payload.ticketId ?? payload.id ?? ""} - ${payload.subject}. El SLA quedó pausado.`
+                        : `El ticket #${payload?.ticketId ?? payload?.id ?? ""} quedó pendiente y el SLA fue pausado.`,
+                    placement: "topRight",
+                    duration: 6,
+                });
+
+                /*
+                 * Refresca la campana porque el backend pudo crear
+                 * un recordatorio automático al pasar a PENDING.
+                 */
+                actualizarCampanaRecordatorios();
+
+                void loadTicketsRef.current();
+
+                const currentView = socketViewConfigRef.current;
+
+                if (!currentView.isCliente) {
+                    void loadSlaRef.current({
+                        silent: true,
+                    });
+                }
+
+                return;
+            }
             notification.success({
                 message: "Estado actualizado",
                 description: payload?.subject
@@ -855,6 +902,7 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
+
             void loadTicketsRef.current();
 
             const currentView = socketViewConfigRef.current;
@@ -1117,6 +1165,9 @@ export default function TicketeraRids() {
 
             setSelectedTickets([]);
 
+            // Actualiza la campana para quitar recordatorios cancelados.
+            actualizarCampanaRecordatorios();
+
             await loadTickets();
 
             if (!isCliente && showResumen) {
@@ -1140,10 +1191,13 @@ export default function TicketeraRids() {
             });
 
             message.success(
-                "Tickets marcados como pendientes correctamente"
+                "Tickets marcados como pendientes. Se crearon recordatorios automáticos."
             );
 
             setSelectedTickets([]);
+
+            // Actualiza la campana para mostrar los nuevos recordatorios.
+            actualizarCampanaRecordatorios();
 
             await loadTickets();
 
@@ -1166,7 +1220,12 @@ export default function TicketeraRids() {
                 status: "PENDING",
             });
 
-            message.success("Ticket marcado como pendiente");
+            message.success(
+                "Ticket marcado como pendiente. Se creó un recordatorio automático."
+            );
+
+            // Actualiza la campana para mostrar el nuevo recordatorio sin esperar el polling.
+            actualizarCampanaRecordatorios();
 
             await loadTickets();
 
@@ -1200,6 +1259,10 @@ export default function TicketeraRids() {
             });
 
             message.success("Ticket cerrado correctamente");
+
+            // Si el ticket tenía recordatorio automático por PENDING,
+            // la campana se actualiza para quitarlo.
+            actualizarCampanaRecordatorios();
 
             await loadTickets();
 
@@ -1921,6 +1984,12 @@ export default function TicketeraRids() {
                                                                     </Tag>
                                                                 ) : (
                                                                     <>
+                                                                        {ticket.sla?.paused && (
+                                                                            <Tag color="purple" className="m-0">
+                                                                                SLA pausado: pendiente
+                                                                            </Tag>
+                                                                        )}
+
                                                                         {ticket.sla?.firstResponse && (
                                                                             <Tag
                                                                                 color={slaColor(firstResponseStatus)}
@@ -1928,7 +1997,9 @@ export default function TicketeraRids() {
                                                                             >
                                                                                 1ra resp: {slaLabel(firstResponseStatus)}
                                                                                 {!ticket.sla.firstResponse.at &&
-                                                                                    formatRemainingSla(firstResponseRemaining)}
+                                                                                    (ticket.sla.paused
+                                                                                        ? " · pausado"
+                                                                                        : formatRemainingSla(firstResponseRemaining))}
                                                                             </Tag>
                                                                         )}
 
@@ -1939,7 +2010,9 @@ export default function TicketeraRids() {
                                                                             >
                                                                                 Cierre: {slaLabel(resolutionStatus)}
                                                                                 {!ticket.sla.resolution.at &&
-                                                                                    formatRemainingSla(resolutionRemaining)}
+                                                                                    (ticket.sla.paused
+                                                                                        ? " · pausado"
+                                                                                        : formatRemainingSla(resolutionRemaining))}
                                                                             </Tag>
                                                                         )}
                                                                     </>

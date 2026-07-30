@@ -30,7 +30,9 @@ import {
   Mails,
   Receipt,
   BriefcaseBusiness,
-  Funnel
+  ChartNetwork,
+  Funnel,
+  Cog
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -49,6 +51,7 @@ const MANTENCIONES_REMOTAS_PATH = "/mantenciones-remotas";
 const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
 const MANTENCIONES_GENERALES_PATH = "/mantenciones-generales";
+const DASHBOARD_AGENTES_PATH = "/dashboard-agentes";
 const ORDENESTALLER = "/ordenes-taller";
 const COTIZACIONES = "/Cotizaciones";
 const MAILER_PATH = "/rids/mailer";
@@ -82,7 +85,7 @@ type NavSubmenuItem = {
 
 type NavItem = NavLinkItem | NavSubmenuItem;
 
-type NavLink = NavItem & {
+type NavLink = NavLinkItem & {
   type: "link";
   match: string[];
 };
@@ -95,6 +98,16 @@ type NavGroup = {
 };
 
 type NavEntry = NavLink | NavGroup;
+
+/*
+ * Permite que TypeScript distinga correctamente entre
+ * un enlace normal y un elemento que contiene un submenú.
+ */
+function isNavLinkItem(
+  item: NavItem
+): item is NavLinkItem {
+  return item.type !== "submenu";
+}
 
 type StoredUser = {
   nombre?: string;
@@ -123,10 +136,34 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "Técnicos y Visitas",
     items: [
-      { label: "Clientes Externos", to: CLIENTES_EXT_PATH, icon: <Handshake size={20} /> },
-      { label: "Técnicos", to: TECNICOS_PATH, icon: <UserCog size={20} /> },
-      { label: "Bitácora Técnico", to: BITACORA_TECNICO_PATH, icon: <FileText size={20} /> },
-      { label: "Mapa técnicos", to: MAPA_TECNICOS_PATH, icon: <MapPin size={20} /> },
+      {
+        type: "submenu",
+        id: "gestion-tecnica",
+        label: "Gestión Técnicos",
+        icon: <Cog size={20} />,
+        match: [
+          TECNICOS_PATH,
+          BITACORA_TECNICO_PATH,
+          MAPA_TECNICOS_PATH,
+        ],
+        children: [
+          {
+            label: "Listado Técnicos",
+            to: TECNICOS_PATH,
+            icon: <UserCog size={18} />,
+          },
+          {
+            label: "Bitácora Técnico",
+            to: BITACORA_TECNICO_PATH,
+            icon: <FileText size={18} />,
+          },
+          {
+            label: "Mapa técnicos",
+            to: MAPA_TECNICOS_PATH,
+            icon: <MapPin size={18} />,
+          },
+        ],
+      },
       {
         type: "submenu",
         id: "visitas",
@@ -167,6 +204,7 @@ const NAV: NavEntry[] = [
         match: [
           EQUIPOS_PATH,
           MANTENCIONES_GENERALES_PATH,
+          DASHBOARD_AGENTES_PATH
         ],
         children: [
           {
@@ -179,14 +217,19 @@ const NAV: NavEntry[] = [
             to: MANTENCIONES_GENERALES_PATH,
             icon: <Wrench size={18} />,
           },
+          {
+            label: "Dashboard Script",
+            to: DASHBOARD_AGENTES_PATH,
+            icon: <ChartNetwork size={18} />,
+          },
         ],
       },
       { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
-      { label: "Mailer", to: MAILER_PATH, icon: <Mails size={20} /> },
+      { label: "Mailer Masivo", to: MAILER_PATH, icon: <Mails size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_GENERALES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
@@ -208,7 +251,7 @@ const NAV: NavEntry[] = [
 
   {
     type: "group",
-    label: "Finanzas",
+    label: "Administración Finanzas",
     items: [
       { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
       { label: "Conciliación", to: CONCILIACION_PATH, icon: <Handshake size={20} /> },
@@ -218,7 +261,7 @@ const NAV: NavEntry[] = [
   },
   {
     type: "group",
-    label: "Administración",
+    label: "Administración Oportunidades",
     items: [{ label: "Funnel", to: "/funnel", icon: <Funnel size={20} /> }],
     match: ["/funnel"],
   },
@@ -253,10 +296,20 @@ const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  /*
+ * Controla qué grupos principales del sidebar están desplegados.
+ * Por defecto, todos permanecen cerrados excepto el grupo
+ * correspondiente a la ruta actual.
+ */
+  const [openGroups, setOpenGroups] = useState<
+    Record<string, boolean>
+  >({});
+
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     inventario:
       isActivePath(pathname, EQUIPOS_PATH) ||
-      isActivePath(pathname, MANTENCIONES_GENERALES_PATH),
+      isActivePath(pathname, MANTENCIONES_GENERALES_PATH) ||
+      isActivePath(pathname, DASHBOARD_AGENTES_PATH),
 
     visitas:
       isActivePath(pathname, CALENDARIO_PATH) ||
@@ -270,7 +323,8 @@ const Header = () => {
       inventario:
         current.inventario ||
         isActivePath(pathname, EQUIPOS_PATH) ||
-        isActivePath(pathname, MANTENCIONES_GENERALES_PATH),
+        isActivePath(pathname, MANTENCIONES_GENERALES_PATH) ||
+        isActivePath(pathname, DASHBOARD_AGENTES_PATH),
 
       visitas:
         current.visitas ||
@@ -342,15 +396,40 @@ const Header = () => {
   const filteredNav: NavEntry[] = useMemo(() => {
     const nav = NAV
       .map((entry): NavEntry | null => {
-        if (entry.type === "group" && entry.label === "Finanzas") {
-          const items = entry.items.filter((item) => {
-            if (item.to === FACTURAS_BASEAPI_PATH) return canAccessFacturas;
-            if (item.to === CONCILIACION_PATH) return canAccessConciliacion;
-            if (item.to === COBRANZA_PATH) return canAccessCobranza;
-            return true;
-          });
+        if (
+          entry.type === "group" &&
+          entry.label === "Finanzas"
+        ) {
+          /*
+           * Finanzas contiene solamente enlaces normales.
+           * El predicado también informa a TypeScript que
+           * el resultado será NavLinkItem[].
+           */
+          const items = entry.items.filter(
+            (item): item is NavLinkItem => {
+              if (!isNavLinkItem(item)) {
+                return false;
+              }
 
-          if (items.length === 0) return null;
+              if (item.to === FACTURAS_BASEAPI_PATH) {
+                return canAccessFacturas;
+              }
+
+              if (item.to === CONCILIACION_PATH) {
+                return canAccessConciliacion;
+              }
+
+              if (item.to === COBRANZA_PATH) {
+                return canAccessCobranza;
+              }
+
+              return true;
+            }
+          );
+
+          if (items.length === 0) {
+            return null;
+          }
 
           return {
             ...entry,
@@ -364,10 +443,16 @@ const Header = () => {
           entry.label === "Técnicos y Visitas"
         ) {
           const items = entry.items.filter((item) => {
-            if (item.type === "submenu") {
+            /*
+             * Los submenús se conservan.
+             */
+            if (!isNavLinkItem(item)) {
               return true;
             }
 
+            /*
+             * Desde este punto TypeScript sabe que item tiene "to".
+             */
             if (item.to === TECNICOS_PATH) {
               return canAccessTecnicos;
             }
@@ -387,20 +472,39 @@ const Header = () => {
             ...entry,
             items,
             match: items.flatMap((item) =>
-              item.type === "submenu"
-                ? item.match
-                : [item.to]
+              isNavLinkItem(item)
+                ? [item.to]
+                : item.match
             ),
           };
         }
 
-        if (entry.type === "group" && entry.label === "Administración") {
-          const items = entry.items.filter((item) => {
-            if (item.to === "/funnel") return canAccessFunnel;
-            return true;
-          });
+        if (
+          entry.type === "group" &&
+          entry.label === "Administración"
+        ) {
+          const items = entry.items.filter(
+            (item): item is NavLinkItem => {
+              /*
+               * Administración contiene enlaces directos.
+               * Se descartan posibles submenús para que TypeScript
+               * sepa que todos los elementos restantes tienen "to".
+               */
+              if (!isNavLinkItem(item)) {
+                return false;
+              }
 
-          if (items.length === 0) return null;
+              if (item.to === "/funnel") {
+                return canAccessFunnel;
+              }
+
+              return true;
+            }
+          );
+
+          if (items.length === 0) {
+            return null;
+          }
 
           return {
             ...entry,
@@ -463,6 +567,32 @@ const Header = () => {
     canAccessConciliacion,
     canAccessFunnel,
   ]);
+
+  /*
+ * Cuando cambia la ruta, abre automáticamente el grupo
+ * que contiene la página actual.
+ */
+  useEffect(() => {
+    setOpenGroups((current) => {
+      const next = { ...current };
+
+      filteredNav.forEach((entry) => {
+        if (entry.type !== "group") {
+          return;
+        }
+
+        const isGroupActive = entry.match.some((path) =>
+          isActivePath(pathname, path)
+        );
+
+        if (isGroupActive) {
+          next[entry.label] = true;
+        }
+      });
+
+      return next;
+    });
+  }, [pathname, filteredNav]);
 
   const handleLogout = async () => {
     try {
@@ -551,178 +681,343 @@ const Header = () => {
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-4 sm:py-6 space-y-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400">
-          {filteredNav.map((entry) =>
-            entry.type === "link" ? (
-              <Link
-                key={entry.label}
-                to={entry.to}
-                className={
-                  `relative flex items-center gap-4 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 group
-                  ${pathname === entry.to
-                    ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                    : "text-slate-700 hover:bg-slate-100"
-                  } ${sidebarCollapsed ? "justify-center" : ""}`
-                }
-                title={sidebarCollapsed ? entry.label : undefined}
-              >
-                <span className="shrink-0">{entry.icon}</span>
-                {!sidebarCollapsed && <span>{entry.label}</span>}
-                {sidebarCollapsed && (
-                  <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                    {entry.label}
+        <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 sm:py-6">
+          {filteredNav.map((entry) => {
+            /*
+             * Enlace principal independiente, como Inicio.
+             */
+            if (entry.type === "link") {
+              const active = isActivePath(
+                pathname,
+                entry.to
+              );
+
+              return (
+                <Link
+                  key={entry.label}
+                  to={entry.to}
+                  className={`
+            group relative flex items-center gap-4 rounded-xl px-3 py-2.5
+            transition-all duration-200
+            ${active
+                      ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
+                      : "text-slate-700 hover:bg-slate-100"
+                    }
+            ${sidebarCollapsed ? "justify-center" : ""}
+          `}
+                  title={
+                    sidebarCollapsed
+                      ? entry.label
+                      : undefined
+                  }
+                >
+                  <span className="shrink-0">
+                    {entry.icon}
                   </span>
-                )}
-              </Link>
-            ) : (
-              <div key={entry.label} className="space-y-1">
+
+                  {!sidebarCollapsed && (
+                    <span>{entry.label}</span>
+                  )}
+
+                  {sidebarCollapsed && (
+                    <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                      {entry.label}
+                    </span>
+                  )}
+                </Link>
+              );
+            }
+
+            /*
+             * Grupo principal del sidebar.
+             */
+            const groupActive = entry.match.some(
+              (path) =>
+                isActivePath(pathname, path)
+            );
+
+            const groupOpen =
+              openGroups[entry.label] ??
+              groupActive;
+
+            /*
+             * Cuando el sidebar está colapsado, los enlaces se mantienen
+             * visibles mediante sus iconos. Cuando está expandido,
+             * dependen del estado desplegado/cerrado del grupo.
+             */
+            const showGroupItems =
+              sidebarCollapsed || groupOpen;
+
+            return (
+              <div
+                key={entry.label}
+                className="space-y-1"
+              >
+                {/* Encabezado desplegable del grupo */}
                 {!sidebarCollapsed && (
-                  <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {entry.label}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenGroups((current) => ({
+                        ...current,
+                        [entry.label]:
+                          !(current[entry.label] ??
+                            groupActive),
+                      }));
+                    }}
+                    className={`
+              flex w-full items-center justify-between gap-3 rounded-xl
+              px-3 py-2 text-left transition-colors
+              ${groupActive
+                        ? "bg-cyan-50/70 text-cyan-700"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      }
+            `}
+                    aria-expanded={groupOpen}
+                  >
+                    <span className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider">
+                      {entry.label}
+                    </span>
+
+                    <ChevronDown
+                      size={15}
+                      className={`
+                shrink-0 transition-transform duration-200
+                ${groupOpen ? "rotate-180" : ""}
+              `}
+                    />
+                  </button>
                 )}
-                {entry.items.map((it) => {
-                  if (it.type === "submenu") {
-                    const submenuActive = it.match.some((path) =>
-                      isActivePath(pathname, path)
-                    );
 
-                    const submenuOpen =
-                      openSubmenus[it.id] ?? submenuActive;
+                {/* Elementos internos del grupo */}
+                {showGroupItems && (
+                  <div
+                    className={`
+              space-y-1
+              ${!sidebarCollapsed
+                        ? "animate-in fade-in slide-in-from-top-1 duration-200"
+                        : ""
+                      }
+            `}
+                  >
+                    {entry.items.map((it) => {
+                      /*
+                       * Submenú interno, como Inventario o Visitas.
+                       */
+                      if (it.type === "submenu") {
+                        const submenuActive =
+                          it.match.some((path) =>
+                            isActivePath(
+                              pathname,
+                              path
+                            )
+                          );
 
-                    return (
-                      <div
-                        key={it.label}
-                        className="space-y-1"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenSubmenus((current) => ({
-                              ...current,
-                              [it.id]: !(current[it.id] ?? submenuActive),
-                            }));
-                          }}
+                        const submenuOpen =
+                          openSubmenus[it.id] ??
+                          submenuActive;
+
+                        return (
+                          <div
+                            key={it.id}
+                            className="space-y-1"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                /*
+                                 * Cuando el sidebar está colapsado,
+                                 * lo expande primero para poder mostrar
+                                 * correctamente los hijos.
+                                 */
+                                if (sidebarCollapsed) {
+                                  setCollapsed(false);
+
+                                  setOpenGroups(
+                                    (current) => ({
+                                      ...current,
+                                      [entry.label]:
+                                        true,
+                                    })
+                                  );
+
+                                  setOpenSubmenus(
+                                    (current) => ({
+                                      ...current,
+                                      [it.id]: true,
+                                    })
+                                  );
+
+                                  return;
+                                }
+
+                                setOpenSubmenus(
+                                  (current) => ({
+                                    ...current,
+                                    [it.id]:
+                                      !(
+                                        current[
+                                        it.id
+                                        ] ??
+                                        submenuActive
+                                      ),
+                                  })
+                                );
+                              }}
+                              className={`
+                        group relative flex w-full items-center gap-4 rounded-lg
+                        px-3 py-2.5 transition-all duration-200
+                        ${submenuActive
+                                  ? "font-medium text-cyan-700"
+                                  : "text-slate-600 hover:bg-slate-100"
+                                }
+                        ${sidebarCollapsed
+                                  ? "justify-center"
+                                  : "pl-6"
+                                }
+                      `}
+                              title={
+                                sidebarCollapsed
+                                  ? it.label
+                                  : undefined
+                              }
+                              aria-expanded={
+                                submenuOpen
+                              }
+                            >
+                              <span className="shrink-0">
+                                {it.icon}
+                              </span>
+
+                              {!sidebarCollapsed && (
+                                <>
+                                  <span className="min-w-0 flex-1 truncate text-left">
+                                    {it.label}
+                                  </span>
+
+                                  <ChevronDown
+                                    size={16}
+                                    className={`
+                              shrink-0 transition-transform duration-200
+                              ${submenuOpen
+                                        ? "rotate-180"
+                                        : ""
+                                      }
+                            `}
+                                  />
+                                </>
+                              )}
+
+                              {sidebarCollapsed && (
+                                <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                                  {it.label}
+                                </span>
+                              )}
+                            </button>
+
+                            {!sidebarCollapsed &&
+                              submenuOpen && (
+                                <div className="ml-8 space-y-1 border-l border-slate-200 pl-2">
+                                  {it.children.map(
+                                    (child) => {
+                                      const childActive =
+                                        isActivePath(
+                                          pathname,
+                                          child.to
+                                        );
+
+                                      return (
+                                        <Link
+                                          key={
+                                            child.to
+                                          }
+                                          to={
+                                            child.to
+                                          }
+                                          className={`
+                                    flex min-w-0 items-center gap-2.5 rounded-lg
+                                    px-2.5 py-2 text-sm transition-all duration-200
+                                    ${childActive
+                                              ? "bg-cyan-50 font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-100"
+                                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                            }
+                                  `}
+                                        >
+                                          <span className="shrink-0">
+                                            {
+                                              child.icon
+                                            }
+                                          </span>
+
+                                          <span className="min-w-0 truncate leading-5">
+                                            {
+                                              child.label
+                                            }
+                                          </span>
+                                        </Link>
+                                      );
+                                    }
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        );
+                      }
+
+                      /*
+                       * Enlace normal dentro de un grupo.
+                       */
+                      const itemActive =
+                        isActivePath(
+                          pathname,
+                          it.to
+                        );
+
+                      return (
+                        <Link
+                          key={it.to}
+                          to={it.to}
                           className={`
-            relative flex w-full items-center gap-4 rounded-lg px-3 py-2.5
-            transition-all duration-200 group
-            ${submenuActive
-                              ? "text-cyan-700 font-medium"
+                    group relative flex items-center gap-4 rounded-lg
+                    px-3 py-2.5 transition-all duration-200
+                    ${itemActive
+                              ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
                               : "text-slate-600 hover:bg-slate-100"
                             }
-            ${sidebarCollapsed ? "justify-center" : "pl-6"}
-          `}
+                    ${sidebarCollapsed
+                              ? "justify-center"
+                              : "pl-6"
+                            }
+                  `}
                           title={
                             sidebarCollapsed
                               ? it.label
                               : undefined
                           }
-                          aria-expanded={submenuOpen}
                         >
                           <span className="shrink-0">
                             {it.icon}
                           </span>
 
                           {!sidebarCollapsed && (
-                            <>
-                              <span className="min-w-0 flex-1 text-left">
-                                {it.label}
-                              </span>
-
-                              <ChevronDown
-                                size={16}
-                                className={`
-                  shrink-0 transition-transform duration-200
-                  ${submenuOpen
-                                    ? "rotate-180"
-                                    : ""
-                                  }
-                `}
-                              />
-                            </>
-                          )}
-
-                          {sidebarCollapsed && (
-                            <span className="absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 pointer-events-none group-hover:opacity-100">
+                            <span className="min-w-0 truncate">
                               {it.label}
                             </span>
                           )}
-                        </button>
 
-                        {!sidebarCollapsed && submenuOpen && (
-                          <div className="ml-8 space-y-1 border-l border-slate-200 pl-2">
-                            {it.children.map((child) => {
-                              const childActive =
-                                isActivePath(pathname, child.to);
-
-                              return (
-                                <Link
-                                  key={child.to}
-                                  to={child.to}
-                                  className={`
-  flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm
-  transition-all duration-200
-  ${childActive
-                                      ? "bg-cyan-50 font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-100"
-                                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                    }
-`}
-                                >
-                                  <span className="shrink-0">
-                                    {child.icon}
-                                  </span>
-
-                                  <span className="min-w-0 leading-5">
-                                    {child.label}
-                                  </span>
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={it.label}
-                      to={it.to}
-                      className={`
-        relative flex items-center gap-4 px-3 py-2.5 rounded-lg
-        transition-all duration-200 group
-        ${pathname === it.to
-                          ? "bg-cyan-50 text-cyan-700 font-medium before:absolute before:inset-y-2 before:-left-2 before:w-1 before:bg-cyan-500 before:rounded-r"
-                          : "text-slate-600 hover:bg-slate-100"
-                        }
-        ${sidebarCollapsed ? "justify-center" : "pl-6"}
-      `}
-                      title={
-                        sidebarCollapsed
-                          ? it.label
-                          : undefined
-                      }
-                    >
-                      <span className="shrink-0">
-                        {it.icon}
-                      </span>
-
-                      {!sidebarCollapsed && (
-                        <span>{it.label}</span>
-                      )}
-
-                      {sidebarCollapsed && (
-                        <span className="absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 pointer-events-none group-hover:opacity-100">
-                          {it.label}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
+                          {sidebarCollapsed && (
+                            <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                              {it.label}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )
-          )}
+            );
+          })}
         </nav>
 
         <div className="border-t p-4 space-y-3">

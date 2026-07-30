@@ -54,15 +54,27 @@ export type TicketEvent = {
 };
 
 export type TicketSla = {
+    // Indica que el SLA está pausado por alguna condición,
+    // por ejemplo cuando el ticket está en estado PENDING.
+    paused?: boolean;
+
+    // Indica que el SLA no ha iniciado porque el ticket aún no tiene asignado.
+    waitingAssignment?: boolean;
+
     firstResponse?: {
-        dueAt?: string;
+        dueAt?: string | null;
         at?: string | null;
         status?: SlaStatus;
+        elapsedMinutes?: number | null;
+        remainingMinutes?: number | null;
     };
+
     resolution?: {
-        dueAt?: string;
+        dueAt?: string | null;
         at?: string | null;
         status?: SlaStatus;
+        elapsedMinutes?: number | null;
+        remainingMinutes?: number | null;
     };
 };
 
