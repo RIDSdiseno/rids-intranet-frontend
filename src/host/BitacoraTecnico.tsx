@@ -5,12 +5,14 @@ import { api } from "../api/api";
 import {
     EditOutlined,
     DeleteOutlined,
-    ReloadOutlined,
     FileTextOutlined,
     CalendarOutlined,
-    UserOutlined,
     PlusOutlined,
     EyeOutlined,
+    FormOutlined,
+    BellOutlined,
+    UndoOutlined,
+    CheckOutlined
 } from "@ant-design/icons";
 
 import {
@@ -23,6 +25,10 @@ import {
     Modal,
 } from "antd";
 
+import {
+    useSearchParams,
+} from "react-router-dom";
+
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 import utc from "dayjs/plugin/utc";
@@ -33,6 +39,33 @@ dayjs.extend(timezone);
 dayjs.locale("es");
 
 const CHILE_TZ = "America/Santiago";
+
+/*
+ * Opciones rápidas disponibles para programar
+ * recordatorios desde la nota rápida local.
+ */
+const OPCIONES_RAPIDAS_RECORDATORIO = [
+    {
+        label: "30 min",
+        minutos: 30,
+    },
+    {
+        label: "1 hora",
+        minutos: 60,
+    },
+    {
+        label: "1 h 30",
+        minutos: 90,
+    },
+    {
+        label: "2 horas",
+        minutos: 120,
+    },
+    {
+        label: "3 horas",
+        minutos: 180,
+    },
+] as const;
 
 /* =====================================================
    TYPES
@@ -111,6 +144,15 @@ interface OpcionRelacion {
     raw: unknown;
 }
 
+interface UsuarioAutenticado {
+    id_tecnico?: number | null;
+    idTecnico?: number | null;
+    tecnicoId?: number | null;
+    nombre?: string | null;
+    email?: string | null;
+    rol?: string | null;
+}
+
 interface BitacoraTecnico {
     id: number;
     fecha: string;
@@ -128,6 +170,18 @@ interface BitacoraTecnico {
     mantencionId?: number | null;
     equipoId?: number | null;
     cotizacionId?: number | null;
+
+    // Fecha y hora programada para el recordatorio.
+    recordatorioAt?: string | null;
+
+    // Indica si el usuario ya completó el recordatorio.
+    recordatorioCompletado?: boolean;
+
+    // Fecha en la que fue marcado como completado.
+    recordatorioCompletadoAt?: string | null;
+
+    // Fecha en la que el backend envió la notificación automática.
+    recordatorioNotificadoAt?: string | null;
 
     createdAt: string;
     updatedAt: string;
@@ -211,6 +265,9 @@ interface CrearBitacoraTecnicoPayload {
     mantencionId?: number | null;
     equipoId?: number | null;
     cotizacionId?: number | null;
+
+    // Puede contener una fecha ISO o null para eliminar el recordatorio.
+    recordatorioAt?: string | null;
 }
 
 interface ActualizarBitacoraTecnicoPayload extends CrearBitacoraTecnicoPayload {
@@ -238,6 +295,20 @@ interface FiltrosBitacoraTecnico {
 /* =====================================================
    API LOCAL
 ===================================================== */
+
+async function obtenerBitacoraTecnicoPorId(
+    id: number
+): Promise<{ data: BitacoraTecnico }> {
+    /*
+     * Se usa al abrir una bitácora desde
+     * la campana global de recordatorios.
+     */
+    const res = await api.get(
+        `/bitacora-tecnico/${id}`
+    );
+
+    return res.data;
+}
 
 function buildQuery(params?: FiltrosBitacoraTecnico) {
     const query = new URLSearchParams();
@@ -285,6 +356,21 @@ async function actualizarBitacoraTecnico(
 
 async function eliminarBitacoraTecnico(id: number): Promise<{ message: string }> {
     const res = await api.delete(`/bitacora-tecnico/${id}`);
+    return res.data;
+}
+
+async function actualizarEstadoRecordatorio(
+    id: number,
+    completado: boolean
+): Promise<{ data: BitacoraTecnico; message?: string }> {
+    // El backend utiliza PATCH para completar o reactivar.
+    const res = await api.patch(
+        `/bitacora-tecnico/${id}/recordatorio`,
+        {
+            completado,
+        }
+    );
+
     return res.data;
 }
 
@@ -425,10 +511,135 @@ function getAxiosErrorMessage(error: unknown) {
     );
 }
 
+function getUsuarioAutenticado(): UsuarioAutenticado | null {
+    try {
+        const raw = localStorage.getItem("user");
+
+        if (!raw) {
+            return null;
+        }
+
+        return JSON.parse(raw) as UsuarioAutenticado;
+    } catch {
+        return null;
+    }
+}
+
+function normalizarEmail(value?: string | null) {
+    return String(value ?? "")
+        .trim()
+        .toLowerCase();
+}
+
 function FieldError({ message }: { message?: string }) {
     if (!message) return null;
 
     return <p className="mt-1 text-xs font-medium text-red-600">{message}</p>;
+}
+
+function esNotaRapida(bitacora: BitacoraTecnico) {
+    return Boolean(
+        bitacora.titulo?.startsWith("Nota rápida")
+    );
+}
+
+function formatTituloBitacora(titulo?: string | null) {
+    if (!titulo) {
+        return "Sin título";
+    }
+
+    if (titulo === "Nota rápida") {
+        return "Sin título";
+    }
+
+    const prefijoNotaRapida = "Nota rápida · ";
+
+    if (titulo.startsWith(prefijoNotaRapida)) {
+        return titulo.slice(prefijoNotaRapida.length);
+    }
+
+    return titulo;
+}
+
+type EstadoRecordatorioVisual =
+    | "SIN_RECORDATORIO"
+    | "PENDIENTE"
+    | "VENCIDO"
+    | "COMPLETADO";
+
+function obtenerEstadoRecordatorio(
+    bitacora: BitacoraTecnico
+): EstadoRecordatorioVisual {
+    // Si no existe fecha, la bitácora no tiene recordatorio.
+    if (!bitacora.recordatorioAt) {
+        return "SIN_RECORDATORIO";
+    }
+
+    // Un recordatorio completado prevalece sobre la fecha.
+    if (bitacora.recordatorioCompletado) {
+        return "COMPLETADO";
+    }
+
+    // Si la fecha ya pasó y no está completado, está vencido.
+    if (dayjs(bitacora.recordatorioAt).isBefore(dayjs())) {
+        return "VENCIDO";
+    }
+
+    return "PENDIENTE";
+}
+
+function formatRecordatorioChile(
+    value?: string | null
+) {
+    if (!value) {
+        return "-";
+    }
+
+    const fecha = dayjs(value);
+
+    if (!fecha.isValid()) {
+        return "-";
+    }
+
+    return fecha
+        .tz(CHILE_TZ)
+        .format("DD/MM/YYYY [a las] HH:mm");
+}
+
+function getRecordatorioBadgeClass(
+    estado: EstadoRecordatorioVisual
+) {
+    switch (estado) {
+        case "COMPLETADO":
+            return "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+        case "VENCIDO":
+            return "border-red-200 bg-red-50 text-red-700";
+
+        case "PENDIENTE":
+            return "border-amber-200 bg-amber-50 text-amber-700";
+
+        default:
+            return "border-slate-200 bg-slate-50 text-slate-500";
+    }
+}
+
+function getRecordatorioLabel(
+    estado: EstadoRecordatorioVisual
+) {
+    switch (estado) {
+        case "COMPLETADO":
+            return "Completado";
+
+        case "VENCIDO":
+            return "Vencido";
+
+        case "PENDIENTE":
+            return "Pendiente";
+
+        default:
+            return "Sin recordatorio";
+    }
 }
 
 function mapRelacionOption(
@@ -535,7 +746,14 @@ const RELACIONES_CONFIG: RelacionConfig[] = [
 ===================================================== */
 
 export default function BitacoraTecnicoPage() {
+    const [searchParams, setSearchParams] =
+        useSearchParams();
+
     const [bitacoras, setBitacoras] = useState<BitacoraTecnico[]>([]);
+    const usuarioAutenticado = useMemo(
+        () => getUsuarioAutenticado(),
+        []
+    );
     const [tecnicos, setTecnicos] = useState<TecnicoOption[]>([]);
     const [empresas, setEmpresas] = useState<EmpresaOption[]>([]);
 
@@ -560,6 +778,20 @@ export default function BitacoraTecnicoPage() {
     const [modalVisualizarOpen, setModalVisualizarOpen] = useState(false);
     const [bitacoraSeleccionada, setBitacoraSeleccionada] =
         useState<BitacoraTecnico | null>(null);
+
+    const [modalNotaRapidaOpen, setModalNotaRapidaOpen] = useState(false);
+
+    const [savingNotaRapida, setSavingNotaRapida] = useState(false);
+
+    const [notaRapida, setNotaRapida] = useState({
+        tecnicoId: "",
+        titulo: "",
+        descripcion: "",
+        tipoActividad: "INTERNO" as TipoBitacoraTecnico,
+
+        // String ISO enviado al backend.
+        recordatorioAt: "",
+    });
 
     const [vistaActiva, setVistaActiva] = useState<VistaBitacora>("resumen-diario");
 
@@ -587,6 +819,9 @@ export default function BitacoraTecnicoPage() {
         mantencionId: "",
         equipoId: "",
         cotizacionId: "",
+
+        // Fecha y hora opcional del recordatorio.
+        recordatorioAt: "",
     });
 
     const tituloFormulario = useMemo(() => {
@@ -626,6 +861,56 @@ export default function BitacoraTecnicoPage() {
         }, 5000);
     }
 
+    function obtenerTecnicoAutenticadoId(
+        listaTecnicos: TecnicoOption[] = tecnicos
+    ): string {
+        /*
+         * Primero intenta utilizar un ID guardado directamente
+         * en el usuario autenticado.
+         */
+        const idDirecto =
+            usuarioAutenticado?.id_tecnico ??
+            usuarioAutenticado?.idTecnico ??
+            usuarioAutenticado?.tecnicoId;
+
+        if (
+            typeof idDirecto === "number" &&
+            Number.isInteger(idDirecto) &&
+            idDirecto > 0
+        ) {
+            const existe = listaTecnicos.some(
+                (tecnico) =>
+                    tecnico.id_tecnico === idDirecto
+            );
+
+            if (existe) {
+                return String(idDirecto);
+            }
+        }
+
+        /*
+         * Si el usuario guardado no contiene el ID,
+         * busca al técnico por correo.
+         */
+        const emailUsuario = normalizarEmail(
+            usuarioAutenticado?.email
+        );
+
+        if (!emailUsuario) {
+            return "";
+        }
+
+        const tecnicoEncontrado = listaTecnicos.find(
+            (tecnico) =>
+                normalizarEmail(tecnico.email) ===
+                emailUsuario
+        );
+
+        return tecnicoEncontrado
+            ? String(tecnicoEncontrado.id_tecnico)
+            : "";
+    }
+
     function validateForm() {
         const errors: FormErrors = {};
 
@@ -654,7 +939,8 @@ export default function BitacoraTecnicoPage() {
             descripcion: "",
             tipoActividad: "SOPORTE",
             estado: "REGISTRADA",
-            tecnicoId: "",
+            tecnicoId:
+                obtenerTecnicoAutenticadoId(),
             empresaId: "",
             solicitanteId: "",
             ticketId: "",
@@ -663,7 +949,44 @@ export default function BitacoraTecnicoPage() {
             mantencionId: "",
             equipoId: "",
             cotizacionId: "",
+            recordatorioAt: "",
         });
+    }
+
+    function resetNotaRapida() {
+        setNotaRapida({
+            tecnicoId:
+                obtenerTecnicoAutenticadoId(),
+            titulo: "",
+            descripcion: "",
+            tipoActividad: "INTERNO",
+            // La nueva nota rápida comienza sin recordatorio.
+            recordatorioAt: "",
+        });
+    }
+
+    /**
+ * Programa rápidamente el recordatorio
+ * de la nota rápida local.
+ */
+    function aplicarRecordatorioRapidoNota(
+        minutos: number
+    ) {
+        /*
+         * Calcular la fecha desde la hora actual de Chile
+         * y enviarla posteriormente como ISO al backend.
+         */
+        const fechaProgramada = dayjs()
+            .tz(CHILE_TZ)
+            .add(minutos, "minute")
+            .second(0)
+            .millisecond(0);
+
+        setNotaRapida((prev) => ({
+            ...prev,
+            recordatorioAt:
+                fechaProgramada.toISOString(),
+        }));
     }
 
     function cerrarModalBitacora() {
@@ -675,6 +998,29 @@ export default function BitacoraTecnicoPage() {
         resetForm();
         setVistaActiva("resumen-diario");
         setModalBitacoraOpen(true);
+    }
+
+    function abrirModalNotaRapida() {
+        setNotaRapida({
+            tecnicoId: obtenerTecnicoAutenticadoId(),
+            titulo: "",
+            descripcion: "",
+            tipoActividad: "INTERNO",
+
+            // La nueva nota rápida comienza sin recordatorio.
+            recordatorioAt: "",
+        });
+
+        setModalNotaRapidaOpen(true);
+    }
+
+    function cerrarModalNotaRapida() {
+        if (savingNotaRapida) {
+            return;
+        }
+
+        setModalNotaRapidaOpen(false);
+        resetNotaRapida();
     }
 
     function abrirModalVisualizar(bitacora: BitacoraTecnico) {
@@ -699,7 +1045,37 @@ export default function BitacoraTecnicoPage() {
                         ? res.data.tecnicos
                         : [];
 
-            setTecnicos(data);
+            const tecnicosCargados =
+                data as TecnicoOption[];
+
+            setTecnicos(tecnicosCargados);
+
+            const tecnicoAutenticadoId =
+                obtenerTecnicoAutenticadoId(
+                    tecnicosCargados
+                );
+
+            if (tecnicoAutenticadoId) {
+                /*
+                 * Completa el formulario avanzado.
+                 */
+                setForm((prev) => ({
+                    ...prev,
+                    tecnicoId:
+                        prev.tecnicoId ||
+                        tecnicoAutenticadoId,
+                }));
+
+                /*
+                 * Completa la nota rápida.
+                 */
+                setNotaRapida((prev) => ({
+                    ...prev,
+                    tecnicoId:
+                        prev.tecnicoId ||
+                        tecnicoAutenticadoId,
+                }));
+            }
         } catch (error) {
             console.error("Error al cargar técnicos:", error);
             setTecnicos([]);
@@ -818,6 +1194,18 @@ export default function BitacoraTecnicoPage() {
             return;
         }
 
+        // Evitar enviar recordatorios con fecha pasada.
+        if (
+            form.recordatorioAt &&
+            !dayjs(form.recordatorioAt).isAfter(dayjs())
+        ) {
+            showMessage(
+                "warning",
+                "El recordatorio debe programarse para una fecha futura."
+            );
+            return;
+        }
+
         try {
             setSaving(true);
 
@@ -834,6 +1222,8 @@ export default function BitacoraTecnicoPage() {
                 mantencionId: toNumberOrNull(form.mantencionId),
                 equipoId: toNumberOrNull(form.equipoId),
                 cotizacionId: toNumberOrNull(form.cotizacionId),
+                recordatorioAt:
+                    form.recordatorioAt || null,
             };
 
             if (form.titulo.trim()) {
@@ -841,17 +1231,37 @@ export default function BitacoraTecnicoPage() {
             }
 
             if (editId) {
-                const updatePayload: ActualizarBitacoraTecnicoPayload = {
+                const updatePayload:
+                    ActualizarBitacoraTecnicoPayload = {
                     ...payload,
                     estado: form.estado,
                 };
 
-                await actualizarBitacoraTecnico(editId, updatePayload);
-                showMessage("success", "Bitácora actualizada correctamente.");
+                await actualizarBitacoraTecnico(
+                    editId,
+                    updatePayload
+                );
+
+                showMessage(
+                    "success",
+                    "Bitácora actualizada correctamente."
+                );
             } else {
                 await crearBitacoraTecnico(payload);
-                showMessage("success", "Bitácora registrada correctamente.");
+
+                showMessage(
+                    "success",
+                    "Bitácora registrada correctamente."
+                );
             }
+
+            /*
+             * Refrescar la campana después de crear,
+             * editar o quitar un recordatorio.
+             */
+            window.dispatchEvent(
+                new Event("recordatorios:actualizar")
+            );
 
             setModalBitacoraOpen(false);
             resetForm();
@@ -861,6 +1271,152 @@ export default function BitacoraTecnicoPage() {
             showMessage("error", getAxiosErrorMessage(error));
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function handleGuardarNotaRapida() {
+        if (savingNotaRapida) {
+            return;
+        }
+
+        const tecnicoId = toNumberOrNull(notaRapida.tecnicoId);
+
+        if (!tecnicoId) {
+            showMessage(
+                "warning",
+                "Debes seleccionar un técnico."
+            );
+            return;
+        }
+
+        if (!notaRapida.descripcion.trim()) {
+            showMessage(
+                "warning",
+                "Debes escribir el contenido de la nota."
+            );
+            return;
+        }
+
+        // El backend también valida, pero se informa antes al usuario.
+        if (
+            notaRapida.recordatorioAt &&
+            !dayjs(notaRapida.recordatorioAt).isAfter(dayjs())
+        ) {
+            showMessage(
+                "warning",
+                "El recordatorio debe programarse para una fecha futura."
+            );
+            return;
+        }
+
+        try {
+            setSavingNotaRapida(true);
+
+            const payload: CrearBitacoraTecnicoPayload = {
+                fecha: todayInputDate(),
+                tecnicoId,
+                descripcion:
+                    notaRapida.descripcion.trim(),
+                tipoActividad:
+                    notaRapida.tipoActividad,
+
+                // Recordatorio opcional.
+                recordatorioAt:
+                    notaRapida.recordatorioAt || null,
+            };
+
+            const tituloNota = notaRapida.titulo.trim();
+
+            payload.titulo = tituloNota
+                ? `Nota rápida · ${tituloNota}`
+                : "Nota rápida";
+
+            await crearBitacoraTecnico(payload);
+
+            /*
+ * Mostrar inmediatamente el recordatorio
+ * en la campana global.
+ */
+            window.dispatchEvent(
+                new Event("recordatorios:actualizar")
+            );
+
+            showMessage(
+                "success",
+                "Nota rápida registrada correctamente."
+            );
+
+            setModalNotaRapidaOpen(false);
+            resetNotaRapida();
+
+            await cargarBitacoras();
+        } catch (error) {
+            console.error(
+                "Error al guardar nota rápida:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(error)
+            );
+        } finally {
+            setSavingNotaRapida(false);
+        }
+    }
+
+    async function handleCambiarEstadoRecordatorio(
+        bitacora: BitacoraTecnico
+    ) {
+        try {
+            const nuevoEstado =
+                !Boolean(
+                    bitacora.recordatorioCompletado
+                );
+
+            const respuesta =
+                await actualizarEstadoRecordatorio(
+                    bitacora.id,
+                    nuevoEstado
+                );
+
+            /*
+ * La tabla global Recordatorio fue actualizada
+ * por el backend, por lo que se refresca la campana.
+ */
+            window.dispatchEvent(
+                new Event("recordatorios:actualizar")
+            );
+
+            // Actualizar inmediatamente el modal abierto.
+            if (
+                bitacoraSeleccionada?.id ===
+                bitacora.id
+            ) {
+                setBitacoraSeleccionada(
+                    respuesta.data
+                );
+            }
+
+            showMessage(
+                "success",
+                nuevoEstado
+                    ? "Recordatorio marcado como completado."
+                    : "Recordatorio reactivado correctamente."
+            );
+
+            // Refrescar la lista con la respuesta real del backend.
+            await cargarBitacoras();
+        } catch (error) {
+            console.error(
+                "Error actualizando recordatorio:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(error)
+            );
         }
     }
 
@@ -884,6 +1440,9 @@ export default function BitacoraTecnicoPage() {
             mantencionId: bitacora.mantencionId ? String(bitacora.mantencionId) : "",
             equipoId: bitacora.equipoId ? String(bitacora.equipoId) : "",
             cotizacionId: bitacora.cotizacionId ? String(bitacora.cotizacionId) : "",
+            // Convertir la fecha almacenada en un string ISO para el DatePicker.
+            recordatorioAt:
+                bitacora.recordatorioAt ?? "",
         });
 
         setFormErrors({});
@@ -985,6 +1544,119 @@ export default function BitacoraTecnicoPage() {
         filtros.empresaId,
         filtros.tipoActividad,
         filtros.estado,
+    ]);
+
+    useEffect(() => {
+        /*
+         * La campana emite este evento cuando completa
+         * o cancela un recordatorio de bitácora.
+         */
+        function actualizarDesdeCampana() {
+            void cargarBitacoras();
+        }
+
+        window.addEventListener(
+            "bitacora:actualizar",
+            actualizarDesdeCampana
+        );
+
+        return () => {
+            window.removeEventListener(
+                "bitacora:actualizar",
+                actualizarDesdeCampana
+            );
+        };
+    }, []);
+
+    useEffect(() => {
+        const registroId =
+            Number(
+                searchParams.get("registro")
+            );
+
+        if (
+            !Number.isInteger(registroId) ||
+            registroId <= 0
+        ) {
+            return;
+        }
+
+        /*
+         * Evitar que el efecto vuelva a abrir el mismo
+         * modal mientras el parámetro permanece activo.
+         */
+        let cancelado = false;
+
+        async function abrirRegistroDesdeRecordatorio() {
+            try {
+                /*
+                 * Primero revisar el listado cargado.
+                 */
+                const encontrada =
+                    bitacoras.find(
+                        (item) =>
+                            item.id === registroId
+                    );
+
+                if (encontrada) {
+                    abrirModalVisualizar(
+                        encontrada
+                    );
+                    return;
+                }
+
+                /*
+                 * El registro puede no estar en el día filtrado,
+                 * por lo que se consulta directamente por ID.
+                 */
+                const response =
+                    await obtenerBitacoraTecnicoPorId(
+                        registroId
+                    );
+
+                if (
+                    !cancelado &&
+                    response.data
+                ) {
+                    abrirModalVisualizar(
+                        response.data
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    "Error abriendo bitácora desde recordatorio:",
+                    error
+                );
+
+                showMessage(
+                    "error",
+                    getAxiosErrorMessage(error)
+                );
+            } finally {
+                /*
+                 * Limpiar el parámetro para que el modal
+                 * no se vuelva a abrir en cada render.
+                 */
+                if (!cancelado) {
+                    setSearchParams(
+                        {},
+                        {
+                            replace: true,
+                        }
+                    );
+                }
+            }
+        }
+
+        void abrirRegistroDesdeRecordatorio();
+
+        return () => {
+            cancelado = true;
+        };
+    }, [
+        bitacoras,
+        searchParams,
+        setSearchParams,
     ]);
 
     function renderRelacionSelect(config: RelacionConfig) {
@@ -1104,29 +1776,38 @@ export default function BitacoraTecnicoPage() {
                     </div>
 
                     <div className="border-t border-cyan-200 bg-white/80 px-4 py-3 sm:px-6">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    onClick={abrirModalCrear}
-                                    className={tabInactivo}
-                                >
-                                    <PlusOutlined className="mr-1" />
-                                    Nueva bitácora
-                                </button>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={abrirModalCrear}
+                                className={tabInactivo}
+                            >
+                                <PlusOutlined className="mr-1" />
+                                Bitácora avanzada
+                            </button>
 
-                                <button
-                                    type="button"
-                                    onClick={() => setVistaActiva("resumen-diario")}
-                                    className={vistaActiva === "resumen-diario" ? tabActivo : tabInactivo}
-                                >
-                                    Listado diario
-                                </button>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={abrirModalNotaRapida}
+                                className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+                            >
+                                <FormOutlined className="mr-1" />
+                                Nota rápida
+                            </button>
 
-                            <p className="text-xs text-slate-500">
-                                Selecciona filtros, registra actividades y consulta el historial técnico.
-                            </p>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setVistaActiva("resumen-diario")
+                                }
+                                className={
+                                    vistaActiva === "resumen-diario"
+                                        ? tabActivo
+                                        : tabInactivo
+                                }
+                            >
+                                Listado diario
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -1188,29 +1869,29 @@ export default function BitacoraTecnicoPage() {
                                 <label className={labelBase}>Técnico</label>
                                 <Select
                                     value={form.tecnicoId || undefined}
-                                    onChange={(value) => {
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            tecnicoId: String(value),
-                                        }));
-
-                                        setFormErrors((prev) => ({
-                                            ...prev,
-                                            tecnicoId: undefined,
-                                        }));
-                                    }}
-                                    placeholder="Seleccione técnico"
+                                    disabled
+                                    placeholder="Técnico autenticado"
                                     showSearch
                                     optionFilterProp="label"
-                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
                                     className="w-full"
-                                    status={formErrors.tecnicoId ? "error" : undefined}
+                                    status={
+                                        formErrors.tecnicoId
+                                            ? "error"
+                                            : undefined
+                                    }
                                     options={tecnicos.map((tecnico) => ({
                                         value: String(tecnico.id_tecnico),
                                         label: tecnico.nombre,
                                     }))}
                                 />
+
                                 <FieldError message={formErrors.tecnicoId} />
+
+                                {!form.tecnicoId && (
+                                    <p className="mt-1 text-xs font-medium text-amber-600">
+                                        No fue posible relacionar el usuario autenticado con un técnico.
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -1338,6 +2019,121 @@ export default function BitacoraTecnicoPage() {
                                     {form.descripcion.length} caracteres
                                 </span>
                             </div>
+                        </div>
+
+                        {/* =====================================================
+                            RECORDATORIO OPCIONAL
+                            ===================================================== */}
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                            <div className="mb-3">
+                                <div className="flex items-center gap-2">
+                                    <BellOutlined className="text-amber-600" />
+
+                                    <h3 className="text-sm font-semibold text-slate-800">
+                                        Recordatorio opcional
+                                    </h3>
+                                </div>
+
+                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                    Selecciona una fecha y hora para recordar esta actividad.
+                                </p>
+                            </div>
+
+                            <DatePicker
+                                showTime={{
+                                    format: "HH:mm",
+
+                                    /*
+                                     * Permitir minutos exactos para que
+                                     * los accesos rápidos no sean redondeados.
+                                     */
+                                    minuteStep: 1,
+                                }}
+                                format="DD/MM/YYYY HH:mm"
+                                value={
+                                    form.recordatorioAt
+                                        ? dayjs(form.recordatorioAt)
+                                        : null
+                                }
+                                onChange={(value) => {
+                                    setForm((prev) => ({
+                                        ...prev,
+
+                                        // toISOString conserva correctamente fecha,
+                                        // hora y zona para enviarla al backend.
+                                        recordatorioAt: value
+                                            ? value.toISOString()
+                                            : "",
+                                    }));
+                                }}
+                                disabledDate={(current) => {
+                                    // Bloquear días anteriores al día actual.
+                                    return Boolean(
+                                        current &&
+                                        current
+                                            .endOf("day")
+                                            .isBefore(dayjs().startOf("day"))
+                                    );
+                                }}
+                                disabledTime={(current) => {
+                                    // Cuando se selecciona hoy, bloquea horas ya pasadas.
+                                    if (
+                                        !current ||
+                                        !current.isSame(dayjs(), "day")
+                                    ) {
+                                        return {};
+                                    }
+
+                                    const ahora = dayjs();
+
+                                    return {
+                                        disabledHours: () =>
+                                            Array.from(
+                                                { length: ahora.hour() },
+                                                (_, index) => index
+                                            ),
+
+                                        disabledMinutes: (
+                                            selectedHour: number
+                                        ) =>
+                                            selectedHour === ahora.hour()
+                                                ? Array.from(
+                                                    { length: ahora.minute() + 1 },
+                                                    (_, index) => index
+                                                )
+                                                : [],
+                                    };
+                                }}
+                                placeholder="Sin recordatorio"
+                                allowClear
+                                className="w-full sm:max-w-sm"
+                            />
+
+                            {form.recordatorioAt && (
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                        <BellOutlined className="mr-1" />
+
+                                        {formatRecordatorioChile(
+                                            form.recordatorioAt
+                                        )}
+                                    </span>
+
+                                    <Button
+                                        size="small"
+                                        danger
+                                        type="text"
+                                        onClick={() =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                recordatorioAt: "",
+                                            }))
+                                        }
+                                    >
+                                        Quitar
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1480,9 +2276,20 @@ export default function BitacoraTecnicoPage() {
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Título
                                 </p>
-                                <p className="mt-2 font-semibold text-slate-900">
-                                    {bitacoraSeleccionada.titulo || "Sin título"}
-                                </p>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <p className="font-semibold text-slate-900">
+                                        {formatTituloBitacora(
+                                            bitacoraSeleccionada.titulo
+                                        )}
+                                    </p>
+
+                                    {esNotaRapida(bitacoraSeleccionada) && (
+                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                            Rápida
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -1492,6 +2299,79 @@ export default function BitacoraTecnicoPage() {
                                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
                                     {bitacoraSeleccionada.descripcion}
                                 </p>
+                            </div>
+
+                            {/* =====================================================
+    DETALLE DEL RECORDATORIO
+===================================================== */}
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                                            Recordatorio
+                                        </p>
+
+                                        {bitacoraSeleccionada.recordatorioAt ? (
+                                            <p className="mt-2 font-semibold text-slate-900">
+                                                {formatRecordatorioChile(
+                                                    bitacoraSeleccionada.recordatorioAt
+                                                )}
+                                            </p>
+                                        ) : (
+                                            <p className="mt-2 text-sm text-slate-500">
+                                                Sin recordatorio configurado
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {bitacoraSeleccionada.recordatorioAt && (
+                                        <BellOutlined className="text-2xl text-amber-600" />
+                                    )}
+                                </div>
+
+                                {bitacoraSeleccionada.recordatorioAt && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <span
+                                            className={[
+                                                "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                getRecordatorioBadgeClass(
+                                                    obtenerEstadoRecordatorio(
+                                                        bitacoraSeleccionada
+                                                    )
+                                                ),
+                                            ].join(" ")}
+                                        >
+                                            {getRecordatorioLabel(
+                                                obtenerEstadoRecordatorio(
+                                                    bitacoraSeleccionada
+                                                )
+                                            )}
+                                        </span>
+
+                                        <Button
+                                            size="small"
+                                            type={
+                                                bitacoraSeleccionada.recordatorioCompletado
+                                                    ? "default"
+                                                    : "primary"
+                                            }
+                                            icon={
+                                                bitacoraSeleccionada.recordatorioCompletado
+                                                    ? <UndoOutlined />
+                                                    : <CheckOutlined />
+                                            }
+                                            onClick={() =>
+                                                void handleCambiarEstadoRecordatorio(
+                                                    bitacoraSeleccionada
+                                                )
+                                            }
+                                        >
+                                            {bitacoraSeleccionada.recordatorioCompletado
+                                                ? "Reactivar"
+                                                : "Completar"}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -1518,6 +2398,309 @@ export default function BitacoraTecnicoPage() {
                             </div>
                         </div>
                     )}
+                </Modal>
+
+                <Modal
+                    open={modalNotaRapidaOpen}
+                    onCancel={cerrarModalNotaRapida}
+                    footer={null}
+                    width={620}
+                    centered
+                    destroyOnClose
+                    maskClosable={!savingNotaRapida}
+                    closable={!savingNotaRapida}
+                    styles={{
+                        body: {
+                            maxHeight: "calc(100vh - 180px)",
+                            overflowY: "auto",
+                        },
+                    }}
+                    title={
+                        <div>
+                            <h2 className="text-lg font-semibold text-slate-900">
+                                Nota rápida
+                            </h2>
+
+                            <p className="mt-1 text-sm font-normal text-slate-500">
+                                Registra una actividad breve sin relaciones avanzadas.
+                            </p>
+                        </div>
+                    }
+                >
+                    <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label className={labelBase}>
+                                    Técnico <span className="text-red-500">*</span>
+                                </label>
+
+                                <Select
+                                    value={
+                                        notaRapida.tecnicoId ||
+                                        undefined
+                                    }
+                                    disabled
+                                    placeholder="Técnico autenticado"
+                                    className="w-full"
+                                    options={tecnicos.map(
+                                        (tecnico) => ({
+                                            value: String(
+                                                tecnico.id_tecnico
+                                            ),
+                                            label: tecnico.nombre,
+                                        })
+                                    )}
+                                />
+                                {!notaRapida.tecnicoId && (
+                                    <p className="mt-1 text-xs font-medium text-amber-600">
+                                        No fue posible identificar al técnico autenticado.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className={labelBase}>
+                                    Tipo
+                                </label>
+
+                                <Select
+                                    value={
+                                        notaRapida.tipoActividad
+                                    }
+                                    onChange={(value) =>
+                                        setNotaRapida((prev) => ({
+                                            ...prev,
+                                            tipoActividad:
+                                                value as TipoBitacoraTecnico,
+                                        }))
+                                    }
+                                    className="w-full"
+                                    options={[
+                                        {
+                                            value: "INTERNO",
+                                            label: "Interno",
+                                        },
+                                        {
+                                            value: "SOPORTE",
+                                            label: "Soporte",
+                                        },
+                                        {
+                                            value: "REMOTO",
+                                            label: "Remoto",
+                                        },
+                                        {
+                                            value: "ADMINISTRATIVO",
+                                            label: "Administrativo",
+                                        },
+                                        {
+                                            value: "REUNION",
+                                            label: "Reunión",
+                                        },
+                                        {
+                                            value: "OTRO",
+                                            label: "Otro",
+                                        },
+                                    ]}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className={labelBase}>
+                                Título
+                            </label>
+
+                            <Input
+                                value={notaRapida.titulo}
+                                onChange={(event) =>
+                                    setNotaRapida((prev) => ({
+                                        ...prev,
+                                        titulo: event.target.value,
+                                    }))
+                                }
+                                maxLength={120}
+                                placeholder="Opcional. Ej: Revisión de correo"
+                            />
+                        </div>
+
+                        {/* =====================================================
+            RECORDATORIO OPCIONAL
+        ===================================================== */}
+                        <div>
+                            <label className={labelBase}>
+                                Recordatorio
+                            </label>
+
+                            <DatePicker
+                                showTime={{
+                                    format: "HH:mm",
+                                    minuteStep: 5,
+                                }}
+                                format="DD/MM/YYYY HH:mm"
+                                value={
+                                    notaRapida.recordatorioAt
+                                        ? dayjs(notaRapida.recordatorioAt)
+                                        : null
+                                }
+                                onChange={(value) => {
+                                    setNotaRapida((prev) => ({
+                                        ...prev,
+
+                                        // Guardar como ISO para enviarlo al backend.
+                                        recordatorioAt: value
+                                            ? value.toISOString()
+                                            : "",
+                                    }));
+                                }}
+                                disabledDate={(current) =>
+                                    Boolean(
+                                        current &&
+                                        current
+                                            .endOf("day")
+                                            .isBefore(dayjs().startOf("day"))
+                                    )
+                                }
+                                disabledTime={(current) => {
+                                    // Para el día actual se bloquean horas pasadas.
+                                    if (
+                                        !current ||
+                                        !current.isSame(dayjs(), "day")
+                                    ) {
+                                        return {};
+                                    }
+
+                                    const ahora = dayjs();
+
+                                    return {
+                                        disabledHours: () =>
+                                            Array.from(
+                                                { length: ahora.hour() },
+                                                (_, index) => index
+                                            ),
+
+                                        disabledMinutes: (
+                                            selectedHour: number
+                                        ) =>
+                                            selectedHour === ahora.hour()
+                                                ? Array.from(
+                                                    {
+                                                        length:
+                                                            ahora.minute() + 1,
+                                                    },
+                                                    (_, index) => index
+                                                )
+                                                : [],
+                                    };
+                                }}
+                                placeholder="Sin recordatorio"
+                                allowClear
+                                className="w-full"
+                            />
+
+                            {/* =====================================================
+    HORAS PREDEFINIDAS
+===================================================== */}
+                            <div className="mt-2">
+                                <p className="mb-2 text-xs font-medium text-slate-500">
+                                    Programar desde ahora
+                                </p>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {OPCIONES_RAPIDAS_RECORDATORIO.map(
+                                        (opcion) => (
+                                            <Button
+                                                key={opcion.minutos}
+                                                size="small"
+                                                onClick={() =>
+                                                    aplicarRecordatorioRapidoNota(
+                                                        opcion.minutos
+                                                    )
+                                                }
+                                                className="
+                        !rounded-full
+                        !border-amber-200
+                        !bg-amber-50
+                        !text-amber-700
+                        hover:!border-amber-400
+                        hover:!bg-amber-100
+                    "
+                                            >
+                                                + {opcion.label}
+                                            </Button>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+
+                            {notaRapida.recordatorioAt && (
+                                <p className="mt-2 text-xs font-medium text-amber-700">
+                                    <BellOutlined className="mr-1" />
+
+                                    Se recordará el{" "}
+                                    {formatRecordatorioChile(
+                                        notaRapida.recordatorioAt
+                                    )}
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className={labelBase}>
+                                Nota <span className="text-red-500">*</span>
+                            </label>
+
+                            <Input.TextArea
+                                value={notaRapida.descripcion}
+                                onChange={(event) =>
+                                    setNotaRapida((prev) => ({
+                                        ...prev,
+                                        descripcion: event.target.value,
+                                    }))
+                                }
+                                rows={4}
+                                maxLength={1000}
+                                autoFocus
+                                placeholder="Escribe brevemente lo realizado, pendiente o acordado..."
+                                className="w-full"
+                            />
+
+                            <div className="mt-1 flex justify-end">
+                                <span className="text-xs text-slate-400">
+                                    {notaRapida.descripcion.length} / 1000
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                            Se guardará con la fecha actual, estado REGISTRADA
+                            y sin relaciones asociadas.
+                        </div>
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <Button
+                                onClick={cerrarModalNotaRapida}
+                                disabled={savingNotaRapida}
+                            >
+                                Cancelar
+                            </Button>
+
+                            <Button
+                                type="primary"
+                                icon={<FormOutlined />}
+                                loading={savingNotaRapida}
+                                disabled={
+                                    savingNotaRapida ||
+                                    !notaRapida.tecnicoId ||
+                                    !notaRapida.descripcion.trim()
+                                }
+                                onClick={() =>
+                                    void handleGuardarNotaRapida()
+                                }
+                            >
+                                Guardar nota
+                            </Button>
+                        </div>
+                    </div>
                 </Modal>
 
                 {vistaActiva === "resumen-diario" && (
@@ -1702,8 +2885,40 @@ export default function BitacoraTecnicoPage() {
                                                     <p className="text-xs font-semibold text-blue-600">
                                                         {bitacora.tipoActividad}
                                                     </p>
-                                                    <h3 className="mt-1 font-semibold text-slate-900">
-                                                        {bitacora.titulo || "Sin título"}
+                                                    <h3 className="mt-1 flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+                                                        <span>
+                                                            {formatTituloBitacora(bitacora.titulo)}
+                                                        </span>
+
+                                                        {esNotaRapida(bitacora) && (
+                                                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                                Rápida
+                                                            </span>
+                                                        )}
+                                                        {bitacora.recordatorioAt && (
+                                                            <Tooltip
+                                                                title={
+                                                                    `${getRecordatorioLabel(
+                                                                        obtenerEstadoRecordatorio(bitacora)
+                                                                    )}: ${formatRecordatorioChile(
+                                                                        bitacora.recordatorioAt
+                                                                    )}`
+                                                                }
+                                                            >
+                                                                <span
+                                                                    className={[
+                                                                        "inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs",
+                                                                        getRecordatorioBadgeClass(
+                                                                            obtenerEstadoRecordatorio(
+                                                                                bitacora
+                                                                            )
+                                                                        ),
+                                                                    ].join(" ")}
+                                                                >
+                                                                    <BellOutlined />
+                                                                </span>
+                                                            </Tooltip>
+                                                        )}
                                                     </h3>
 
                                                     <div className="mt-1 space-y-0.5 text-xs text-slate-500">
@@ -1746,6 +2961,46 @@ export default function BitacoraTecnicoPage() {
                                                     {formatFechaHoraChile(bitacora.createdAt)}
                                                 </div>
                                             </div>
+
+                                            {/* =====================================================
+    RECORDATORIO EN VISTA MÓVIL
+===================================================== */}
+                                            {bitacora.recordatorioAt && (
+                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                    <span
+                                                        className={[
+                                                            "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                            getRecordatorioBadgeClass(
+                                                                obtenerEstadoRecordatorio(bitacora)
+                                                            ),
+                                                        ].join(" ")}
+                                                    >
+                                                        <BellOutlined className="mr-1" />
+
+                                                        {formatRecordatorioChile(
+                                                            bitacora.recordatorioAt
+                                                        )}
+                                                    </span>
+
+                                                    <Button
+                                                        size="small"
+                                                        icon={
+                                                            bitacora.recordatorioCompletado
+                                                                ? <UndoOutlined />
+                                                                : <CheckOutlined />
+                                                        }
+                                                        onClick={() =>
+                                                            void handleCambiarEstadoRecordatorio(
+                                                                bitacora
+                                                            )
+                                                        }
+                                                    >
+                                                        {bitacora.recordatorioCompletado
+                                                            ? "Reactivar"
+                                                            : "Completar"}
+                                                    </Button>
+                                                </div>
+                                            )}
 
                                             <div className="flex justify-end gap-1">
                                                 <Tooltip title="Visualizar">
@@ -1821,6 +3076,10 @@ export default function BitacoraTecnicoPage() {
                                                     </th>
 
                                                     <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                        Recordatorio
+                                                    </th>
+
+                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
                                                         Estado
                                                     </th>
 
@@ -1857,8 +3116,16 @@ export default function BitacoraTecnicoPage() {
                                                         </td>
 
                                                         <td className="max-w-md px-4 py-3">
-                                                            <div className="font-semibold text-slate-900">
-                                                                {bitacora.titulo || "Sin título"}
+                                                            <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+                                                                <span>
+                                                                    {formatTituloBitacora(bitacora.titulo)}
+                                                                </span>
+
+                                                                {esNotaRapida(bitacora) && (
+                                                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                                        Rápida
+                                                                    </span>
+                                                                )}
                                                             </div>
 
                                                             <div className="line-clamp-2 text-slate-500">
@@ -1874,6 +3141,43 @@ export default function BitacoraTecnicoPage() {
                                                             {renderRelacionResumen(bitacora)}
                                                         </td>
 
+                                                        {/* =====================================================
+    RECORDATORIO
+===================================================== */}
+                                                        <td className="whitespace-nowrap px-4 py-3">
+                                                            {bitacora.recordatorioAt ? (
+                                                                <div className="space-y-1">
+                                                                    <span
+                                                                        className={[
+                                                                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                            getRecordatorioBadgeClass(
+                                                                                obtenerEstadoRecordatorio(bitacora)
+                                                                            ),
+                                                                        ].join(" ")}
+                                                                    >
+                                                                        <BellOutlined className="mr-1" />
+
+                                                                        {getRecordatorioLabel(
+                                                                            obtenerEstadoRecordatorio(bitacora)
+                                                                        )}
+                                                                    </span>
+
+                                                                    <p className="text-xs text-slate-500">
+                                                                        {formatRecordatorioChile(
+                                                                            bitacora.recordatorioAt
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-slate-400">
+                                                                    Sin recordatorio
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* =====================================================
+    ESTADO DE LA BITÁCORA
+===================================================== */}
                                                         <td className="px-4 py-3">
                                                             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                                                                 {bitacora.estado}
@@ -1882,6 +3186,28 @@ export default function BitacoraTecnicoPage() {
 
                                                         <td className="px-4 py-3">
                                                             <div className="flex justify-end gap-2">
+                                                                {bitacora.recordatorioAt && (
+                                                                    <Tooltip
+                                                                        title={
+                                                                            bitacora.recordatorioCompletado
+                                                                                ? "Reactivar recordatorio"
+                                                                                : "Marcar recordatorio como completado"
+                                                                        }
+                                                                    >
+                                                                        <Button
+                                                                            icon={
+                                                                                bitacora.recordatorioCompletado
+                                                                                    ? <UndoOutlined />
+                                                                                    : <CheckOutlined />
+                                                                            }
+                                                                            onClick={() =>
+                                                                                void handleCambiarEstadoRecordatorio(
+                                                                                    bitacora
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </Tooltip>
+                                                                )}
                                                                 <Tooltip title="Visualizar">
                                                                     <Button
                                                                         icon={<EyeOutlined />}

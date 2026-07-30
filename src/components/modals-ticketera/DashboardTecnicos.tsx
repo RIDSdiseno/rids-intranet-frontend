@@ -1,6 +1,19 @@
 // DashboardTecnicos.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Card, Row, Col, Spin, message, Empty, Tag, Progress } from "antd";
+import {
+    Card,
+    Row,
+    Col,
+    Spin,
+    message,
+    Empty,
+    Tag,
+    Progress,
+    DatePicker,
+    Button,
+    Space,
+    Select
+} from "antd";
 import {
     TeamOutlined,
     CheckCircleOutlined,
@@ -8,6 +21,8 @@ import {
     ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { api } from "../../api/api";
+
+import dayjs, { Dayjs } from "dayjs";
 
 type TecnicoMetric = {
     tecnicoId: number;
@@ -37,6 +52,17 @@ type TecnicoMetric = {
     };
 };
 
+type SortOption =
+    | "sla_global_desc"
+    | "sla_global_asc"
+    | "nombre_asc"
+    | "nombre_desc"
+    | "closed_desc"
+    | "closed_asc"
+    | "first_response_desc"
+    | "resolution_desc"
+    | "avg_resolution_asc";
+
 function formatMinutes(min: number | null | undefined): string {
     if (min == null) return "—";
     if (min < 60) return `${min} min`;
@@ -55,6 +81,17 @@ function getTagColor(value: number) {
     if (value >= 90) return "green";
     if (value >= 70) return "gold";
     return "red";
+}
+
+// Calcula un SLA global simple promediando el cumplimiento de primera respuesta y cierre.
+// Esto permite ordenar a los técnicos por rendimiento general.
+function getGlobalSlaCompliance(tecnico: TecnicoMetric) {
+    return Math.round(
+        (
+            tecnico.firstResponse.compliance +
+            tecnico.resolution.compliance
+        ) / 2
+    );
 }
 
 function MetricPill({
@@ -79,10 +116,44 @@ export default function HelpdeskDashboardPage() {
 
     const [slaSummary, setSlaSummary] = useState<any>(null);
 
+    // Mes seleccionado para filtrar métricas y SLA.
+    // Por defecto usamos el mes actual.
+    const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(
+        dayjs()
+    );
+
+    // Orden seleccionado por el usuario para mostrar las cards de técnicos.
+    const [sortOption, setSortOption] = useState<SortOption>("sla_global_desc");
+
+    // Construye el rango de fechas del mes seleccionado.
+    // from = inicio del mes
+    // to = inicio del mes siguiente
+    const buildMonthParams = () => {
+        const params = new URLSearchParams();
+
+        if (selectedMonth) {
+            params.append(
+                "from",
+                selectedMonth.startOf("month").toISOString()
+            );
+
+            params.append(
+                "to",
+                selectedMonth.add(1, "month").startOf("month").toISOString()
+            );
+        }
+
+        return params;
+    };
+
     const loadMetrics = async () => {
         try {
             setLoading(true);
-            const { data } = await api.get("/helpdesk/tickets/tecnicos/metrics");
+            const params = buildMonthParams();
+
+            const { data } = await api.get(
+                `/helpdesk/tickets/tecnicos/metrics?${params.toString()}`
+            );
 
             if (data?.ok) {
                 setMetrics(data.data || []);
@@ -100,7 +171,11 @@ export default function HelpdeskDashboardPage() {
 
     const loadSlaSummary = async () => {
         try {
-            const { data } = await api.get("/helpdesk/tickets/sla");
+            const params = buildMonthParams();
+
+            const { data } = await api.get(
+                `/helpdesk/tickets/sla?${params.toString()}`
+            );
             if (data?.ok) {
                 setSlaSummary(data.sla);
             } else {
@@ -112,10 +187,70 @@ export default function HelpdeskDashboardPage() {
         }
     };
 
+    const sortedMetrics = useMemo(() => {
+        const sorted = [...metrics];
+
+        sorted.sort((a, b) => {
+            const globalSlaA = getGlobalSlaCompliance(a);
+            const globalSlaB = getGlobalSlaCompliance(b);
+
+            switch (sortOption) {
+                case "sla_global_desc":
+                    // Mejor rendimiento SLA global primero.
+                    return globalSlaB - globalSlaA;
+
+                case "sla_global_asc":
+                    // Peor rendimiento SLA global primero.
+                    return globalSlaA - globalSlaB;
+
+                case "nombre_asc":
+                    // Orden alfabético A-Z.
+                    return a.nombre.localeCompare(b.nombre);
+
+                case "nombre_desc":
+                    // Orden alfabético Z-A.
+                    return b.nombre.localeCompare(a.nombre);
+
+                case "closed_desc":
+                    // Técnicos con más tickets cerrados primero.
+                    return b.closedTickets - a.closedTickets;
+
+                case "closed_asc":
+                    // Técnicos con menos tickets cerrados primero.
+                    return a.closedTickets - b.closedTickets;
+
+                case "first_response_desc":
+                    // Mejor SLA de primera respuesta primero.
+                    return (
+                        b.firstResponse.compliance -
+                        a.firstResponse.compliance
+                    );
+
+                case "resolution_desc":
+                    // Mejor SLA de cierre primero.
+                    return b.resolution.compliance - a.resolution.compliance;
+
+                case "avg_resolution_asc": {
+                    // Menor tiempo promedio de cierre primero.
+                    // Los técnicos sin tiempo promedio quedan al final.
+                    const aValue = a.avgResolutionMinutes ?? Number.MAX_SAFE_INTEGER;
+                    const bValue = b.avgResolutionMinutes ?? Number.MAX_SAFE_INTEGER;
+
+                    return aValue - bValue;
+                }
+
+                default:
+                    return globalSlaB - globalSlaA;
+            }
+        });
+
+        return sorted;
+    }, [metrics, sortOption]);
+
     useEffect(() => {
-        loadMetrics();
-        loadSlaSummary();
-    }, []);
+        void loadMetrics();
+        void loadSlaSummary();
+    }, [selectedMonth]);
 
     const summary = useMemo(() => {
         const totalTecnicos = metrics.length;
@@ -145,8 +280,83 @@ export default function HelpdeskDashboardPage() {
 
     return (
         <div className="space-y-6">
+            <Card className="rounded-2xl shadow-sm mb-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <div className="text-base font-semibold text-gray-800">
+                            Dashboard SLA de técnicos
+                        </div>
+                        <div className="text-sm text-gray-500">
+                            Filtra las métricas por mes de cierre del ticket.
+                        </div>
+                    </div>
+
+                    <Space wrap>
+                        <DatePicker
+                            picker="month"
+                            allowClear={false}
+                            value={selectedMonth}
+                            format="MMMM YYYY"
+                            onChange={(value) => {
+                                // Si el usuario limpia el valor, volvemos al mes actual.
+                                setSelectedMonth(value ?? dayjs());
+                            }}
+                        />
+
+                        <Button
+                            onClick={() => setSelectedMonth(dayjs())}
+                        >
+                            Mes actual
+                        </Button>
+
+                        <Select
+                            value={sortOption}
+                            onChange={(value) => setSortOption(value)}
+                            style={{ width: 260 }}
+                            options={[
+                                {
+                                    value: "sla_global_desc",
+                                    label: "Mejor SLA global primero",
+                                },
+                                {
+                                    value: "sla_global_asc",
+                                    label: "Peor SLA global primero",
+                                },
+                                {
+                                    value: "nombre_asc",
+                                    label: "Nombre A-Z",
+                                },
+                                {
+                                    value: "nombre_desc",
+                                    label: "Nombre Z-A",
+                                },
+                                {
+                                    value: "closed_desc",
+                                    label: "Más tickets cerrados",
+                                },
+                                {
+                                    value: "closed_asc",
+                                    label: "Menos tickets cerrados",
+                                },
+                                {
+                                    value: "first_response_desc",
+                                    label: "Mejor SLA 1ra respuesta",
+                                },
+                                {
+                                    value: "resolution_desc",
+                                    label: "Mejor SLA cierre",
+                                },
+                                {
+                                    value: "avg_resolution_asc",
+                                    label: "Menor tiempo promedio de cierre",
+                                },
+                            ]}
+                        />
+                    </Space>
+                </div>
+            </Card>
             {/* RESUMEN GENERAL */}
-            <Row gutter={[16, 16]}>
+            <Row gutter={[16, 16]} className="mt-5">
                 <Col xs={24} md={12} xl={6}>
                     <Card className="rounded-2xl shadow-sm border-l-4 border-l-blue-500">
                         <div className="flex items-center justify-between">
@@ -206,9 +416,12 @@ export default function HelpdeskDashboardPage() {
 
             {/* CARDS POR TÉCNICO */}
             <Row gutter={[16, 16]}>
-                {metrics.map((t) => {
+                {sortedMetrics.map((t) => {
                     const frColor = getStatusColor(t.firstResponse.compliance);
                     const rsColor = getStatusColor(t.resolution.compliance);
+
+                    // SLA global usado para ordenar la card cuando el filtro es "Mejor SLA global primero".
+                    const globalSla = getGlobalSlaCompliance(t);
 
                     return (
                         <Col xs={24} md={12} xl={8} key={t.tecnicoId}>
@@ -226,8 +439,8 @@ export default function HelpdeskDashboardPage() {
                                         </div>
                                     </div>
 
-                                    <Tag color={getTagColor(t.firstResponse.compliance)}>
-                                        {t.firstResponse.compliance}% SLA
+                                    <Tag color={getTagColor(globalSla)}>
+                                        {globalSla}% SLA global
                                     </Tag>
                                 </div>
 

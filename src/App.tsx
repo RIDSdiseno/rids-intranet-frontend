@@ -3,6 +3,9 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Header from "./components/Header";
 import AccessibilityPanel from "./components/modals-accesibilidad/AccessibilityPanel";
+import NotaRapidaGlobal from "./components/modals-accesibilidad/NotaRapidaGlobal";
+import RecordatoriosCampana from "./components/modals-recordatorios/RecordatoriosCampana";
+
 import { canViewMapaTecnicos } from "./utils/canViewMapaTecnicos";
 
 /* =========================
@@ -13,7 +16,7 @@ const HomePage = lazy(() => import("./host/Home"));
 const SolicitantesPage = lazy(() => import("./host/Solicitantes"));
 const VisitasPage = lazy(() => import("./host/VisitasPage"));
 const EquiposPage = lazy(() => import("./host/EquiposPage"));
-const MantencionesGeneralesPage  = lazy(() => import("./components/modals-equipos/mant-general-page/MantencionesGeneralesPage"));
+const MantencionesGeneralesPage = lazy(() => import("./components/modals-equipos/mant-general-page/MantencionesGeneralesPage"));
 const DashboardAgentesPage = lazy(() => import("./components/modals-equipos/dashboard-agentes/DashboardAgentesPage"));
 const TicketsPage = lazy(() => import("./host/Ticket"));
 const EmpresasPage = lazy(() => import("./host/EmpresasPage"));
@@ -156,18 +159,59 @@ function getRootRedirect(): string {
 ========================= */
 
 function AppLayout() {
+  const rol = String(getUserRol() ?? "")
+    .toUpperCase()
+    .trim();
+
+  /*
+   * Las herramientas rápidas y recordatorios pertenecen
+   * exclusivamente al flujo de usuarios internos.
+   */
+  const canUseHerramientasInternas = [
+    "ADMIN",
+    "ADMINISTRACION",
+    "TECNICO",
+    "VENTAS",
+  ].includes(rol);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Header />
-      {/* El scroll va en el wrapper externo, NO en el elemento con zoom */}
-      <div className="flex-1 min-w-0 overflow-y-auto bg-white">
+
+      {/* El contenido principal conserva su propio scroll. */}
+      <div className="relative min-w-0 flex-1 overflow-y-auto bg-white">
+        {/*
+         * Campana global.
+         *
+         * Se posiciona de manera fija para evitar que forme
+         * una columna adicional dentro del layout flex.
+         */}
+        {canUseHerramientasInternas && (
+          <div className="fixed right-5 top-5 z-[70] sm:right-7">
+            <RecordatoriosCampana />
+          </div>
+        )}
+
         <main className="app-content-zoom">
-          <Suspense fallback={<div className="p-6">Cargando...</div>}>
+          <Suspense
+            fallback={
+              <div className="p-6">
+                Cargando...
+              </div>
+            }
+          >
             <Outlet />
           </Suspense>
         </main>
       </div>
+
+      {/* Panel de accesibilidad actual. */}
       <AccessibilityPanel />
+
+      {/* Nota rápida disponible solo para usuarios internos. */}
+      {canUseHerramientasInternas && (
+        <NotaRapidaGlobal />
+      )}
     </div>
   );
 }
@@ -220,8 +264,8 @@ export default function App() {
             <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION", "TECNICO", "VENTAS", "CLIENTE"]} />}>
               <Route path="/empresas" element={<EmpresasPage />} />
               <Route path="/equipos" element={<EquiposPage />} />
-              <Route path="/mantenciones-generales" element={<MantencionesGeneralesPage />}/>
-              <Route path="/dashboard-agentes" element={<DashboardAgentesPage />}/>
+              <Route path="/mantenciones-generales" element={<MantencionesGeneralesPage />} />
+              <Route path="/dashboard-agentes" element={<DashboardAgentesPage />} />
               <Route path="/solicitantes" element={<SolicitantesPage />} />
               <Route path="/mantenciones-remotas" element={<MantencionesRemotasPage />} />
               <Route path="/visitas" element={<VisitasPage />} />
