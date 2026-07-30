@@ -21,6 +21,7 @@ type Props = {
     busqueda: string;
     onBusquedaChange: (value: string) => void;
     onSelectDocumento: (doc: any) => void;
+    onSelectCliente?: (doc: any) => void;
     renderRowActions?: (doc: any) => React.ReactNode;
     // mode: 'rcv' -> mostrar estado tal cual viene del RCV (incluye 'Acusado')
     // mode: 'cobranza' -> mostrar estados normalizados: Pendiente/Vencida/Confirmada
@@ -138,6 +139,7 @@ const DocumentosRcvTable: React.FC<Props> = ({
     busqueda,
     onBusquedaChange,
     onSelectDocumento,
+    onSelectCliente,
     renderRowActions,
     mode = "rcv",
 }) => {
@@ -237,7 +239,17 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                     </div>
 
                                     <p className="mt-2 truncate text-sm font-bold text-slate-900">
-                                        {nombre}
+                                        {onSelectCliente ? (
+                                            <span
+                                                role="button"
+                                                onClick={(e) => { e.stopPropagation(); onSelectCliente(doc); }}
+                                                className="text-cyan-700 hover:underline"
+                                            >
+                                                {nombre}
+                                            </span>
+                                        ) : (
+                                            nombre
+                                        )}
                                     </p>
 
                                     <p className="mt-1 text-xs text-slate-500">
@@ -381,7 +393,18 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         className="truncate px-4 py-3 font-semibold text-slate-800"
                                         title={String(nombre)}
                                     >
-                                        {nombre}
+                                        {onSelectCliente ? (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); onSelectCliente(doc); }}
+                                                className="truncate text-left text-cyan-700 hover:underline"
+                                                title={`Ver ficha de ${nombre}`}
+                                            >
+                                                {nombre}
+                                            </button>
+                                        ) : (
+                                            nombre
+                                        )}
                                     </td>
 
                                     <td className="truncate px-4 py-3 text-slate-500">
