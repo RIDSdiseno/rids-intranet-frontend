@@ -23,7 +23,7 @@ import {
     TipoCotizacionGestioo,
     EstadoCotizacionGestioo
 } from "./types";
-import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
+import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig, normalizarCLP, redondearDecimal, formatearMontoFinal } from "./utils";
 
 import { message } from "antd";
 import EditServicioModal from "./EditServicio";
@@ -274,8 +274,11 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
         // % GANANCIA REAL (NO CAMBIA CON DESCUENTO)
         const margenGanancia =
-            item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
-                ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
+            item.tipo ===
+                ItemTipoGestioo.PRODUCTO
+                ? normalizarCLP(
+                    item.porcGanancia
+                )
                 : 0;
 
         const descuentoItem = valores.descuento;
@@ -319,15 +322,30 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                     <input
                         type="number"
                         min={1}
+                        step={1}
                         value={item.cantidad}
                         disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                            const rawValue =
+                                e.currentTarget
+                                    .valueAsNumber;
+
+                            const cantidad =
+                                Number.isNaN(rawValue)
+                                    ? 1
+                                    : Math.max(
+                                        1,
+                                        Math.trunc(
+                                            rawValue
+                                        )
+                                    );
+
                             handleUpdateItem(
                                 item.id,
                                 "cantidad",
-                                Math.max(1, Number(e.target.value))
-                            )
-                        }
+                                cantidad
+                            );
+                        }}
                         className={`w-16 border border-cyan-200 rounded-lg px-2 py-1 text-center focus:ring-2 focus:ring-cyan-400 focus:outline-none ${item.tipo === ItemTipoGestioo.ADICIONAL
                             ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "bg-white"
@@ -351,7 +369,13 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                     {item.tipo === ItemTipoGestioo.PRODUCTO ? (
                         <div className="flex flex-col items-center">
                             <span className="text-xs font-medium text-emerald-700">
-                                {margenGanancia.toFixed(1)}%
+                                {redondearDecimal(
+                                    margenGanancia,
+                                    2
+                                ).toLocaleString("es-CL", {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 2,
+                                })}%
                             </span>
                             {gananciaItem > 0 && (
                                 <span className="text-xs text-emerald-600">
@@ -429,19 +453,44 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 type="number"
                                 min={0}
                                 max={100}
-                                step={0.5}
-                                value={item.tieneDescuento ? item.porcentaje ?? "" : ""}
-                                disabled={!item.tieneDescuento}
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    item.tieneDescuento
+                                        ? item.porcentaje ?? ""
+                                        : ""
+                                }
+                                disabled={
+                                    !item.tieneDescuento
+                                }
                                 onChange={(e) => {
-                                    let value = Number(e.target.value);
-                                    if (isNaN(value)) value = 0;
-                                    value = Math.max(0, Math.min(100, value)); // clamp
-                                    onUpdateItem(item.id, "porcentaje", value);
+                                    /*
+                                     * valueAsNumber conserva valores decimales.
+                                     */
+                                    const rawValue =
+                                        e.currentTarget
+                                            .valueAsNumber;
+
+                                    const value =
+                                        Number.isNaN(rawValue)
+                                            ? 0
+                                            : Math.max(
+                                                0,
+                                                Math.min(
+                                                    100,
+                                                    rawValue
+                                                )
+                                            );
+
+                                    onUpdateItem(
+                                        item.id,
+                                        "porcentaje",
+                                        value
+                                    );
                                 }}
-                                className={`w-20 rounded-lg px-2 py-1 text-center text-sm
-          ${item.tieneDescuento
-                                        ? "border border-cyan-200 bg-white focus:ring-2 focus:ring-cyan-400"
-                                        : "border border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                                className={`w-20 rounded-lg px-2 py-1 text-center text-sm ${item.tieneDescuento
+                                    ? "border border-cyan-200 bg-white focus:ring-2 focus:ring-cyan-400"
+                                    : "border border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
                                     }`}
                                 placeholder="%"
                             />
@@ -858,13 +907,29 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                     </label>
                                                     <input
                                                         type="number"
-                                                        step="0.01"
-                                                        min="1"
-                                                        value={formData.tasaCambio}
+                                                        step={0.01}
+                                                        inputMode="decimal"
+                                                        min={1}
+                                                        value={
+                                                            formData.tasaCambio
+                                                        }
                                                         onChange={(e) => {
-                                                            const tasa = Number(e.target.value);
-                                                            if (tasa < 1) return;
-                                                            setFormData({ ...formData, tasaCambio: tasa });
+                                                            const tasa =
+                                                                e.currentTarget
+                                                                    .valueAsNumber;
+
+                                                            if (
+                                                                Number.isNaN(tasa) ||
+                                                                tasa < 1
+                                                            ) {
+                                                                return;
+                                                            }
+
+                                                            setFormData({
+                                                                ...formData,
+                                                                tasaCambio:
+                                                                    tasa,
+                                                            });
                                                         }}
                                                         className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400"
                                                         placeholder="Ej: 950"
@@ -1041,7 +1106,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                                     {itemsSeccionActiva.length} items
                                                 </span>
                                                 <span className="text-sm font-medium text-cyan-800">
-                                                    Total: {formatearPrecio(
+                                                    Total: {formatearMontoFinal(
                                                         calcularTotalesSeccion(seccionActiva.id).total,
                                                         formData.moneda,
                                                         formData.tasaCambio
@@ -1068,7 +1133,10 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                         <tbody>
                                             {itemsSeccionActiva.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="text-center py-4 text-slate-400 border-b border-cyan-100">
+                                                    <td
+                                                        colSpan={10}
+                                                        className="text-center py-4 text-slate-400 border-b border-cyan-100"
+                                                    >
                                                         No hay productos o servicios en esta sección.
                                                     </td>
                                                 </tr>

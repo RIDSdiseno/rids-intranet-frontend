@@ -872,6 +872,14 @@ Soporte Técnico`
 
             message.success("Respuesta enviada");
 
+            /*
+             * El backend cancela el recordatorio automático
+             * cuando soporte responde al cliente.
+             *
+             * Refrescamos la campana para quitarlo inmediatamente.
+             */
+            actualizarCampanaRecordatorios();
+
             navigate(`/helpdesk${location.search}`, {
                 replace: true,
             });

@@ -1,3 +1,4 @@
+// src/components/modals-cotizaciones/utils.tsx
 import type {
   CotizacionItemGestioo,
   ItemCotizacionFrontend
@@ -14,86 +15,355 @@ type ItemParaTotales = CotizacionItemGestioo | ItemCotizacionFrontend;
 // IVA fijo 19%
 const IVA_RATE = 0.19;
 
-// =====================================================
-//  NORMALIZAR CLP  (quita puntos, convierte a número)
-// =====================================================
-export function normalizarCLP(valor: any): number {
-  if (valor == null || valor === "") return 0;
-
-  const limpio = Number(String(valor).replace(/\./g, ""));
-  if (isNaN(limpio)) {
-    console.warn("⚠️ Precio CLP inválido:", valor);
+/**
+ * Redondea un número manteniendo la cantidad
+ * de decimales indicada.
+ */
+export function redondearDecimal(
+  valor: number,
+  decimales = 2
+): number {
+  if (!Number.isFinite(valor)) {
     return 0;
   }
 
-  return limpio;
+  const factor =
+    10 ** decimales;
+
+  return Math.round(
+    (valor + Number.EPSILON) *
+    factor
+  ) / factor;
 }
+
+/**
+ * Convierte valores escritos con formato
+ * chileno o formato decimal de JavaScript.
+ *
+ * Ejemplos:
+ * 140       -> 140
+ * 140.5     -> 140.5
+ * 140,5     -> 140.5
+ * 1.250     -> 1250
+ * 1.250,50  -> 1250.50
+ */
+export function normalizarCLP(
+  valor: unknown
+): number {
+  if (
+    valor === null ||
+    valor === undefined ||
+    valor === ""
+  ) {
+    return 0;
+  }
+
+  if (typeof valor === "number") {
+    return Number.isFinite(valor)
+      ? valor
+      : 0;
+  }
+
+  let texto =
+    String(valor)
+      .trim()
+      .replace(/\s/g, "");
+
+  if (!texto) {
+    return 0;
+  }
+
+  if (
+    texto.includes(".") &&
+    texto.includes(",")
+  ) {
+    /*
+     * Formato chileno completo:
+     * 1.250,50 -> 1250.50
+     */
+    texto = texto
+      .replace(/\./g, "")
+      .replace(",", ".");
+  } else if (
+    texto.includes(",")
+  ) {
+    /*
+     * Decimal con coma:
+     * 140,5 -> 140.5
+     */
+    texto =
+      texto.replace(",", ".");
+  } else if (
+    /^\d{1,3}(\.\d{3})+$/.test(
+      texto
+    )
+  ) {
+    /*
+     * Separador de miles:
+     * 1.250 -> 1250
+     * 1.250.000 -> 1250000
+     */
+    texto =
+      texto.replace(/\./g, "");
+  }
+
+  const numero =
+    Number(texto);
+
+  if (!Number.isFinite(numero)) {
+    console.warn(
+      "Precio inválido:",
+      valor
+    );
+
+    return 0;
+  }
+
+  return numero;
+}
+
 export const calcularTotales = (
   items: ItemParaTotales[]
 ) => {
   let subtotalBruto = 0;
-  let descuentos = 0;
-  let subtotal = 0;
-  let iva = 0;
+  let descuentosItems = 0;
+  let descuentoGlobal = 0;
+  let subtotalAntesGlobal = 0;
+  let ivaAntesGlobal = 0;
 
-  // 1️⃣ Subtotal bruto
-  items.forEach(item => {
-    if (item.tipo === ItemTipoGestioo.ADICIONAL) return;
-
-    const precioCLP = Number(item.precioOriginalCLP || 0);
-    subtotalBruto += precioCLP * (item.cantidad || 1);
-  });
-
-  // 2️⃣ Descuentos + IVA
-  items.forEach(item => {
-    const porcentaje = Number(item.porcentaje) || 0;
-
-    // Descuento global
-    if (item.tipo === ItemTipoGestioo.ADICIONAL && porcentaje > 0) {
-      descuentos += (subtotalBruto * porcentaje) / 100;
+  /*
+   * 1. Calcular subtotal bruto de todos
+   * los productos y servicios.
+   */
+  items.forEach((item) => {
+    if (
+      item.tipo ===
+      ItemTipoGestioo.ADICIONAL
+    ) {
       return;
     }
 
-    const precioCLP = Number(item.precioOriginalCLP || 0);
-    const cantidad = Number(item.cantidad || 1);
-    const base = precioCLP * cantidad;
+    const precioCLP =
+      normalizarCLP(
+        item.precioOriginalCLP
+      );
+
+    const cantidad =
+      normalizarCLP(
+        item.cantidad
+      ) || 1;
+
+    subtotalBruto +=
+      precioCLP * cantidad;
+  });
+
+  /*
+   * 2. Procesar descuentos individuales,
+   * bases finales e IVA.
+   */
+  items.forEach((item) => {
+    if (
+      item.tipo ===
+      ItemTipoGestioo.ADICIONAL
+    ) {
+      return;
+    }
+
+    const precioCLP =
+      normalizarCLP(
+        item.precioOriginalCLP
+      );
+
+    const cantidad =
+      normalizarCLP(
+        item.cantidad
+      ) || 1;
+
+    const porcentaje =
+      normalizarCLP(
+        item.porcentaje
+      );
+
+    const base =
+      precioCLP * cantidad;
 
     const descuentoItem =
-      item.tieneDescuento && porcentaje > 0
-        ? (base * porcentaje) / 100
+      item.tieneDescuento &&
+        porcentaje > 0
+        ? (
+          base *
+          porcentaje
+        ) / 100
         : 0;
 
-    descuentos += descuentoItem;
+    const baseFinal =
+      Math.max(
+        0,
+        base -
+        descuentoItem
+      );
 
-    const baseFinal = base - descuentoItem;
-    subtotal += baseFinal;
+    descuentosItems +=
+      descuentoItem;
+
+    subtotalAntesGlobal +=
+      baseFinal;
 
     if (item.tieneIVA) {
-      iva += baseFinal * IVA_RATE;
+      ivaAntesGlobal +=
+        baseFinal * IVA_RATE;
     }
   });
 
-  const total = subtotal + iva;
+  /*
+   * 3. Calcular descuentos globales representados
+   * mediante ítems de tipo ADICIONAL.
+   */
+  items.forEach((item) => {
+    if (
+      item.tipo !==
+      ItemTipoGestioo.ADICIONAL
+    ) {
+      return;
+    }
 
-  return { subtotalBruto, descuentos, subtotal, iva, total };
+    const porcentaje =
+      normalizarCLP(
+        item.porcentaje
+      );
+
+    if (porcentaje <= 0) {
+      return;
+    }
+
+    descuentoGlobal +=
+      (
+        subtotalBruto *
+        porcentaje
+      ) / 100;
+  });
+
+  /*
+   * Evitar que los descuentos globales produzcan
+   * un subtotal negativo.
+   */
+  descuentoGlobal =
+    Math.min(
+      descuentoGlobal,
+      subtotalAntesGlobal
+    );
+
+  const subtotal =
+    Math.max(
+      0,
+      subtotalAntesGlobal -
+      descuentoGlobal
+    );
+
+  /*
+   * Reducir proporcionalmente el IVA cuando
+   * existe un descuento global.
+   */
+  const factorGlobal =
+    subtotalAntesGlobal > 0
+      ? subtotal /
+      subtotalAntesGlobal
+      : 0;
+
+  const iva =
+    ivaAntesGlobal *
+    factorGlobal;
+
+  const descuentos =
+    descuentosItems +
+    descuentoGlobal;
+
+  const total =
+    subtotal + iva;
+
+  return {
+    subtotalBruto:
+      redondearDecimal(
+        subtotalBruto,
+        2
+      ),
+
+    descuentos:
+      redondearDecimal(
+        descuentos,
+        2
+      ),
+
+    subtotal:
+      redondearDecimal(
+        subtotal,
+        2
+      ),
+
+    iva:
+      redondearDecimal(
+        iva,
+        2
+      ),
+
+    total:
+      redondearDecimal(
+        total,
+        2
+      ),
+  };
 };
 
-// Calcula el precio total dado el precio base y el porcentaje de ganancia
+/**
+ * Calcula el precio final aplicando
+ * un porcentaje de ganancia.
+ */
 export const calcularPrecioTotal = (
   precio: number,
   porcGanancia: number
 ): number => {
-  if (!precio || precio <= 0) return 0;
-  return Number((precio * (1 + porcGanancia / 100)).toFixed(2));
+  const costo =
+    normalizarCLP(precio);
+
+  const porcentaje =
+    normalizarCLP(porcGanancia);
+
+  if (costo <= 0) {
+    return 0;
+  }
+
+  return redondearDecimal(
+    costo *
+    (1 + porcentaje / 100),
+    2
+  );
 };
 
-// Calcula el porcentaje de ganancia dado el precio base y el precio total
+/**
+ * Calcula el porcentaje de ganancia a partir
+ * del costo y el precio de venta.
+ */
 export const calcularPorcGanancia = (
   precio: number,
   precioTotal: number
 ): number => {
-  if (!precio || precio <= 0) return 0;
-  return Number((((precioTotal - precio) / precio) * 100).toFixed(2));
+  const costo =
+    normalizarCLP(precio);
+
+  const total =
+    normalizarCLP(precioTotal);
+
+  if (costo <= 0) {
+    return 0;
+  }
+
+  return redondearDecimal(
+    (
+      (total - costo) /
+      costo
+    ) * 100,
+    2
+  );
 };
 
 // =====================================================
@@ -238,26 +508,50 @@ export const formatTipo = (tipo: TipoCotizacionGestioo) => {
   return tipos[tipo];
 };
 
-// =====================================================
-//  FORMATEO DE PRECIO (MOSTRAR USD / CLP)
-// =====================================================
+/**
+ * Formatea montos CLP o USD conservando
+ * hasta dos decimales.
+ */
 export function formatearPrecio(
   valorCLP: number,
   moneda: "CLP" | "USD",
   tasa: number
 ) {
-  const redondear = (num: number) =>
-    Math.round((num + Number.EPSILON) * 100) / 100;
+  const valorSeguro =
+    redondearDecimal(
+      Number(valorCLP) || 0,
+      2
+    );
 
   if (moneda === "USD") {
-    const usd = redondear(valorCLP / tasa);
-    return `US$ ${usd.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    const tasaSegura =
+      Number(tasa) > 0
+        ? Number(tasa)
+        : 1;
+
+    const valorUSD =
+      redondearDecimal(
+        valorSeguro /
+        tasaSegura,
+        2
+      );
+
+    return `US$ ${valorUSD.toLocaleString(
+      "en-US",
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }
+    )}`;
   }
 
-  return `$ ${Math.round(valorCLP).toLocaleString("es-CL")}`;
+  return `$ ${valorSeguro.toLocaleString(
+    "es-CL",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }
+  )}`;
 }
 
 // =====================================================
@@ -268,13 +562,29 @@ export const normalizarItemCotizacion = (
   moneda: "CLP" | "USD",
   tasaCambio: number
 ) => {
-  const precioCosto = Number(item.precioCosto || 0);
-  const porcGanancia = Number(item.porcGanancia || 0);
+  const precioCosto =
+    normalizarCLP(
+      item.precioCosto
+    );
 
-  // 🔥 Precio real CLP (fuente de la verdad)
+  const porcGanancia =
+    normalizarCLP(
+      item.porcGanancia
+    );
+
   const precioOriginalCLP =
-    item.precioOriginalCLP ??
-    Math.round(precioCosto * (1 + porcGanancia / 100));
+    item.precioOriginalCLP !== null &&
+      item.precioOriginalCLP !== undefined
+      ? redondearDecimal(
+        normalizarCLP(
+          item.precioOriginalCLP
+        ),
+        2
+      )
+      : calcularPrecioTotal(
+        precioCosto,
+        porcGanancia
+      );
 
   return {
     ...item,
@@ -291,8 +601,15 @@ export const normalizarItemCotizacion = (
     // Precio visible según moneda
     precio:
       moneda === "USD"
-        ? precioOriginalCLP / (tasaCambio || 1)
-        : precioOriginalCLP,
+        ? redondearDecimal(
+          precioOriginalCLP /
+          (tasaCambio || 1),
+          2
+        )
+        : redondearDecimal(
+          precioOriginalCLP,
+          2
+        ),
 
     cantidad: item.cantidad ?? 1,
     porcentaje: item.porcentaje ?? 0,
@@ -304,52 +621,159 @@ export const normalizarItemCotizacion = (
 // =====================================================
 //  CÁLCULO DE VALORES POR ÍTEM
 // =====================================================
-export const calcularDescuentoItem = (item: any) => {
-  if (!item.tieneDescuento || !item.porcentaje) return 0;
+export const calcularDescuentoItem = (
+  item: any
+) => {
+  if (
+    !item.tieneDescuento ||
+    !item.porcentaje
+  ) {
+    return 0;
+  }
 
-  const precio = Number(item.precio) || 0;
-  const cantidad = Number(item.cantidad) || 1;
+  const precio =
+    normalizarCLP(
+      item.precio
+    );
 
-  return Math.round(precio * cantidad * (item.porcentaje / 100));
+  const cantidad =
+    normalizarCLP(
+      item.cantidad
+    ) || 1;
+
+  const porcentaje =
+    normalizarCLP(
+      item.porcentaje
+    );
+
+  return redondearDecimal(
+    precio *
+    cantidad *
+    (porcentaje / 100),
+    2
+  );
 };
 
 // Calcula los valores base, descuento, neto, iva y total de un ítem
 export const calcularValoresItem = (
   item: CotizacionItemGestioo
 ) => {
-  const precioCLP = Number(item.precioOriginalCLP || 0);
-  const cantidad = Number(item.cantidad || 1);
-  const porcentaje = Number(item.porcentaje || 0);
+  const precioCLP =
+    normalizarCLP(
+      item.precioOriginalCLP ??
+      item.precio
+    );
 
-  const base = precioCLP * cantidad;
+  const cantidad =
+    Math.max(
+      1,
+      Math.trunc(
+        normalizarCLP(
+          item.cantidad
+        ) || 1
+      )
+    );
+
+  const porcentaje =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        normalizarCLP(
+          item.porcentaje
+        )
+      )
+    );
+
+  const base =
+    precioCLP *
+    cantidad;
 
   const descuento =
-    item.tieneDescuento && porcentaje > 0
-      ? (base * porcentaje) / 100
+    item.tieneDescuento &&
+      porcentaje > 0
+      ? (
+        base *
+        porcentaje
+      ) / 100
       : 0;
 
-  const neto = base - descuento;
+  const neto =
+    Math.max(
+      0,
+      base -
+      descuento
+    );
+
   const iva =
-    item.tieneIVA && item.tipo !== ItemTipoGestioo.ADICIONAL
-      ? neto * 0.19
+    item.tieneIVA &&
+      item.tipo !==
+      ItemTipoGestioo.ADICIONAL
+      ? neto *
+      IVA_RATE
       : 0;
 
   return {
-    base,
-    descuento,
-    neto,
-    iva,
-    total: neto + iva,
+    base:
+      redondearDecimal(
+        base,
+        2
+      ),
+
+    descuento:
+      redondearDecimal(
+        descuento,
+        2
+      ),
+
+    neto:
+      redondearDecimal(
+        neto,
+        2
+      ),
+
+    iva:
+      redondearDecimal(
+        iva,
+        2
+      ),
+
+    total:
+      redondearDecimal(
+        neto + iva,
+        2
+      ),
   };
 };
 
 // Calcula los valores detallados de un ítem para mostrar en la UI
 export const calcularLineaItem = (item: any) => {
   const precioCLP =
-    Number(item.precioOriginalCLP ?? item.precio) || 0;
+    normalizarCLP(
+      item.precioOriginalCLP ??
+      item.precio
+    );
 
-  const cantidad = Number(item.cantidad) || 1;
-  const porcentaje = Number(item.porcentaje) || 0;
+  const cantidad =
+    Math.max(
+      1,
+      Math.trunc(
+        normalizarCLP(
+          item.cantidad
+        ) || 1
+      )
+    );
+
+  const porcentaje =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        normalizarCLP(
+          item.porcentaje
+        )
+      )
+    );
 
   const base = precioCLP * cantidad;
 
@@ -365,13 +789,45 @@ export const calcularLineaItem = (item: any) => {
     : 0;
 
   return {
-    base,
-    descuento,
-    neto,
-    iva,
-    total: neto + iva,
-    porcentajeMostrar: item.tieneDescuento ? porcentaje : 0,
-    ivaPorcentajeMostrar: item.tieneIVA ? 19 : 0,
+    base:
+      redondearDecimal(
+        base,
+        2
+      ),
+
+    descuento:
+      redondearDecimal(
+        descuento,
+        2
+      ),
+
+    neto:
+      redondearDecimal(
+        neto,
+        2
+      ),
+
+    iva:
+      redondearDecimal(
+        iva,
+        2
+      ),
+
+    total:
+      redondearDecimal(
+        neto + iva,
+        2
+      ),
+
+    porcentajeMostrar:
+      item.tieneDescuento
+        ? porcentaje
+        : 0,
+
+    ivaPorcentajeMostrar:
+      item.tieneIVA
+        ? 19
+        : 0,
   };
 };
 
@@ -404,3 +860,37 @@ export const estadoConfig: Record<
     active: "bg-purple-600 text-white border-purple-600",
   },
 };
+
+export function formatearMontoFinal(
+  valorCLP: number,
+  moneda: "CLP" | "USD",
+  tasa: number
+): string {
+  const valorSeguro = Number(valorCLP) || 0;
+
+  if (moneda === "USD") {
+    const tasaSegura =
+      Number(tasa) > 0
+        ? Number(tasa)
+        : 1;
+
+    const valorUSD =
+      redondearDecimal(
+        valorSeguro / tasaSegura,
+        2
+      );
+
+    return `US$ ${valorUSD.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  const montoEntero =
+    Math.round(valorSeguro);
+
+  return `$ ${montoEntero.toLocaleString("es-CL", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+}

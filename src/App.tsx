@@ -5,6 +5,7 @@ import Header from "./components/Header";
 import AccessibilityPanel from "./components/modals-accesibilidad/AccessibilityPanel";
 import NotaRapidaGlobal from "./components/modals-accesibilidad/NotaRapidaGlobal";
 import RecordatoriosCampana from "./components/modals-recordatorios/RecordatoriosCampana";
+import PermisoNotificacionesModal from "./components/modals-recordatorios/PermisoNotificacionesModal";
 
 import { canViewMapaTecnicos } from "./utils/canViewMapaTecnicos";
 
@@ -164,8 +165,8 @@ function AppLayout() {
     .trim();
 
   /*
-   * Las herramientas rápidas y recordatorios pertenecen
-   * exclusivamente al flujo de usuarios internos.
+   * Las herramientas rápidas, recordatorios y
+   * notificaciones pertenecen a usuarios internos.
    */
   const canUseHerramientasInternas = [
     "ADMIN",
@@ -180,12 +181,6 @@ function AppLayout() {
 
       {/* El contenido principal conserva su propio scroll. */}
       <div className="relative min-w-0 flex-1 overflow-y-auto bg-white">
-        {/*
-         * Campana global.
-         *
-         * Se posiciona de manera fija para evitar que forme
-         * una columna adicional dentro del layout flex.
-         */}
         {canUseHerramientasInternas && (
           <div className="fixed right-5 top-5 z-[70] sm:right-7">
             <RecordatoriosCampana />
@@ -208,9 +203,17 @@ function AppLayout() {
       {/* Panel de accesibilidad actual. */}
       <AccessibilityPanel />
 
-      {/* Nota rápida disponible solo para usuarios internos. */}
       {canUseHerramientasInternas && (
-        <NotaRapidaGlobal />
+        <>
+          {/* Nota rápida disponible para usuarios internos. */}
+          <NotaRapidaGlobal />
+
+          {/*
+           * Modal que se muestra al ingresar cuando
+           * el permiso sigue en estado "default" o "denied".
+           */}
+          <PermisoNotificacionesModal />
+        </>
       )}
     </div>
   );

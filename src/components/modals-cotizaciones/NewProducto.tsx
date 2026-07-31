@@ -342,36 +342,75 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                                 <input
                                     type="number"
                                     min={0}
-                                    value={formData.precio || ""}
-                                    onChange={(e) =>
-                                        handlePrecioChange(
-                                            Number(e.target.value) || 0
-                                        )
+                                    step={0.01}
+                                    inputMode="decimal"
+                                    value={
+                                        formData.precio === 0
+                                            ? ""
+                                            : formData.precio
                                     }
+                                    onChange={(e) => {
+                                        /*
+                                         * valueAsNumber entrega un número decimal
+                                         * y evita conversiones manuales innecesarias.
+                                         */
+                                        const value =
+                                            e.currentTarget.valueAsNumber;
+
+                                        handlePrecioChange(
+                                            Number.isNaN(value)
+                                                ? 0
+                                                : value
+                                        );
+                                    }}
                                     placeholder="Costo"
-                                    className={`border rounded-xl px-3 py-2 ${conIVA ? "opacity-50 bg-gray-100 text-gray-400" : ""}`}
+                                    className={`border rounded-xl px-3 py-2 ${conIVA
+                                        ? "opacity-50 bg-gray-100 text-gray-400"
+                                        : ""
+                                        }`}
                                 />
                                 <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
                                     <input
                                         type="checkbox"
                                         checked={conIVA}
                                         onChange={(e) =>
-                                            handleConIVAChange(e.target.checked)
+                                            handleConIVAChange(
+                                                e.target.checked
+                                            )
                                         }
                                     />
-                                    Precio sin IVA
+
+                                    {/* El precio ingresado será tratado como monto con IVA incluido. */}
+                                    Precio incluye IVA
                                 </label>
                             </div>
 
                             <input
                                 type="number"
                                 min={0}
-                                value={formData.porcGanancia || ""}
-                                onChange={(e) =>
-                                    handlePorcGananciaChange(
-                                        Number(e.target.value) || 0
-                                    )
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    formData.porcGanancia === 0
+                                        ? ""
+                                        : formData.porcGanancia
                                 }
+                                onChange={(e) => {
+                                    /*
+                                     * Permite porcentajes como:
+                                     * 10,5
+                                     * 30,25
+                                     * 45,75
+                                     */
+                                    const value =
+                                        e.currentTarget.valueAsNumber;
+
+                                    handlePorcGananciaChange(
+                                        Number.isNaN(value)
+                                            ? 0
+                                            : value
+                                    );
+                                }}
                                 placeholder="% Ganancia"
                                 className="border rounded-xl px-3 py-2"
                             />
@@ -379,12 +418,27 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
                             <input
                                 type="number"
                                 min={0}
-                                value={formData.precioTotal || ""}
-                                onChange={(e) =>
-                                    handlePrecioTotalChange(
-                                        Number(e.target.value) || 0
-                                    )
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    formData.precioTotal === 0
+                                        ? ""
+                                        : formData.precioTotal
                                 }
+                                onChange={(e) => {
+                                    /*
+                                     * Permite modificar manualmente el precio final
+                                     * utilizando hasta dos decimales.
+                                     */
+                                    const value =
+                                        e.currentTarget.valueAsNumber;
+
+                                    handlePrecioTotalChange(
+                                        Number.isNaN(value)
+                                            ? 0
+                                            : value
+                                    );
+                                }}
                                 placeholder="Precio venta"
                                 className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
                             />
@@ -392,8 +446,18 @@ const NewProductoModal: React.FC<NewProductoModalProps> = ({
 
                         <div className="mt-3 text-sm font-semibold text-slate-700">
                             {conIVA
-                                ? `Costo sin IVA: $${Math.round(formData.precio / 1.19).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
-                                : `Costo neto: $${(formData.precio || 0).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`
+                                ? `Costo sin IVA: $${(
+                                    formData.precio / 1.19
+                                ).toLocaleString("es-CL", {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 2,
+                                })}`
+                                : `Costo neto: $${(
+                                    formData.precio || 0
+                                ).toLocaleString("es-CL", {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 2,
+                                })}`
                             }
                         </div>
 

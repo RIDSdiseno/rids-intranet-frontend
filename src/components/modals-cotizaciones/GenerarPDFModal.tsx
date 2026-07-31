@@ -11,6 +11,13 @@ import html2canvas from "html2canvas";
 import type { CotizacionGestioo } from "./types";
 
 import {
+    calcularLineaItem,
+    calcularTotales,
+    normalizarCLP,
+    redondearDecimal,
+} from "./utils";
+
+import {
     PDF_ORIGEN_DATA,
     getPdfOrigenInfo,
     normalizarPdfOrigen,
@@ -482,17 +489,115 @@ const generarPDF = async (
     const logoBase64 = await obtenerImagenBase64(origenInfo.logo);
     const logoPdf = logoBase64 || origenInfo.logo;
 
-    const formatPDF = (valorCLP: number) => {
-        if (Number.isNaN(valorCLP)) return "$0";
+    /**
+  * Para precios y montos detallados.
+  *
+  * Muestra decimales solo cuando existen.
+  */
+    const formatPDFDetalle = (
+        valorCLP: unknown
+    ): string => {
+        const valorSeguro =
+            redondearDecimal(
+                normalizarCLP(valorCLP),
+                2
+            );
 
         if (cot.moneda === "USD") {
-            const tasa = cot.tasaCambio || 1;
-            const usd = valorCLP / tasa;
+            const tasa =
+                normalizarCLP(
+                    cot.tasaCambio
+                ) || 1;
 
-            return `US$ ${Math.round(usd).toLocaleString("es-CL")}`;
+            const valorUSD =
+                redondearDecimal(
+                    valorSeguro / tasa,
+                    2
+                );
+
+            return `US$ ${valorUSD.toLocaleString(
+                "en-US",
+                {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                }
+            )}`;
         }
 
-        return `$${Math.round(valorCLP).toLocaleString("es-CL")}`;
+        return `$ ${valorSeguro.toLocaleString(
+            "es-CL",
+            {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+            }
+        )}`;
+    };
+
+    /**
+     * Para totales finales y totales de sección.
+     *
+     * CLP se muestra como entero.
+     * USD conserva dos decimales.
+     */
+    const formatPDFFinal = (
+        valorCLP: unknown
+    ): string => {
+        const valorSeguro =
+            normalizarCLP(
+                valorCLP
+            );
+
+        if (cot.moneda === "USD") {
+            const tasa =
+                normalizarCLP(
+                    cot.tasaCambio
+                ) || 1;
+
+            const valorUSD =
+                redondearDecimal(
+                    valorSeguro / tasa,
+                    2
+                );
+
+            return `US$ ${valorUSD.toLocaleString(
+                "en-US",
+                {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                }
+            )}`;
+        }
+
+        const montoEntero =
+            Math.round(
+                valorSeguro
+            );
+
+        return `$ ${montoEntero.toLocaleString(
+            "es-CL",
+            {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+            }
+        )}`;
+    };
+
+    const formatPorcentajePDF = (
+        valor: unknown
+    ): string => {
+        const porcentaje =
+            redondearDecimal(
+                normalizarCLP(valor),
+                2
+            );
+
+        return porcentaje.toLocaleString(
+            "es-CL",
+            {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+            }
+        );
     };
 
     const truncarTexto = (texto: string, maxCaracteres = 250): string => {
@@ -505,38 +610,11 @@ const generarPDF = async (
         return `${limpio.substring(0, maxCaracteres).trimEnd()}...`;
     };
 
-    const calcularLineaItem = (item: any) => {
-        const precio = Number(item.precio) || 0;
-        const cantidad = Number(item.cantidad) || 0;
-        const porcentaje = item.porcentaje ? Number(item.porcentaje) : 0;
-
-        const base = precio * cantidad;
-        const tieneDescuentoValido = item.tieneDescuento && porcentaje > 0;
-        const esAdicional = item.tipo === "ADICIONAL";
-
-        const descuentoItem =
-            tieneDescuentoValido && !esAdicional ? (base * porcentaje) / 100 : 0;
-
-        const baseConDescuento = base - descuentoItem;
-        const ivaMonto = item.tieneIVA && !esAdicional ? baseConDescuento * 0.19 : 0;
-        const totalItem = baseConDescuento + ivaMonto;
-
-        return {
-            base,
-            descuentoItem,
-            baseConDescuento,
-            ivaMonto,
-            totalItem,
-            porcentajeMostrar: tieneDescuentoValido ? porcentaje : 0,
-            ivaPorcentajeMostrar: item.tieneIVA ? 19 : 0,
-        };
-    };
-
     // Columnas del encabezado + grupos de ancho (colgroup) para cada variante.
     const theadCols = mostrarTotales
         ? `<th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Código</th>
        <th style="padding:8px;text-align:left;border:1px solid #dee2e6;">Nombre</th>
-       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant.</th>
+       <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Cant</th>
        <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">P.Unitario</th>
        <th style="padding:8px;text-align:right;border:1px solid #dee2e6;">Subtotal</th>
        <th style="padding:8px;text-align:center;border:1px solid #dee2e6;">Desc (%)</th>
@@ -551,22 +629,22 @@ const generarPDF = async (
     // Da más ancho a la columna "Nombre" para que la descripción se vea completa.
     const colGroup = mostrarTotales
         ? `<colgroup>
-               <col style="width:8%" />
-               <col style="width:26%" />
-               <col style="width:5%" />
-               <col style="width:9%" />
-               <col style="width:9%" />
-               <col style="width:6%" />
-               <col style="width:8%" />
-               <col style="width:6%" />
-               <col style="width:8%" />
-               <col style="width:9%" />
-           </colgroup>`
+           <col style="width:8%" />
+           <col style="width:28%" />
+           <col style="width:5%" />
+           <col style="width:10%" />
+           <col style="width:10%" />
+           <col style="width:5%" />
+           <col style="width:8%" />
+           <col style="width:5%" />
+           <col style="width:10%" />
+           <col style="width:11%" />
+       </colgroup>`
         : `<colgroup>
-               <col style="width:15%" />
-               <col style="width:70%" />
-               <col style="width:15%" />
-           </colgroup>`;
+           <col style="width:15%" />
+           <col style="width:70%" />
+           <col style="width:15%" />
+       </colgroup>`;
 
     const buildEquipoDetalle = (item: any) => {
         if (!item.equipo) return "";
@@ -613,48 +691,130 @@ const generarPDF = async (
 
     const buildItemRow = (
         item: any,
-        valores: ReturnType<typeof calcularLineaItem>
+        valores: ReturnType<
+            typeof calcularLineaItem
+        >
     ) => {
         if (mostrarTotales) {
-            return `
-                <tr>
-                    <td style="padding:8px;text-align:center;vertical-align:top;">${item.sku || ""}</td>
-                    <td style="padding:8px;text-align:left;vertical-align:top;">
-                        <div style="font-weight:600;font-size:11px;margin-bottom:3px;color:#111827;">
-                            ${item.nombre}
-                        </div>
-                        ${buildDescripcion(item)}
-                        ${buildEquipoDetalle(item)}
-                    </td>
-                    <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(Number(item.precio) || 0)}</td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.base)}</td>
-                    <td style="padding:8px;text-align:center;vertical-align:top;">${valores.porcentajeMostrar}%</td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.descuentoItem)}</td>
-                    <td style="padding:8px;text-align:center;vertical-align:top;">${valores.ivaPorcentajeMostrar}%</td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;">${formatPDF(valores.ivaMonto)}</td>
-                    <td style="padding:8px;text-align:right;vertical-align:top;font-weight:bold;">${formatPDF(valores.totalItem)}</td>
-                </tr>
-            `;
-        }
+            const precioUnitarioCLP =
+                normalizarCLP(
+                    item.precioOriginalCLP ??
+                    item.precio
+                );
 
-        return `
+            return `
             <tr>
-                <td style="padding:8px;text-align:center;vertical-align:top;">${item.sku || ""}</td>
+                <td style="padding:8px;text-align:center;vertical-align:top;">
+                    ${item.sku || ""}
+                </td>
+
                 <td style="padding:8px;text-align:left;vertical-align:top;">
                     <div style="font-weight:600;font-size:11px;margin-bottom:3px;color:#111827;">
-                        ${item.nombre}
+                        ${item.nombre || ""}
                     </div>
+
                     ${buildDescripcion(item)}
                     ${buildEquipoDetalle(item)}
                 </td>
-                <td style="padding:8px;text-align:center;vertical-align:top;">${item.cantidad}</td>
+
+                <td style="padding:8px;text-align:center;vertical-align:top;">
+                    ${item.cantidad}
+                </td>
+
+                <td style="padding:8px;text-align:right;vertical-align:top;">
+                    ${formatPDFDetalle(
+                precioUnitarioCLP
+            )}
+                </td>
+
+                <td style="padding:8px;text-align:right;vertical-align:top;">
+                    ${formatPDFDetalle(
+                valores.base
+            )}
+                </td>
+
+                <td style="padding:8px;text-align:center;vertical-align:top;">
+                    ${formatPorcentajePDF(
+                valores.porcentajeMostrar
+            )}%
+                </td>
+
+                <td style="padding:8px;text-align:right;vertical-align:top;">
+                    ${formatPDFDetalle(
+                valores.descuento
+            )}
+                </td>
+
+                <td style="padding:8px;text-align:center;vertical-align:top;">
+                    ${formatPorcentajePDF(
+                valores.ivaPorcentajeMostrar
+            )}%
+                </td>
+
+                <td style="padding:8px;text-align:right;vertical-align:top;">
+                    ${formatPDFDetalle(
+                valores.iva
+            )}
+                </td>
+
+                <td
+    style="
+        padding:8px;
+        text-align:right;
+        vertical-align:top;
+        font-weight:bold;
+        white-space:nowrap;
+    "
+>
+    ${formatPDFFinal(
+                valores.total
+            )}
+</td>
             </tr>
         `;
+        }
+
+        return `
+        <tr>
+            <td style="padding:8px;text-align:center;vertical-align:top;">
+                ${item.sku || ""}
+            </td>
+
+            <td style="padding:8px;text-align:left;vertical-align:top;">
+                <div style="font-weight:600;font-size:11px;margin-bottom:3px;color:#111827;">
+                    ${item.nombre || ""}
+                </div>
+
+                ${buildDescripcion(item)}
+                ${buildEquipoDetalle(item)}
+            </td>
+
+            <td style="padding:8px;text-align:center;vertical-align:top;">
+                ${item.cantidad}
+            </td>
+        </tr>
+    `;
     };
 
     let seccionesHtml = "";
-    let totalGeneral = 0;
+
+    /*
+     * Utilizar el total guardado por el backend.
+     * Como respaldo, recalcular desde los ítems.
+     */
+    const totalesCalculados =
+        calcularTotales(
+            cot.items
+        );
+
+    const totalGeneral =
+        normalizarCLP(
+            cot.total
+        ) > 0
+            ? normalizarCLP(
+                cot.total
+            )
+            : totalesCalculados.total;
 
     if (cot.secciones && cot.secciones.length > 0) {
         const seccionesOrdenadas = [...cot.secciones].sort(
@@ -668,20 +828,31 @@ const generarPDF = async (
 
             if (itemsSeccion.length === 0) continue;
 
-            let totalSeccion = 0;
+            const totalesSeccion =
+                calcularTotales(
+                    itemsSeccion
+                );
+
+            const totalSeccion =
+                totalesSeccion.total;
 
             const itemsHtml = (
                 await Promise.all(
-                    itemsSeccion.map(async (item) => {
-                        const valores = calcularLineaItem(item);
-                        totalSeccion += valores.totalItem;
+                    itemsSeccion.map(
+                        async (item) => {
+                            const valores =
+                                calcularLineaItem(
+                                    item
+                                );
 
-                        return buildItemRow(item, valores);
-                    })
+                            return buildItemRow(
+                                item,
+                                valores
+                            );
+                        }
+                    )
                 )
             ).join("");
-
-            totalGeneral += totalSeccion;
 
             seccionesHtml += `
                 <div style="margin-bottom:30px;">
@@ -715,7 +886,7 @@ const generarPDF = async (
     Total ${seccion.nombre}:
 </td>
                                             <td style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
-                                                ${formatPDF(totalSeccion)}
+                                                ${formatPDFFinal(totalSeccion)}
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -729,12 +900,19 @@ const generarPDF = async (
     } else {
         const itemsHtml = (
             await Promise.all(
-                cot.items.map(async (item) => {
-                    const valores = calcularLineaItem(item);
-                    totalGeneral += valores.totalItem;
+                cot.items.map(
+                    async (item) => {
+                        const valores =
+                            calcularLineaItem(
+                                item
+                            );
 
-                    return buildItemRow(item, valores);
-                })
+                        return buildItemRow(
+                            item,
+                            valores
+                        );
+                    }
+                )
             )
         ).join("");
 
@@ -1039,10 +1217,10 @@ td {
 
                     ${mostrarTotales
             ? `
-                            <div class="total-general">
-                                Total General: ${formatPDF(totalGeneral)}
-                            </div>
-                          `
+        <div class="total-general">
+                Total General: ${formatPDFFinal(totalGeneral)}
+        </div>
+    `
             : ""}
 
                     <div

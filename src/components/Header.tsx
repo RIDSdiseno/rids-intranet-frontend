@@ -32,7 +32,8 @@ import {
   BriefcaseBusiness,
   ChartNetwork,
   Funnel,
-  Cog
+  Cog,
+  Star
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -114,6 +115,71 @@ type StoredUser = {
   email?: string;
   rol?: string;
 };
+
+/* =========================================================
+   FAVORITOS DEL SIDEBAR
+========================================================= */
+
+/*
+ * Prefijo utilizado para almacenar los favoritos.
+ * Se agrega el correo del usuario para que cada persona
+ * mantenga una configuración independiente.
+ */
+const SIDEBAR_FAVORITES_PREFIX =
+  "rids-sidebar-favorites";
+
+/**
+ * Obtiene la llave de localStorage correspondiente
+ * al usuario autenticado.
+ */
+function getFavoritesStorageKey(
+  user: StoredUser | null
+) {
+  const userIdentifier = String(
+    user?.email ?? "usuario"
+  )
+    .trim()
+    .toLowerCase();
+
+  return `${SIDEBAR_FAVORITES_PREFIX}:${userIdentifier}`;
+}
+
+/**
+ * Recupera las rutas favoritas guardadas.
+ */
+function readStoredFavorites(
+  storageKey: string
+): string[] {
+  try {
+    const raw = localStorage.getItem(storageKey);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    /*
+     * Solo se conservan strings y se eliminan
+     * posibles rutas duplicadas.
+     */
+    return Array.from(
+      new Set(
+        parsed.filter(
+          (value): value is string =>
+            typeof value === "string" &&
+            value.trim() !== ""
+        )
+      )
+    );
+  } catch {
+    return [];
+  }
+}
 
 /*
 const USUARIOS_GESTION_TECNICOS_CLIENTES = [
@@ -292,9 +358,33 @@ function safeParseUser(): StoredUser | null {
 
 const Header = () => {
   const { pathname } = useLocation();
+
+  const user = useMemo(() => safeParseUser(), []);
+  const favoritesStorageKey = useMemo(
+    () => getFavoritesStorageKey(user),
+    [user]
+  );
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  /*
+ * Rutas marcadas como favoritas por el usuario.
+ */
+  const [favoritePaths, setFavoritePaths] =
+    useState<string[]>(() =>
+      readStoredFavorites(
+        favoritesStorageKey
+      )
+    );
+
+  /*
+   * Permite abrir o cerrar la sección Favoritos
+   * cuando el sidebar está expandido.
+   */
+  const [favoritesOpen, setFavoritesOpen] =
+    useState(true);
 
   /*
  * Controla qué grupos principales del sidebar están desplegados.
@@ -363,7 +453,33 @@ const Header = () => {
     return () => { document.body.style.overflow = ""; };
   }, [isMobile, mobileOpen]);
 
-  const user = useMemo(() => safeParseUser(), []);
+  /*
+ * Volver a cargar favoritos si cambia el usuario.
+ * Normalmente esto ocurrirá después de cerrar sesión
+ * e ingresar con otra cuenta.
+ */
+  useEffect(() => {
+    setFavoritePaths(
+      readStoredFavorites(
+        favoritesStorageKey
+      )
+    );
+  }, [favoritesStorageKey]);
+
+  /*
+   * Guardar automáticamente los favoritos cada vez
+   * que el usuario agregue o elimine una ruta.
+   */
+  useEffect(() => {
+    localStorage.setItem(
+      favoritesStorageKey,
+      JSON.stringify(favoritePaths)
+    );
+  }, [
+    favoritePaths,
+    favoritesStorageKey,
+  ]);
+
   const isCliente = user?.rol === "CLIENTE";
 
   const userRole = String(user?.rol ?? "").toUpperCase().trim();
@@ -398,7 +514,7 @@ const Header = () => {
       .map((entry): NavEntry | null => {
         if (
           entry.type === "group" &&
-          entry.label === "Finanzas"
+          entry.label === "Administración Finanzas"
         ) {
           /*
            * Finanzas contiene solamente enlaces normales.
@@ -442,31 +558,90 @@ const Header = () => {
           entry.type === "group" &&
           entry.label === "Técnicos y Visitas"
         ) {
-          const items = entry.items.filter((item) => {
-            /*
-             * Los submenús se conservan.
-             */
-            if (!isNavLinkItem(item)) {
-              return true;
-            }
+          const items = entry.items
+            .map((item): NavItem | null => {
+              /*
+               * Filtrar enlaces directos del grupo.
+               */
+              if (isNavLinkItem(item)) {
+                if (
+                  item.to === TECNICOS_PATH &&
+                  !canAccessTecnicos
+                ) {
+                  return null;
+                }
 
-            /*
-             * Desde este punto TypeScript sabe que item tiene "to".
-             */
-            if (item.to === TECNICOS_PATH) {
-              return canAccessTecnicos;
-            }
+                if (
+                  item.to === CLIENTES_EXT_PATH &&
+                  !canAccessGestionTecnicosClientes
+                ) {
+                  return null;
+                }
 
-            if (item.to === CLIENTES_EXT_PATH) {
-              return canAccessGestionTecnicosClientes;
-            }
+                if (
+                  item.to === MAPA_TECNICOS_PATH &&
+                  !canAccessMapaTecnicos
+                ) {
+                  return null;
+                }
 
-            if (item.to === MAPA_TECNICOS_PATH) {
-              return canAccessMapaTecnicos;
-            }
+                return item;
+              }
 
-            return true;
-          });
+              /*
+               * Filtrar también los enlaces que están
+               * dentro de un submenú.
+               */
+              const children = item.children.filter(
+                (child) => {
+                  if (
+                    child.to === TECNICOS_PATH &&
+                    !canAccessTecnicos
+                  ) {
+                    return false;
+                  }
+
+                  if (
+                    child.to === CLIENTES_EXT_PATH &&
+                    !canAccessGestionTecnicosClientes
+                  ) {
+                    return false;
+                  }
+
+                  if (
+                    child.to === MAPA_TECNICOS_PATH &&
+                    !canAccessMapaTecnicos
+                  ) {
+                    return false;
+                  }
+
+                  return true;
+                }
+              );
+
+              /*
+               * Eliminar el submenú si ya no contiene páginas.
+               */
+              if (children.length === 0) {
+                return null;
+              }
+
+              return {
+                ...item,
+                children,
+                match: children.map(
+                  (child) => child.to
+                ),
+              };
+            })
+            .filter(
+              (item): item is NavItem =>
+                item !== null
+            );
+
+          if (items.length === 0) {
+            return null;
+          }
 
           return {
             ...entry,
@@ -481,7 +656,7 @@ const Header = () => {
 
         if (
           entry.type === "group" &&
-          entry.label === "Administración"
+          entry.label === "Administración Oportunidades"
         ) {
           const items = entry.items.filter(
             (item): item is NavLinkItem => {
@@ -569,6 +744,111 @@ const Header = () => {
   ]);
 
   /*
+ * Obtiene todos los enlaces finales disponibles después
+ * de aplicar permisos por rol.
+ *
+ * Incluye:
+ * - enlaces principales;
+ * - enlaces normales dentro de grupos;
+ * - hijos de submenús.
+ */
+  const availableNavLinks =
+    useMemo<NavLinkItem[]>(() => {
+      const links: NavLinkItem[] = [];
+
+      filteredNav.forEach((entry) => {
+        if (entry.type === "link") {
+          links.push(entry);
+          return;
+        }
+
+        entry.items.forEach((item) => {
+          if (isNavLinkItem(item)) {
+            links.push(item);
+            return;
+          }
+
+          item.children.forEach(
+            (child) => {
+              links.push(child);
+            }
+          );
+        });
+      });
+
+      /*
+       * Eliminar rutas repetidas por seguridad.
+       */
+      const uniqueLinks = new Map<
+        string,
+        NavLinkItem
+      >();
+
+      links.forEach((link) => {
+        uniqueLinks.set(link.to, link);
+      });
+
+      return Array.from(
+        uniqueLinks.values()
+      );
+    }, [filteredNav]);
+
+  /*
+   * Convierte las rutas almacenadas en objetos navegables.
+   * Mantiene el mismo orden en el que el usuario los agregó.
+   */
+  const favoriteItems =
+    useMemo<NavLinkItem[]>(() => {
+      return favoritePaths
+        .map((path) =>
+          availableNavLinks.find(
+            (item) => item.to === path
+          )
+        )
+        .filter(
+          (
+            item
+          ): item is NavLinkItem =>
+            Boolean(item)
+        );
+    }, [
+      favoritePaths,
+      availableNavLinks,
+    ]);
+
+  /*
+   * Elimina favoritos que ya no estén disponibles
+   * para el rol del usuario actual.
+   */
+  useEffect(() => {
+    setFavoritePaths((current) => {
+      const validPaths = current.filter(
+        (path) =>
+          availableNavLinks.some(
+            (item) => item.to === path
+          )
+      );
+
+      /*
+       * Evitar un cambio de estado innecesario
+       * cuando ambas listas son iguales.
+       */
+      if (
+        validPaths.length ===
+        current.length &&
+        validPaths.every(
+          (path, index) =>
+            path === current[index]
+        )
+      ) {
+        return current;
+      }
+
+      return validPaths;
+    });
+  }, [availableNavLinks]);
+
+  /*
  * Cuando cambia la ruta, abre automáticamente el grupo
  * que contiene la página actual.
  */
@@ -612,6 +892,29 @@ const Header = () => {
   };
 
   const sidebarCollapsed = !isMobile && collapsed;
+
+  /**
+ * Comprueba si una ruta está marcada como favorita.
+ */
+  function isFavorite(path: string) {
+    return favoritePaths.includes(path);
+  }
+
+  /**
+   * Agrega o elimina una ruta de los favoritos.
+   */
+  function toggleFavorite(path: string) {
+    setFavoritePaths((current) => {
+      if (current.includes(path)) {
+        return current.filter(
+          (favoritePath) =>
+            favoritePath !== path
+        );
+      }
+
+      return [...current, path];
+    });
+  }
 
   return (
     <>
@@ -682,6 +985,169 @@ const Header = () => {
         </div>
 
         <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 sm:py-6">
+          {/* =====================================================
+      MENÚ DE FAVORITOS
+  ===================================================== */}
+          {favoriteItems.length > 0 && (
+            <div className="space-y-1 border-b border-slate-200 pb-3">
+              {/* Encabezado visible cuando el sidebar está expandido */}
+              {!sidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFavoritesOpen(
+                      (current) => !current
+                    )
+                  }
+                  className="
+  flex w-full items-center
+  justify-between gap-3
+  rounded-xl px-3 py-2
+  text-left text-slate-500
+  transition-colors
+  hover:bg-slate-100
+  hover:text-slate-700
+"
+                  aria-expanded={favoritesOpen}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Star
+                      size={15}
+                      className="shrink-0 fill-cyan-500 text-cyan-500"
+                    />
+
+                    <span className="truncate text-xs font-semibold uppercase tracking-wider">
+                      Favoritos
+                    </span>
+
+                    <span className="rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700">
+                      {favoriteItems.length}
+                    </span>
+                  </span>
+
+                  <ChevronDown
+                    size={15}
+                    className={`
+              shrink-0 transition-transform
+              duration-200
+              ${favoritesOpen
+                        ? "rotate-180"
+                        : ""
+                      }
+            `}
+                  />
+                </button>
+              )}
+
+              {/*
+       * Cuando está colapsado se muestran directamente
+       * los iconos favoritos.
+       */}
+              {(sidebarCollapsed ||
+                favoritesOpen) && (
+                  <div className="space-y-1">
+                    {favoriteItems.map(
+                      (favoriteItem) => {
+                        const active =
+                          isActivePath(
+                            pathname,
+                            favoriteItem.to
+                          );
+
+                        return (
+                          <div
+                            key={
+                              favoriteItem.to
+                            }
+                            className="group/favorite relative flex min-w-0 items-center"
+                          >
+                            <Link
+                              to={
+                                favoriteItem.to
+                              }
+                              className={`
+                      group relative flex
+                      min-w-0 flex-1
+                      items-center gap-3
+                      rounded-lg px-3 py-2.5
+                      transition-all duration-200
+                      ${active
+                                  ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-700"
+                                }
+                      ${sidebarCollapsed
+                                  ? "justify-center"
+                                  : "pr-10"
+                                }
+                    `}
+                              title={
+                                sidebarCollapsed
+                                  ? favoriteItem.label
+                                  : undefined
+                              }
+                            >
+                              <span className="shrink-0">
+                                {
+                                  favoriteItem.icon
+                                }
+                              </span>
+
+                              {!sidebarCollapsed && (
+                                <span className="min-w-0 truncate text-sm">
+                                  {
+                                    favoriteItem.label
+                                  }
+                                </span>
+                              )}
+
+                              {sidebarCollapsed && (
+                                <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                                  {
+                                    favoriteItem.label
+                                  }
+                                </span>
+                              )}
+                            </Link>
+
+                            {!sidebarCollapsed && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleFavorite(
+                                    favoriteItem.to
+                                  )
+                                }
+                                className="
+  absolute right-2
+  inline-flex h-7 w-7
+  items-center justify-center
+  rounded-lg
+  text-cyan-600
+  transition
+  hover:bg-cyan-50
+  hover:text-cyan-700
+"
+                                title="Quitar de favoritos"
+                                aria-label={`Quitar ${favoriteItem.label} de favoritos`}
+                              >
+                                <Star
+                                  size={15}
+                                  className="fill-current"
+                                />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                )}
+            </div>
+          )}
+
+          {/* =====================================================
+      NAVEGACIÓN GENERAL
+  ===================================================== */}
           {filteredNav.map((entry) => {
             /*
              * Enlace principal independiente, como Inicio.
@@ -693,38 +1159,89 @@ const Header = () => {
               );
 
               return (
-                <Link
+                <div
                   key={entry.label}
-                  to={entry.to}
-                  className={`
-            group relative flex items-center gap-4 rounded-xl px-3 py-2.5
-            transition-all duration-200
-            ${active
-                      ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
-                      : "text-slate-700 hover:bg-slate-100"
-                    }
-            ${sidebarCollapsed ? "justify-center" : ""}
-          `}
-                  title={
-                    sidebarCollapsed
-                      ? entry.label
-                      : undefined
-                  }
+                  className="group/sidebar-item relative flex min-w-0 items-center"
                 >
-                  <span className="shrink-0">
-                    {entry.icon}
-                  </span>
-
-                  {!sidebarCollapsed && (
-                    <span>{entry.label}</span>
-                  )}
-
-                  {sidebarCollapsed && (
-                    <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                      {entry.label}
+                  <Link
+                    to={entry.to}
+                    className={`
+        group relative flex
+        min-w-0 flex-1
+        items-center gap-4
+        rounded-xl px-3 py-2.5
+        transition-all duration-200
+        ${active
+                        ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
+                        : "text-slate-700 hover:bg-slate-100"
+                      }
+        ${sidebarCollapsed
+                        ? "justify-center"
+                        : "pr-10"
+                      }
+      `}
+                    title={
+                      sidebarCollapsed
+                        ? entry.label
+                        : undefined
+                    }
+                  >
+                    <span className="shrink-0">
+                      {entry.icon}
                     </span>
+
+                    {!sidebarCollapsed && (
+                      <span className="min-w-0 truncate">
+                        {entry.label}
+                      </span>
+                    )}
+
+                    {sidebarCollapsed && (
+                      <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                        {entry.label}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Estrella visible con el sidebar expandido */}
+                  {!sidebarCollapsed && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleFavorite(entry.to)
+                      }
+                      className={`
+          absolute right-2
+          inline-flex h-7 w-7
+          items-center justify-center
+          rounded-lg transition
+          ${isFavorite(entry.to)
+                          ? "text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                          : "text-slate-300 opacity-0 hover:bg-slate-100 hover:text-cyan-600 group-hover/sidebar-item:opacity-100"
+                        }
+        `}
+                      title={
+                        isFavorite(entry.to)
+                          ? "Quitar de favoritos"
+                          : "Agregar a favoritos"
+                      }
+                      aria-label={
+                        isFavorite(entry.to)
+                          ? `Quitar ${entry.label} de favoritos`
+                          : `Agregar ${entry.label} a favoritos`
+                      }
+                    >
+                      <Star
+                        size={15}
+                        className={
+                          isFavorite(entry.to)
+                            ? "fill-current"
+                            : ""
+                        }
+                      />
+                    </button>
                   )}
-                </Link>
+                </div>
               );
             }
 
@@ -927,34 +1444,71 @@ const Header = () => {
                                         );
 
                                       return (
-                                        <Link
-                                          key={
-                                            child.to
-                                          }
-                                          to={
-                                            child.to
-                                          }
-                                          className={`
-                                    flex min-w-0 items-center gap-2.5 rounded-lg
-                                    px-2.5 py-2 text-sm transition-all duration-200
-                                    ${childActive
-                                              ? "bg-cyan-50 font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-100"
-                                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                            }
-                                  `}
+                                        <div
+                                          key={child.to}
+                                          className="group/sidebar-child relative flex min-w-0 items-center"
                                         >
-                                          <span className="shrink-0">
-                                            {
-                                              child.icon
-                                            }
-                                          </span>
+                                          <Link
+                                            to={child.to}
+                                            className={`
+        flex min-w-0 flex-1
+        items-center gap-2.5
+        rounded-lg px-2.5 py-2
+        pr-9 text-sm
+        transition-all duration-200
+        ${childActive
+                                                ? "bg-cyan-50 font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-100"
+                                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                              }
+      `}
+                                          >
+                                            <span className="shrink-0">
+                                              {child.icon}
+                                            </span>
 
-                                          <span className="min-w-0 truncate leading-5">
-                                            {
-                                              child.label
+                                            <span className="min-w-0 truncate leading-5">
+                                              {child.label}
+                                            </span>
+                                          </Link>
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              toggleFavorite(
+                                                child.to
+                                              )
                                             }
-                                          </span>
-                                        </Link>
+                                            className={`
+        absolute right-1
+        inline-flex h-7 w-7
+        items-center justify-center
+        rounded-lg transition
+        ${isFavorite(child.to)
+                                                ? "text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                                                : "text-slate-300 opacity-0 hover:bg-slate-100 hover:text-cyan-600 group-hover/sidebar-child:opacity-100"
+                                              }
+      `}
+                                            title={
+                                              isFavorite(child.to)
+                                                ? "Quitar de favoritos"
+                                                : "Agregar a favoritos"
+                                            }
+                                            aria-label={
+                                              isFavorite(child.to)
+                                                ? `Quitar ${child.label} de favoritos`
+                                                : `Agregar ${child.label} a favoritos`
+                                            }
+                                          >
+                                            <Star
+                                              size={14}
+                                              className={
+                                                isFavorite(child.to)
+                                                  ? "fill-current"
+                                                  : ""
+                                              }
+                                            />
+                                          </button>
+                                        </div>
                                       );
                                     }
                                   )}
@@ -974,43 +1528,88 @@ const Header = () => {
                         );
 
                       return (
-                        <Link
+                        <div
                           key={it.to}
-                          to={it.to}
-                          className={`
-                    group relative flex items-center gap-4 rounded-lg
-                    px-3 py-2.5 transition-all duration-200
-                    ${itemActive
-                              ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
-                              : "text-slate-600 hover:bg-slate-100"
-                            }
-                    ${sidebarCollapsed
-                              ? "justify-center"
-                              : "pl-6"
-                            }
-                  `}
-                          title={
-                            sidebarCollapsed
-                              ? it.label
-                              : undefined
-                          }
+                          className="group/sidebar-item relative flex min-w-0 items-center"
                         >
-                          <span className="shrink-0">
-                            {it.icon}
-                          </span>
+                          <Link
+                            to={it.to}
+                            className={`
+        group relative flex
+        min-w-0 flex-1
+        items-center gap-4
+        rounded-lg px-3 py-2.5
+        transition-all duration-200
+        ${itemActive
+                                ? "bg-cyan-50 font-medium text-cyan-700 before:absolute before:inset-y-2 before:-left-2 before:w-1 before:rounded-r before:bg-cyan-500"
+                                : "text-slate-600 hover:bg-slate-100"
+                              }
+        ${sidebarCollapsed
+                                ? "justify-center"
+                                : "pl-6 pr-10"
+                              }
+      `}
+                            title={
+                              sidebarCollapsed
+                                ? it.label
+                                : undefined
+                            }
+                          >
+                            <span className="shrink-0">
+                              {it.icon}
+                            </span>
+
+                            {!sidebarCollapsed && (
+                              <span className="min-w-0 truncate">
+                                {it.label}
+                              </span>
+                            )}
+
+                            {sidebarCollapsed && (
+                              <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                                {it.label}
+                              </span>
+                            )}
+                          </Link>
 
                           {!sidebarCollapsed && (
-                            <span className="min-w-0 truncate">
-                              {it.label}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleFavorite(it.to)
+                              }
+                              className={`
+          absolute right-2
+          inline-flex h-7 w-7
+          items-center justify-center
+          rounded-lg transition
+          ${isFavorite(it.to)
+                                  ? "text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                                  : "text-slate-300 opacity-0 hover:bg-slate-100 hover:text-cyan-600 group-hover/sidebar-item:opacity-100"
+                                }
+        `}
+                              title={
+                                isFavorite(it.to)
+                                  ? "Quitar de favoritos"
+                                  : "Agregar a favoritos"
+                              }
+                              aria-label={
+                                isFavorite(it.to)
+                                  ? `Quitar ${it.label} de favoritos`
+                                  : `Agregar ${it.label} a favoritos`
+                              }
+                            >
+                              <Star
+                                size={15}
+                                className={
+                                  isFavorite(it.to)
+                                    ? "fill-current"
+                                    : ""
+                                }
+                              />
+                            </button>
                           )}
-
-                          {sidebarCollapsed && (
-                            <span className="pointer-events-none absolute left-full z-50 ml-2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                              {it.label}
-                            </span>
-                          )}
-                        </Link>
+                        </div>
                       );
                     })}
                   </div>

@@ -16,6 +16,7 @@ import {
     Popover,
     Spin,
     Tooltip,
+    message
 } from "antd";
 
 import {
@@ -24,6 +25,7 @@ import {
     CloseOutlined,
     EyeOutlined,
     ReloadOutlined,
+    DeleteOutlined
 } from "@ant-design/icons";
 
 import dayjs from "dayjs";
@@ -38,6 +40,8 @@ import type {
     Recordatorio,
     RecordatoriosResponse,
 } from "./recordatorios.types";
+
+import { socket } from "../../lib/socket";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -68,6 +72,25 @@ function recordatorioVencido(
     return dayjs(
         recordatorio.fechaProgramada
     ).isBefore(dayjs());
+}
+
+function recordatorioCuentaEnBadge(
+    recordatorio: Recordatorio
+) {
+    /*
+     * El badge debe contar:
+     * - recordatorios vencidos de cualquier origen;
+     * - recordatorios de tickets, aunque sean próximos.
+     *
+     * Esto cubre:
+     * - Nuevo ticket recibido.
+     * - Solicitante respondió.
+     * - Ticket pendiente.
+     */
+    return (
+        recordatorioVencido(recordatorio) ||
+        recordatorio.origen === "TICKET"
+    );
 }
 
 /* =====================================================
@@ -196,6 +219,85 @@ function mostrarNotificacionNavegador(
 }
 
 /* =====================================================
+   SONIDO DE ALERTA PERSONALIZADO
+===================================================== */
+
+let audioNotificacionGlobal: HTMLAudioElement | null = null;
+
+/**
+ * Inicializa el audio después de una interacción del usuario.
+ * Los navegadores bloquean sonidos automáticos si no hubo interacción previa.
+ */
+function prepararAudioNotificaciones() {
+    try {
+        if (!audioNotificacionGlobal) {
+            audioNotificacionGlobal = new Audio(
+                "/sounds/ticket_alert.mp3"
+            );
+
+            /*
+             * Volumen del sonido.
+             * 0.0 = silencio
+             * 1.0 = volumen completo
+             */
+            audioNotificacionGlobal.volume = 0.45;
+
+            /*
+             * Precarga el archivo para que suene más rápido
+             * cuando llegue el evento.
+             */
+            audioNotificacionGlobal.preload = "auto";
+        }
+
+        /*
+         * Intento silencioso de preparación.
+         * Puede fallar si el navegador aún no permite audio,
+         * por eso se captura el error.
+         */
+        audioNotificacionGlobal.load();
+    } catch (error) {
+        console.warn(
+            "No se pudo preparar el audio de notificaciones:",
+            error
+        );
+    }
+}
+
+/**
+ * Reproduce el sonido personalizado para:
+ * - nuevo ticket;
+ * - respuesta del solicitante.
+ */
+function reproducirSonidoRecordatorioTicket() {
+    try {
+        prepararAudioNotificaciones();
+
+        if (!audioNotificacionGlobal) {
+            return;
+        }
+
+        /*
+         * Reinicia el sonido desde el comienzo.
+         * Esto permite que suene aunque llegue otro evento
+         * mientras el audio anterior aún se estaba reproduciendo.
+         */
+        audioNotificacionGlobal.currentTime = 0;
+
+        void audioNotificacionGlobal.play().catch((error) => {
+            console.warn(
+                "El navegador bloqueó el sonido hasta que el usuario interactúe con la página:",
+                error
+            );
+        });
+    } catch (error) {
+        console.warn(
+            "No se pudo reproducir el sonido de recordatorio:",
+            error
+        );
+    }
+}
+
+/* =====================================================
    COMPONENTE
 ===================================================== */
 
@@ -213,6 +315,15 @@ export default function RecordatoriosBell() {
 
     const [loading, setLoading] =
         useState(false);
+
+    /*
+ * Estado independiente para mostrar carga
+ * en la acción masiva de eliminación.
+ */
+    const [
+        eliminandoTodos,
+        setEliminandoTodos,
+    ] = useState(false);
 
     const [open, setOpen] =
         useState(false);
@@ -264,22 +375,34 @@ export default function RecordatoriosBell() {
                  */
                 lista.forEach(
                     (recordatorio) => {
-                        const esRecordatorioTicketPendiente =
-                            recordatorio.origen === "TICKET" &&
-                            recordatorio.ticket?.status === "PENDING";
-
                         const debeNotificar =
                             recordatorio.estado === "PENDIENTE" &&
                             !recordatorio.leidoAt &&
-                            (
-                                recordatorioVencido(recordatorio) ||
-                                esRecordatorioTicketPendiente
-                            ) &&
+                            recordatorioCuentaEnBadge(recordatorio) &&
                             !notificadosEnSesion.current.has(
                                 recordatorio.id
                             );
 
+                        /*
+                         * Si el recordatorio debe notificarse,
+                         * mostramos la notificación del navegador
+                         * y lo marcamos como notificado en esta sesión.
+                         */
                         if (debeNotificar) {
+                            /*
+                             * Si el recordatorio viene de tickets,
+                             * emitimos sonido solo cuando fue detectado por polling.
+                             *
+                             * Si llegó por socket, el sonido ya se reproduce
+                             * en onTicketCreated o onCustomerReplied.
+                             */
+                            if (
+                                recordatorio.origen === "TICKET" &&
+                                !socket.connected
+                            ) {
+                                reproducirSonidoRecordatorioTicket();
+                            }
+
                             mostrarNotificacionNavegador(
                                 recordatorio
                             );
@@ -323,6 +446,65 @@ export default function RecordatoriosBell() {
             window.clearInterval(
                 intervalId
             );
+        };
+    }, [cargarRecordatorios]);
+
+    useEffect(() => {
+        /*
+         * La campana está montada globalmente en AppLayout.
+         * Como socket.ts tiene autoConnect: false, conectamos aquí
+         * para que los recordatorios se actualicen aunque el usuario
+         * esté en /home, /equipos, /agenda, etc.
+         */
+        if (!socket.connected) {
+            socket.connect();
+        }
+
+        /*
+         * Nuevo ticket recibido:
+         * - reproduce sonido;
+         * - refresca la campana.
+         */
+        const onTicketCreated = () => {
+            reproducirSonidoRecordatorioTicket();
+            void cargarRecordatorios();
+        };
+
+        /*
+         * Respuesta del solicitante:
+         * - reproduce sonido;
+         * - refresca la campana.
+         */
+        const onCustomerReplied = () => {
+            reproducirSonidoRecordatorioTicket();
+            void cargarRecordatorios();
+        };
+
+        /*
+         * Otros eventos de ticket solo refrescan la campana,
+         * pero no emiten sonido para evitar alertas innecesarias.
+         */
+        const actualizarSinSonido = () => {
+            void cargarRecordatorios();
+        };
+
+        socket.on("ticket.created", onTicketCreated);
+        socket.on("ticket.customer_replied", onCustomerReplied);
+        socket.on("ticket.status_changed", actualizarSinSonido);
+        socket.on("ticket.updated", actualizarSinSonido);
+        socket.on("ticket.bulk_status_changed", actualizarSinSonido);
+
+        return () => {
+            /*
+             * Solo quitamos los listeners de la campana.
+             * No hacemos socket.disconnect(), porque otros módulos
+             * también pueden estar usando el mismo socket global.
+             */
+            socket.off("ticket.created", onTicketCreated);
+            socket.off("ticket.customer_replied", onCustomerReplied);
+            socket.off("ticket.status_changed", actualizarSinSonido);
+            socket.off("ticket.updated", actualizarSinSonido);
+            socket.off("ticket.bulk_status_changed", actualizarSinSonido);
         };
     }, [cargarRecordatorios]);
 
@@ -404,14 +586,7 @@ export default function RecordatoriosBell() {
              * El contador solo considera recordatorios
              * cuya fecha ya llegó.
              */
-            const cuentaEnBadge =
-                recordatorioVencido(recordatorio) ||
-                (
-                    recordatorio.origen === "TICKET" &&
-                    recordatorio.ticket?.status === "PENDING"
-                );
-
-            if (cuentaEnBadge) {
+            if (recordatorioCuentaEnBadge(recordatorio)) {
                 setPendientesNoLeidos(
                     (prev) =>
                         Math.max(
@@ -464,9 +639,7 @@ export default function RecordatoriosBell() {
 
             if (
                 !recordatorio.leidoAt &&
-                recordatorioVencido(
-                    recordatorio
-                )
+                recordatorioCuentaEnBadge(recordatorio)
             ) {
                 setPendientesNoLeidos(
                     (prev) =>
@@ -516,9 +689,7 @@ export default function RecordatoriosBell() {
 
             if (
                 !recordatorio.leidoAt &&
-                recordatorioVencido(
-                    recordatorio
-                )
+                recordatorioCuentaEnBadge(recordatorio)
             ) {
                 setPendientesNoLeidos(
                     (prev) =>
@@ -533,6 +704,51 @@ export default function RecordatoriosBell() {
                 "Error cancelando recordatorio:",
                 error
             );
+        }
+    }
+
+    /* =====================================================
+   ELIMINAR TODOS LOS RECORDATORIOS
+===================================================== */
+
+    async function eliminarTodosRecordatorios() {
+        try {
+            setEliminandoTodos(true);
+
+            const response =
+                await api.patch<{
+                    message?: string;
+                    cantidad?: number;
+                }>(
+                    "/recordatorios/mios/cancelar-todos"
+                );
+
+            setRecordatorios([]);
+            setPendientesNoLeidos(0);
+
+            notificadosEnSesion.current.clear();
+
+            window.dispatchEvent(
+                new Event(
+                    "bitacora:actualizar"
+                )
+            );
+
+            message.success(
+                response.data?.message ??
+                "Recordatorios eliminados correctamente."
+            );
+        } catch (error) {
+            console.error(
+                "Error eliminando todos los recordatorios:",
+                error
+            );
+
+            message.error(
+                "No fue posible eliminar todos los recordatorios."
+            );
+        } finally {
+            setEliminandoTodos(false);
         }
     }
 
@@ -588,19 +804,48 @@ export default function RecordatoriosBell() {
                  * una acción explícita del usuario.
                  */}
                     {"Notification" in window &&
-                        Notification.permission !==
-                        "granted" && (
-                            <Tooltip title="Activar notificaciones del navegador">
+                        Notification.permission !== "granted" && (
+                            <Tooltip
+                                title={
+                                    Notification.permission === "denied"
+                                        ? "Notificaciones bloqueadas en el navegador"
+                                        : "Activar notificaciones del navegador"
+                                }
+                            >
                                 <Button
                                     size="small"
+                                    danger={
+                                        Notification.permission ===
+                                        "denied"
+                                    }
                                     icon={<BellOutlined />}
                                     onClick={async () => {
+                                        /*
+                                         * Cuando ya está bloqueado, requestPermission()
+                                         * normalmente no mostrará nuevamente el diálogo.
+                                         */
+                                        if (
+                                            Notification.permission ===
+                                            "denied"
+                                        ) {
+                                            window.alert(
+                                                "Las notificaciones están bloqueadas. Presiona el candado junto a la URL y habilita Notificaciones."
+                                            );
+                                            return;
+                                        }
+
+                                        /*
+ * Esta acción del usuario también habilita el audio.
+ * Los navegadores suelen bloquear sonidos automáticos
+ * hasta que el usuario interactúa con la página.
+ */
+                                        prepararAudioNotificaciones();
+
                                         const permiso =
                                             await Notification.requestPermission();
 
                                         if (
-                                            permiso ===
-                                            "granted"
+                                            permiso === "granted"
                                         ) {
                                             void cargarRecordatorios();
                                         }
@@ -608,6 +853,48 @@ export default function RecordatoriosBell() {
                                 />
                             </Tooltip>
                         )}
+
+                    {recordatoriosOrdenados.length > 0 && (
+                        <Popconfirm
+                            title="Eliminar todos los recordatorios"
+                            description={
+                                <>
+                                    Se eliminarán{" "}
+                                    <strong>
+                                        {
+                                            recordatoriosOrdenados.length
+                                        }
+                                    </strong>{" "}
+                                    recordatorio(s) pendiente(s).
+                                    ¿Deseas continuar?
+                                </>
+                            }
+                            okText="Eliminar todos"
+                            cancelText="Cancelar"
+                            okButtonProps={{
+                                danger: true,
+                                loading:
+                                    eliminandoTodos,
+                            }}
+                            onConfirm={() =>
+                                void eliminarTodosRecordatorios()
+                            }
+                        >
+                            <Tooltip title="Eliminar todos">
+                                <Button
+                                    size="small"
+                                    danger
+                                    icon={
+                                        <DeleteOutlined />
+                                    }
+                                    loading={
+                                        eliminandoTodos
+                                    }
+                                    aria-label="Eliminar todos los recordatorios"
+                                />
+                            </Tooltip>
+                        </Popconfirm>
+                    )}
 
                     <Tooltip title="Actualizar">
                         <Button
@@ -812,10 +1099,11 @@ export default function RecordatoriosBell() {
                 setOpen(visible);
 
                 /*
-                 * Al abrir, refrescar los datos
-                 * para mostrar el estado más reciente.
+                 * Al abrir la campana, habilitamos el audio.
+                 * Esto ayuda a evitar el bloqueo de autoplay del navegador.
                  */
                 if (visible) {
+                    prepararAudioNotificaciones();
                     void cargarRecordatorios();
                 }
             }}

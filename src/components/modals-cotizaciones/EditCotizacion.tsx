@@ -27,7 +27,7 @@ import {
 
 import { useApi } from "./UseApi"; // ajusta la ruta si es necesario
 
-import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig } from "./utils";
+import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig, redondearDecimal, normalizarCLP, formatearMontoFinal } from "./utils";
 import EditServicioModal from "./EditServicio";
 
 interface EditCotizacionModalProps {
@@ -133,22 +133,54 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     const moneda: MonedaCotizacion = cotizacion.moneda || "CLP";
     const tasa = cotizacion.tasaCambio || 1;
 
-    const handleCambioMoneda = (nuevaMoneda: "CLP" | "USD") => {
-        const tasaCambio = cotizacion.tasaCambio || 1;
+    const handleCambioMoneda = (
+        nuevaMoneda: "CLP" | "USD"
+    ) => {
+        const tasaCambio =
+            cotizacion.tasaCambio ||
+            1;
 
-        const itemsActualizados = itemsLocal.map((item) => {
-            const realCLP = Number(item.precioOriginalCLP || 0);
-            return {
-                ...item,
-                precio: nuevaMoneda === "USD" ? realCLP / tasaCambio : realCLP,
-            };
-        });
+        const itemsActualizados =
+            itemsLocal.map(
+                (item) => {
+                    const realCLP =
+                        Number(
+                            item.precioOriginalCLP ||
+                            0
+                        );
 
-        setItemsLocal(itemsActualizados);
+                    return {
+                        ...item,
+
+                        /*
+                         * Mantener como máximo dos decimales
+                         * en el precio visible.
+                         */
+                        precio:
+                            nuevaMoneda === "USD"
+                                ? redondearDecimal(
+                                    realCLP /
+                                    tasaCambio,
+                                    2
+                                )
+                                : redondearDecimal(
+                                    realCLP,
+                                    2
+                                ),
+                    };
+                }
+            );
+
+        setItemsLocal(
+            itemsActualizados
+        );
+
         onUpdateCotizacion({
             ...cotizacion,
-            moneda: nuevaMoneda,
-            items: itemsActualizados,
+            moneda:
+                nuevaMoneda,
+            items:
+                itemsActualizados,
         });
     };
 
@@ -162,17 +194,32 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
         const item = { ...items[index] };
 
         if (campo === "precio") {
-            const precioNum = Number(valor) || 0;
-            let precioCLP = precioNum;
+            const precioNum =
+                redondearDecimal(
+                    Number(valor) || 0,
+                    2
+                );
 
-            if (cotizacion.moneda === "USD") {
-                precioCLP = precioNum * (cotizacion.tasaCambio || 1);
-            }
+            const precioCLP =
+                cotizacion.moneda === "USD"
+                    ? redondearDecimal(
+                        precioNum *
+                        (
+                            cotizacion.tasaCambio ||
+                            1
+                        ),
+                        2
+                    )
+                    : precioNum;
 
-            item.precioOriginalCLP = precioCLP; // CLP real
-            item.precio = precioNum;            // valor mostrado (CLP o USD)
+            item.precioOriginalCLP =
+                precioCLP;
+
+            item.precio =
+                precioNum;
         } else {
-            (item as any)[campo] = valor;
+            (item as any)[campo] =
+                valor;
         }
 
         items[index] = item;
@@ -594,17 +641,30 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                     <div className="relative">
                                                         <input
                                                             type="number"
-                                                            step="0.01"
-                                                            min="1"
-                                                            value={cotizacion.tasaCambio || 1}
-                                                            onChange={(e) =>
+                                                            step={0.01}
+                                                            inputMode="decimal"
+                                                            min={1}
+                                                            value={
+                                                                cotizacion.tasaCambio ||
+                                                                1
+                                                            }
+                                                            onChange={(e) => {
+                                                                const value =
+                                                                    e.currentTarget
+                                                                        .valueAsNumber;
+
                                                                 onUpdateCotizacion({
                                                                     ...cotizacion,
-                                                                    tasaCambio: Number(
-                                                                        e.target.value
-                                                                    ),
-                                                                })
-                                                            }
+
+                                                                    tasaCambio:
+                                                                        Number.isNaN(value)
+                                                                            ? 1
+                                                                            : Math.max(
+                                                                                1,
+                                                                                value
+                                                                            ),
+                                                                });
+                                                            }}
                                                             className="w-full border-2 border-blue-200 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white pr-12"
                                                             placeholder="0.00"
                                                         />
@@ -783,8 +843,11 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                                         //  % GANANCIA REAL
                                                         const margenGanancia =
-                                                            item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0
-                                                                ? ((precioBaseCLP - costoCLP) / costoCLP) * 100
+                                                            item.tipo ===
+                                                                ItemTipoGestioo.PRODUCTO
+                                                                ? normalizarCLP(
+                                                                    item.porcGanancia
+                                                                )
                                                                 : 0;
 
                                                         // Si el ítem es un producto, mostrar el precio original (sin descuento) debajo del input de precio, formateado en CLP para referencia, incluso si la moneda actual es USD
@@ -823,15 +886,30 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                         <input
                                                                             type="number"
                                                                             min={1}
+                                                                            step={1}
                                                                             value={item.cantidad || 1}
                                                                             disabled={item.tipo === ItemTipoGestioo.ADICIONAL}
-                                                                            onChange={(e) =>
+                                                                            onChange={(e) => {
+                                                                                const rawValue =
+                                                                                    e.currentTarget
+                                                                                        .valueAsNumber;
+
+                                                                                const cantidad =
+                                                                                    Number.isNaN(rawValue)
+                                                                                        ? 1
+                                                                                        : Math.max(
+                                                                                            1,
+                                                                                            Math.trunc(
+                                                                                                rawValue
+                                                                                            )
+                                                                                        );
+
                                                                                 handleItemChange(
                                                                                     index,
                                                                                     "cantidad",
-                                                                                    Math.max(1, Number(e.target.value))
-                                                                                )
-                                                                            }
+                                                                                    cantidad
+                                                                                );
+                                                                            }}
                                                                             className={[
                                                                                 "w-14 h-10",
                                                                                 "px-1 py-1",
@@ -855,36 +933,51 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             type="number"
                                                                             min={0}
                                                                             step={0.01}
-                                                                            readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
-                                                                            value={item.precio === null || item.precio === undefined ? "" : item.precio}
-                                                                            disabled={item.tipo === ItemTipoGestioo.SERVICIO}
+                                                                            inputMode="decimal"
+                                                                            readOnly={
+                                                                                item.tipo ===
+                                                                                ItemTipoGestioo.PRODUCTO
+                                                                            }
+                                                                            disabled={
+                                                                                item.tipo ===
+                                                                                ItemTipoGestioo.SERVICIO
+                                                                            }
+                                                                            value={
+                                                                                item.precio === null ||
+                                                                                    item.precio === undefined
+                                                                                    ? ""
+                                                                                    : item.precio
+                                                                            }
                                                                             onChange={(e) => {
-                                                                                const raw = e.target.value;
+                                                                                const value =
+                                                                                    e.currentTarget
+                                                                                        .valueAsNumber;
 
-                                                                                if (raw === "") {
-                                                                                    handleItemChange(index, "precio", 0);
-                                                                                    return;
-                                                                                }
-
-                                                                                const num = Number(raw);
-                                                                                if (!isNaN(num)) {
-                                                                                    handleItemChange(index, "precio", num);
-                                                                                }
+                                                                                handleItemChange(
+                                                                                    index,
+                                                                                    "precio",
+                                                                                    Number.isNaN(value)
+                                                                                        ? 0
+                                                                                        : value
+                                                                                );
                                                                             }}
                                                                             className={`
-    w-24
-    min-w-[90px]
-    px-3 py-2.5
-    border border-slate-200 rounded-lg
-    text-right
-    text-sm
-    transition-all
-    ${item.tipo === ItemTipoGestioo.SERVICIO
+        w-24 min-w-[90px]
+        px-3 py-2.5
+        border border-slate-200
+        rounded-lg text-right
+        text-sm transition-all
+        ${item.tipo ===
+                                                                                    ItemTipoGestioo.SERVICIO
                                                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                                                                                     : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                                                                                 }
-`}
-                                                                            placeholder={moneda === "USD" ? "US$" : "$"}
+    `}
+                                                                            placeholder={
+                                                                                moneda === "USD"
+                                                                                    ? "US$"
+                                                                                    : "$"
+                                                                            }
                                                                         />
 
                                                                         {/* Precio en CLP formateado debajo */}
@@ -906,7 +999,13 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                                 className={`text-sm font-semibold ${margenGanancia > 0 ? "text-emerald-600" : "text-slate-500"
                                                                                     }`}
                                                                             >
-                                                                                {margenGanancia.toFixed(1)}%
+                                                                                {redondearDecimal(
+                                                                                    margenGanancia,
+                                                                                    2
+                                                                                ).toLocaleString("es-CL", {
+                                                                                    minimumFractionDigits: 0,
+                                                                                    maximumFractionDigits: 2,
+                                                                                })}%
                                                                             </div>
 
                                                                             {gananciaItemCLP > 0 && (
@@ -970,17 +1069,44 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             type="number"
                                                                             min={0}
                                                                             max={100}
-                                                                            step={0.1}
-                                                                            value={item.porcentaje || 0}
-                                                                            disabled={!item.tieneDescuento}
+                                                                            step={0.01}
+                                                                            inputMode="decimal"
+                                                                            value={
+                                                                                item.porcentaje ?? 0
+                                                                            }
+                                                                            disabled={
+                                                                                !item.tieneDescuento
+                                                                            }
                                                                             onChange={(e) => {
-                                                                                let val = Number(e.target.value);
-                                                                                if (isNaN(val)) val = 0;
-                                                                                val = Math.min(100, Math.max(0, val));
+                                                                                /*
+                                                                                 * Permitir porcentajes enteros o
+                                                                                 * decimales de hasta dos posiciones.
+                                                                                 */
+                                                                                const rawValue =
+                                                                                    e.currentTarget
+                                                                                        .valueAsNumber;
 
-                                                                                handleItemChange(index, "porcentaje", val);
+                                                                                const value =
+                                                                                    Number.isNaN(rawValue)
+                                                                                        ? 0
+                                                                                        : Math.min(
+                                                                                            100,
+                                                                                            Math.max(
+                                                                                                0,
+                                                                                                rawValue
+                                                                                            )
+                                                                                        );
+
+                                                                                handleItemChange(
+                                                                                    index,
+                                                                                    "porcentaje",
+                                                                                    value
+                                                                                );
                                                                             }}
-                                                                            className={`w-16 border rounded px-2 py-1 text-sm text-center ${item.tieneDescuento ? "border-slate-300 bg-white" : "bg-slate-100 text-slate-400"}`}
+                                                                            className={`w-16 border rounded px-2 py-1 text-sm text-center ${item.tieneDescuento
+                                                                                ? "border-slate-300 bg-white"
+                                                                                : "bg-slate-100 text-slate-400"
+                                                                                }`}
                                                                         />
                                                                         <span className="text-xs">%</span>
                                                                     </div>
@@ -1140,33 +1266,61 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 </div>
 
                                 <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">Total productos antes de descuentos:</div>
+                                    <div className="text-slate-700">
+                                        Total productos antes de descuentos:
+                                    </div>
+
                                     <div className="font-medium text-slate-900">
-                                        {formatearPrecio(subtotalBruto, moneda, tasa)}
+                                        {formatearMontoFinal(
+                                            subtotalBruto,
+                                            moneda,
+                                            tasa
+                                        )}
                                     </div>
                                 </div>
 
                                 {descuentos > 0 && (
                                     <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                        <div className="text-rose-600 font-medium">Descuentos Aplicados:</div>
+                                        <div className="text-rose-600 font-medium">
+                                            Descuentos Aplicados:
+                                        </div>
+
                                         <div className="font-bold text-rose-600">
-                                            - {formatearPrecio(descuentos, moneda, tasa)}
+                                            - {formatearMontoFinal(
+                                                descuentos,
+                                                moneda,
+                                                tasa
+                                            )}
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">Subtotal neto sin IVA:</div>
+                                    <div className="text-slate-700">
+                                        Subtotal neto sin IVA:
+                                    </div>
+
                                     <div className="font-semibold text-slate-900">
-                                        {formatearPrecio(subtotal, moneda, tasa)}
+                                        {formatearMontoFinal(
+                                            subtotal,
+                                            moneda,
+                                            tasa
+                                        )}
                                     </div>
                                 </div>
 
                                 {iva > 0 && (
                                     <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                        <div className="text-slate-700">IVA (19%)</div>
+                                        <div className="text-slate-700">
+                                            IVA (19%)
+                                        </div>
+
                                         <div className="font-semibold text-slate-900">
-                                            {formatearPrecio(iva, moneda, tasa)}
+                                            {formatearMontoFinal(
+                                                iva,
+                                                moneda,
+                                                tasa
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1175,8 +1329,13 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     <div className="text-lg font-bold text-slate-900">
                                         TOTAL FINAL
                                     </div>
+
                                     <div className="text-2xl font-bold text-blue-700">
-                                        {formatearPrecio(total, moneda, tasa)}
+                                        {formatearMontoFinal(
+                                            total,
+                                            moneda,
+                                            tasa
+                                        )}
                                     </div>
                                 </div>
 

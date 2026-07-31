@@ -805,7 +805,9 @@ export default function TicketeraRids() {
                 ignoreNextSocketReload.current = false;
                 return;
             }
+
             setNewTicketsCount((prev) => prev + 1);
+
             notification.info({
                 message: "Nuevo ticket recibido",
                 description: payload?.subject
@@ -814,6 +816,13 @@ export default function TicketeraRids() {
                 placement: "topRight",
                 duration: 4,
             });
+
+            /*
+             * Refresca la campana para mostrar el recordatorio
+             * generado por la llegada de un nuevo ticket.
+             */
+            actualizarCampanaRecordatorios();
+
             void loadTicketsRef.current();
 
             const currentView = socketViewConfigRef.current;

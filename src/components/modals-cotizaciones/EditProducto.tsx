@@ -64,24 +64,75 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
 
     // UN SOLO useEffect
     useEffect(() => {
-        if (!show || !producto) return;
+        if (!show || !producto) {
+            return;
+        }
+
+        const precioCosto =
+            Number(
+                producto.precioCosto ??
+                producto.precio ??
+                0
+            );
+
+        const porcentaje =
+            Number(
+                producto.porcGanancia ??
+                0
+            );
+
+        /*
+         * Se conserva el precio de venta previamente guardado.
+         * Solo se recalcula cuando no existe.
+         */
+        const precioVenta =
+            Number(
+                producto.precioOriginalCLP ??
+                producto.precioTotal ??
+                0
+            ) ||
+            calcularPrecioTotal(
+                precioCosto,
+                porcentaje
+            );
 
         setFormData({
-            nombre: producto.nombre || "",
-            descripcion: producto.descripcion || "",
-            precio: producto.precioCosto ?? producto.precio ?? 0,
-            porcGanancia: producto.porcGanancia ?? 0,
-            precioTotal: calcularPrecioTotal(
-                producto.precioCosto ?? 0,
-                producto.porcGanancia ?? 0
-            ),
-            categoria: producto.categoria || "",
-            stock: producto.stock || 0,
-            codigo: producto.codigo || producto.sku || "",
-            imagen: producto.imagen ?? null,
-            imagenFile: null,
+            nombre:
+                producto.nombre || "",
+
+            descripcion:
+                producto.descripcion || "",
+
+            precio:
+                precioCosto,
+
+            porcGanancia:
+                porcentaje,
+
+            precioTotal:
+                precioVenta,
+
+            categoria:
+                producto.categoria || "",
+
+            stock:
+                producto.stock || 0,
+
+            codigo:
+                producto.codigo ||
+                producto.sku ||
+                "",
+
+            imagen:
+                producto.imagen ?? null,
+
+            imagenFile:
+                null,
         });
-    }, [show, producto]);
+    }, [
+        show,
+        producto,
+    ]);
 
     // ======================================================
     // VALIDACIONES
@@ -100,21 +151,50 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
     // ======================================================
     // SINCRONIZACIÓN TIEMPO REAL
     // ======================================================
-    const updateRealTimeGeneral = () => {
-        if (!onUpdateRealTime) return;
+    /**
+ * Sincroniza inmediatamente el producto utilizando
+ * el estado nuevo, no el estado anterior de React.
+ */
+    const updateRealTimeGeneral = (
+        data: FormDataState
+    ) => {
+        if (!onUpdateRealTime) {
+            return;
+        }
 
         onUpdateRealTime({
-            id: producto.id,
-            nombre: formData.nombre,
-            descripcion: formData.descripcion,
-            precioCosto: formData.precio,
-            porcGanancia: formData.porcGanancia,
-            precioOriginalCLP: formData.precioTotal,
-            precio: formData.precioTotal,
-            imagen: formData.imagen,
-            categoria: formData.categoria,
-            stock: formData.stock,
-            codigo: formData.codigo,
+            id:
+                producto.id,
+
+            nombre:
+                data.nombre,
+
+            descripcion:
+                data.descripcion,
+
+            precioCosto:
+                data.precio,
+
+            porcGanancia:
+                data.porcGanancia,
+
+            precioOriginalCLP:
+                data.precioTotal,
+
+            precio:
+                data.precioTotal,
+
+            imagen:
+                data.imagen,
+
+            categoria:
+                data.categoria,
+
+            stock:
+                data.stock,
+
+            codigo:
+                data.codigo,
         });
     };
 
@@ -169,15 +249,58 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
         }
 
         onSave({
-            id: producto.id,
-            nombre: formData.nombre,
-            descripcion: formData.descripcion?.trim().slice(0, MAX_DESCRIPCION_PRODUCTO) || "",
-            precioCosto: formData.precio,
-            porcGanancia: formData.porcGanancia,
-            categoria: formData.categoria,
-            stock: formData.stock,
-            serie: formData.codigo,
-            imagen: imagenUrl,
+            id:
+                producto.id,
+
+            nombre:
+                formData.nombre,
+
+            descripcion:
+                formData.descripcion
+                    ?.trim()
+                    .slice(
+                        0,
+                        MAX_DESCRIPCION_PRODUCTO
+                    ) || "",
+
+            /*
+             * Costo del producto.
+             */
+            precioCosto:
+                formData.precio,
+
+            /*
+             * Porcentaje calculado o escrito.
+             */
+            porcGanancia:
+                formData.porcGanancia,
+
+            /*
+             * Precio final calculado o modificado manualmente.
+             * El backend ahora recibe este campo.
+             */
+            precioTotal:
+                formData.precioTotal,
+
+            /*
+             * Mantener compatibilidad con los objetos
+             * utilizados dentro de las cotizaciones.
+             */
+            precioOriginalCLP:
+                formData.precioTotal,
+
+            categoria:
+                formData.categoria,
+
+            stock:
+                formData.stock,
+
+            serie:
+                formData.codigo,
+
+            imagen:
+                imagenUrl,
+
             publicId,
         });
     };
@@ -185,37 +308,59 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
     // ======================================================
     // HANDLERS NUMÉRICOS
     // ======================================================
-    const handlePrecioChange = (precio: number) => {
-        const nuevo = {
+    const handlePrecioChange = (
+        precio: number
+    ) => {
+        const nuevo: FormDataState = {
             ...formData,
             precio,
-            precioTotal: calcularPrecioTotal(precio, formData.porcGanancia),
+            precioTotal:
+                calcularPrecioTotal(
+                    precio,
+                    formData.porcGanancia
+                ),
         };
+
         setFormData(nuevo);
-        updateRealTimeGeneral();
+
+        /*
+         * Enviar directamente el estado actualizado.
+         */
+        updateRealTimeGeneral(nuevo);
     };
 
-    const handlePorcGananciaChange = (porcGanancia: number) => {
-        const nuevo = {
+    const handlePorcGananciaChange = (
+        porcGanancia: number
+    ) => {
+        const nuevo: FormDataState = {
             ...formData,
             porcGanancia,
-            precioTotal: calcularPrecioTotal(formData.precio, porcGanancia),
+            precioTotal:
+                calcularPrecioTotal(
+                    formData.precio,
+                    porcGanancia
+                ),
         };
+
         setFormData(nuevo);
-        updateRealTimeGeneral();
+        updateRealTimeGeneral(nuevo);
     };
 
-    const handlePrecioTotalChange = (precioTotal: number) => {
-        const nuevo = {
+    const handlePrecioTotalChange = (
+        precioTotal: number
+    ) => {
+        const nuevo: FormDataState = {
             ...formData,
             precioTotal,
-            porcGanancia: calcularPorcGanancia(
-                formData.precio,
-                precioTotal
-            ),
+            porcGanancia:
+                calcularPorcGanancia(
+                    formData.precio,
+                    precioTotal
+                ),
         };
+
         setFormData(nuevo);
-        updateRealTimeGeneral();
+        updateRealTimeGeneral(nuevo);
     };
 
     // ======================================================
@@ -315,12 +460,27 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <input
                                 type="number"
                                 min={0}
-                                value={formData.precio}
-                                onChange={(e) =>
-                                    handlePrecioChange(
-                                        Number(e.target.value) || 0
-                                    )
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    formData.precio === 0
+                                        ? ""
+                                        : formData.precio
                                 }
+                                onChange={(e) => {
+                                    /*
+                                     * Recupera el valor numérico decimal
+                                     * aceptado por el input.
+                                     */
+                                    const value =
+                                        e.currentTarget.valueAsNumber;
+
+                                    handlePrecioChange(
+                                        Number.isNaN(value)
+                                            ? 0
+                                            : value
+                                    );
+                                }}
                                 placeholder="Costo"
                                 className="border rounded-xl px-3 py-2"
                             />
@@ -328,12 +488,23 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <input
                                 type="number"
                                 min={0}
-                                value={formData.porcGanancia}
-                                onChange={(e) =>
-                                    handlePorcGananciaChange(
-                                        Number(e.target.value) || 0
-                                    )
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    formData.porcGanancia === 0
+                                        ? ""
+                                        : formData.porcGanancia
                                 }
+                                onChange={(e) => {
+                                    const value =
+                                        e.currentTarget.valueAsNumber;
+
+                                    handlePorcGananciaChange(
+                                        Number.isNaN(value)
+                                            ? 0
+                                            : value
+                                    );
+                                }}
                                 placeholder="% Ganancia"
                                 className="border rounded-xl px-3 py-2"
                             />
@@ -341,12 +512,23 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <input
                                 type="number"
                                 min={0}
-                                value={formData.precioTotal}
-                                onChange={(e) =>
-                                    handlePrecioTotalChange(
-                                        Number(e.target.value) || 0
-                                    )
+                                step={0.01}
+                                inputMode="decimal"
+                                value={
+                                    formData.precioTotal === 0
+                                        ? ""
+                                        : formData.precioTotal
                                 }
+                                onChange={(e) => {
+                                    const value =
+                                        e.currentTarget.valueAsNumber;
+
+                                    handlePrecioTotalChange(
+                                        Number.isNaN(value)
+                                            ? 0
+                                            : value
+                                    );
+                                }}
                                 placeholder="Precio venta"
                                 className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
                             />

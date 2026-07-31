@@ -61,6 +61,10 @@ import {
     formatearPrecio,
     validarCotizacion,
     normalizarItemCotizacion,
+    normalizarCLP,
+    redondearDecimal,
+    calcularPrecioTotal,
+    formatearMontoFinal
 } from "../components/modals-cotizaciones/utils";
 
 import CrearEquipoModal from "../components/modals-equipos/CrearEquipo";
@@ -320,9 +324,24 @@ const Cotizaciones: React.FC = () => {
 
     // escapeHtml and formatCurrency moved to src/lib/emailTemplates
 
-    function buildDefaultHtmlForSend(cot: CotizacionGestioo) {
-        const nombre = cot.entidad?.nombre || '';
-        const total = Array.isArray(cot.items) ? cot.items.reduce((s: number, it: any) => s + ((Number(it.precio) || 0) * (Number(it.cantidad) || 1)), 0) : cot.total || 0;
+    function buildDefaultHtmlForSend(
+        cot: CotizacionGestioo
+    ) {
+        const nombre =
+            cot.entidad?.nombre ||
+            "";
+
+        /*
+         * El backend es la fuente definitiva del total.
+         */
+        const total =
+            redondearDecimal(
+                normalizarCLP(
+                    cot.total
+                ),
+                2
+            );
+
         return `
                                 <div style="font-family:Arial,Helvetica,sans-serif;background:#eef2f7;padding:32px 16px;">
                                   <div style="max-width:600px;margin:0 auto;">
@@ -815,6 +834,108 @@ const Cotizaciones: React.FC = () => {
         }
     };
 
+    const prepararItemsCotizacion = (
+        itemsOrigen: any[]
+    ) => {
+        return itemsOrigen.map(
+            (item: any) => {
+                const precioCLP =
+                    redondearDecimal(
+                        normalizarCLP(
+                            item.precioOriginalCLP ??
+                            item.precio
+                        ),
+                        2
+                    );
+
+                const precioCostoCLP =
+                    item.precioCosto != null
+                        ? redondearDecimal(
+                            normalizarCLP(
+                                item.precioCosto
+                            ),
+                            2
+                        )
+                        : null;
+
+                return {
+                    tipo:
+                        item.tipo,
+
+                    nombre:
+                        item.nombre,
+
+                    descripcion:
+                        item.descripcion,
+
+                    cantidad:
+                        Math.max(
+                            1,
+                            Math.trunc(
+                                normalizarCLP(
+                                    item.cantidad
+                                ) || 1
+                            )
+                        ),
+
+                    precio:
+                        precioCLP,
+
+                    precioOriginalCLP:
+                        precioCLP,
+
+                    precioCosto:
+                        precioCostoCLP,
+
+                    porcentaje:
+                        item.tieneDescuento
+                            ? Math.min(
+                                100,
+                                Math.max(
+                                    0,
+                                    normalizarCLP(
+                                        item.porcentaje
+                                    )
+                                )
+                            )
+                            : 0,
+
+                    tieneIVA:
+                        Boolean(
+                            item.tieneIVA
+                        ),
+
+                    tieneDescuento:
+                        Boolean(
+                            item.tieneDescuento
+                        ),
+
+                    sku:
+                        item.sku || null,
+
+                    porcGanancia:
+                        item.porcGanancia != null
+                            ? redondearDecimal(
+                                normalizarCLP(
+                                    item.porcGanancia
+                                ),
+                                2
+                            )
+                            : null,
+
+                    seccionId:
+                        item.seccionId,
+
+                    imagen:
+                        item.imagen || null,
+
+                    equipoId:
+                        item.equipoId ?? null,
+                };
+            }
+        );
+    };
+
     const handleCreateCotizacion = async () => {
         if (!formData.entidadId) {
             handleApiError(null, "Debe seleccionar una entidad");
@@ -841,40 +962,10 @@ const Cotizaciones: React.FC = () => {
                 imagenUrl = uploadResp.secure_url || uploadResp.url || null;
             }
 
-            const itemsParaEnviar = items.map((item: any) => {
-                const tasa = Number(formData.tasaCambio || 1);
-
-                const precioCLP =
-                    formData.moneda === "USD"
-                        ? Math.round(Number(item.precio || 0) * tasa)
-                        : Number(item.precio || 0);
-
-                const precioCostoCLP =
-                    item.precioCosto != null
-                        ? formData.moneda === "USD"
-                            ? Math.round(Number(item.precioCosto) * tasa)
-                            : Number(item.precioCosto)
-                        : null;
-
-                return {
-                    tipo: item.tipo,
-                    nombre: item.nombre,
-                    descripcion: item.descripcion,
-                    cantidad: item.cantidad,
-                    precio: precioCLP,
-                    precioOriginalCLP: precioCLP,
-                    precioCosto: precioCostoCLP,
-                    porcentaje: item.porcentaje || null,
-                    tieneIVA: item.tieneIVA || false,
-                    tieneDescuento: item.tieneDescuento || false,
-                    sku: item.sku || null,
-                    porcGanancia: item.porcGanancia || null,
-                    seccionId: item.seccionId,
-                    imagen: item.imagen || null,
-                    equipoId: item.equipoId ?? null,
-                };
-            });
-
+            const itemsParaEnviar =
+                prepararItemsCotizacion(
+                    items
+                );
             const totales = calcularTotales(itemsParaEnviar);
 
             const cotizacionData = {
@@ -940,39 +1031,10 @@ const Cotizaciones: React.FC = () => {
                 imagenUrl = uploadResp.secure_url || uploadResp.url || null;
             }
 
-            const itemsParaEnviar = items.map((item: any) => {
-                const tasa = Number(formData.tasaCambio || 1);
-
-                const precioCLP =
-                    formData.moneda === "USD"
-                        ? Math.round(Number(item.precio || 0) * tasa)
-                        : Number(item.precio || 0);
-
-                const precioCostoCLP =
-                    item.precioCosto != null
-                        ? formData.moneda === "USD"
-                            ? Math.round(Number(item.precioCosto) * tasa)
-                            : Number(item.precioCosto)
-                        : null;
-
-                return {
-                    tipo: item.tipo,
-                    nombre: item.nombre,
-                    descripcion: item.descripcion,
-                    cantidad: item.cantidad,
-                    precio: precioCLP,
-                    precioOriginalCLP: precioCLP,
-                    precioCosto: precioCostoCLP,
-                    porcentaje: item.porcentaje || null,
-                    tieneIVA: item.tieneIVA || false,
-                    tieneDescuento: item.tieneDescuento || false,
-                    sku: item.sku || null,
-                    porcGanancia: item.porcGanancia || null,
-                    seccionId: item.seccionId,
-                    imagen: item.imagen || null,
-                    equipoId: item.equipoId ?? null,
-                };
-            });
+            const itemsParaEnviar =
+                prepararItemsCotizacion(
+                    items
+                );
 
             const totales = calcularTotales(itemsParaEnviar);
 
@@ -1303,14 +1365,27 @@ const Cotizaciones: React.FC = () => {
                 };
             });
 
-            const { total } = calcularTotales(itemsNormalizados as any);
+            const totalesActualizados =
+                calcularTotales(
+                    itemsNormalizados as any
+                );
 
             const cotizacionData = {
                 tipo: selectedCotizacion.tipo,
                 estado: selectedCotizacion.estado,
                 entidadId: selectedCotizacion.entidadId ?? selectedCotizacion.entidad?.id,
                 fecha: selectedCotizacion.fecha,
-                total,
+                subtotal:
+                    totalesActualizados.subtotal,
+
+                descuentos:
+                    totalesActualizados.descuentos,
+
+                iva:
+                    totalesActualizados.iva,
+
+                total:
+                    totalesActualizados.total,
                 moneda,
                 tasaCambio,
                 comentariosCotizacion:
@@ -1393,25 +1468,84 @@ const Cotizaciones: React.FC = () => {
             const resp = await apiFetch(`/productos-gestioo/${producto.id}`);
             const productoReal = resp.data;
 
+            const precioCosto =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoReal.precio
+                    ),
+                    2
+                );
+
+            const precioVenta =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoReal.precioTotal ??
+                        productoReal.precio
+                    ),
+                    2
+                );
+
             const newItem = {
-                id: Date.now(),
-                cotizacionId: 0,
-                tipo: ItemTipoGestioo.PRODUCTO,
-                nombre: productoReal.nombre,
-                descripcion: productoReal.descripcion ?? "",
-                cantidad: 1,
-                precio: productoReal.precioTotal || productoReal.precio,
-                precioOriginalCLP: productoReal.precioTotal || productoReal.precio,
-                precioCosto: productoReal.precio,
-                porcGanancia: productoReal.porcGanancia || 0,
-                porcentaje: 0,
-                tieneIVA: true,
-                tieneDescuento: false,
-                sku: productoReal.serie || "",
-                seccionId: formData.seccionActiva,
-                imagen: productoReal.imagen || null,
-                productoId: productoReal.id,
-                createdAt: new Date().toISOString(),
+                id:
+                    Date.now(),
+
+                cotizacionId:
+                    0,
+
+                tipo:
+                    ItemTipoGestioo.PRODUCTO,
+
+                nombre:
+                    productoReal.nombre,
+
+                descripcion:
+                    productoReal.descripcion ??
+                    "",
+
+                cantidad:
+                    1,
+
+                precio:
+                    precioVenta,
+
+                precioOriginalCLP:
+                    precioVenta,
+
+                precioCosto,
+
+                porcGanancia:
+                    redondearDecimal(
+                        normalizarCLP(
+                            productoReal.porcGanancia
+                        ),
+                        2
+                    ),
+
+                porcentaje:
+                    0,
+
+                tieneIVA:
+                    true,
+
+                tieneDescuento:
+                    false,
+
+                sku:
+                    productoReal.serie ||
+                    "",
+
+                seccionId:
+                    formData.seccionActiva,
+
+                imagen:
+                    productoReal.imagen ||
+                    null,
+
+                productoId:
+                    productoReal.id,
+
+                createdAt:
+                    new Date().toISOString(),
             };
 
             setItems(prev => [...prev, newItem]);
@@ -1635,9 +1769,37 @@ const Cotizaciones: React.FC = () => {
             const resp = await apiFetch(`/productos-gestioo/${producto.id}`);
             const productoReal = resp.data;
 
-            const precioCosto = Number(productoReal.precio || 0);
-            const porcGanancia = Number(productoReal.porcGanancia || 0);
-            const precioVenta = Math.round(precioCosto * (1 + porcGanancia / 100));
+            const precioCosto =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoReal.precio
+                    ),
+                    2
+                );
+
+            const porcGanancia =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoReal.porcGanancia
+                    ),
+                    2
+                );
+
+            const precioVentaGuardado =
+                normalizarCLP(
+                    productoReal.precioTotal
+                );
+
+            const precioVenta =
+                precioVentaGuardado > 0
+                    ? redondearDecimal(
+                        precioVentaGuardado,
+                        2
+                    )
+                    : calcularPrecioTotal(
+                        precioCosto,
+                        porcGanancia
+                    );
 
             const newItem: CotizacionItemGestioo = {
                 id: Number(`-9${Date.now()}`),
@@ -1798,16 +1960,61 @@ const Cotizaciones: React.FC = () => {
             setLoadingCrearProducto(true);
 
             const productoCatalogo = {
-                id: productoFinal.id,
-                tipo: "PRODUCTO" as const,
-                descripcion: productoFinal.descripcion || productoFinal.nombre,
-                precio: productoFinal.precioTotal || productoFinal.precio,
-                porcGanancia: productoFinal.porcGanancia || 0,
-                precioTotal: productoFinal.precioTotal || productoFinal.precio || 0,
-                nombre: productoFinal.nombre,
-                sku: productoFinal.serie,
-                categoria: productoFinal.categoria,
-                imagen: productoFinal.imagen || null
+                id:
+                    productoFinal.id,
+
+                tipo:
+                    "PRODUCTO" as const,
+
+                descripcion:
+                    productoFinal.descripcion ||
+                    productoFinal.nombre,
+
+                /*
+                 * precio representa el costo.
+                 */
+                precio:
+                    redondearDecimal(
+                        normalizarCLP(
+                            productoFinal.precio
+                        ),
+                        2
+                    ),
+
+                porcGanancia:
+                    redondearDecimal(
+                        normalizarCLP(
+                            productoFinal.porcGanancia
+                        ),
+                        2
+                    ),
+
+                /*
+                 * precioTotal representa la venta final.
+                 */
+                precioTotal:
+                    redondearDecimal(
+                        normalizarCLP(
+                            productoFinal.precioTotal ??
+                            productoFinal.precio
+                        ),
+                        2
+                    ),
+
+                nombre:
+                    productoFinal.nombre,
+
+                sku:
+                    productoFinal.serie,
+
+                serie:
+                    productoFinal.serie,
+
+                categoria:
+                    productoFinal.categoria,
+
+                imagen:
+                    productoFinal.imagen || null,
             };
 
             setProductosCatalogo(prev => [...prev, productoCatalogo]);
@@ -1817,29 +2024,96 @@ const Cotizaciones: React.FC = () => {
                 selectedCotizacion?.items?.[0]?.seccionId ??
                 1;
 
+            const precioCostoProducto =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoFinal.precio
+                    ),
+                    2
+                );
+
+            const precioVentaProducto =
+                redondearDecimal(
+                    normalizarCLP(
+                        productoFinal.precioTotal ??
+                        productoFinal.precio
+                    ),
+                    2
+                );
+
             const nuevoItem: CotizacionItemGestioo = {
-                id: showEditModal && selectedCotizacion
-                    ? Number(`-9${Date.now()}`)
-                    : Date.now(),
-                cotizacionId: showEditModal && selectedCotizacion ? selectedCotizacion.id : 0,
-                tipo: ItemTipoGestioo.PRODUCTO,
-                nombre: productoFinal.nombre,
-                descripcion: productoFinal.descripcion ?? "",
-                cantidad: 1,
-                precio: productoFinal.precioTotal || productoFinal.precio || 0,
-                precioOriginalCLP: productoFinal.precioTotal || productoFinal.precio || 0,
-                precioCosto: productoFinal.precio || 0,
-                porcGanancia: productoFinal.porcGanancia || 0,
-                porcentaje: 0,
-                tieneIVA: true,
-                tieneDescuento: false,
-                sku: productoFinal.serie || "",
-                seccionId: showEditModal && selectedCotizacion
-                    ? seccionIdEdicion
-                    : formData.seccionActiva,
-                imagen: productoFinal.imagen || null,
-                productoId: productoFinal.id,
-                createdAt: new Date().toISOString(),
+                id:
+                    showEditModal &&
+                        selectedCotizacion
+                        ? Number(
+                            `-9${Date.now()}`
+                        )
+                        : Date.now(),
+
+                cotizacionId:
+                    showEditModal &&
+                        selectedCotizacion
+                        ? selectedCotizacion.id
+                        : 0,
+
+                tipo:
+                    ItemTipoGestioo.PRODUCTO,
+
+                nombre:
+                    productoFinal.nombre,
+
+                descripcion:
+                    productoFinal.descripcion ??
+                    "",
+
+                cantidad:
+                    1,
+
+                precio:
+                    precioVentaProducto,
+
+                precioOriginalCLP:
+                    precioVentaProducto,
+
+                precioCosto:
+                    precioCostoProducto,
+
+                porcGanancia:
+                    redondearDecimal(
+                        normalizarCLP(
+                            productoFinal.porcGanancia
+                        ),
+                        2
+                    ),
+
+                porcentaje:
+                    0,
+
+                tieneIVA:
+                    true,
+
+                tieneDescuento:
+                    false,
+
+                sku:
+                    productoFinal.serie ||
+                    "",
+
+                seccionId:
+                    showEditModal &&
+                        selectedCotizacion
+                        ? seccionIdEdicion
+                        : formData.seccionActiva,
+
+                imagen:
+                    productoFinal.imagen ||
+                    null,
+
+                productoId:
+                    productoFinal.id,
+
+                createdAt:
+                    new Date().toISOString(),
             };
 
             if (showEditModal && selectedCotizacion) {
@@ -2532,7 +2806,7 @@ const Cotizaciones: React.FC = () => {
                                                     <div><b>Cliente:</b> {c.entidad?.nombre || "---"}</div>
                                                     <div>
                                                         <b>Total:</b>{" "}
-                                                        {formatearPrecio(
+                                                        {formatearMontoFinal(
                                                             c.total,
                                                             c.moneda || "CLP",
                                                             c.tasaCambio ?? 1
@@ -2620,7 +2894,7 @@ const Cotizaciones: React.FC = () => {
                                                 )}
 
                                                 <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
-                                                    {formatearPrecio(
+                                                    {formatearMontoFinal(
                                                         c.total,
                                                         c.moneda || "CLP",
                                                         c.tasaCambio ?? 1
