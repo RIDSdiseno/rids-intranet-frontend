@@ -488,11 +488,18 @@ export default function RecordatoriosBell() {
             void cargarRecordatorios();
         };
 
+        const onTicketSlaAlert = () => {
+            reproducirSonidoRecordatorioTicket();
+            void cargarRecordatorios();
+        };
+
         socket.on("ticket.created", onTicketCreated);
         socket.on("ticket.customer_replied", onCustomerReplied);
         socket.on("ticket.status_changed", actualizarSinSonido);
         socket.on("ticket.updated", actualizarSinSonido);
         socket.on("ticket.bulk_status_changed", actualizarSinSonido);
+
+        socket.on("ticket.sla_alert", onTicketSlaAlert);
 
         return () => {
             /*
@@ -505,6 +512,8 @@ export default function RecordatoriosBell() {
             socket.off("ticket.status_changed", actualizarSinSonido);
             socket.off("ticket.updated", actualizarSinSonido);
             socket.off("ticket.bulk_status_changed", actualizarSinSonido);
+
+            socket.off("ticket.sla_alert", onTicketSlaAlert);
         };
     }, [cargarRecordatorios]);
 
