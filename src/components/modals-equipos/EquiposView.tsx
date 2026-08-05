@@ -595,7 +595,7 @@ export default function EquipoViewModal({
 
     const isMacAgent = latestAgentMetadata.platform === "MACOS";
 
-        latestAgentMetadata.uptimeText ||
+    latestAgentMetadata.uptimeText ||
         formatUptimeFromSeconds(latestAgentMetadata.uptimeSeconds) ||
         formatUptimeFromLastBoot(viewAgent?.lastBootAt);
 
@@ -621,6 +621,20 @@ export default function EquipoViewModal({
     const oneDriveOperativo = oneDriveDetalle?.oneDriveOperativo;
     const oneDriveVersion = oneDriveDetalle?.oneDriveVersion;
     const oneDriveUsuario = oneDriveDetalle?.oneDriveUsuario;
+
+    const adicionalesEquipo = viewAgent?.adicionales ?? row.adicionales ?? [];
+
+    const adicionalesAgente = adicionalesEquipo.filter((item) =>
+        String(item.descripcion ?? "").startsWith("[AGENTE]")
+    );
+
+    const monitoresDetectados = adicionalesAgente.filter(
+        (item) => String(item.tipo ?? "").toUpperCase() === "MONITOR"
+    );
+
+    const impresorasDetectadas = adicionalesAgente.filter(
+        (item) => String(item.tipo ?? "").toUpperCase() === "IMPRESORA"
+    );
 
     return (
         <div
@@ -1662,22 +1676,111 @@ export default function EquipoViewModal({
                         ) : null}
 
                         {/* Adicionales de Equipo */}
-                        {activeTab === "principal" && row.adicionales?.length ? (
-                            <section>
-                                <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                                    Adicionales
-                                </h4>
+                        {activeTab === "principal" ? (
+                            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-slate-800">
+                                            Adicionales
+                                        </h4>
 
-                                <div className="space-y-2">
-                                    {row.adicionales.map((a) => (
-                                        <div key={a.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                                            <div><strong>Tipo:</strong> {ADICIONAL_TIPO_LABEL[a.tipo] || a.tipo}</div>
-                                            <div><strong>Descripción:</strong> {a.descripcion || "—"}</div>
-                                            <div><strong>Cantidad:</strong> {a.cantidad}</div>
-                                            <div><strong>Serial:</strong> {a.serialAdicional || "—"}</div>
-                                        </div>
-                                    ))}
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Accesorios registrados manualmente y dispositivos detectados por el agente.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                                            {adicionalesEquipo.length} adicional(es)
+                                        </span>
+
+                                        {monitoresDetectados.length > 0 ? (
+                                            <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                                                {monitoresDetectados.length} monitor(es)
+                                            </span>
+                                        ) : null}
+
+                                        {impresorasDetectadas.length > 0 ? (
+                                            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                                {impresorasDetectadas.length} impresora(s)
+                                            </span>
+                                        ) : null}
+                                    </div>
                                 </div>
+
+                                {adicionalesEquipo.length > 0 ? (
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
+                                        {adicionalesEquipo.map((a) => {
+                                            const tipo = String(a.tipo ?? "").toUpperCase();
+                                            const esAgente = String(a.descripcion ?? "").startsWith("[AGENTE]");
+
+                                            const descripcionLimpia = String(a.descripcion ?? "")
+                                                .replace(/^\[AGENTE\]\s*/i, "")
+                                                .replace(/\s*\|\s*Serial:\s*[^|]+/i, "")
+                                                .trim();
+                                            const tipoLabel = ADICIONAL_TIPO_LABEL[tipo] || a.tipo || "Adicional";
+
+                                            return (
+                                                <div
+                                                    key={a.id}
+                                                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm"
+                                                >
+                                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                                                            {tipoLabel}
+                                                        </span>
+
+                                                        {esAgente ? (
+                                                            <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
+                                                                Detectado por agente
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                                Manual
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                        <div className="text-[11px] font-medium text-slate-500">
+                                                            Descripción
+                                                        </div>
+
+                                                        <div className="mt-1 whitespace-pre-wrap break-words font-semibold text-slate-800">
+                                                            {descripcionLimpia || "—"}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                Cantidad
+                                                            </div>
+
+                                                            <div className="mt-1 font-semibold text-slate-800">
+                                                                {a.cantidad ?? 1}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
+                                                            <div className="text-[11px] font-medium text-slate-500">
+                                                                Serial
+                                                            </div>
+
+                                                            <div className="mt-1 break-all font-mono text-xs font-semibold text-slate-800">
+                                                                {a.serialAdicional || (tipo === "IMPRESORA" ? "No informado por Windows" : "—")}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                        Sin adicionales registrados.
+                                    </div>
+                                )}
                             </section>
                         ) : null}
 

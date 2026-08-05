@@ -45,6 +45,7 @@ export const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFiel
 
 export const ADICIONAL_TIPOS = [
     "MONITOR",
+    "IMPRESORA",
     "CARGADOR",
     "MOUSE",
     "TECLADO",
@@ -58,6 +59,7 @@ export const ADICIONAL_TIPOS = [
 
 export const ADICIONAL_TIPO_LABEL: Record<string, string> = {
     MONITOR: "Monitor",
+    IMPRESORA: "Impresora",
     CARGADOR: "Cargador",
     MOUSE: "Mouse",
     TECLADO: "Teclado",
