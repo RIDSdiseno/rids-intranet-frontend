@@ -39,7 +39,17 @@ type UbicacionTecnico = {
   latitud: number;
   longitud: number;
   precision?: number | null;
+  // El endpoint la sigue enviando, pero no se muestra en el mapa: el GPS la
+  // reporta como -1 cuando no la puede determinar (casi la mitad de los puntos)
+  // y una lectura puntual de un dato que llega cada varios minutos no dice nada
+  // util sobre el tecnico.
   velocidad?: number | null;
+  // Etiqueta que la app movil pega a cada punto GPS al enviarlo (solo EN_RUTA o
+  // INICIADA) y que nunca se actualiza despues. Deliberadamente NO se muestra en
+  // la UI: en un punto viejo queda congelada y contradice el estado real de la
+  // agenda (un tecnico con la visita ya INICIADA seguia apareciendo EN RUTA
+  // porque su ultimo punto era del dia anterior). El estado operativo sale de
+  // estadoAgenda, y la vigencia del dato, del estado de senal.
   estadoTracking: string;
   createdAt: string;
 };
@@ -76,6 +86,12 @@ type AgendaMapa = {
 const POLLING_MS = 45_000;
 const MINUTO_MS = 60_000;
 
+// Zoom maximo que se usa al elegir un tecnico. Es tambien el maxZoom del
+// TileLayer: OSM sirve teselas hasta 19, pero en 18 la cobertura es completa y
+// no aparecen cuadros grises. No se usa map.getMaxZoom() porque sin maxZoom
+// declarado en la capa Leaflet devuelve Infinity.
+const ZOOM_MAXIMO = 18;
+
 type EstadoSenal = "ACTIVO" | "RECIENTE" | "SIN_SEÑAL" | "FUERA_JORNADA";
 
 // Umbrales de vitalidad. La app movil late cada 3 minutos mientras esta en
@@ -109,9 +125,12 @@ function dentroDeJornada(date = new Date()) {
   const minuto = Number(partes.find((p) => p.type === "minute")?.value ?? "0");
   const minutos = hora * 60 + minuto;
 
+  // El fin es excluyente (<, no <=): a las 18:30 en punto la jornada ya se
+  // considera cerrada, no al minuto siguiente. El inicio si es inclusivo,
+  // porque a las 08:00 la jornada ya empezo.
   if (weekday === "Sun") return false;
-  if (weekday === "Sat") return minutos >= JORNADA.SABADO.inicio && minutos <= JORNADA.SABADO.fin;
-  return minutos >= JORNADA.LUN_VIE.inicio && minutos <= JORNADA.LUN_VIE.fin;
+  if (weekday === "Sat") return minutos >= JORNADA.SABADO.inicio && minutos < JORNADA.SABADO.fin;
+  return minutos >= JORNADA.LUN_VIE.inicio && minutos < JORNADA.LUN_VIE.fin;
 }
 
 function getDiffMinutes(value?: string | null) {
@@ -122,13 +141,17 @@ function getDiffMinutes(value?: string | null) {
 }
 
 function getEstadoSenal(value?: string | null): EstadoSenal {
+  // La jornada manda por sobre la vitalidad del punto: cerrada la ventana
+  // horaria la app deja de compartir a proposito, asi que TODOS pasan a
+  // FUERA_JORNADA aunque su ultimo punto sea de hace un minuto. Antes esta
+  // comprobacion iba al final y a las 18:31 seguian apareciendo como ACTIVO
+  // los que alcanzaron a reportar justo antes del corte.
+  if (!dentroDeJornada()) return "FUERA_JORNADA";
+
   const minutes = getDiffMinutes(value);
 
   if (minutes <= MINUTOS_ACTIVO) return "ACTIVO";
   if (minutes <= MINUTOS_RECIENTE) return "RECIENTE";
-  // Fuera del horario laboral la app deja de registrar a proposito, asi que
-  // una ubicacion antigua no es una falla: no se pinta como alerta.
-  if (!dentroDeJornada()) return "FUERA_JORNADA";
   return "SIN_SEÑAL";
 }
 
@@ -201,10 +224,14 @@ function formatRelativo(value?: string | null) {
   return `hace ${days} días`;
 }
 
-function formatVelocidad(value?: number | null) {
-  if (value == null || Number.isNaN(value)) return "Sin dato";
-  const kmh = value * 3.6;
-  return `${kmh.toFixed(kmh >= 10 ? 0 : 1)} km/h`;
+// Antigüedad del último punto tal como se lee en las tarjetas de la lista.
+// Mientras el técnico está ACTIVO se resume como "Ahora": dentro de ese umbral la
+// app está reportando y el minuto exacto no aporta nada. Desde RECIENTE en
+// adelante se muestra el tiempo transcurrido, que es cuando empieza a importar, y
+// va creciendo en minutos, horas y dias hasta bien entrado SIN REPORTE.
+function formatUltimaUbicacion(value?: string | null) {
+  if (getEstadoSenal(value) === "ACTIVO") return "Ahora";
+  return formatRelativo(value);
 }
 
 function formatPrecision(value?: number | null) {
@@ -212,12 +239,63 @@ function formatPrecision(value?: number | null) {
   return `${Math.round(value)} m`;
 }
 
+// Dirección aproximada obtenida por geocodificación inversa de las coordenadas
+// GPS. Se guardan dos versiones: la completa que devuelve Nominatim para el
+// panel de detalle, y un resumen corto para las tarjetas de la lista, donde el
+// display_name entero ("…, Provincia de Santiago, Región Metropolitana de
+// Santiago, 7500000, Chile") ocuparia cuatro lineas.
+type DireccionGps = { completa: string; resumen: string };
+type EstadoDireccionGps = DireccionGps | "cargando" | "sin-resultado";
+
+// Clave de cache por coordenada. Cinco decimales son ~1 metro: suficiente para
+// que un tecnico detenido reutilice la consulta anterior y no se repita el
+// pedido en cada refresco.
+function coordKey(latitud: number, longitud: number) {
+  return `${latitud.toFixed(5)},${longitud.toFixed(5)}`;
+}
+
+type NominatimAddress = Record<string, string | undefined>;
+
+function resumirDireccion(nombre: string | undefined, address: NominatimAddress | undefined, completa: string) {
+  if (!address) return nombre?.trim() || completa;
+
+  const via = [address.road, address.house_number].filter(Boolean).join(" ");
+  const zona = address.suburb ?? address.city_district ?? address.town ?? address.city ?? address.county;
+  const partes = [nombre?.trim() || via || address.neighbourhood, zona].filter(Boolean);
+
+  return partes.length > 0 ? partes.join(", ") : completa;
+}
+
 function formatEstado(value?: string | null) {
   return String(value ?? "SIN_ESTADO").replace(/_/g, " ");
 }
 
+// Etiquetas legibles para los estados de agenda en el mapa. Es puramente de
+// presentación: el enum EstadoAgenda de la base y todas las comparaciones,
+// colores y filtros siguen trabajando con el código original (INICIADA), asi
+// que renombrar aca no afecta al backend ni a la app movil.
+const ETIQUETA_ESTADO_AGENDA: Record<string, string> = {
+  INICIADA: "VISITA INICIADA",
+};
+
+function formatEstadoAgenda(value?: string | null) {
+  const codigo = String(value ?? "").toUpperCase();
+  return ETIQUETA_ESTADO_AGENDA[codigo] ?? formatEstado(value);
+}
+
+// Un tecnico puede estar compartiendo ubicacion sin tener ninguna visita en
+// curso (jornada, traslado propio, la app abierta). En ese caso el backend
+// manda agendaId y estadoAgenda en null, y lo unico que queda es
+// estadoTracking, que solo toma los valores EN_RUTA / INICIADA que emite la
+// app movil: no representa un estado de agenda. Usarlo como respaldo hacia
+// parecer que el tecnico iba camino a una visita que no existe, asi que sin
+// visita asociada solo se muestra el estado de senal.
+function tieneVisitaAsociada(item: UbicacionTecnico) {
+  return item.agendaId != null && !!item.estadoAgenda;
+}
+
 function getEstadoOperativo(item: UbicacionTecnico) {
-  return item.estadoAgenda ?? item.estadoTracking;
+  return tieneVisitaAsociada(item) ? item.estadoAgenda : null;
 }
 
 function getEstadoColor(value?: string | null) {
@@ -248,6 +326,12 @@ const SENAL_COLORS: Record<EstadoSenal, string> = {
   SIN_SEÑAL: "#e11d48",
   FUERA_JORNADA: "#94a3b8",
 };
+
+// Estados cuyo marcador late en el mapa, con el mismo halo animado del indicador
+// "Ubicaciones en vivo". Solo los que estan reportando ahora: en SIN_SEÑAL y
+// FUERA_JORNADA el marcador queda quieto, para que el movimiento signifique
+// siempre "hay senal viva" y no compita con la alerta de falta de reporte.
+const SENALES_CON_LATIDO: ReadonlySet<EstadoSenal> = new Set<EstadoSenal>(["ACTIVO", "RECIENTE"]);
 
 // Colores de "estado de agenda" para destinos: deliberadamente distintos de SENAL_COLORS
 // (verde/ámbar/rojo de señal GPS) para no confundir ambos sistemas en el mismo mapa.
@@ -399,24 +483,54 @@ function getFechaLocalHoy() {
 function buildTecnicoIcon(senal: EstadoSenal, selected: boolean) {
   const color = SENAL_COLORS[senal];
   const size = selected ? 40 : 32;
+  const late = SENALES_CON_LATIDO.has(senal);
 
   const html = renderToStaticMarkup(
     <div
       style={{
+        position: "relative",
         width: size,
         height: size,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: "9999px",
-        background: "#ffffff",
-        border: selected ? "3px solid #06b6d4" : "2px solid #ffffff",
-        boxShadow: selected
-          ? "0 0 0 4px rgba(6,182,212,0.25), 0 4px 10px rgba(15,23,42,0.35)"
-          : "0 2px 6px rgba(15,23,42,0.35)",
       }}
     >
-      <MapPin size={selected ? 22 : 18} color={color} fill={color} />
+      {/* Halo que late detras del marcador. Usa animate-ping de Tailwind, el mismo
+          que el indicador "Ubicaciones en vivo" del encabezado, y toma el color de
+          la señal (verde en ACTIVO, ambar en RECIENTE). Queda debajo del circulo
+          blanco, asi que solo se ve el anillo expandiendose por fuera. */}
+      {late && (
+        <span
+          className="animate-ping"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "9999px",
+            background: color,
+            opacity: 0.75,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <div
+        style={{
+          position: "relative",
+          width: size,
+          height: size,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "9999px",
+          background: "#ffffff",
+          border: selected ? "3px solid #06b6d4" : "2px solid #ffffff",
+          boxShadow: selected
+            ? "0 0 0 4px rgba(6,182,212,0.25), 0 4px 10px rgba(15,23,42,0.35)"
+            : "0 2px 6px rgba(15,23,42,0.35)",
+        }}
+      >
+        <MapPin size={selected ? 22 : 18} color={color} fill={color} />
+      </div>
     </div>
   );
 
@@ -545,7 +659,9 @@ function MapFlyToSelected({
     const position = getPosition(selectedId);
     if (!position) return;
 
-    map.flyTo(position, Math.max(map.getZoom(), 14), { duration: 0.6 });
+    // Zoom maximo directo: al elegir un tecnico se quiere ver su ubicacion
+    // exacta, no un encuadre aproximado.
+    map.flyTo(position, ZOOM_MAXIMO, { duration: 0.6 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
@@ -606,8 +722,7 @@ export default function MapaTecnicosPage() {
   const [agendasLoading, setAgendasLoading] = useState(true);
   const [agendasError, setAgendasError] = useState<string | null>(null);
   const [selectedDestinoKey, setSelectedDestinoKey] = useState<string | null>(null);
-  const [coordAddress, setCoordAddress] = useState<string | null>(null);
-  const [coordAddressLoading, setCoordAddressLoading] = useState(false);
+  const [direccionesGps, setDireccionesGps] = useState<Map<string, EstadoDireccionGps>>(new Map());
 
   const isFetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -616,7 +731,11 @@ export default function MapaTecnicosPage() {
   const agendasRequestIdRef = useRef(0);
   const userInteractedRef = useRef(false);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const geocodeCacheRef = useRef<Map<string, string>>(new Map());
+  // Fuente de verdad de las direcciones por GPS. Vive en un ref para que el
+  // efecto que las resuelve no se reinicie (y aborte su propia consulta) cada
+  // vez que llega un resultado; el state de arriba solo replica el ref para
+  // gatillar el render.
+  const direccionesGpsRef = useRef<Map<string, EstadoDireccionGps>>(new Map());
 
   const cargarUbicaciones = useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
@@ -760,10 +879,12 @@ export default function MapaTecnicosPage() {
   }, []);
 
   const estadosDisponibles = useMemo(() => {
+    // Solo estados de agenda reales: filtrar por estadoTracking traia tecnicos
+    // sin visita asociada bajo un EN_RUTA que no les corresponde.
     const estados = new Set(
       ubicaciones
-        .flatMap((item) => [item.estadoTracking, item.estadoAgenda])
-        .filter(Boolean)
+        .filter(tieneVisitaAsociada)
+        .map((item) => item.estadoAgenda as string)
     );
     return Array.from(estados).sort();
   }, [ubicaciones]);
@@ -780,8 +901,7 @@ export default function MapaTecnicosPage() {
 
       const matchEstado =
         estado === "TODOS" ||
-        item.estadoTracking === estado ||
-        item.estadoAgenda === estado;
+        (tieneVisitaAsociada(item) && item.estadoAgenda === estado);
 
       return matchText && matchEstado;
     });
@@ -789,10 +909,13 @@ export default function MapaTecnicosPage() {
     return ordenarPorSenalYFecha(result);
   }, [ubicaciones, search, estado]);
 
+  // Sin respaldo a filtradas[0]: al entrar al modulo no hay tecnico elegido, para
+  // que el mapa arranque encuadrando el conjunto completo en vez de saltar al
+  // primero de la lista.
   const selected =
-    filtradas.find((item) => item.tecnicoId === selectedTecnicoId) ??
-    filtradas[0] ??
-    null;
+    selectedTecnicoId == null
+      ? null
+      : filtradas.find((item) => item.tecnicoId === selectedTecnicoId) ?? null;
 
   const positions = useMemo<[number, number][]>(
     () => filtradas.map((item) => [item.latitud, item.longitud]),
@@ -804,47 +927,94 @@ export default function MapaTecnicosPage() {
     filtradasRef.current = filtradas;
   }, [filtradas]);
 
-  // Dirección aproximada del técnico a partir de sus coordenadas (geocodificación
-  // inversa vía Nominatim/OSM). Solo se consulta para el técnico seleccionado y
-  // cuando la agenda activa no aporta una dirección de destino, para minimizar el
-  // volumen de llamadas. Los resultados se cachean por coordenada redondeada.
+  // Coordenadas que necesitan dirección aproximada: las de todo técnico visible
+  // cuya agenda no aporta una dirección de destino. Se deduplica por coordenada,
+  // así dos técnicos en el mismo punto consumen una sola consulta.
+  const coordenadasPorResolver = useMemo(() => {
+    const claves = new Set<string>();
+    for (const item of filtradas) {
+      if (item.direccion) continue;
+      claves.add(coordKey(item.latitud, item.longitud));
+    }
+    return Array.from(claves).sort();
+  }, [filtradas]);
+
+  // Firma estable del conjunto anterior. El efecto depende de este string y no
+  // del array, para no relanzarse cuando `filtradas` se recrea en cada refresco
+  // con las mismas coordenadas.
+  const firmaCoordenadas = coordenadasPorResolver.join("|");
+
+  // Geocodificación inversa vía Nominatim/OSM. Antes solo se resolvía el técnico
+  // seleccionado; ahora se resuelven todos los visibles para que las tarjetas de
+  // la lista también muestren dónde está cada uno. Las consultas van en serie con
+  // pausa de 1,1 s porque la política de uso de Nominatim permite como máximo una
+  // por segundo, y los resultados quedan cacheados por coordenada.
   useEffect(() => {
-    if (!selected || selected.direccion) {
-      setCoordAddress(null);
-      setCoordAddressLoading(false);
-      return;
-    }
+    const registro = direccionesGpsRef.current;
+    const pendientes = coordenadasPorResolver.filter((clave) => !registro.has(clave));
+    if (pendientes.length === 0) return;
 
-    const key = `${selected.latitud.toFixed(5)},${selected.longitud.toFixed(5)}`;
-    const cached = geocodeCacheRef.current.get(key);
-    if (cached !== undefined) {
-      setCoordAddress(cached);
-      setCoordAddressLoading(false);
-      return;
-    }
-
+    let cancelado = false;
     const controller = new AbortController();
-    setCoordAddress(null);
-    setCoordAddressLoading(true);
 
-    fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${selected.latitud}&lon=${selected.longitud}&accept-language=es&zoom=18`,
-      { signal: controller.signal, headers: { Accept: "application/json" } }
-    )
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        const address: string | null = data?.display_name ?? null;
-        if (address) geocodeCacheRef.current.set(key, address);
-        setCoordAddress(address);
-      })
-      .catch(() => {
-        /* Silencioso: si falla la geocodificación, se muestra el texto por defecto. */
-      })
-      .finally(() => setCoordAddressLoading(false));
+    const publicar = () => setDireccionesGps(new Map(registro));
 
-    return () => controller.abort();
+    const esperar = (ms: number) =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, ms);
+      });
+
+    (async () => {
+      for (const clave of pendientes) {
+        if (cancelado) return;
+
+        registro.set(clave, "cargando");
+        publicar();
+
+        const [latitud, longitud] = clave.split(",");
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitud}&lon=${longitud}&accept-language=es&zoom=18`,
+            { signal: controller.signal, headers: { Accept: "application/json" } }
+          );
+          const data = response.ok ? await response.json() : null;
+          if (cancelado) return;
+
+          const completa: string | null = data?.display_name ?? null;
+          registro.set(
+            clave,
+            completa
+              ? { completa, resumen: resumirDireccion(data?.name, data?.address, completa) }
+              : "sin-resultado"
+          );
+        } catch {
+          if (cancelado) return;
+          // Silencioso: si falla la geocodificación se muestra el texto por defecto.
+          registro.set(clave, "sin-resultado");
+        }
+
+        publicar();
+        if (!cancelado) await esperar(1100);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+      controller.abort();
+      // Lo que quedó a medio camino se descarta para que se reintente, en vez de
+      // quedar congelado en "cargando" para siempre.
+      for (const [clave, estado] of registro) {
+        if (estado === "cargando") registro.delete(clave);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.tecnicoId, selected?.latitud, selected?.longitud, selected?.direccion]);
+  }, [firmaCoordenadas]);
+
+  const direccionGpsDe = useCallback(
+    (item: UbicacionTecnico) => direccionesGps.get(coordKey(item.latitud, item.longitud)),
+    [direccionesGps]
+  );
 
   const destinosConCoordenadas = useMemo(
     () =>
@@ -882,6 +1052,11 @@ export default function MapaTecnicosPage() {
   );
 
   const handleVerTodos = useCallback(() => {
+    // Volver a la vista general implica soltar la seleccion: con un tecnico
+    // elegido el mapa dibuja solo su marcador, asi que encuadrar el conjunto
+    // mostrando un unico punto seria contradictorio.
+    setSelectedTecnicoId(null);
+
     const map = mapInstanceRef.current;
     if (!map || combinedPositions.length === 0) return;
 
@@ -892,6 +1067,31 @@ export default function MapaTecnicosPage() {
 
     map.fitBounds(L.latLngBounds(combinedPositions), { padding: [48, 48] });
   }, [combinedPositions]);
+
+  // Marcador de técnico, compartido entre la vista agrupada (sin selección) y la
+  // vista de un solo técnico, para que ambas se vean y se comporten igual.
+  const renderMarcadorTecnico = useCallback((item: UbicacionTecnico, isSelected: boolean) => {
+    const senal = getEstadoSenal(item.createdAt);
+
+    return (
+      <Marker
+        key={item.tecnicoId}
+        position={[item.latitud, item.longitud]}
+        icon={getTecnicoIcon(senal, isSelected)}
+        eventHandlers={{
+          click: () => setSelectedTecnicoId(item.tecnicoId),
+        }}
+      >
+        <Popup>
+          <p className="font-bold text-slate-900">{item.tecnicoNombre}</p>
+          <p className="text-sm text-slate-600">{item.empresa ?? "Sin visita asociada"}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {getSenalLabel(item.createdAt)} · {formatRelativo(item.createdAt)}
+          </p>
+        </Popup>
+      </Marker>
+    );
+  }, []);
 
   const totalEnRuta = ubicaciones.filter((item) => {
     const estadoOperativo = String(getEstadoOperativo(item) ?? "").toUpperCase();
@@ -966,7 +1166,10 @@ export default function MapaTecnicosPage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="grid gap-3 md:grid-cols-[1fr_200px_170px_auto]">
+          {/* items-end alinea los cuatro controles por su borde inferior. El campo
+              de fecha es el unico con etiqueta encima, asi que sin esto se estiraba
+              a lo alto de la fila y su input quedaba mas abajo que los demas. */}
+          <div className="grid items-end gap-3 md:grid-cols-[1fr_200px_170px_auto]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
@@ -986,12 +1189,12 @@ export default function MapaTecnicosPage() {
               <option value="TODOS">Todos los estados</option>
               {estadosDisponibles.map((item) => (
                 <option key={item} value={item}>
-                  {formatEstado(item)}
+                  {formatEstadoAgenda(item)}
                 </option>
               ))}
             </select>
 
-            <label className="flex flex-col justify-center gap-1">
+            <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase text-slate-500">Fecha de agendas</span>
               <input
                 type="date"
@@ -1059,7 +1262,7 @@ export default function MapaTecnicosPage() {
                   <li key={item.agendaId}>
                     {item.empresa?.nombre ?? item.empresaExternaNombre ?? "Sin empresa asociada"}
                     {" — "}
-                    {formatEstado(item.estado)}
+                    {formatEstadoAgenda(item.estado)}
                   </li>
                 ))}
               </ul>
@@ -1137,6 +1340,7 @@ export default function MapaTecnicosPage() {
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maxZoom={ZOOM_MAXIMO}
                   />
 
                   <MapRefBridge mapRef={mapInstanceRef} />
@@ -1154,33 +1358,17 @@ export default function MapaTecnicosPage() {
                     }}
                   />
 
-                  <MarkerClusterGroup chunkedLoading>
-                    {filtradas.map((item) => {
-                      const isSelected = selected?.tecnicoId === item.tecnicoId;
-                      const senal = getEstadoSenal(item.createdAt);
-
-                      return (
-                        <Marker
-                          key={item.tecnicoId}
-                          position={[item.latitud, item.longitud]}
-                          icon={getTecnicoIcon(senal, isSelected)}
-                          eventHandlers={{
-                            click: () => setSelectedTecnicoId(item.tecnicoId),
-                          }}
-                        >
-                          <Popup>
-                            <p className="font-bold text-slate-900">{item.tecnicoNombre}</p>
-                            <p className="text-sm text-slate-600">
-                              {item.empresa ?? "Sin visita asociada"}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {getSenalLabel(item.createdAt)} · {formatRelativo(item.createdAt)}
-                            </p>
-                          </Popup>
-                        </Marker>
-                      );
-                    })}
-                  </MarkerClusterGroup>
+                  {/* Con un tecnico elegido se dibuja solo su marcador y fuera del
+                      cluster: varios tecnicos en el mismo punto quedaban escondidos
+                      dentro de un globo con el total y no se distinguia a cual se
+                      habia seleccionado. Sin seleccion se muestran todos agrupados. */}
+                  {selected ? (
+                    renderMarcadorTecnico(selected, true)
+                  ) : (
+                    <MarkerClusterGroup chunkedLoading>
+                      {filtradas.map((item) => renderMarcadorTecnico(item, false))}
+                    </MarkerClusterGroup>
+                  )}
 
                   <MarkerClusterGroup chunkedLoading>
                     {destinoGrupos.map((grupo) => {
@@ -1215,7 +1403,7 @@ export default function MapaTecnicosPage() {
                                     <p className="text-xs font-semibold text-slate-700">
                                       {agenda.empresa?.nombre ?? agenda.empresaExternaNombre ?? "Sin empresa asociada"}
                                       {" · "}
-                                      {formatEstado(agenda.estado)}
+                                      {formatEstadoAgenda(agenda.estado)}
                                     </p>
                                     {agenda.tecnicos.length > 0 ? (
                                       agenda.tecnicos.map((t) => (
@@ -1325,12 +1513,9 @@ export default function MapaTecnicosPage() {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getEstadoColor(selected.estadoTracking)}`}>
-                          Tracking: {formatEstado(selected.estadoTracking)}
-                        </span>
-                        {selected.estadoAgenda && (
+                        {tieneVisitaAsociada(selected) && (
                           <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getEstadoColor(selected.estadoAgenda)}`}>
-                            Agenda: {formatEstado(selected.estadoAgenda)}
+                            Agenda: {formatEstadoAgenda(selected.estadoAgenda)}
                           </span>
                         )}
                         <span className={`rounded-full border px-3 py-1 text-xs font-bold ${getSenalColor(selected.createdAt)}`}>
@@ -1342,18 +1527,30 @@ export default function MapaTecnicosPage() {
                     <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                       <div>
                         <p className="font-semibold text-slate-500">Dirección</p>
-                        {selected.direccion ? (
-                          <p className="text-slate-900">{selected.direccion}</p>
-                        ) : coordAddressLoading ? (
-                          <p className="text-slate-400">Buscando dirección…</p>
-                        ) : coordAddress ? (
-                          <p className="text-slate-900">
-                            {coordAddress}
-                            <span className="mt-0.5 block text-xs text-slate-400">Ubicación aproximada por GPS</span>
-                          </p>
-                        ) : (
-                          <p className="text-slate-900">Sin dirección asociada</p>
-                        )}
+                        {(() => {
+                          if (selected.direccion) {
+                            return <p className="text-slate-900">{selected.direccion}</p>;
+                          }
+
+                          const gps = direccionGpsDe(selected);
+
+                          if (gps === "cargando") {
+                            return <p className="text-slate-400">Buscando dirección…</p>;
+                          }
+
+                          if (gps && gps !== "sin-resultado") {
+                            return (
+                              <p className="text-slate-900">
+                                {gps.completa}
+                                <span className="mt-0.5 block text-xs text-slate-400">
+                                  Ubicación aproximada por GPS
+                                </span>
+                              </p>
+                            );
+                          }
+
+                          return <p className="text-slate-900">Sin dirección asociada</p>;
+                        })()}
                       </div>
                       <div>
                         <p className="font-semibold text-slate-500">Latitud</p>
@@ -1368,12 +1565,12 @@ export default function MapaTecnicosPage() {
                         <p className="text-slate-900">{formatPrecision(selected.precision)}</p>
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-500">Velocidad</p>
-                        <p className="text-slate-900">{formatVelocidad(selected.velocidad)}</p>
-                      </div>
-                      <div>
                         <p className="font-semibold text-slate-500">Estado agenda</p>
-                        <p className="text-slate-900">{formatEstado(selected.estadoAgenda)}</p>
+                        <p className="text-slate-900">
+                          {tieneVisitaAsociada(selected)
+                            ? formatEstadoAgenda(selected.estadoAgenda)
+                            : "Sin visita asociada"}
+                        </p>
                       </div>
                       <div>
                         <p className="font-semibold text-slate-500">Última ubicación</p>
@@ -1434,12 +1631,9 @@ export default function MapaTecnicosPage() {
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getEstadoColor(item.estadoTracking)}`}>
-                          {formatEstado(item.estadoTracking)}
-                        </span>
-                        {item.estadoAgenda && (
+                        {tieneVisitaAsociada(item) && (
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getEstadoColor(item.estadoAgenda)}`}>
-                            {formatEstado(item.estadoAgenda)}
+                            {formatEstadoAgenda(item.estadoAgenda)}
                           </span>
                         )}
                         <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getSenalColor(item.createdAt)}`}>
@@ -1451,23 +1645,38 @@ export default function MapaTecnicosPage() {
                     <div className="mt-4 space-y-2 text-sm text-slate-600">
                       <p className="flex gap-2">
                         <MapPin className="mt-0.5 shrink-0 text-slate-400" size={16} />
-                        <span>{item.direccion ?? "Sin dirección asociada"}</span>
+                        {(() => {
+                          if (item.direccion) {
+                            return <span className="line-clamp-2">{item.direccion}</span>;
+                          }
+
+                          const gps = direccionGpsDe(item);
+
+                          if (gps === "cargando") {
+                            return <span className="text-slate-400">Buscando dirección…</span>;
+                          }
+
+                          if (gps && gps !== "sin-resultado") {
+                            return (
+                              <span className="min-w-0">
+                                <span className="line-clamp-2">{gps.resumen}</span>
+                                <span className="block text-xs text-slate-400">
+                                  Ubicación aproximada por GPS
+                                </span>
+                              </span>
+                            );
+                          }
+
+                          return <span>Sin dirección asociada</span>;
+                        })()}
                       </p>
                       <p className="flex gap-2">
                         <Clock className="mt-0.5 shrink-0 text-slate-400" size={16} />
-                        <span>
-                          Última ubicación: {formatRelativo(item.createdAt)}
-                          <span className="block text-xs text-slate-500">
-                            {formatFechaHora(item.createdAt)}
-                          </span>
-                        </span>
+                        <span>Última ubicación: {formatUltimaUbicacion(item.createdAt)}</span>
                       </p>
-                      <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                      <div className="flex text-xs text-slate-500">
                         <span className="rounded-lg bg-slate-50 px-2 py-1">
                           Precisión: {formatPrecision(item.precision)}
-                        </span>
-                        <span className="rounded-lg bg-slate-50 px-2 py-1">
-                          Velocidad: {formatVelocidad(item.velocidad)}
                         </span>
                       </div>
                     </div>
