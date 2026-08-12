@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+// src/components/modals-empresa/EmpresasInventarioIA.tsx
+import { useEffect, useState } from "react";
 import {
     Alert,
     Button,
@@ -21,7 +22,6 @@ import {
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { http } from "../../service/http";
 
 type EmpresaOption = {
@@ -29,9 +29,23 @@ type EmpresaOption = {
     nombre: string;
 };
 
+type EquipoHallazgoIA = {
+    id: number;
+    serial:
+    string | null;
+};
+
 type HallazgoIA = {
-    severidad: "ALTA" | "MEDIA" | "BAJA";
-    descripcion: string;
+    severidad:
+    "ALTA" |
+    "MEDIA" |
+    "BAJA";
+
+    descripcion:
+    string;
+
+    equipos:
+    EquipoHallazgoIA[];
 };
 
 type AnalisisInventarioIA = {
@@ -42,9 +56,17 @@ type AnalisisInventarioIA = {
 };
 
 type InventarioIAResponse = {
-    empresaId: number;
-    totalEquipos: number;
-    analisis: AnalisisInventarioIA;
+    empresaId:
+    number;
+
+    totalEquipos:
+    number;
+
+    resumenEstados:
+    Record<string, number>;
+
+    analisis:
+    AnalisisInventarioIA;
 };
 
 const getSeveridadAlertType = (severidad: string) => {
@@ -67,6 +89,53 @@ const normalizarNombreArchivo = (value: string) => {
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "")
         .toLowerCase();
+};
+
+const ESTADO_EQUIPO_LABELS:
+    Record<
+        string,
+        string
+    > = {
+    ACTIVO:
+        "Activos",
+
+    EN_STOCK:
+        "En stock",
+
+    DADO_DE_BAJA:
+        "Dados de baja",
+
+    EN_RIDS:
+        "En RIDS",
+
+    EN_GARANTIA:
+        "En garantía",
+
+    EN_TALLER_EXTERNO:
+        "En taller externo",
+};
+
+const formatEstadoEquipoLabel = (
+    estado: string
+) => {
+    return (
+        ESTADO_EQUIPO_LABELS[
+        estado
+        ] ??
+        estado
+            .replace(
+                /_/g,
+                " "
+            )
+            .toLowerCase()
+            .replace(
+                /\b\w/g,
+                (
+                    char
+                ) =>
+                    char.toUpperCase()
+            )
+    );
 };
 
 const prepararNodoParaPdf = (root: HTMLElement) => {
@@ -355,13 +424,32 @@ export default function EmpresasInventarioIA() {
             });
 
             setData({
-                empresaId: res.data.empresaId,
-                totalEquipos: res.data.totalEquipos,
+                empresaId:
+                    res.data.empresaId,
+
+                totalEquipos:
+                    res.data.totalEquipos,
+
+                resumenEstados:
+                    res.data.resumenEstados ??
+                    {},
+
                 analisis: {
-                    resumen: res.data.analisis?.resumen ?? "",
-                    hallazgos: res.data.analisis?.hallazgos ?? [],
-                    riesgos: res.data.analisis?.riesgos ?? [],
-                    recomendaciones: res.data.analisis?.recomendaciones ?? [],
+                    resumen:
+                        res.data.analisis?.resumen ??
+                        "",
+
+                    hallazgos:
+                        res.data.analisis?.hallazgos ??
+                        [],
+
+                    riesgos:
+                        res.data.analisis?.riesgos ??
+                        [],
+
+                    recomendaciones:
+                        res.data.analisis?.recomendaciones ??
+                        [],
                 },
             });
 
@@ -399,13 +487,32 @@ export default function EmpresasInventarioIA() {
             }
 
             setData({
-                empresaId: item.empresaId,
-                totalEquipos: item.totalEquipos,
+                empresaId:
+                    item.empresaId,
+
+                totalEquipos:
+                    item.totalEquipos,
+
+                resumenEstados:
+                    item.resumenEstados ??
+                    {},
+
                 analisis: {
-                    resumen: item.resumen ?? "",
-                    hallazgos: item.hallazgos ?? [],
-                    riesgos: item.riesgos ?? [],
-                    recomendaciones: item.recomendaciones ?? [],
+                    resumen:
+                        item.resumen ??
+                        "",
+
+                    hallazgos:
+                        item.hallazgos ??
+                        [],
+
+                    riesgos:
+                        item.riesgos ??
+                        [],
+
+                    recomendaciones:
+                        item.recomendaciones ??
+                        [],
                 },
             });
 
@@ -512,7 +619,53 @@ export default function EmpresasInventarioIA() {
                 }
             );
 
+            /* =====================================================
+    DISTRIBUCIÓN POR ESTADO
+ ===================================================== */
+
             y += 4;
+
+            y = drawSectionTitle(
+                pdf,
+                "Distribución por estado",
+                y,
+                margin,
+                contentWidth
+            );
+
+            const estadosTexto =
+                Object.entries(
+                    data.resumenEstados ??
+                    {}
+                )
+                    .map(
+                        ([
+                            estado,
+                            cantidad,
+                        ]) =>
+                            `${formatEstadoEquipoLabel(
+                                estado
+                            )}: ${cantidad}`
+                    )
+                    .join(
+                        "  •  "
+                    );
+
+            y = drawWrappedParagraph(
+                pdf,
+                estadosTexto ||
+                "Sin información de estados.",
+                y,
+                margin,
+                contentWidth,
+                {
+                    fontSize:
+                        9.5,
+
+                    lineHeight:
+                        5,
+                }
+            );
 
             y = drawSectionTitle(pdf, "Hallazgos", y, margin, contentWidth);
 
@@ -535,11 +688,45 @@ export default function EmpresasInventarioIA() {
                     const descripcion = sanitizePdfText(hallazgo.descripcion);
                     const severityColor = getSeverityPdfColor(severidad);
 
+                    const equiposTexto =
+                        hallazgo.equipos?.length
+                            ? hallazgo.equipos
+                                .map(
+                                    (
+                                        equipo
+                                    ) =>
+                                        `Equipo #${equipo.id} - Serial: ${equipo.serial || "Sin serial"}`
+                                )
+                                .join(
+                                    " | "
+                                )
+                            : "";
+
                     pdf.setFont("helvetica", "normal");
                     pdf.setFontSize(9.2);
 
-                    const lines = pdf.splitTextToSize(descripcion, contentWidth - 34);
-                    const boxHeight = Math.max(11, lines.length * 4.8 + 5);
+                    const lines =
+                        pdf.splitTextToSize(
+                            descripcion,
+                            contentWidth - 34
+                        );
+
+                    const equipoLines =
+                        equiposTexto
+                            ? pdf.splitTextToSize(
+                                equiposTexto,
+                                contentWidth - 34
+                            )
+                            : [];
+                    const boxHeight =
+                        Math.max(
+                            11,
+                            lines.length *
+                            4.8 +
+                            equipoLines.length *
+                            4.2 +
+                            9
+                        );
 
                     y = addPageIfNeeded(pdf, y, boxHeight + 2, margin);
 
@@ -554,6 +741,34 @@ export default function EmpresasInventarioIA() {
                     pdf.setFontSize(7.5);
                     setTextColor(pdf, severityColor);
                     pdf.text(severidad, margin + 10, y + 6.5);
+
+                    if (
+                        equipoLines.length
+                    ) {
+                        pdf.setFont(
+                            "helvetica",
+                            "bold"
+                        );
+
+                        pdf.setFontSize(
+                            8
+                        );
+
+                        setTextColor(
+                            pdf,
+                            PDF_COLORS.muted
+                        );
+
+                        pdf.text(
+                            equipoLines,
+                            margin + 32,
+                            y +
+                            6.5 +
+                            lines.length *
+                            4.8 +
+                            2
+                        );
+                    }
 
                     pdf.setFont("helvetica", "normal");
                     pdf.setFontSize(9.2);
@@ -825,6 +1040,83 @@ export default function EmpresasInventarioIA() {
                         </Col>
                     </Row>
 
+                    <Card title="Estado actual del inventario">
+                        {Object.keys(
+                            data.resumenEstados ??
+                            {}
+                        ).length ? (
+                            <Row
+                                gutter={[
+                                    12,
+                                    12,
+                                ]}
+                            >
+                                {Object.entries(
+                                    data.resumenEstados
+                                )
+                                    .sort(
+                                        (
+                                            [
+                                                estadoA,
+                                            ],
+                                            [
+                                                estadoB,
+                                            ]
+                                        ) =>
+                                            formatEstadoEquipoLabel(
+                                                estadoA
+                                            ).localeCompare(
+                                                formatEstadoEquipoLabel(
+                                                    estadoB
+                                                ),
+                                                "es"
+                                            )
+                                    )
+                                    .map(
+                                        ([
+                                            estado,
+                                            cantidad,
+                                        ]) => (
+                                            <Col
+                                                key={
+                                                    estado
+                                                }
+                                                xs={
+                                                    12
+                                                }
+                                                sm={
+                                                    8
+                                                }
+                                                md={
+                                                    6
+                                                }
+                                                lg={
+                                                    4
+                                                }
+                                            >
+                                                <Card
+                                                    size="small"
+                                                >
+                                                    <Statistic
+                                                        title={
+                                                            formatEstadoEquipoLabel(
+                                                                estado
+                                                            )
+                                                        }
+                                                        value={
+                                                            cantidad
+                                                        }
+                                                    />
+                                                </Card>
+                                            </Col>
+                                        )
+                                    )}
+                            </Row>
+                        ) : (
+                            <Empty description="Sin información de estados" />
+                        )}
+                    </Card>
+
                     <Card title="Resumen">
                         <p className="m-0 whitespace-pre-line text-sm leading-6 text-slate-700">
                             {data.analisis.resumen || "Sin resumen"}
@@ -839,17 +1131,61 @@ export default function EmpresasInventarioIA() {
                                         key={`${h.severidad}-${i}`}
                                         type={getSeveridadAlertType(h.severidad)}
                                         message={
-                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-start">
-                                                <Tag
-                                                    color={getSeveridadColor(h.severidad)}
-                                                    className="w-fit"
-                                                >
-                                                    {h.severidad}
-                                                </Tag>
+                                            <div className="space-y-2">
 
-                                                <span className="text-sm leading-6">
-                                                    {h.descripcion}
-                                                </span>
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start">
+                                                    <Tag
+                                                        color={
+                                                            getSeveridadColor(
+                                                                h.severidad
+                                                            )
+                                                        }
+                                                        className="w-fit"
+                                                    >
+                                                        {
+                                                            h.severidad
+                                                        }
+                                                    </Tag>
+
+                                                    <span className="text-sm leading-6">
+                                                        {
+                                                            h.descripcion
+                                                        }
+                                                    </span>
+                                                </div>
+
+                                                {h.equipos?.length >
+                                                    0 && (
+                                                        <div className="flex flex-wrap gap-1.5 pt-1">
+
+                                                            {h.equipos.map(
+                                                                (
+                                                                    equipo
+                                                                ) => (
+                                                                    <Tag
+                                                                        key={
+                                                                            `${equipo.id}-${equipo.serial ?? "sin-serial"}`
+                                                                        }
+                                                                        color="default"
+                                                                        className="m-0"
+                                                                    >
+                                                                        Equipo #
+                                                                        {
+                                                                            equipo.id
+                                                                        }
+
+                                                                        {" · "}
+
+                                                                        Serial:{" "}
+                                                                        {
+                                                                            equipo.serial ||
+                                                                            "Sin serial"
+                                                                        }
+                                                                    </Tag>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    )}
                                             </div>
                                         }
                                         showIcon

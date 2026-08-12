@@ -357,7 +357,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                     />
 
                                     <p className="text-xs text-slate-500 mt-1">
-                                        Indica si el equipo queda para venta, RIDS, cliente o baja.
+                                        Define el destino final del equipo: venta, venta a empresa, RIDS, cliente o baja.
                                     </p>
                                 </div>
 

@@ -1103,7 +1103,7 @@ const AdicionalesPage:
         ======================================================= */
 
         return (
-            <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-24">
+            <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-24">
 
                 {/* ===================================================
           FONDO
@@ -1397,6 +1397,18 @@ const AdicionalesPage:
 
                                                 <option value="CARGADOR">
                                                     Cargador
+                                                </option>
+
+                                                <option value="CAMARA">
+                                                    Cámara
+                                                </option>
+
+                                                <option value="SWITCH">
+                                                    Switch
+                                                </option>
+
+                                                <option value="ROUTER">
+                                                    Router
                                                 </option>
 
                                                 <option value="OTRO">
@@ -1700,10 +1712,8 @@ const AdicionalesPage:
                                                         }
                                                     </h3>
 
-                                                    <p className="mt-1 text-xs text-slate-600">
-                                                        {
-                                                            descripcion
-                                                        }
+                                                    <p className="mt-1 line-clamp-3 break-words text-xs text-slate-600">
+                                                        {descripcion}
                                                     </p>
                                                 </div>
 
@@ -2266,8 +2276,8 @@ const AdicionalesPage:
                         </div>
 
                         {/* =================================================
-              PAGINACIÓN
-          ================================================= */}
+                          PAGINACIÓN
+                         ================================================= */}
                         <div className="flex flex-col gap-3 border-t border-cyan-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between lg:pr-28 xl:pr-32">
 
                             <div className="text-center text-sm text-slate-700 sm:text-left">

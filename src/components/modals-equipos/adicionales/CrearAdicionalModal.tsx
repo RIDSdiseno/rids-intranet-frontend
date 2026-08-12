@@ -36,6 +36,12 @@ type EquipoSelectorRow = {
     modelo?: string | null;
     tipo?: string | null;
     estado?: string | null;
+
+    solicitante?: {
+        id_solicitante: number;
+        nombre: string;
+        email?: string | null;
+    } | null;
 };
 
 type EquiposResponse = {
@@ -79,6 +85,9 @@ const TIPOS = [
     "MOUSE",
     "DOCK",
     "CARGADOR",
+    "CAMARA",
+    "SWITCH",
+    "ROUTER",
     "OTRO",
 ];
 
@@ -276,10 +285,10 @@ export default function CrearAdicionalModal({
                         equipo.marca,
                         equipo.modelo,
                         equipo.tipo,
+                        equipo.solicitante?.nombre,
+                        equipo.solicitante?.email,
                     ]
-                        .filter(
-                            Boolean
-                        )
+                        .filter(Boolean)
                         .join(" ")
                         .toLowerCase();
 
@@ -451,7 +460,7 @@ export default function CrearAdicionalModal({
                                                 .value
                                         )
                                     }
-                                    placeholder="Buscar equipo por serial, marca o modelo..."
+                                    placeholder="Buscar por ID, serial, marca, modelo o solicitante..."
                                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                                 />
                             </div>
@@ -490,26 +499,19 @@ export default function CrearAdicionalModal({
                                         equipo
                                     ) => (
                                         <option
-                                            key={
-                                                equipo.id_equipo
-                                            }
-                                            value={
-                                                equipo.id_equipo
-                                            }
+                                            key={equipo.id_equipo}
+                                            value={equipo.id_equipo}
                                         >
-                                            Equipo #
-                                            {
-                                                equipo.id_equipo
-                                            }
+                                            Equipo #{equipo.id_equipo}
                                             {" · "}
-                                            {equipo.serial ||
-                                                "Sin serial"}
+                                            {equipo.serial || "Sin serial"}
                                             {" · "}
-                                            {equipo.marca ||
-                                                ""}
+                                            {equipo.marca || ""}
                                             {" "}
-                                            {equipo.modelo ||
-                                                ""}
+                                            {equipo.modelo || ""}
+                                            {" · "}
+                                            Solicitante:{" "}
+                                            {equipo.solicitante?.nombre || "Sin solicitante"}
                                         </option>
                                     )
                                 )}

@@ -34,6 +34,12 @@ type EquipoSelectorRow = {
     modelo?: string | null;
     tipo?: string | null;
     estado?: string | null;
+
+    solicitante?: {
+        id_solicitante: number;
+        nombre: string;
+        email?: string | null;
+    } | null;
 };
 
 type EquiposResponse = {
@@ -47,6 +53,9 @@ const TIPOS = [
     "MOUSE",
     "DOCK",
     "CARGADOR",
+    "CAMARA",
+    "SWITCH",
+    "ROUTER",
     "OTRO",
 ];
 
@@ -447,7 +456,7 @@ export default function EditarAdicionalModal({
                                                 .value
                                         )
                                     }
-                                    placeholder="Buscar equipo..."
+                                    placeholder="Buscar por ID, serial, marca, modelo o solicitante..."
                                     className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                                 />
                             </div>

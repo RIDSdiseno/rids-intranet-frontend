@@ -102,10 +102,10 @@ export default function AdicionalViewModal({
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
 
-            <div className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-2xl">
+            <div className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
 
                 {/* HEADER */}
-                <div className="flex items-start justify-between gap-4 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 px-5 py-4 sm:px-6">
+                <div className="flex items-start justify-between gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 px-5 py-4 sm:px-6">
 
                     <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
@@ -133,7 +133,7 @@ export default function AdicionalViewModal({
                     </button>
                 </div>
 
-                <div className="max-h-[calc(92vh-80px)] overflow-y-auto p-5 sm:p-6">
+                <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
 
                     {/* RESUMEN */}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
