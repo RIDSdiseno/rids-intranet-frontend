@@ -33,7 +33,8 @@ import {
   ChartNetwork,
   Funnel,
   Cog,
-  Star
+  Star,
+  MonitorSpeaker
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -53,6 +54,7 @@ const SOLICITANTES_PATH = "/solicitantes";
 const EQUIPOS_PATH = "/equipos";
 const MANTENCIONES_GENERALES_PATH = "/mantenciones-generales";
 const DASHBOARD_AGENTES_PATH = "/dashboard-agentes";
+const ADICIONALES_PATH = "/equipos-adicionales";
 const ORDENESTALLER = "/ordenes-taller";
 const COTIZACIONES = "/Cotizaciones";
 const MAILER_PATH = "/rids/mailer";
@@ -270,13 +272,19 @@ const NAV: NavEntry[] = [
         match: [
           EQUIPOS_PATH,
           MANTENCIONES_GENERALES_PATH,
-          DASHBOARD_AGENTES_PATH
+          DASHBOARD_AGENTES_PATH,
+          ADICIONALES_PATH
         ],
         children: [
           {
             label: "Equipos",
             to: EQUIPOS_PATH,
             icon: <Laptop size={18} />,
+          },
+          {
+            label: "Adicionales y Periféricos",
+            to: ADICIONALES_PATH,
+            icon: <MonitorSpeaker size={18} />,
           },
           {
             label: "Mantenciones",
@@ -295,7 +303,7 @@ const NAV: NavEntry[] = [
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Mailer Masivo", to: MAILER_PATH, icon: <Mails size={20} /> },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ADICIONALES_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
@@ -395,16 +403,36 @@ const Header = () => {
     Record<string, boolean>
   >({});
 
-  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
-    inventario:
-      isActivePath(pathname, EQUIPOS_PATH) ||
-      isActivePath(pathname, MANTENCIONES_GENERALES_PATH) ||
-      isActivePath(pathname, DASHBOARD_AGENTES_PATH),
+  const [openSubmenus, setOpenSubmenus] =
+    useState<Record<string, boolean>>({
+      inventario:
+        isActivePath(
+          pathname,
+          EQUIPOS_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          ADICIONALES_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          MANTENCIONES_GENERALES_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          DASHBOARD_AGENTES_PATH
+        ),
 
-    visitas:
-      isActivePath(pathname, CALENDARIO_PATH) ||
-      isActivePath(pathname, VISITAS_PATH),
-  });
+      visitas:
+        isActivePath(
+          pathname,
+          CALENDARIO_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          VISITAS_PATH
+        ),
+    });
 
   useEffect(() => {
     setOpenSubmenus((current) => ({
@@ -412,9 +440,22 @@ const Header = () => {
 
       inventario:
         current.inventario ||
-        isActivePath(pathname, EQUIPOS_PATH) ||
-        isActivePath(pathname, MANTENCIONES_GENERALES_PATH) ||
-        isActivePath(pathname, DASHBOARD_AGENTES_PATH),
+        isActivePath(
+          pathname,
+          EQUIPOS_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          ADICIONALES_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          MANTENCIONES_GENERALES_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          DASHBOARD_AGENTES_PATH
+        ),
 
       visitas:
         current.visitas ||

@@ -31,7 +31,12 @@ import { http } from "../../service/http";
 import type { TipoEquipoValue } from "../modals-gestioo/types";
 import { TipoEquipoLabel } from "../modals-gestioo/types";
 
-type EquipoViewTab = "principal" | "historial" | "eventos" | "mantenciones";
+type EquipoViewTab =
+    | "principal"
+    | "adicionales"
+    | "historial"
+    | "eventos"
+    | "mantenciones";
 
 type Props = {
     open: boolean;
@@ -47,6 +52,7 @@ const EQUIPO_VIEW_TABS: Array<{
     label: string;
 }> = [
         { key: "principal", label: "Principal" },
+        { key: "adicionales", label: "Adicionales" },
         { key: "historial", label: "Historial equipo" },
         { key: "eventos", label: "Eventos agente" },
         { key: "mantenciones", label: "Mantenciones" },
@@ -624,9 +630,14 @@ export default function EquipoViewModal({
 
     const adicionalesEquipo = viewAgent?.adicionales ?? row.adicionales ?? [];
 
-    const adicionalesAgente = adicionalesEquipo.filter((item) =>
-        String(item.descripcion ?? "").startsWith("[AGENTE]")
-    );
+    const adicionalesAgente =
+        adicionalesEquipo.filter(
+            (item) =>
+                item.origen === "AGENTE" ||
+                String(
+                    item.descripcion ?? ""
+                ).startsWith("[AGENTE]")
+        );
 
     const monitoresDetectados = adicionalesAgente.filter(
         (item) => String(item.tipo ?? "").toUpperCase() === "MONITOR"
@@ -1676,7 +1687,7 @@ export default function EquipoViewModal({
                         ) : null}
 
                         {/* Adicionales de Equipo */}
-                        {activeTab === "principal" ? (
+                        {activeTab === "adicionales" ? (
                             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                                     <div>

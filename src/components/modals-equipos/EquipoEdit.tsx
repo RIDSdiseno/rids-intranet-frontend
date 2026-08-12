@@ -11,7 +11,6 @@ import {
 } from "../modals-gestioo/types";
 import type {
     EmpresaOpt,
-    EquipoAdicional,
     EquipoForm,
     EquipoRow,
     EstadoEquipo,
@@ -19,14 +18,12 @@ import type {
     PropiedadEquipo
 } from "./equipos.types";
 import {
-    ADICIONAL_TIPOS,
     ESTADO_EQUIPO_OPTIONS,
     REQUIRED_FIELDS_BY_TIPO,
     clsx,
     formatRut,
     getAnioPcOrigenLabel,
     PROPIEDAD_EQUIPO_OPTIONS,
-    getPropiedadEquipoLabel,
 } from "./equipos.helpers";
 
 type Props = {
@@ -118,8 +115,6 @@ export default function EquipoEditModal({
     const [form, setForm] = useState<EquipoForm>(initialForm);
     const [anioPcTouched, setAnioPcTouched] = useState(false);
 
-    const [adicionales, setAdicionales] = useState<EquipoAdicional[]>([]);
-
     const [empresaId, setEmpresaId] = useState<number | null>(null);
     const [solicitanteId, setSolicitanteId] = useState<number | null>(null);
 
@@ -168,7 +163,6 @@ export default function EquipoEditModal({
             passwordPersonal: row.passwordPersonal || "",
         });
 
-        setAdicionales(row.adicionales ?? []);
         setEmpresaId(row.empresaId ?? null);
         setSolicitanteId(row.idSolicitante ?? null);
         setSolSearch("");
@@ -425,15 +419,6 @@ export default function EquipoEditModal({
                 revisado: hoy,
                 idSolicitante: solicitanteId,
                 empresaId,
-
-                adicionales: adicionales
-                    .filter((a) => !!a?.tipo?.trim())
-                    .map((a) => ({
-                        tipo: a.tipo.trim(),
-                        descripcion: a.descripcion?.trim() || null,
-                        cantidad: Number(a.cantidad) > 0 ? Number(a.cantidad) : 1,
-                        serialAdicional: a.serialAdicional?.trim() || null,
-                    })),
             };
 
             if (anioPcTouched) {
@@ -477,7 +462,7 @@ export default function EquipoEditModal({
                                 Editar equipo #{row.id_equipo}
                             </h3>
                             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                                Actualiza la ficha del equipo, datos técnicos, accesos y adicionales.
+                                Actualiza la ficha del equipo, datos técnicos y accesos.
                             </p>
                         </div>
 
@@ -1062,121 +1047,6 @@ export default function EquipoEditModal({
                                     </div>
                                 </div>
                             </div>
-                        </section>
-
-                        {/* Adicionales */}
-                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h4 className="text-sm font-semibold text-slate-800">
-                                        Adicionales
-                                    </h4>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        Periféricos, accesorios u otros elementos asociados al equipo.
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setAdicionales((prev) => [
-                                            ...prev,
-                                            {
-                                                id: Date.now(),
-                                                tipo: "",
-                                                descripcion: "",
-                                                cantidad: 1,
-                                                serialAdicional: "",
-                                            },
-                                        ])
-                                    }
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm hover:bg-cyan-50 sm:w-auto"
-                                >
-                                    <PlusOutlined />
-                                    Agregar
-                                </button>
-                            </div>
-
-                            {adicionales.length === 0 ? (
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                    Sin adicionales registrados.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {adicionales.map((a, idx) => (
-                                        <div
-                                            key={`${a.id}-${idx}`}
-                                            className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4"
-                                        >
-                                            <select
-                                                value={a.tipo || ""}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) => (i === idx ? { ...x, tipo: e.target.value } : x))
-                                                    )
-                                                }
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                            >
-                                                <option value="">Selecciona un tipo</option>
-                                                {ADICIONAL_TIPOS.map((tipo) => (
-                                                    <option key={tipo} value={tipo}>
-                                                        {tipo}
-                                                    </option>
-                                                ))}
-                                            </select>
-
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                value={String(a.cantidad ?? 1)}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) =>
-                                                            i === idx ? { ...x, cantidad: Number(e.target.value) || 1 } : x
-                                                        )
-                                                    )
-                                                }
-                                                placeholder="Cantidad"
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                            />
-
-                                            <input
-                                                value={a.descripcion || ""}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) => (i === idx ? { ...x, descripcion: e.target.value } : x))
-                                                    )
-                                                }
-                                                placeholder="Descripción"
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                            />
-
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={a.serialAdicional || ""}
-                                                    onChange={(e) =>
-                                                        setAdicionales((prev) =>
-                                                            prev.map((x, i) =>
-                                                                i === idx ? { ...x, serialAdicional: e.target.value } : x
-                                                            )
-                                                        )
-                                                    }
-                                                    placeholder="Serial adicional"
-                                                    className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                                />
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAdicionales((prev) => prev.filter((_, i) => i !== idx))}
-                                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
-                                                >
-                                                    Quitar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </section>
                     </div>
                 </div>
