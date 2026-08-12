@@ -74,6 +74,26 @@ function isSerialDuplicadoError(err: unknown): boolean {
     );
 }
 
+function esAdicionalAgente(item: EquipoAdicional) {
+    return String(item.descripcion ?? "").trim().startsWith("[AGENTE]");
+}
+
+function quitarPrefijoAgente(descripcion?: string | null) {
+    return String(descripcion ?? "")
+        .replace(/^\[AGENTE\]\s*/i, "")
+        .trim();
+}
+
+function convertirAgenteAManual(item: EquipoAdicional): EquipoAdicional {
+    if (!esAdicionalAgente(item)) return item;
+
+    return {
+        ...item,
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        descripcion: quitarPrefijoAgente(item.descripcion),
+    };
+}
+
 const initialForm: EquipoForm = {
     serial: "",
     tipo: TipoEquipo.GENERICO,
@@ -1103,78 +1123,119 @@ export default function EquipoEditModal({
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {adicionales.map((a, idx) => (
-                                        <div
-                                            key={`${a.id}-${idx}`}
-                                            className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-2 xl:grid-cols-4"
-                                        >
-                                            <select
-                                                value={a.tipo || ""}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) => (i === idx ? { ...x, tipo: e.target.value } : x))
-                                                    )
-                                                }
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                    {adicionales.map((a, idx) => {
+                                        const esAgente = esAdicionalAgente(a);
+
+                                        return (
+                                            <div
+                                                key={`${a.id}-${idx}`}
+                                                className={clsx(
+                                                    "grid grid-cols-1 gap-3 rounded-xl border p-3 md:grid-cols-2 xl:grid-cols-4",
+                                                    esAgente
+                                                        ? "border-cyan-200 bg-cyan-50/60"
+                                                        : "border-slate-200 bg-slate-50"
+                                                )}
                                             >
-                                                <option value="">Selecciona un tipo</option>
-                                                {ADICIONAL_TIPOS.map((tipo) => (
-                                                    <option key={tipo} value={tipo}>
-                                                        {tipo}
-                                                    </option>
-                                                ))}
-                                            </select>
-
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                value={String(a.cantidad ?? 1)}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) =>
-                                                            i === idx ? { ...x, cantidad: Number(e.target.value) || 1 } : x
-                                                        )
-                                                    )
-                                                }
-                                                placeholder="Cantidad"
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                            />
-
-                                            <input
-                                                value={a.descripcion || ""}
-                                                onChange={(e) =>
-                                                    setAdicionales((prev) =>
-                                                        prev.map((x, i) => (i === idx ? { ...x, descripcion: e.target.value } : x))
-                                                    )
-                                                }
-                                                placeholder="Descripción"
-                                                className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
-                                            />
-
-                                            <div className="flex gap-2">
-                                                <input
-                                                    value={a.serialAdicional || ""}
+                                                <select
+                                                    value={a.tipo || ""}
                                                     onChange={(e) =>
                                                         setAdicionales((prev) =>
-                                                            prev.map((x, i) =>
-                                                                i === idx ? { ...x, serialAdicional: e.target.value } : x
-                                                            )
+                                                            prev.map((x, i) => {
+                                                                if (i !== idx) return x;
+
+                                                                const base = convertirAgenteAManual(x);
+
+                                                                return {
+                                                                    ...base,
+                                                                    tipo: e.target.value,
+                                                                };
+                                                            })
                                                         )
                                                     }
-                                                    placeholder="Serial adicional"
+                                                    className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                                >
+                                                    <option value="">Selecciona un tipo</option>
+                                                    {ADICIONAL_TIPOS.map((tipo) => (
+                                                        <option key={tipo} value={tipo}>
+                                                            {tipo}
+                                                        </option>
+                                                    ))}
+                                                </select>
+
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={String(a.cantidad ?? 1)}
+                                                    onChange={(e) =>
+                                                        setAdicionales((prev) =>
+                                                            prev.map((x, i) => {
+                                                                if (i !== idx) return x;
+
+                                                                const base = convertirAgenteAManual(x);
+
+                                                                return {
+                                                                    ...base,
+                                                                    cantidad: Number(e.target.value) || 1,
+                                                                };
+                                                            })
+                                                        )
+                                                    }
+                                                    placeholder="Cantidad"
                                                     className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                                 />
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAdicionales((prev) => prev.filter((_, i) => i !== idx))}
-                                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
-                                                >
-                                                    Quitar
-                                                </button>
+                                                <input
+                                                    value={a.descripcion || ""}
+                                                    onChange={(e) =>
+                                                        setAdicionales((prev) =>
+                                                            prev.map((x, i) => {
+                                                                if (i !== idx) return x;
+
+                                                                const base = convertirAgenteAManual(x);
+
+                                                                return {
+                                                                    ...base,
+                                                                    descripcion: e.target.value,
+                                                                };
+                                                            })
+                                                        )
+                                                    }
+                                                    placeholder="Descripción"
+                                                    className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                                />
+
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        value={a.serialAdicional || ""}
+                                                        onChange={(e) =>
+                                                            setAdicionales((prev) =>
+                                                                prev.map((x, i) => {
+                                                                    if (i !== idx) return x;
+
+                                                                    const base = convertirAgenteAManual(x);
+
+                                                                    return {
+                                                                        ...base,
+                                                                        serialAdicional: e.target.value,
+                                                                    };
+                                                                })
+                                                            )
+                                                        }
+                                                        placeholder="Serial adicional"
+                                                        className="w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                                    />
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAdicionales((prev) => prev.filter((_, i) => i !== idx))}
+                                                        className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 hover:bg-rose-100"
+                                                    >
+                                                        Quitar
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </section>

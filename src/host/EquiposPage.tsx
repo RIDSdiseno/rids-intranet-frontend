@@ -279,6 +279,11 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
   const [marcaFilter, setMarcaFilter] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoEquipo | "">("");
 
+  const [
+    solicitanteMultiplesEquipos,
+    setSolicitanteMultiplesEquipos,
+  ] = useState<"TODOS" | "MULTIPLES">("TODOS");
+
   const [propiedadFilter, setPropiedadFilter] = useState<PropiedadEquipo | "">("");
   const [propietarioExternoFilter, setPropietarioExternoFilter] = useState("");
 
@@ -434,6 +439,11 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
             anioPcDesde: anioPcDesde || undefined,
             anioPcHasta: anioPcHasta || undefined,
             anioPcOrigen: anioPcOrigenFilter || undefined,
+
+            solicitanteMultiplesEquipos:
+              solicitanteMultiplesEquipos !== "TODOS"
+                ? solicitanteMultiplesEquipos
+                : undefined,
           }),
 
           // Filtros exclusivos de Mantenciones generales.
@@ -581,43 +591,253 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
       setExporting(true);
 
       if (!mesExport) {
-        setExportError("Debes seleccionar un mes.");
+        setExportError(
+          "Debes seleccionar un mes."
+        );
+
         return;
       }
 
-      const res = await http.get("/inventario/export", {
-        params: {
-          mes: mesExport,
-          empresaId: empresaFilterId || undefined,
-          createdFrom: createdFrom || undefined,
-          createdTo: createdTo || undefined,
-          updatedFrom: updatedFrom || undefined,
-          updatedTo: updatedTo || undefined,
-        },
-        responseType: "blob",
-      });
+      const res =
+        await http.get(
+          "/inventario/export",
+          {
+            params: {
+              mes: mesExport,
 
-      const blob = res.data;
-      const url = window.URL.createObjectURL(blob);
+              empresaId:
+                empresaFilterId ||
+                undefined,
 
-      const filtroFecha = updatedFrom
-        ? `_editados_desde_${dayjs(updatedFrom).format("YYYY-MM-DD")}`
-        : "";
+              marca:
+                marcaFilter ||
+                undefined,
 
-      const fileName = empresaFilterName
-        ? `Inventario_${empresaFilterName}_${mesExport}${filtroFecha}.xlsx`
-        : `Inventario_TODAS_${mesExport}${filtroFecha}.xlsx`;
+              estado:
+                estadoFilter ||
+                undefined,
 
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+              propiedad:
+                propiedadFilter ||
+                undefined,
 
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setExportError((err as Error).message || "Error al exportar inventario");
+              propietarioExterno:
+                propietarioExternoFilter ||
+                undefined,
+
+              anioPcDesde:
+                anioPcDesde ||
+                undefined,
+
+              anioPcHasta:
+                anioPcHasta ||
+                undefined,
+
+              anioPcOrigen:
+                anioPcOrigenFilter ||
+                undefined,
+
+              createdFrom:
+                createdFrom ||
+                undefined,
+
+              createdTo:
+                createdTo ||
+                undefined,
+
+              updatedFrom:
+                updatedFrom ||
+                undefined,
+
+              updatedTo:
+                updatedTo ||
+                undefined,
+
+              agente:
+                agenteFilter !== "TODOS"
+                  ? agenteFilter
+                  : undefined,
+
+              agenteDesde:
+                agenteDesde ||
+                undefined,
+
+              agenteHasta:
+                agenteHasta ||
+                undefined,
+
+              auditTecnicoId:
+                tecnicoFilterId ||
+                undefined,
+
+              auditFrom:
+                auditFrom ||
+                undefined,
+
+              auditTo:
+                auditTo ||
+                undefined,
+
+              auditAction:
+                auditAction !== "ALL"
+                  ? auditAction
+                  : undefined,
+
+              solicitanteMultiplesEquipos:
+                solicitanteMultiplesEquipos !==
+                  "TODOS"
+                  ? solicitanteMultiplesEquipos
+                  : undefined,
+            },
+
+            responseType:
+              "blob",
+          }
+        );
+
+      const blob =
+        res.data as Blob;
+
+      const url =
+        window.URL.createObjectURL(
+          blob
+        );
+
+      const tecnicoSeleccionado =
+        tecnicoOptions.find(
+          (tecnico) =>
+            tecnico.id_tecnico ===
+            tecnicoFilterId
+        );
+
+      const empresaSegura =
+        empresaFilterName
+          ? empresaFilterName
+            .trim()
+            .replace(
+              /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,
+              "_"
+            )
+          : "TODAS";
+
+      const tecnicoSeguro =
+        tecnicoSeleccionado?.nombre
+          ? tecnicoSeleccionado.nombre
+            .trim()
+            .replace(
+              /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,
+              "_"
+            )
+          : "";
+
+      const filtroTecnico =
+        tecnicoSeguro
+          ? `_TECNICO_${tecnicoSeguro}`
+          : "";
+
+      const filtroActividad =
+        auditAction !== "ALL"
+          ? `_${auditAction}`
+          : "";
+
+      const filtroFechaActividad =
+        auditFrom || auditTo
+          ? `_ACTIVIDAD_${auditFrom
+            ? dayjs(
+              auditFrom
+            ).format(
+              "YYYY-MM-DD"
+            )
+            : "INICIO"
+          }_${auditTo
+            ? dayjs(
+              auditTo
+            ).format(
+              "YYYY-MM-DD"
+            )
+            : "HOY"
+          }`
+          : "";
+
+      const filtroMultiplesEquipos =
+        solicitanteMultiplesEquipos ===
+          "MULTIPLES"
+          ? "_SOLICITANTES_MULTIPLES"
+          : "";
+
+      const fileName =
+        `Inventario_${empresaSegura}_${mesExport}${filtroTecnico}${filtroActividad}${filtroFechaActividad}${filtroMultiplesEquipos}.xlsx`;
+
+      const anchor =
+        document.createElement(
+          "a"
+        );
+
+      anchor.href =
+        url;
+
+      anchor.download =
+        fileName;
+
+      document.body.appendChild(
+        anchor
+      );
+
+      anchor.click();
+      anchor.remove();
+
+      window.URL.revokeObjectURL(
+        url
+      );
+    } catch (err: any) {
+      let message =
+        "Error al exportar inventario";
+
+      /*
+       * Axios entrega las respuestas de error
+       * como Blob cuando responseType es blob.
+       */
+      const responseBlob =
+        err?.response?.data;
+
+      if (
+        responseBlob instanceof
+        Blob
+      ) {
+        try {
+          const text =
+            await responseBlob.text();
+
+          const parsed =
+            JSON.parse(text);
+
+          if (
+            typeof parsed?.error ===
+            "string"
+          ) {
+            message =
+              parsed.error;
+          }
+        } catch {
+          // Mantener mensaje genérico.
+        }
+      } else if (
+        typeof err?.response?.data?.error ===
+        "string"
+      ) {
+        message =
+          err.response.data.error;
+      } else if (
+        err instanceof Error &&
+        err.message
+      ) {
+        message =
+          err.message;
+      }
+
+      setExportError(
+        message
+      );
     } finally {
       setExporting(false);
     }
@@ -638,6 +858,7 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
     pageSize,
     qDebounced,
     empresaFilterId,
+    solicitanteMultiplesEquipos,
     marcaFilter,
     propiedadFilter,
     propietarioExternoFilter,
@@ -701,6 +922,8 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
       setMantGeneralHasta("");
     } else {
       setMarcaFilter("");
+
+      setSolicitanteMultiplesEquipos("TODOS");
 
       setCreatedFrom("");
       setCreatedTo("");
@@ -1062,6 +1285,35 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                       </select>
                     </div>
                   )}
+                  {!isMantencionesPage && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Equipos por solicitante
+                      </label>
+
+                      <select
+                        value={solicitanteMultiplesEquipos}
+                        onChange={(e) => {
+                          setSolicitanteMultiplesEquipos(
+                            e.target.value as
+                            | "TODOS"
+                            | "MULTIPLES"
+                          );
+
+                          setPage(1);
+                        }}
+                        className="w-full rounded-xl border shadow-sm px-4 py-3 text-sm text-slate-900 bg-white border-slate-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-200"
+                      >
+                        <option value="TODOS">
+                          Todos los solicitantes
+                        </option>
+
+                        <option value="MULTIPLES">
+                          Con más de 1 equipo
+                        </option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1196,41 +1448,61 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                 {!isMantencionesPage && (
                   <>
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
-                      <div className="flex flex-col gap-1 mb-3">
-                        <div className="text-sm font-semibold text-slate-800">
-                          Actividad por técnico
-                        </div>
+                      <div className="mb-3 flex flex-col gap-1">
+                        <div className="mb-3 flex flex-col gap-1">
+                          <div className="text-sm font-semibold text-slate-800">
+                            Actividad por técnico
+                          </div>
 
-                        <div className="text-xs text-slate-500">
-                          Filtra equipos que fueron creados o editados por un técnico.
+                          <div className="text-xs text-slate-500">
+                            Filtra equipos creados o editados por el técnico, incluyendo
+                            sincronizaciones automáticas del agente asociado.
+                          </div>
                         </div>
                       </div>
 
-                      {/* 
-                    Como solo dejaste el filtro de técnico,
-                    usamos una sola columna para que el select aproveche todo el ancho.
-                  */}
                       <div className="grid grid-cols-1 gap-4">
+                        {/* Técnico */}
                         <label className="text-sm">
-                          <span className="block text-slate-700 mb-1">Técnico</span>
+                          <span className="mb-1 block text-slate-700">
+                            Técnico
+                          </span>
 
                           <select
                             value={tecnicoFilterId ?? ""}
                             onChange={(e) => {
-                              setTecnicoFilterId(e.target.value ? Number(e.target.value) : null);
+                              const tecnicoId = e.target.value
+                                ? Number(e.target.value)
+                                : null;
+
+                              setTecnicoFilterId(tecnicoId);
+
+                              if (!tecnicoId) {
+                                setAuditFrom("");
+                                setAuditTo("");
+                                setAuditAction("ALL");
+                              }
+
                               setPage(1);
                             }}
                             disabled={tecLoading}
-                            className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-slate-900 border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                            className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                           >
                             <option value="">
-                              {tecLoading ? "Cargando técnicos..." : "Todos los técnicos"}
+                              {tecLoading
+                                ? "Cargando técnicos..."
+                                : "Todos los técnicos"}
                             </option>
 
-                            {tecnicoOptions.map((t) => (
-                              <option key={t.id_tecnico} value={t.id_tecnico}>
-                                {t.nombre}
-                                {t.email ? ` — ${t.email}` : ""}
+                            {tecnicoOptions.map((tecnico) => (
+                              <option
+                                key={tecnico.id_tecnico}
+                                value={tecnico.id_tecnico}
+                              >
+                                {tecnico.nombre}
+                                {tecnico.email
+                                  ? ` — ${tecnico.email}`
+                                  : ""}
                               </option>
                             ))}
                           </select>
@@ -1241,6 +1513,129 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                             </div>
                           )}
                         </label>
+
+                        {/* Tipo de actividad */}
+                        <label className="text-sm">
+                          <span className="mb-1 block text-slate-700">
+                            Tipo de actividad
+                          </span>
+
+                          <select
+                            value={auditAction}
+                            onChange={(e) => {
+                              setAuditAction(
+                                e.target.value as
+                                | "ALL"
+                                | "CREATE"
+                                | "UPDATE"
+                              );
+
+                              setPage(1);
+                            }}
+                            disabled={!tecnicoFilterId}
+                            className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                          >
+                            <option value="ALL">
+                              Creaciones y ediciones
+                            </option>
+
+                            <option value="CREATE">
+                              Solo creaciones
+                            </option>
+
+                            <option value="UPDATE">
+                              Solo ediciones
+                            </option>
+                          </select>
+                        </label>
+
+                        {/* Fecha de actividad */}
+                        <label className="text-sm">
+                          <span className="mb-1 block text-slate-700">
+                            Fecha de actividad del técnico
+                          </span>
+
+                          <RangePicker
+                            value={[
+                              auditFrom
+                                ? dayjs(auditFrom)
+                                : null,
+
+                              auditTo
+                                ? dayjs(auditTo)
+                                : null,
+                            ]}
+                            onChange={(dates) => {
+                              setAuditFrom(
+                                dates?.[0]
+                                  ? dates[0]
+                                    .startOf("day")
+                                    .toISOString()
+                                  : ""
+                              );
+
+                              setAuditTo(
+                                dates?.[1]
+                                  ? dates[1]
+                                    .endOf("day")
+                                    .toISOString()
+                                  : ""
+                              );
+
+                              setPage(1);
+                            }}
+                            disabled={!tecnicoFilterId}
+                            format="DD/MM/YYYY"
+                            className="w-full"
+                            allowClear
+                            placeholder={["Desde", "Hasta"]}
+                            presets={[
+                              {
+                                label: "Hoy",
+                                value: [
+                                  dayjs().startOf("day"),
+                                  dayjs().endOf("day"),
+                                ],
+                              },
+                              {
+                                label: "Últimos 7 días",
+                                value: [
+                                  dayjs()
+                                    .subtract(6, "day")
+                                    .startOf("day"),
+
+                                  dayjs().endOf("day"),
+                                ],
+                              },
+                              {
+                                label: "Este mes",
+                                value: [
+                                  dayjs().startOf("month"),
+                                  dayjs().endOf("month"),
+                                ],
+                              },
+                              {
+                                label: "Mes anterior",
+                                value: [
+                                  dayjs()
+                                    .subtract(1, "month")
+                                    .startOf("month"),
+
+                                  dayjs()
+                                    .subtract(1, "month")
+                                    .endOf("month"),
+                                ],
+                              },
+                            ]}
+                          />
+                        </label>
+
+                        {tecnicoFilterId && (
+                          <div className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs text-indigo-700">
+                            Este rango incluye actividad manual y sincronizaciones automáticas
+                            del agente asociadas al técnico seleccionado.
+                          </div>
+                        )}
                       </div>
                     </div>
                   </>
@@ -1679,6 +2074,56 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                 </span>
               )}
 
+              {!isMantencionesPage && estadoFilter && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 text-blue-900 px-3 py-1 text-xs max-w-full">
+                  <span className="shrink-0">Estado:</span>
+
+                  <strong className="truncate">
+                    {getEstadoEquipoLabel(estadoFilter)}
+                  </strong>
+
+                  <button
+                    onClick={() => {
+                      setEstadoFilter("");
+                      setPage(1);
+                    }}
+                    className="hover:text-blue-700 shrink-0"
+                    aria-label="Quitar filtro de estado"
+                    title="Quitar filtro de estado"
+                    type="button"
+                  >
+                    <CloseCircleFilled />
+                  </button>
+                </span>
+              )}
+
+              {/* Solicitantes con múltiples equipos */}
+              {!isMantencionesPage &&
+                solicitanteMultiplesEquipos === "MULTIPLES" && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 text-cyan-900 px-3 py-1 text-xs max-w-full">
+                    <span className="shrink-0">
+                      Solicitantes:
+                    </span>
+
+                    <strong className="truncate">
+                      Más de 1 equipo
+                    </strong>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSolicitanteMultiplesEquipos("TODOS");
+                        setPage(1);
+                      }}
+                      className="hover:text-cyan-700 shrink-0"
+                      aria-label="Quitar filtro de múltiples equipos"
+                      title="Quitar filtro de múltiples equipos"
+                    >
+                      <CloseCircleFilled />
+                    </button>
+                  </span>
+                )}
+
               {!isMantencionesPage && tecnicoFilterId && (
                 <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-900 px-3 py-1 text-xs max-w-full">
                   <span className="shrink-0">Técnico:</span>
@@ -1947,11 +2392,12 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                     {getEstadoEquipoLabel(e.estado)}
                   </span>
 
-                  {e.solicitante ? (
-                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
-                      <LaptopOutlined className="opacity-80" /> {e.solicitante}
-                    </span>
-                  ) : null}
+                  {solicitanteMultiplesEquipos === "MULTIPLES" &&
+                    Number((e as any).totalEquiposSolicitante) > 1 && (
+                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                        {(e as any).totalEquiposSolicitante} equipos asociados
+                      </span>
+                    )}
 
                   {e.solicitanteRut ? (
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border border-slate-200 bg-slate-50 text-slate-700">
@@ -2227,13 +2673,22 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                             </td>
 
                             <td className="px-4 py-3">
-                              {e.solicitante ? (
-                                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
-                                  <LaptopOutlined className="opacity-80" /> {e.solicitante}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">—</span>
-                              )}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {e.solicitante ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border border-cyan-200 bg-cyan-50 text-cyan-900">
+                                    <LaptopOutlined className="opacity-80" /> {e.solicitante}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+
+                                {solicitanteMultiplesEquipos === "MULTIPLES" &&
+                                  Number((e as any).totalEquiposSolicitante) > 1 && (
+                                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                      {(e as any).totalEquiposSolicitante} equipos
+                                    </span>
+                                  )}
+                              </div>
                             </td>
 
                             <td className="px-4 py-3">
