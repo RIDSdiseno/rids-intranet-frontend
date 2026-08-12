@@ -30,7 +30,6 @@ import { http } from "../../service/http";
 import type {
   CreateEquipoPayload,
   CreateEquipoResponse,
-  EquipoAdicionalInput,
   EquipoDTO,
   EmpresaOpt,
   ListSolicitantesResponse,
@@ -41,8 +40,6 @@ import type {
 import {
   ESTADO_EQUIPO_OPTIONS,
   REQUIRED_FIELDS_BY_TIPO,
-  ADICIONAL_TIPOS,
-  ADICIONAL_TIPO_LABEL,
   formatRut,
   PROPIEDAD_EQUIPO_OPTIONS,
 } from "./equipos.helpers";
@@ -443,15 +440,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
         passwordEmpresa: values.passwordEmpresa,
         usuarioPersonal: values.usuarioPersonal,
         passwordPersonal: values.passwordPersonal,
-
-        adicionales: (values.adicionales ?? [])
-          .filter((a: EquipoAdicionalInput) => !!a?.tipo?.trim())
-          .map((a: EquipoAdicionalInput) => ({
-            tipo: a.tipo.trim(),
-            descripcion: a.descripcion?.trim() || null,
-            cantidad: Number(a.cantidad) > 0 ? Number(a.cantidad) : 1,
-            serialAdicional: a.serialAdicional?.trim() || null,
-          })),
       };
 
       if (values.anioPc !== undefined && values.anioPc !== null && values.anioPc !== "") {
@@ -620,7 +608,7 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                   Crear equipo
                 </h3>
                 <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Registra la ficha del equipo, datos técnicos, accesos y adicionales.
+                  Registra la ficha del equipo, datos técnicos y accesos.
                 </p>
               </div>
             </div>
@@ -1245,82 +1233,6 @@ const CrearEquipoModal: React.FC<CrearEquipoModalProps> = ({
                     </Form.Item>
                   </div>
                 </div>
-              </motion.section>
-
-              {/* Adicionales */}
-              <motion.section
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
-                {...fadeUp}
-              >
-                <Form.List name="adicionales" initialValue={[]}>
-                  {(fields, { add, remove }) => (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-slate-800">Adicionales</h4>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Equipos o accesorios adicionales relacionados.
-                          </p>
-                        </div>
-
-                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ cantidad: 1 })}>
-                          Agregar adicional
-                        </Button>
-                      </div>
-
-                      {fields.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                          Sin adicionales ingresados.
-                        </div>
-                      ) : (
-                        fields.map(({ key, name, ...restField }) => (
-                          <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                              <Form.Item
-                                {...restField}
-                                name={[name, "tipo"]}
-                                label="Tipo"
-                                rules={[{ required: true, message: "Selecciona el tipo" }]}
-                              >
-                                <Select
-                                  placeholder="Selecciona un tipo"
-                                  options={ADICIONAL_TIPOS.map((tipo) => ({
-                                    value: tipo,
-                                    label: ADICIONAL_TIPO_LABEL[tipo] ?? tipo,
-                                  }))}
-                                />
-                              </Form.Item>
-
-                              <Form.Item
-                                {...restField}
-                                name={[name, "cantidad"]}
-                                label="Cantidad"
-                                initialValue={1}
-                                rules={[{ required: true, message: "Ingresa la cantidad" }]}
-                              >
-                                <InputNumber min={1} className="w-full" />
-                              </Form.Item>
-
-                              <Form.Item {...restField} name={[name, "descripcion"]} label="Descripción">
-                                <Input allowClear placeholder="Ej: Samsung 24 pulgadas" />
-                              </Form.Item>
-
-                              <Form.Item {...restField} name={[name, "serialAdicional"]} label="Serial adicional">
-                                <Input allowClear placeholder="Opcional" />
-                              </Form.Item>
-                            </div>
-
-                            <div className="mt-2 flex justify-end">
-                              <Button danger onClick={() => remove(name)}>
-                                Quitar
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </Form.List>
               </motion.section>
             </div>
           </div>

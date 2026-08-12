@@ -9,12 +9,43 @@ export type EstadoEquipo =
   | "EN_GARANTIA"
   | "EN_TALLER_EXTERNO";
 
+export type OrigenEquipoAdicional =
+  | "MANUAL"
+  | "AGENTE";
+
+export type EstadoEquipoAdicional =
+  | "ASIGNADO"
+  | "EN_STOCK"
+  | "EN_REPARACION"
+  | "DADO_DE_BAJA";
+
 export type EquipoAdicional = {
   id: number;
+
+  equipoId?: number;
+
   tipo: string;
-  descripcion?: string | null;
+
+  descripcion?:
+  | string
+  | null;
+
   cantidad: number;
-  serialAdicional?: string | null;
+
+  serialAdicional?:
+  | string
+  | null;
+
+  origen?:
+  | OrigenEquipoAdicional
+  | null;
+
+  estado?:
+  | EstadoEquipoAdicional
+  | null;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type PropiedadEquipo = "Empresa" | "Personal" | "Externo";
@@ -317,12 +348,6 @@ export type EquipoDTO = {
 
   solicitante: SolicitanteDTO | null;
 };
-export type EquipoAdicionalInput = {
-  tipo: string;
-  descripcion?: string | null;
-  cantidad: number;
-  serialAdicional?: string | null;
-};
 
 export type CreateEquipoPayload = {
   empresaId: number;
@@ -357,7 +382,6 @@ export type CreateEquipoPayload = {
   usuarioPersonal?: string;
   passwordPersonal?: string;
 
-  adicionales?: EquipoAdicionalInput[];
 };
 
 export type CreateEquipoResponse = {
