@@ -1075,7 +1075,7 @@ const AdicionalesPage:
         ======================================================= */
 
         return (
-            <div className="relative min-h-[100dvh] min-w-0 overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-20 sm:pb-24">
+            <div className="relative min-h-0 min-w-0 overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-8 sm:pb-12">
 
                 {/* ===================================================
                     FONDO
@@ -1976,7 +1976,7 @@ const AdicionalesPage:
                     ================================================= */}
 
                     <section
-                        className="mt-4 hidden min-w-0 overflow-hidden rounded-3xl border border-cyan-200 bg-white lg:block"
+                        className="mt-4 hidden w-full min-w-0 overflow-hidden rounded-3xl border border-cyan-200 bg-white lg:block"
                         aria-live="polite"
                         aria-busy={
                             loading
@@ -1984,16 +1984,9 @@ const AdicionalesPage:
                                 : "false"
                         }
                     >
+                        <div className="w-full min-w-0 overflow-x-auto">
 
-                        <div className="w-full overflow-x-auto">
-
-                            <table
-                                className="w-full text-[13px] sm:text-sm"
-                                style={{
-                                    minWidth:
-                                        "1280px",
-                                }}
-                            >
+                            <table className="w-full table-fixed text-xs xl:text-[13px] 2xl:text-sm">
 
                                 <thead className="sticky top-0 z-10">
 
