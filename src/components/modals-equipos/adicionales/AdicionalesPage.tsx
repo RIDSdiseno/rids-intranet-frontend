@@ -18,7 +18,7 @@ import {
     RightOutlined,
     SearchOutlined,
     TeamOutlined,
-    EyeOutlined
+    EyeOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -173,7 +173,8 @@ function mostrarSerialAdicional(
      */
     if (
         value === "0" ||
-        value === "1"
+        value === "1" ||
+        value === "16843009"
     ) {
         return "—";
     }
@@ -859,17 +860,13 @@ const AdicionalesPage:
         }, []);
 
         /* =======================================================
-   MODAL CREAR
-======================================================= */
+           MODALES
+        ======================================================= */
 
         const [
             createOpen,
             setCreateOpen,
         ] = useState(false);
-
-        /* =======================================================
-           MODAL VISUALIZAR
-        ======================================================= */
 
         const [
             viewOpen,
@@ -883,10 +880,6 @@ const AdicionalesPage:
             useState<
                 AdicionalRow | null
             >(null);
-
-        /* =======================================================
-           MODAL EDITAR
-        ======================================================= */
 
         const [
             editOpen,
@@ -972,10 +965,6 @@ const AdicionalesPage:
             setPage(1);
         }
 
-        /* =======================================================
-   CREAR
-======================================================= */
-
         function startCreate() {
             setCreateOpen(true);
         }
@@ -987,18 +976,10 @@ const AdicionalesPage:
         async function handleCreated() {
             setCreateOpen(false);
 
-            /*
-             * Como el listado está ordenado
-             * por empresa, volvemos a página 1.
-             */
             setPage(1);
 
             await reload();
         }
-
-        /* =======================================================
-           VISUALIZAR
-        ======================================================= */
 
         function startView(
             row: AdicionalRow
@@ -1011,10 +992,6 @@ const AdicionalesPage:
             setViewOpen(false);
             setViewRow(null);
         }
-
-        /* =======================================================
-           EDITAR
-        ======================================================= */
 
         function startEdit(
             row: AdicionalRow
@@ -1051,11 +1028,6 @@ const AdicionalesPage:
                     `/equipos-adicionales/${row.id}`
                 );
 
-                /*
-                 * Si era el último
-                 * elemento de la página,
-                 * retrocedemos.
-                 */
                 if (
                     data &&
                     data.items.length ===
@@ -1103,46 +1075,58 @@ const AdicionalesPage:
         ======================================================= */
 
         return (
-            <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-24">
+            <div className="relative min-h-[100dvh] min-w-0 overflow-x-hidden bg-gradient-to-b from-white via-white to-cyan-50 pb-20 sm:pb-24">
 
                 {/* ===================================================
-          FONDO
-      =================================================== */}
+                    FONDO
+                =================================================== */}
+
                 <div className="pointer-events-none absolute inset-0 -z-10">
+
                     <div className="absolute inset-0 [background:radial-gradient(circle_at_1px_1px,rgba(14,165,233,0.08)_1px,transparent_0)_0_0/22px_22px]" />
 
                     <div className="absolute -left-32 -top-32 aspect-square w-[60vw] max-w-[520px] rounded-full bg-gradient-to-br from-cyan-200 to-indigo-200 opacity-40 blur-3xl" />
 
                     <div className="absolute -bottom-40 -right-40 aspect-square w-[65vw] max-w-[560px] rounded-full bg-gradient-to-tr from-fuchsia-200 to-cyan-200 opacity-40 blur-3xl" />
+
                 </div>
 
                 {/* ===================================================
-          HERO / TOOLBAR
-      =================================================== */}
-                <div className="mx-auto mt-6 max-w-[1800px] px-4 sm:px-6 lg:px-8">
-                    <div className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-white/80 shadow-sm backdrop-blur-xl sm:rounded-3xl">
+                    HERO / TOOLBAR
+                =================================================== */}
+
+                <div className="mx-auto mt-3 w-full max-w-[1800px] px-3 sm:mt-5 sm:px-6 lg:mt-6 lg:px-8">
+
+                    <div className="relative min-w-0 overflow-hidden rounded-2xl border border-cyan-200 bg-white/80 shadow-sm backdrop-blur-xl sm:rounded-3xl">
 
                         <div className="pointer-events-none absolute inset-0 bg-[conic-gradient(from_180deg_at_50%_50%,rgba(14,165,233,0.06),transparent_30%,rgba(99,102,241,0.06),transparent_60%,rgba(236,72,153,0.06),transparent_90%)] opacity-60" />
 
-                        <div className="relative p-4 sm:p-6 md:p-8">
+                        <div className="relative p-4 sm:p-6 lg:p-8">
 
                             {/* CABECERA */}
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+
+                            <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
 
                                 <div className="min-w-0">
-                                    <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
+
+                                    <h1 className="break-words text-xl font-extrabold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
+
                                         Adicionales{" "}
+
                                         <span className="bg-gradient-to-r from-cyan-600 to-indigo-600 bg-clip-text text-transparent">
                                             RIDS.CL
                                         </span>
+
                                     </h1>
 
-                                    <p className="text-xs text-slate-600 sm:text-sm">
+                                    <p className="mt-1 text-xs text-slate-600 sm:text-sm">
                                         Inventario de adicionales vinculados a los equipos.
                                     </p>
+
                                 </div>
 
-                                <div className="text-sm text-slate-600 md:shrink-0">
+                                <div className="shrink-0 text-sm text-slate-600">
+
                                     {loading ? (
                                         <span className="inline-flex items-center gap-2">
                                             <LoadingOutlined />
@@ -1154,16 +1138,21 @@ const AdicionalesPage:
                                             0
                                         ).toLocaleString()} resultado(s)`
                                     )}
+
                                 </div>
+
                             </div>
 
                             {/* =================================================
-                TOOLBAR SUPERIOR
-            ================================================= */}
-                            <div className="mt-5 grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-12">
+                                TOOLBAR SUPERIOR
+                            ================================================= */}
+
+                            <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-12">
 
                                 {/* BÚSQUEDA */}
-                                <div className="relative min-w-0 md:col-span-5">
+
+                                <div className="relative min-w-0 lg:col-span-5">
+
                                     <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
 
                                     <input
@@ -1180,7 +1169,7 @@ const AdicionalesPage:
                                             setPage(1);
                                         }}
                                         placeholder="serial, tipo, descripción, equipo, solicitante, empresa…"
-                                        className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 py-2.5 pl-9 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                        className="w-full min-w-0 rounded-2xl border border-cyan-200/70 bg-white/90 py-2.5 pl-9 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                     />
 
                                     {search.length >
@@ -1198,11 +1187,14 @@ const AdicionalesPage:
                                                 <CloseCircleFilled />
                                             </button>
                                         )}
+
                                 </div>
 
                                 {/* BOTONES */}
-                                <div className="min-w-0 md:col-span-7">
-                                    <div className="grid grid-cols-2 justify-end gap-2 sm:grid-cols-3">
+
+                                <div className="min-w-0 lg:col-span-7">
+
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
 
                                         {!isCliente && (
                                             <button
@@ -1211,7 +1203,7 @@ const AdicionalesPage:
                                                     startCreate
                                                 }
                                                 className={clsx(
-                                                    "col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white sm:col-span-1",
+                                                    "inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium text-white sm:w-auto",
                                                     "bg-gradient-to-tr from-indigo-600 to-cyan-600",
                                                     "shadow-[0_6px_18px_-6px_rgba(37,99,235,0.45)]",
                                                     "hover:brightness-110"
@@ -1219,6 +1211,7 @@ const AdicionalesPage:
                                                 title="Crear nuevo adicional"
                                             >
                                                 <PlusOutlined />
+
                                                 <span>
                                                     Nuevo
                                                 </span>
@@ -1230,7 +1223,7 @@ const AdicionalesPage:
                                             onClick={
                                                 clearAll
                                             }
-                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-4 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 sm:w-auto"
                                         >
                                             Limpiar
                                         </button>
@@ -1243,33 +1236,43 @@ const AdicionalesPage:
                                             disabled={
                                                 loading
                                             }
-                                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/70 bg-white/90 px-4 py-2.5 text-sm text-cyan-800 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                                         >
                                             <ReloadOutlined />
 
-                                            <span className="hidden sm:inline">
+                                            <span>
                                                 Recargar
                                             </span>
                                         </button>
+
                                     </div>
+
                                 </div>
 
                                 {/* =================================================
-                  FILTRO EMPRESA
-              ================================================= */}
-                                <div className="md:col-span-12">
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    FILTROS
+                                ================================================= */}
 
-                                        <div className="space-y-2">
+                                <div className="min-w-0 lg:col-span-12">
+
+                                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+                                        {/* EMPRESA */}
+
+                                        <div className="min-w-0 space-y-2">
+
                                             <div className="flex items-center gap-2">
-                                                <BuildingOfficeIcon className="h-4 w-4 text-cyan-600" />
+
+                                                <BuildingOfficeIcon className="h-4 w-4 shrink-0 text-cyan-600" />
 
                                                 <label className="block text-sm font-medium text-slate-700">
                                                     Filtrar por empresa
                                                 </label>
+
                                             </div>
 
-                                            <div className="relative">
+                                            <div className="relative min-w-0">
+
                                                 <select
                                                     value={
                                                         empresaFilterId ??
@@ -1303,13 +1306,14 @@ const AdicionalesPage:
                                                         isCliente
                                                     }
                                                     className={clsx(
-                                                        "w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pl-10 pr-8 text-sm text-slate-900 shadow-sm",
+                                                        "w-full min-w-0 appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pl-10 pr-8 text-sm text-slate-900 shadow-sm",
                                                         "transition-all duration-200",
                                                         "hover:border-cyan-300",
                                                         "focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
                                                         "disabled:cursor-not-allowed disabled:opacity-50"
                                                     )}
                                                 >
+
                                                     {!isCliente && (
                                                         <option value="">
                                                             Todas las empresas
@@ -1334,24 +1338,29 @@ const AdicionalesPage:
                                                             </option>
                                                         )
                                                     )}
+
                                                 </select>
 
                                                 <BuildingOfficeIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
                                                 <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+
                                             </div>
 
                                             {empresasError && (
-                                                <div className="text-xs text-rose-600">
+                                                <div className="break-words text-xs text-rose-600">
                                                     {
                                                         empresasError
                                                     }
                                                 </div>
                                             )}
+
                                         </div>
 
                                         {/* TIPO */}
-                                        <div className="space-y-2">
+
+                                        <div className="min-w-0 space-y-2">
+
                                             <label className="block text-sm font-medium text-slate-700">
                                                 Tipo de adicional
                                             </label>
@@ -1369,8 +1378,9 @@ const AdicionalesPage:
 
                                                     setPage(1);
                                                 }}
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                                             >
+
                                                 <option value="">
                                                     Todos los tipos
                                                 </option>
@@ -1407,6 +1417,10 @@ const AdicionalesPage:
                                                     Switch
                                                 </option>
 
+                                                <option value="UPS">
+                                                    UPS
+                                                </option>
+
                                                 <option value="ROUTER">
                                                     Router
                                                 </option>
@@ -1414,11 +1428,15 @@ const AdicionalesPage:
                                                 <option value="OTRO">
                                                     Otro
                                                 </option>
+
                                             </select>
+
                                         </div>
 
                                         {/* ORIGEN */}
-                                        <div className="space-y-2">
+
+                                        <div className="min-w-0 space-y-2">
+
                                             <label className="block text-sm font-medium text-slate-700">
                                                 Origen
                                             </label>
@@ -1439,8 +1457,9 @@ const AdicionalesPage:
 
                                                     setPage(1);
                                                 }}
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                                             >
+
                                                 <option value="">
                                                     Todos los orígenes
                                                 </option>
@@ -1452,11 +1471,15 @@ const AdicionalesPage:
                                                 <option value="AGENTE">
                                                     Agente
                                                 </option>
+
                                             </select>
+
                                         </div>
 
                                         {/* ESTADO */}
-                                        <div className="space-y-2">
+
+                                        <div className="min-w-0 space-y-2">
+
                                             <label className="block text-sm font-medium text-slate-700">
                                                 Estado
                                             </label>
@@ -1477,8 +1500,9 @@ const AdicionalesPage:
 
                                                     setPage(1);
                                                 }}
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                                             >
+
                                                 <option value="">
                                                     Todos los estados
                                                 </option>
@@ -1498,21 +1522,28 @@ const AdicionalesPage:
                                                 <option value="DADO_DE_BAJA">
                                                     Dado de baja
                                                 </option>
+
                                             </select>
+
                                         </div>
+
                                     </div>
+
                                 </div>
 
                                 {/* =================================================
-                  CHIPS FILTROS ACTIVOS
-              ================================================= */}
-                                <div className="md:col-span-12">
+                                    CHIPS FILTROS ACTIVOS
+                                ================================================= */}
+
+                                <div className="min-w-0 lg:col-span-12">
+
                                     <div className="flex min-w-0 flex-wrap items-center gap-2">
 
                                         {empresaFilterName &&
                                             !isCliente && (
-                                                <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs text-cyan-900">
-                                                    <span>
+                                                <span className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs text-cyan-900">
+
+                                                    <span className="shrink-0">
                                                         Empresa:
                                                     </span>
 
@@ -1524,6 +1555,7 @@ const AdicionalesPage:
 
                                                     <button
                                                         type="button"
+                                                        className="shrink-0"
                                                         onClick={() => {
                                                             setEmpresaFilterId(
                                                                 null
@@ -1535,13 +1567,16 @@ const AdicionalesPage:
                                                     >
                                                         <CloseCircleFilled />
                                                     </button>
+
                                                 </span>
                                             )}
 
                                         {tipo && (
-                                            <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-900">
+                                            <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-900">
+
                                                 Tipo:
-                                                <strong>
+
+                                                <strong className="truncate">
                                                     {
                                                         tipo
                                                     }
@@ -1549,6 +1584,7 @@ const AdicionalesPage:
 
                                                 <button
                                                     type="button"
+                                                    className="shrink-0"
                                                     onClick={() => {
                                                         setTipo("");
                                                         setPage(1);
@@ -1556,13 +1592,16 @@ const AdicionalesPage:
                                                 >
                                                     <CloseCircleFilled />
                                                 </button>
+
                                             </span>
                                         )}
 
                                         {origen && (
-                                            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs text-cyan-900">
+                                            <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs text-cyan-900">
+
                                                 Origen:
-                                                <strong>
+
+                                                <strong className="truncate">
                                                     {
                                                         getOrigenLabel(
                                                             origen
@@ -1572,6 +1611,7 @@ const AdicionalesPage:
 
                                                 <button
                                                     type="button"
+                                                    className="shrink-0"
                                                     onClick={() => {
                                                         setOrigen("");
                                                         setPage(1);
@@ -1579,13 +1619,16 @@ const AdicionalesPage:
                                                 >
                                                     <CloseCircleFilled />
                                                 </button>
+
                                             </span>
                                         )}
 
                                         {estado && (
-                                            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-900">
+                                            <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-900">
+
                                                 Estado:
-                                                <strong>
+
+                                                <strong className="truncate">
                                                     {
                                                         getEstadoAdicionalLabel(
                                                             estado
@@ -1595,6 +1638,7 @@ const AdicionalesPage:
 
                                                 <button
                                                     type="button"
+                                                    className="shrink-0"
                                                     onClick={() => {
                                                         setEstado("");
                                                         setPage(1);
@@ -1602,28 +1646,35 @@ const AdicionalesPage:
                                                 >
                                                     <CloseCircleFilled />
                                                 </button>
+
                                             </span>
                                         )}
+
                                     </div>
+
                                 </div>
+
                             </div>
 
                             <div className="mt-4 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
+
                         </div>
+
                     </div>
+
                 </div>
 
                 {/* ===================================================
-          CONTENIDO
-      =================================================== */}
-                <main className="mx-auto mt-6 max-w-[1800px] px-4 sm:px-6 lg:px-8">
+                    CONTENIDO
+                =================================================== */}
 
-                    {/* =================================================
-            ERROR GLOBAL
-        ================================================= */}
+                <main className="mx-auto mt-4 w-full min-w-0 max-w-[1800px] px-3 sm:mt-6 sm:px-6 lg:px-8">
+
+                    {/* ERROR GLOBAL */}
+
                     {!loading &&
                         error && (
-                            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center text-sm text-rose-700">
+                            <div className="mb-4 break-words rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center text-sm text-rose-700">
                                 {
                                     error
                                 }
@@ -1631,10 +1682,11 @@ const AdicionalesPage:
                         )}
 
                     {/* =================================================
-            CARDS MOBILE
-        ================================================= */}
+                        CARDS MÓVIL / TABLET
+                    ================================================= */}
+
                     <section
-                        className="mt-4 space-y-3 md:hidden"
+                        className="mt-4 space-y-3 lg:hidden"
                         aria-live="polite"
                         aria-busy={
                             loading
@@ -1642,8 +1694,10 @@ const AdicionalesPage:
                                 : "false"
                         }
                     >
+
                         {loading && (
                             <div className="space-y-3">
+
                                 {Array.from({
                                     length: 6,
                                 }).map(
@@ -1663,6 +1717,7 @@ const AdicionalesPage:
                                         </div>
                                     )
                                 )}
+
                             </div>
                         )}
 
@@ -1694,11 +1749,13 @@ const AdicionalesPage:
                                     return (
                                         <article
                                             key={`mobile-${row.id}`}
-                                            className="rounded-2xl border border-cyan-200 bg-white p-4"
+                                            className="min-w-0 overflow-hidden rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm"
                                         >
-                                            <header className="flex items-start justify-between gap-3">
 
-                                                <div className="min-w-0">
+                                            <header className="flex min-w-0 items-start justify-between gap-3">
+
+                                                <div className="min-w-0 flex-1">
+
                                                     <div className="text-xs text-slate-500">
                                                         Adicional #
                                                         {
@@ -1706,15 +1763,18 @@ const AdicionalesPage:
                                                         }
                                                     </div>
 
-                                                    <h3 className="mt-0.5 text-base font-semibold text-slate-900">
+                                                    <h3 className="mt-0.5 break-words text-base font-semibold text-slate-900">
                                                         {
                                                             row.tipo
                                                         }
                                                     </h3>
 
-                                                    <p className="mt-1 line-clamp-3 break-words text-xs text-slate-600">
-                                                        {descripcion}
+                                                    <p className="mt-1 line-clamp-3 break-words [overflow-wrap:anywhere] text-xs text-slate-600">
+                                                        {
+                                                            descripcion
+                                                        }
                                                     </p>
+
                                                 </div>
 
                                                 <span
@@ -1731,13 +1791,14 @@ const AdicionalesPage:
                                                         )
                                                     }
                                                 </span>
+
                                             </header>
 
-                                            <div className="mt-3 flex flex-wrap gap-2">
+                                            <div className="mt-3 flex min-w-0 flex-wrap gap-2">
 
                                                 <span
                                                     className={clsx(
-                                                        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+                                                        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
                                                         getOrigenClass(
                                                             row.origen
                                                         )
@@ -1752,11 +1813,15 @@ const AdicionalesPage:
 
                                                 {serial !==
                                                     "—" && (
-                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 font-mono text-[11px] text-slate-700">
-                                                            Serial:{" "}
-                                                            {
-                                                                serial
-                                                            }
+                                                        <span className="inline-flex max-w-full min-w-0 items-start rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[11px] text-slate-700">
+
+                                                            <span className="break-all">
+                                                                Serial:{" "}
+                                                                {
+                                                                    serial
+                                                                }
+                                                            </span>
+
                                                         </span>
                                                     )}
 
@@ -1764,7 +1829,7 @@ const AdicionalesPage:
                                                     ?.nombre && (
                                                         <span
                                                             className={clsx(
-                                                                "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+                                                                "inline-flex max-w-full min-w-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
                                                                 companyTagClasses(
                                                                     row
                                                                         .empresa
@@ -1772,18 +1837,23 @@ const AdicionalesPage:
                                                                 )
                                                             )}
                                                         >
-                                                            <TeamOutlined />
+                                                            <TeamOutlined className="shrink-0" />
 
-                                                            {
-                                                                row
-                                                                    .empresa
-                                                                    .nombre
-                                                            }
+                                                            <span className="truncate">
+                                                                {
+                                                                    row
+                                                                        .empresa
+                                                                        .nombre
+                                                                }
+                                                            </span>
+
                                                         </span>
                                                     )}
+
                                             </div>
 
-                                            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                            <div className="mt-3 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+
                                                 <div>
                                                     <strong>
                                                         Equipo:
@@ -1795,46 +1865,59 @@ const AdicionalesPage:
                                                     }
                                                 </div>
 
-                                                <div className="mt-1">
+                                                <div className="mt-1 min-w-0">
+
                                                     <strong>
                                                         Serial equipo:
                                                     </strong>{" "}
-                                                    {
-                                                        row.equipo
-                                                            .serial ||
-                                                        "—"
-                                                    }
+
+                                                    <span className="break-all font-mono">
+                                                        {
+                                                            row.equipo
+                                                                .serial ||
+                                                            "—"
+                                                        }
+                                                    </span>
+
                                                 </div>
 
-                                                <div className="mt-1">
+                                                <div className="mt-1 break-words">
+
                                                     <strong>
                                                         Equipo:
                                                     </strong>{" "}
+
                                                     {
                                                         row.equipo
                                                             .marca ||
                                                         "—"
                                                     }{" "}
+
                                                     {
                                                         row.equipo
                                                             .modelo ||
                                                         ""
                                                     }
+
                                                 </div>
 
-                                                <div className="mt-1">
+                                                <div className="mt-1 break-words">
+
                                                     <strong>
                                                         Solicitante:
                                                     </strong>{" "}
+
                                                     {
                                                         row.solicitante
                                                             ?.nombre ||
                                                         "—"
                                                     }
+
                                                 </div>
+
                                             </div>
 
-                                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <div className="mt-3 grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
 
                                                 <button
                                                     type="button"
@@ -1843,7 +1926,7 @@ const AdicionalesPage:
                                                             row
                                                         )
                                                     }
-                                                    className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1 text-xs text-cyan-900 hover:bg-cyan-100"
+                                                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs text-cyan-900 hover:bg-cyan-100"
                                                 >
                                                     <EyeOutlined />
                                                     Ver
@@ -1858,7 +1941,7 @@ const AdicionalesPage:
                                                                     row
                                                                 )
                                                             }
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-900 hover:bg-indigo-100"
+                                                            className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900 hover:bg-indigo-100"
                                                         >
                                                             <EditOutlined />
                                                             Editar
@@ -1871,29 +1954,29 @@ const AdicionalesPage:
                                                                     row
                                                                 )
                                                             }
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-900 hover:bg-rose-100"
+                                                            className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900 hover:bg-rose-100"
                                                         >
                                                             <DeleteOutlined />
                                                             Eliminar
                                                         </button>
                                                     </>
                                                 )}
+
                                             </div>
+
                                         </article>
                                     );
                                 }
                             )}
+
                     </section>
 
                     {/* =================================================
-            TABLA DESKTOP
-        ================================================= */}
+                        TABLA DESKTOP
+                    ================================================= */}
+
                     <section
-                        className="mt-4 hidden rounded-3xl border border-cyan-200 bg-white md:block"
-                        style={{
-                            overflowX:
-                                "auto",
-                        }}
+                        className="mt-4 hidden min-w-0 overflow-hidden rounded-3xl border border-cyan-200 bg-white lg:block"
                         aria-live="polite"
                         aria-busy={
                             loading
@@ -1901,7 +1984,9 @@ const AdicionalesPage:
                                 : "false"
                         }
                     >
-                        <div className="overflow-x-auto">
+
+                        <div className="w-full overflow-x-auto">
+
                             <table
                                 className="w-full text-[13px] sm:text-sm"
                                 style={{
@@ -1909,50 +1994,51 @@ const AdicionalesPage:
                                         "1280px",
                                 }}
                             >
+
                                 <thead className="sticky top-0 z-10">
+
                                     <tr className="border-b border-cyan-200 bg-gradient-to-r from-cyan-50 to-indigo-50">
 
-                                        <th className="min-w-[110px] border-l-2 border-l-cyan-300 border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[100px] border-l-2 border-l-cyan-300 border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Tipo
                                         </th>
 
-                                        <th className="min-w-[340px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[300px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Descripción
                                         </th>
 
-                                        <th className="min-w-[170px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Serial
                                         </th>
 
-                                        <th className="min-w-[220px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[200px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Equipo
                                         </th>
 
-                                        <th className="min-w-[160px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Solicitante
                                         </th>
 
-                                        <th className="min-w-[160px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Empresa
                                         </th>
 
                                         <th className="min-w-[100px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
-                                            Origen
-                                        </th>
-
-                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Estado
                                         </th>
 
-                                        <th className="w-[100px] rounded-tr-xl px-4 py-3 text-center font-semibold text-slate-800">
+                                        <th className="w-[105px] rounded-tr-xl px-4 py-3 text-center font-semibold text-slate-800">
                                             Acciones
                                         </th>
+
                                     </tr>
+
                                 </thead>
 
                                 <tbody className="text-slate-800">
 
                                     {/* SKELETON */}
+
                                     {loading &&
                                         Array.from({
                                             length: 8,
@@ -1965,6 +2051,7 @@ const AdicionalesPage:
                                                     key={`adicional-sk-${index}`}
                                                     className="border-t border-neutral-100"
                                                 >
+
                                                     {Array.from({
                                                         length: 9,
                                                     }).map(
@@ -1980,26 +2067,31 @@ const AdicionalesPage:
                                                             </td>
                                                         )
                                                     )}
+
                                                 </tr>
                                             )
                                         )}
 
                                     {/* SIN RESULTADOS */}
+
                                     {!loading &&
                                         !error &&
                                         rows.length ===
                                         0 && (
                                             <tr>
+
                                                 <td
                                                     colSpan={9}
                                                     className="px-4 py-12"
                                                 >
+
                                                     <div className="flex flex-col items-center gap-3 text-slate-600">
+
                                                         <span>
                                                             No encontramos resultados
                                                         </span>
 
-                                                        <div className="flex gap-2">
+                                                        <div className="flex flex-wrap justify-center gap-2">
 
                                                             <button
                                                                 type="button"
@@ -2022,19 +2114,25 @@ const AdicionalesPage:
                                                                 <ReloadOutlined />
                                                                 Recargar
                                                             </button>
+
                                                         </div>
+
                                                     </div>
+
                                                 </td>
+
                                             </tr>
                                         )}
 
                                     {/* FILAS */}
+
                                     {!loading &&
                                         !error &&
                                         rows.map(
                                             (
                                                 row
                                             ) => {
+
                                                 const descripcion =
                                                     limpiarDescripcionAdicional(
                                                         row.descripcion
@@ -2066,7 +2164,9 @@ const AdicionalesPage:
                                                             "hover:bg-cyan-50/70"
                                                         )}
                                                     >
+
                                                         {/* TIPO */}
+
                                                         <td
                                                             className={clsx(
                                                                 "border-l-2 px-4 py-3 font-semibold",
@@ -2079,9 +2179,11 @@ const AdicionalesPage:
                                                         </td>
 
                                                         {/* DESCRIPCIÓN */}
+
                                                         <td className="max-w-[440px] px-4 py-3">
+
                                                             <div
-                                                                className="line-clamp-2 break-words text-slate-700"
+                                                                className="line-clamp-2 break-words [overflow-wrap:anywhere] text-slate-700"
                                                                 title={
                                                                     descripcion ===
                                                                         "—"
@@ -2093,17 +2195,33 @@ const AdicionalesPage:
                                                                     descripcion
                                                                 }
                                                             </div>
+
                                                         </td>
 
                                                         {/* SERIAL */}
-                                                        <td className="px-4 py-3 font-mono text-xs font-semibold tracking-wide">
-                                                            {
-                                                                serial
-                                                            }
+
+                                                        <td className="max-w-[220px] px-4 py-3">
+
+                                                            <div
+                                                                className="break-all font-mono text-xs font-semibold tracking-wide"
+                                                                title={
+                                                                    serial ===
+                                                                        "—"
+                                                                        ? ""
+                                                                        : serial
+                                                                }
+                                                            >
+                                                                {
+                                                                    serial
+                                                                }
+                                                            </div>
+
                                                         </td>
 
                                                         {/* EQUIPO */}
+
                                                         <td className="px-4 py-3">
+
                                                             <div className="font-semibold text-slate-900">
                                                                 Equipo #
                                                                 {
@@ -2112,89 +2230,96 @@ const AdicionalesPage:
                                                                 }
                                                             </div>
 
-                                                            <div className="mt-0.5 text-xs text-slate-500">
-                                                                <span className="font-mono">
-                                                                    {row.equipo
-                                                                        .serial ||
-                                                                        "Sin serial"}
+                                                            <div className="mt-0.5 max-w-[230px] break-words text-xs text-slate-500">
+
+                                                                <span className="break-all font-mono">
+                                                                    {
+                                                                        row.equipo
+                                                                            .serial ||
+                                                                        "Sin serial"
+                                                                    }
                                                                 </span>
 
                                                                 {" · "}
 
-                                                                {row.equipo
-                                                                    .marca ||
-                                                                    "Sin marca"}
+                                                                {
+                                                                    row.equipo
+                                                                        .marca ||
+                                                                    "Sin marca"
+                                                                }
 
                                                                 {" "}
 
-                                                                {row.equipo
-                                                                    .modelo ||
-                                                                    ""}
+                                                                {
+                                                                    row.equipo
+                                                                        .modelo ||
+                                                                    ""
+                                                                }
+
                                                             </div>
+
                                                         </td>
 
                                                         {/* SOLICITANTE */}
+
                                                         <td className="px-4 py-3">
+
                                                             {row.solicitante
                                                                 ?.nombre ? (
-                                                                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-medium text-cyan-900">
-                                                                    {
-                                                                        row
-                                                                            .solicitante
-                                                                            .nombre
-                                                                    }
+                                                                <span className="inline-flex max-w-[200px] items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-medium text-cyan-900">
+
+                                                                    <span className="truncate">
+                                                                        {
+                                                                            row
+                                                                                .solicitante
+                                                                                .nombre
+                                                                        }
+                                                                    </span>
+
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-slate-400">
                                                                     —
                                                                 </span>
                                                             )}
+
                                                         </td>
 
                                                         {/* EMPRESA */}
+
                                                         <td className="px-4 py-3">
+
                                                             {empresa ? (
                                                                 <span
                                                                     className={clsx(
-                                                                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                                                                        "inline-flex max-w-[220px] min-w-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
                                                                         companyTagClasses(
                                                                             empresa
                                                                         )
                                                                     )}
                                                                 >
-                                                                    <TeamOutlined className="opacity-80" />
 
-                                                                    {
-                                                                        empresa
-                                                                    }
+                                                                    <TeamOutlined className="shrink-0 opacity-80" />
+
+                                                                    <span className="truncate">
+                                                                        {
+                                                                            empresa
+                                                                        }
+                                                                    </span>
+
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-slate-400">
                                                                     —
                                                                 </span>
                                                             )}
-                                                        </td>
 
-                                                        {/* ORIGEN */}
-                                                        <td className="px-4 py-3">
-                                                            <span
-                                                                className={clsx(
-                                                                    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                                                                    getOrigenClass(
-                                                                        row.origen
-                                                                    )
-                                                                )}
-                                                            >
-                                                                {
-                                                                    getOrigenLabel(
-                                                                        row.origen
-                                                                    )
-                                                                }
-                                                            </span>
                                                         </td>
 
                                                         {/* ESTADO */}
+
                                                         <td className="px-4 py-3">
+
                                                             <span
                                                                 className={clsx(
                                                                     "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
@@ -2209,30 +2334,31 @@ const AdicionalesPage:
                                                                     )
                                                                 }
                                                             </span>
+
                                                         </td>
 
                                                         {/* ACCIONES */}
-                                                        {!isCliente && (
-                                                            <td className="whitespace-nowrap rounded-r-xl px-4 py-3 align-middle">
-                                                                <div className="flex h-full items-center justify-center gap-2">
 
-                                                                    {/* VISUALIZAR */}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() =>
-                                                                            startView(
-                                                                                row
-                                                                            )
-                                                                        }
-                                                                        title="Ver adicional"
-                                                                        aria-label={`Ver adicional ${row.id}`}
-                                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-900 transition hover:bg-cyan-100"
-                                                                    >
-                                                                        <EyeOutlined />
-                                                                    </button>
+                                                        <td className="whitespace-nowrap rounded-r-xl px-4 py-3 align-middle">
 
-                                                                    {/* EDITAR */}
-                                                                    {!isCliente && (
+                                                            <div className="flex h-full items-center justify-center gap-2">
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        startView(
+                                                                            row
+                                                                        )
+                                                                    }
+                                                                    title="Ver adicional"
+                                                                    aria-label={`Ver adicional ${row.id}`}
+                                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-900 transition hover:bg-cyan-100"
+                                                                >
+                                                                    <EyeOutlined />
+                                                                </button>
+
+                                                                {!isCliente && (
+                                                                    <>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() =>
@@ -2246,10 +2372,7 @@ const AdicionalesPage:
                                                                         >
                                                                             <EditOutlined />
                                                                         </button>
-                                                                    )}
 
-                                                                    {/* ELIMINAR */}
-                                                                    {!isCliente && (
                                                                         <button
                                                                             type="button"
                                                                             title="Eliminar adicional"
@@ -2263,68 +2386,88 @@ const AdicionalesPage:
                                                                         >
                                                                             <DeleteOutlined />
                                                                         </button>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        )}
+                                                                    </>
+                                                                )}
+
+                                                            </div>
+
+                                                        </td>
+
                                                     </tr>
                                                 );
                                             }
                                         )}
+
                                 </tbody>
+
                             </table>
+
                         </div>
 
                         {/* =================================================
-                          PAGINACIÓN
-                         ================================================= */}
+                            PAGINACIÓN DESKTOP
+                        ================================================= */}
+
                         <div className="flex flex-col gap-3 border-t border-cyan-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between lg:pr-28 xl:pr-32">
 
                             <div className="text-center text-sm text-slate-700 sm:text-left">
+
                                 {data ? (
                                     <span>
+
                                         {showingRange ? (
                                             <>
                                                 Mostrando{" "}
+
                                                 <strong className="text-slate-900">
                                                     {
                                                         showingRange.start
                                                     }
                                                 </strong>
+
                                                 –
+
                                                 <strong className="text-slate-900">
                                                     {
                                                         showingRange.end
                                                     }
                                                 </strong>{" "}
+
                                                 de{" "}
+
                                                 <strong className="text-slate-900">
                                                     {
                                                         data.total
                                                     }
                                                 </strong>
+
                                                 {" • "}
                                             </>
                                         ) : null}
 
                                         Página{" "}
+
                                         <strong className="text-slate-900">
                                             {
                                                 data.page
                                             }
                                         </strong>{" "}
+
                                         de{" "}
+
                                         <strong className="text-slate-900">
                                             {
                                                 data.totalPages
                                             }
                                         </strong>
+
                                     </span>
                                 ) : (
                                     <span>
                                         —
                                     </span>
                                 )}
+
                             </div>
 
                             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
@@ -2350,12 +2493,12 @@ const AdicionalesPage:
                                 >
                                     <LeftOutlined />
 
-                                    <span className="hidden sm:inline">
+                                    <span>
                                         Anterior
                                     </span>
                                 </button>
 
-                                <div className="ml-1 hidden items-center gap-2 sm:flex">
+                                <div className="ml-1 flex items-center gap-2">
 
                                     <span className="text-sm text-slate-600">
                                         Por página
@@ -2377,6 +2520,7 @@ const AdicionalesPage:
                                         }
                                         className="rounded-xl border border-cyan-200 bg-white px-2 py-1 text-sm"
                                     >
+
                                         {[
                                             10,
                                             20,
@@ -2401,7 +2545,9 @@ const AdicionalesPage:
                                                 </option>
                                             )
                                         )}
+
                                     </select>
+
                                 </div>
 
                                 <button
@@ -2423,43 +2569,72 @@ const AdicionalesPage:
                                         "cursor-not-allowed opacity-50 hover:bg-transparent"
                                     )}
                                 >
-                                    <span className="hidden sm:inline">
+
+                                    <span>
                                         Siguiente
                                     </span>
 
                                     <RightOutlined />
+
                                 </button>
+
                             </div>
+
                         </div>
+
                     </section>
 
                     {/* =================================================
-            PAGINACIÓN MOBILE
-        ================================================= */}
-                    <section className="mt-4 rounded-2xl border border-cyan-200 bg-slate-50 px-4 py-3 md:hidden">
+                        PAGINACIÓN MÓVIL / TABLET
+                    ================================================= */}
+
+                    <section className="mt-4 rounded-2xl border border-cyan-200 bg-slate-50 px-3 py-3 sm:px-4 lg:hidden">
 
                         <div className="text-center text-sm text-slate-700">
+
                             {data ? (
                                 <>
                                     Página{" "}
+
                                     <strong>
                                         {
                                             data.page
                                         }
                                     </strong>{" "}
+
                                     de{" "}
+
                                     <strong>
                                         {
                                             data.totalPages
                                         }
                                     </strong>
+
+                                    {showingRange && (
+                                        <div className="mt-1 text-xs text-slate-500">
+                                            Mostrando{" "}
+                                            {
+                                                showingRange.start
+                                            }
+                                            –
+                                            {
+                                                showingRange.end
+                                            }{" "}
+                                            de{" "}
+                                            {
+                                                data.total
+                                            }
+                                        </div>
+                                    )}
+
                                 </>
                             ) : (
                                 "—"
                             )}
+
                         </div>
 
-                        <div className="mt-3 flex items-center justify-center gap-2">
+                        <div className="mt-3 flex min-w-0 items-center justify-center gap-2">
 
                             <button
                                 type="button"
@@ -2471,13 +2646,14 @@ const AdicionalesPage:
                                     loading
                                 }
                                 className={clsx(
-                                    "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-200 bg-white text-cyan-800",
+                                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-white text-cyan-800",
                                     (
                                         !canPrev ||
                                         loading
                                     ) &&
                                     "cursor-not-allowed opacity-50"
                                 )}
+                                aria-label="Página anterior"
                             >
                                 <LeftOutlined />
                             </button>
@@ -2496,8 +2672,9 @@ const AdicionalesPage:
                                         )
                                     )
                                 }
-                                className="rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm"
+                                className="min-w-0 max-w-[180px] flex-1 rounded-xl border border-cyan-200 bg-white px-2 py-2 text-sm sm:flex-none sm:px-3"
                             >
+
                                 {[
                                     10,
                                     20,
@@ -2522,6 +2699,7 @@ const AdicionalesPage:
                                         </option>
                                     )
                                 )}
+
                             </select>
 
                             <button
@@ -2534,22 +2712,27 @@ const AdicionalesPage:
                                     loading
                                 }
                                 className={clsx(
-                                    "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-200 bg-white text-cyan-800",
+                                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-200 bg-white text-cyan-800",
                                     (
                                         !canNext ||
                                         loading
                                     ) &&
                                     "cursor-not-allowed opacity-50"
                                 )}
+                                aria-label="Página siguiente"
                             >
                                 <RightOutlined />
                             </button>
+
                         </div>
+
                     </section>
+
                 </main>
+
                 {/* =====================================================
-    MODALES
-===================================================== */}
+                    MODALES
+                ===================================================== */}
 
                 <CrearAdicionalModal
                     open={
@@ -2589,6 +2772,7 @@ const AdicionalesPage:
                         closeView
                     }
                 />
+
             </div>
         );
     };

@@ -87,6 +87,7 @@ const TIPOS = [
     "CARGADOR",
     "CAMARA",
     "SWITCH",
+    "UPS",
     "ROUTER",
     "OTRO",
 ];
@@ -311,6 +312,7 @@ export default function CrearAdicionalModal({
             setError(
                 "Debes seleccionar un equipo."
             );
+
             return;
         }
 
@@ -318,6 +320,7 @@ export default function CrearAdicionalModal({
             setError(
                 "El tipo es obligatorio."
             );
+
             return;
         }
 
@@ -330,6 +333,7 @@ export default function CrearAdicionalModal({
             setError(
                 "La cantidad debe ser mayor a 0."
             );
+
             return;
         }
 
@@ -393,21 +397,26 @@ export default function CrearAdicionalModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-hidden bg-slate-950/40 p-2 backdrop-blur-sm sm:p-4">
 
-            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-2xl">
+            <div className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-3xl">
 
-                {/* HEADER */}
-                <div className="flex items-start justify-between gap-4 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 px-5 py-4 sm:px-6">
+                {/* =================================================
+                    HEADER
+                ================================================= */}
 
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900">
+                <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 to-indigo-50 px-4 py-4 sm:px-6">
+
+                    <div className="min-w-0">
+
+                        <h2 className="break-words text-lg font-bold text-slate-900 sm:text-xl">
                             Nuevo adicional
                         </h2>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">
                             Registra un adicional y vincúlalo a un equipo.
                         </p>
+
                     </div>
 
                     <button
@@ -418,34 +427,48 @@ export default function CrearAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Cerrar"
                     >
                         <CloseOutlined />
                     </button>
+
                 </div>
 
-                {/* BODY */}
-                <div className="overflow-y-auto p-5 sm:p-6">
+                {/* =================================================
+                    BODY
+                ================================================= */}
+
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
 
                     {error && (
-                        <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                            {error}
+                        <div className="mb-5 break-words rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            {
+                                error
+                            }
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
 
-                        {/* EQUIPO */}
-                        <div className="space-y-2 md:col-span-2">
+                        {/* =================================================
+                            EQUIPO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2 sm:col-span-2">
 
                             <label className="text-sm font-semibold text-slate-700">
+
                                 Equipo asociado
+
                                 <span className="ml-1 text-rose-500">
                                     *
                                 </span>
+
                             </label>
 
-                            <div className="relative">
+                            <div className="relative min-w-0">
+
                                 <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
 
                                 <input
@@ -461,8 +484,9 @@ export default function CrearAdicionalModal({
                                         )
                                     }
                                     placeholder="Buscar por ID, serial, marca, modelo o solicitante..."
-                                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                                 />
+
                             </div>
 
                             <select
@@ -486,8 +510,9 @@ export default function CrearAdicionalModal({
                                 disabled={
                                     loadingEquipos
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
+
                                 <option value="">
                                     {loadingEquipos
                                         ? "Cargando equipos..."
@@ -499,8 +524,12 @@ export default function CrearAdicionalModal({
                                         equipo
                                     ) => (
                                         <option
-                                            key={equipo.id_equipo}
-                                            value={equipo.id_equipo}
+                                            key={
+                                                equipo.id_equipo
+                                            }
+                                            value={
+                                                equipo.id_equipo
+                                            }
                                         >
                                             Equipo #{equipo.id_equipo}
                                             {" · "}
@@ -515,16 +544,34 @@ export default function CrearAdicionalModal({
                                         </option>
                                     )
                                 )}
+
                             </select>
+
+                            {!loadingEquipos &&
+                                equipoSearch.trim() &&
+                                equiposFiltrados.length ===
+                                0 && (
+                                    <div className="text-xs text-amber-700">
+                                        No se encontraron equipos para esta búsqueda.
+                                    </div>
+                                )}
+
                         </div>
 
-                        {/* TIPO */}
-                        <div className="space-y-2">
+                        {/* =================================================
+                            TIPO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
+
                                 Tipo
+
                                 <span className="ml-1 text-rose-500">
                                     *
                                 </span>
+
                             </label>
 
                             <select
@@ -539,8 +586,9 @@ export default function CrearAdicionalModal({
                                             .value
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                             >
+
                                 {TIPOS.map(
                                     (
                                         value
@@ -553,15 +601,23 @@ export default function CrearAdicionalModal({
                                                 value
                                             }
                                         >
-                                            {value}
+                                            {
+                                                value
+                                            }
                                         </option>
                                     )
                                 )}
+
                             </select>
+
                         </div>
 
-                        {/* ESTADO */}
-                        <div className="space-y-2">
+                        {/* =================================================
+                            ESTADO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Estado
                             </label>
@@ -578,8 +634,9 @@ export default function CrearAdicionalModal({
                                             .value as EstadoAdicional
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                             >
+
                                 {ESTADOS.map(
                                     (
                                         option
@@ -598,11 +655,17 @@ export default function CrearAdicionalModal({
                                         </option>
                                     )
                                 )}
+
                             </select>
+
                         </div>
 
-                        {/* SERIAL */}
-                        <div className="space-y-2">
+                        {/* =================================================
+                            SERIAL
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Serial adicional
                             </label>
@@ -620,12 +683,17 @@ export default function CrearAdicionalModal({
                                     )
                                 }
                                 placeholder="Serial del adicional"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                             />
+
                         </div>
 
-                        {/* CANTIDAD */}
-                        <div className="space-y-2">
+                        {/* =================================================
+                            CANTIDAD
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Cantidad
                             </label>
@@ -650,12 +718,16 @@ export default function CrearAdicionalModal({
                                         )
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                             />
+
                         </div>
 
-                        {/* DESCRIPCIÓN */}
-                        <div className="space-y-2 md:col-span-2">
+                        {/* =================================================
+                            DESCRIPCIÓN
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2 sm:col-span-2">
 
                             <label className="text-sm font-semibold text-slate-700">
                                 Descripción
@@ -678,7 +750,7 @@ export default function CrearAdicionalModal({
                                 }
                                 rows={4}
                                 placeholder="Descripción, modelo, características, etc."
-                                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                className="w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                             />
 
                             <div className="text-right text-xs text-slate-400">
@@ -687,12 +759,18 @@ export default function CrearAdicionalModal({
                                 }
                                 /500
                             </div>
+
                         </div>
+
                     </div>
+
                 </div>
 
-                {/* FOOTER */}
-                <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                {/* =================================================
+                    FOOTER
+                ================================================= */}
+
+                <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-6 sm:py-4">
 
                     <button
                         type="button"
@@ -702,7 +780,7 @@ export default function CrearAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     >
                         Cancelar
                     </button>
@@ -715,8 +793,9 @@ export default function CrearAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
+
                         {saving ? (
                             <LoadingOutlined />
                         ) : (
@@ -726,9 +805,13 @@ export default function CrearAdicionalModal({
                         {saving
                             ? "Guardando..."
                             : "Crear adicional"}
+
                     </button>
+
                 </div>
+
             </div>
+
         </div>
     );
 }

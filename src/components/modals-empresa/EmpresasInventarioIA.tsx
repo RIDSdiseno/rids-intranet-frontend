@@ -13,6 +13,7 @@ import {
     Statistic,
     Tag,
     message,
+    Table
 } from "antd";
 import {
     DownloadOutlined,
@@ -31,8 +32,27 @@ type EmpresaOption = {
 
 type EquipoHallazgoIA = {
     id: number;
+
     serial:
     string | null;
+
+    marca:
+    string | null;
+
+    modelo:
+    string | null;
+
+    solicitante:
+    string | null;
+
+    correoSolicitante:
+    string | null;
+
+    motivo:
+    string;
+
+    mejora:
+    string;
 };
 
 type HallazgoIA = {
@@ -525,6 +545,48 @@ export default function EmpresasInventarioIA() {
         }
     };
 
+    /* =========================================================
+   TABLA DETALLADA DE EQUIPOS CON HALLAZGOS
+========================================================= */
+
+    const equiposConHallazgos =
+        data?.analisis.hallazgos
+            ?.flatMap(
+                (
+                    hallazgo,
+                    hallazgoIndex
+                ) =>
+                    (
+                        hallazgo.equipos ??
+                        []
+                    ).map(
+                        (
+                            equipo,
+                            equipoIndex
+                        ) => ({
+                            /*
+                             * Un mismo equipo puede aparecer varias
+                             * veces porque puede presentar problemas
+                             * diferentes.
+                             *
+                             * No deduplicamos aquí intencionalmente:
+                             * cada fila representa un hallazgo concreto.
+                             */
+                            key:
+                                `${hallazgoIndex}-${equipoIndex}-${equipo.id}`,
+
+                            severidad:
+                                hallazgo.severidad,
+
+                            hallazgo:
+                                hallazgo.descripcion,
+
+                            ...equipo,
+                        })
+                    )
+            ) ??
+        [];
+
     const generarPdfDesdeFront = async () => {
         if (!data) {
             message.warning("Primero debes generar o cargar un análisis");
@@ -780,7 +842,304 @@ export default function EmpresasInventarioIA() {
                 });
             }
 
+            /* =====================================================
+   DETALLE DE EQUIPOS CON HALLAZGOS
+===================================================== */
+
             y += 4;
+
+            y = drawSectionTitle(
+                pdf,
+                "Detalle de equipos con hallazgos",
+                y,
+                margin,
+                contentWidth
+            );
+
+            if (
+                equiposConHallazgos.length === 0
+            ) {
+                y = drawWrappedParagraph(
+                    pdf,
+                    "No existen equipos asociados a hallazgos.",
+                    y,
+                    margin,
+                    contentWidth,
+                    {
+                        color:
+                            PDF_COLORS.muted,
+                    }
+                );
+            } else {
+                equiposConHallazgos.forEach(
+                    (
+                        equipo,
+                        index
+                    ) => {
+                        /*
+                         * Para PDF usamos bloques verticales en vez de
+                         * una tabla horizontal de muchas columnas.
+                         *
+                         * Esto permite mantener el documento legible
+                         * en una hoja A4 vertical.
+                         */
+
+                        const encabezado =
+                            `Equipo #${equipo.id} · ${equipo.serial || "Sin serial"}`;
+
+                        const identidad =
+                            [
+                                equipo.solicitante
+                                    ? `Solicitante: ${equipo.solicitante}`
+                                    : "Solicitante: Sin solicitante",
+
+                                equipo.correoSolicitante
+                                    ? `Correo: ${equipo.correoSolicitante}`
+                                    : "Correo: Sin correo",
+
+                                `Marca: ${equipo.marca || "—"}`,
+
+                                `Modelo: ${equipo.modelo || "—"}`,
+                            ].join(
+                                "  |  "
+                            );
+
+                        const hallazgoTexto =
+                            `Hallazgo: ${equipo.hallazgo || "Sin detalle"}`;
+
+                        const motivoTexto =
+                            `Por qué mejorar: ${equipo.motivo ||
+                            "Sin detalle disponible"
+                            }`;
+
+                        const mejoraTexto =
+                            `Cómo mejorarlo: ${equipo.mejora ||
+                            "Sin recomendación específica"
+                            }`;
+
+                        /*
+                         * Primero calculamos todas las líneas para conocer
+                         * la altura real que necesitará el bloque.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "normal"
+                        );
+
+                        pdf.setFontSize(
+                            8.7
+                        );
+
+                        const identidadLines =
+                            pdf.splitTextToSize(
+                                sanitizePdfText(
+                                    identidad
+                                ),
+                                contentWidth - 10
+                            );
+
+                        const hallazgoLines =
+                            pdf.splitTextToSize(
+                                sanitizePdfText(
+                                    hallazgoTexto
+                                ),
+                                contentWidth - 10
+                            );
+
+                        const motivoLines =
+                            pdf.splitTextToSize(
+                                sanitizePdfText(
+                                    motivoTexto
+                                ),
+                                contentWidth - 10
+                            );
+
+                        const mejoraLines =
+                            pdf.splitTextToSize(
+                                sanitizePdfText(
+                                    mejoraTexto
+                                ),
+                                contentWidth - 10
+                            );
+
+                        const blockHeight =
+                            12 +
+                            identidadLines.length * 4.2 +
+                            hallazgoLines.length * 4.4 +
+                            motivoLines.length * 4.4 +
+                            mejoraLines.length * 4.4 +
+                            10;
+
+                        y = addPageIfNeeded(
+                            pdf,
+                            y,
+                            blockHeight + 3,
+                            margin
+                        );
+
+                        /*
+                         * Contenedor.
+                         */
+                        setFillColor(
+                            pdf,
+                            PDF_COLORS.white
+                        );
+
+                        setDrawColor(
+                            pdf,
+                            PDF_COLORS.border
+                        );
+
+                        pdf.roundedRect(
+                            margin,
+                            y,
+                            contentWidth,
+                            blockHeight,
+                            2,
+                            2,
+                            "FD"
+                        );
+
+                        let innerY =
+                            y + 7;
+
+                        /*
+                         * Título / identificación del equipo.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "bold"
+                        );
+
+                        pdf.setFontSize(
+                            9.5
+                        );
+
+                        setTextColor(
+                            pdf,
+                            PDF_COLORS.primary
+                        );
+
+                        pdf.text(
+                            `${index + 1}. ${encabezado}`,
+                            margin + 5,
+                            innerY
+                        );
+
+                        innerY +=
+                            6;
+
+                        /*
+                         * Datos reales obtenidos desde Prisma.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "normal"
+                        );
+
+                        pdf.setFontSize(
+                            8.3
+                        );
+
+                        setTextColor(
+                            pdf,
+                            PDF_COLORS.muted
+                        );
+
+                        pdf.text(
+                            identidadLines,
+                            margin + 5,
+                            innerY
+                        );
+
+                        innerY +=
+                            identidadLines.length *
+                            4.2 +
+                            3;
+
+                        /*
+                         * Hallazgo general.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "bold"
+                        );
+
+                        pdf.setFontSize(
+                            8.5
+                        );
+
+                        setTextColor(
+                            pdf,
+                            getSeverityPdfColor(
+                                equipo.severidad
+                            )
+                        );
+
+                        pdf.text(
+                            hallazgoLines,
+                            margin + 5,
+                            innerY
+                        );
+
+                        innerY +=
+                            hallazgoLines.length *
+                            4.4 +
+                            3;
+
+                        /*
+                         * Motivo técnico.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "normal"
+                        );
+
+                        pdf.setFontSize(
+                            8.5
+                        );
+
+                        setTextColor(
+                            pdf,
+                            PDF_COLORS.primary
+                        );
+
+                        pdf.text(
+                            motivoLines,
+                            margin + 5,
+                            innerY
+                        );
+
+                        innerY +=
+                            motivoLines.length *
+                            4.4 +
+                            3;
+
+                        /*
+                         * Acción recomendada.
+                         */
+                        pdf.setFont(
+                            "helvetica",
+                            "bold"
+                        );
+
+                        setTextColor(
+                            pdf,
+                            PDF_COLORS.primary
+                        );
+
+                        pdf.text(
+                            mejoraLines,
+                            margin + 5,
+                            innerY
+                        );
+
+                        y +=
+                            blockHeight +
+                            3;
+                    }
+                );
+            }
 
             y = drawSectionTitle(pdf, "Riesgos", y, margin, contentWidth);
             y = drawBulletList(
@@ -1194,6 +1553,267 @@ export default function EmpresasInventarioIA() {
                             </div>
                         ) : (
                             <Empty description="Sin hallazgos" />
+                        )}
+                    </Card>
+
+                    <Card
+                        title="Detalle de equipos con hallazgos"
+                    >
+                        {equiposConHallazgos.length ? (
+                            <Table
+                                rowKey="key"
+
+                                /*
+                                 * En pantallas pequeñas permite
+                                 * desplazamiento horizontal sin
+                                 * romper el layout.
+                                 */
+                                scroll={{
+                                    x: 1500,
+                                }}
+
+                                pagination={{
+                                    pageSize: 10,
+
+                                    showSizeChanger: true,
+
+                                    pageSizeOptions: [
+                                        10,
+                                        20,
+                                        50,
+                                    ],
+
+                                    showTotal: (
+                                        total
+                                    ) =>
+                                        `${total} hallazgo(s) de equipo`,
+                                }}
+
+                                dataSource={
+                                    equiposConHallazgos
+                                }
+
+                                columns={[
+                                    {
+                                        title:
+                                            "Severidad",
+
+                                        dataIndex:
+                                            "severidad",
+
+                                        width:
+                                            100,
+
+                                        render: (
+                                            value:
+                                                string
+                                        ) => (
+                                            <Tag
+                                                color={
+                                                    getSeveridadColor(
+                                                        value
+                                                    )
+                                                }
+                                            >
+                                                {
+                                                    value
+                                                }
+                                            </Tag>
+                                        ),
+                                    },
+
+                                    {
+                                        title:
+                                            "ID",
+
+                                        dataIndex:
+                                            "id",
+
+                                        width:
+                                            80,
+
+                                        render: (
+                                            value:
+                                                number
+                                        ) =>
+                                            `#${value}`,
+                                    },
+
+                                    {
+                                        title:
+                                            "Solicitante",
+
+                                        dataIndex:
+                                            "solicitante",
+
+                                        width:
+                                            180,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                null
+                                        ) =>
+                                            value ||
+                                            "Sin solicitante",
+                                    },
+
+                                    {
+                                        title:
+                                            "Correo",
+
+                                        dataIndex:
+                                            "correoSolicitante",
+
+                                        width:
+                                            220,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                null
+                                        ) =>
+                                            value ||
+                                            "Sin correo",
+                                    },
+
+                                    {
+                                        title:
+                                            "Serial",
+
+                                        dataIndex:
+                                            "serial",
+
+                                        width:
+                                            150,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                null
+                                        ) => (
+                                            <span className="font-mono text-xs">
+                                                {
+                                                    value ||
+                                                    "Sin serial"
+                                                }
+                                            </span>
+                                        ),
+                                    },
+
+                                    {
+                                        title:
+                                            "Marca",
+
+                                        dataIndex:
+                                            "marca",
+
+                                        width:
+                                            120,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                null
+                                        ) =>
+                                            value ||
+                                            "—",
+                                    },
+
+                                    {
+                                        title:
+                                            "Modelo",
+
+                                        dataIndex:
+                                            "modelo",
+
+                                        width:
+                                            180,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                null
+                                        ) =>
+                                            value ||
+                                            "—",
+                                    },
+
+                                    {
+                                        title:
+                                            "Hallazgo",
+
+                                        dataIndex:
+                                            "hallazgo",
+
+                                        width:
+                                            280,
+
+                                        render: (
+                                            value:
+                                                string
+                                        ) => (
+                                            <div className="whitespace-normal text-sm leading-5">
+                                                {
+                                                    value
+                                                }
+                                            </div>
+                                        ),
+                                    },
+
+                                    {
+                                        title:
+                                            "¿Por qué mejorar?",
+
+                                        dataIndex:
+                                            "motivo",
+
+                                        width:
+                                            320,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                undefined |
+                                                null
+                                        ) => (
+                                            <div className="whitespace-normal text-sm leading-5 text-slate-700">
+                                                {
+                                                    value ||
+                                                    "Sin detalle disponible"
+                                                }
+                                            </div>
+                                        ),
+                                    },
+
+                                    {
+                                        title:
+                                            "¿Cómo mejorarlo?",
+
+                                        dataIndex:
+                                            "mejora",
+
+                                        width:
+                                            340,
+
+                                        render: (
+                                            value:
+                                                string |
+                                                undefined |
+                                                null
+                                        ) => (
+                                            <div className="whitespace-normal text-sm leading-5 text-slate-700">
+                                                {
+                                                    value ||
+                                                    "Sin recomendación específica"
+                                                }
+                                            </div>
+                                        ),
+                                    },
+                                ]}
+                            />
+                        ) : (
+                            <Empty description="No existen equipos asociados a hallazgos" />
                         )}
                     </Card>
 

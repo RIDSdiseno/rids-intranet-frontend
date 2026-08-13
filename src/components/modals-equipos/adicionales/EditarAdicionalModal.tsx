@@ -20,6 +20,10 @@ import type {
     EstadoAdicional,
 } from "./adicionales.types";
 
+/* =========================================================
+   TIPOS
+========================================================= */
+
 type Props = {
     open: boolean;
     row: AdicionalRow | null;
@@ -46,6 +50,10 @@ type EquiposResponse = {
     items: EquipoSelectorRow[];
 };
 
+/* =========================================================
+   CATÁLOGOS
+========================================================= */
+
 const TIPOS = [
     "MONITOR",
     "IMPRESORA",
@@ -55,6 +63,7 @@ const TIPOS = [
     "CARGADOR",
     "CAMARA",
     "SWITCH",
+    "UPS",
     "ROUTER",
     "OTRO",
 ];
@@ -80,6 +89,10 @@ const ESTADOS: Array<{
             label: "Dado de baja",
         },
     ];
+
+/* =========================================================
+   COMPONENTE
+========================================================= */
 
 export default function EditarAdicionalModal({
     open,
@@ -277,6 +290,10 @@ export default function EditarAdicionalModal({
             controller.abort();
     }, [open]);
 
+    /* =====================================================
+       FILTRAR EQUIPOS
+    ===================================================== */
+
     const equiposFiltrados =
         useMemo(() => {
             const q =
@@ -296,6 +313,8 @@ export default function EditarAdicionalModal({
                         equipo.marca,
                         equipo.modelo,
                         equipo.tipo,
+                        equipo.solicitante?.nombre,
+                        equipo.solicitante?.email,
                     ]
                         .filter(
                             Boolean
@@ -329,6 +348,20 @@ export default function EditarAdicionalModal({
             setError(
                 "El tipo es obligatorio."
             );
+
+            return;
+        }
+
+        if (
+            !Number.isInteger(
+                cantidad
+            ) ||
+            cantidad <= 0
+        ) {
+            setError(
+                "La cantidad debe ser mayor a 0."
+            );
+
             return;
         }
 
@@ -380,26 +413,33 @@ export default function EditarAdicionalModal({
     }
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center overflow-hidden bg-slate-950/40 p-2 backdrop-blur-sm sm:p-4">
 
-            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-indigo-200 bg-white shadow-2xl">
+            <div className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-2xl sm:max-h-[92dvh] sm:rounded-3xl">
 
-                {/* HEADER */}
-                <div className="flex items-start justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-cyan-50 px-5 py-4 sm:px-6">
+                {/* =================================================
+                    HEADER
+                ================================================= */}
 
-                    <div>
+                <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-cyan-50 px-4 py-4 sm:px-6">
+
+                    <div className="min-w-0">
+
                         <div className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
                             Adicional #
-                            {row.id}
+                            {
+                                row.id
+                            }
                         </div>
 
-                        <h2 className="mt-1 text-xl font-bold text-slate-900">
+                        <h2 className="mt-1 break-words text-lg font-bold text-slate-900 sm:text-xl">
                             Editar adicional
                         </h2>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">
                             Modifica la información o reasigna el adicional a otro equipo.
                         </p>
+
                     </div>
 
                     <button
@@ -410,38 +450,50 @@ export default function EditarAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Cerrar"
                     >
                         <CloseOutlined />
                     </button>
+
                 </div>
 
-                <div className="overflow-y-auto p-5 sm:p-6">
+                {/* =================================================
+                    BODY
+                ================================================= */}
+
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
 
                     {row.origen ===
                         "AGENTE" && (
-                            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            <div className="mb-5 break-words rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                 Este adicional fue detectado automáticamente por el agente.
                                 Al modificarlo pasará a ser administrado manualmente.
                             </div>
                         )}
 
                     {error && (
-                        <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                            {error}
+                        <div className="mb-5 break-words rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            {
+                                error
+                            }
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
 
-                        {/* EQUIPO */}
-                        <div className="space-y-2 md:col-span-2">
+                        {/* =================================================
+                            EQUIPO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2 sm:col-span-2">
 
                             <label className="text-sm font-semibold text-slate-700">
                                 Equipo asociado
                             </label>
 
-                            <div className="relative">
+                            <div className="relative min-w-0">
+
                                 <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
 
                                 <input
@@ -457,8 +509,9 @@ export default function EditarAdicionalModal({
                                         )
                                     }
                                     placeholder="Buscar por ID, serial, marca, modelo o solicitante..."
-                                    className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                                 />
+
                             </div>
 
                             <select
@@ -470,49 +523,89 @@ export default function EditarAdicionalModal({
                                     e
                                 ) =>
                                     setEquipoId(
-                                        Number(
-                                            e.target
-                                                .value
-                                        )
+                                        e.target
+                                            .value
+                                            ? Number(
+                                                e.target
+                                                    .value
+                                            )
+                                            : null
                                     )
                                 }
                                 disabled={
                                     loadingEquipos
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {equiposFiltrados.map(
-                                    (
-                                        equipo
-                                    ) => (
-                                        <option
-                                            key={
-                                                equipo.id_equipo
-                                            }
-                                            value={
-                                                equipo.id_equipo
-                                            }
-                                        >
-                                            Equipo #
-                                            {
-                                                equipo.id_equipo
-                                            }
-                                            {" · "}
-                                            {equipo.serial ||
-                                                "Sin serial"}
-                                            {" · "}
-                                            {equipo.marca ||
-                                                ""}
-                                            {" "}
-                                            {equipo.modelo ||
-                                                ""}
-                                        </option>
-                                    )
+
+                                {loadingEquipos && (
+                                    <option value="">
+                                        Cargando equipos...
+                                    </option>
                                 )}
+
+                                {!loadingEquipos &&
+                                    equiposFiltrados.map(
+                                        (
+                                            equipo
+                                        ) => (
+                                            <option
+                                                key={
+                                                    equipo.id_equipo
+                                                }
+                                                value={
+                                                    equipo.id_equipo
+                                                }
+                                            >
+                                                Equipo #
+                                                {
+                                                    equipo.id_equipo
+                                                }
+                                                {" · "}
+                                                {
+                                                    equipo.serial ||
+                                                    "Sin serial"
+                                                }
+                                                {" · "}
+                                                {
+                                                    equipo.marca ||
+                                                    ""
+                                                }
+                                                {" "}
+                                                {
+                                                    equipo.modelo ||
+                                                    ""
+                                                }
+                                                {" · "}
+                                                Solicitante:{" "}
+                                                {
+                                                    equipo.solicitante
+                                                        ?.nombre ||
+                                                    "Sin solicitante"
+                                                }
+                                            </option>
+                                        )
+                                    )}
+
                             </select>
+
+                            {!loadingEquipos &&
+                                equipoSearch.trim() &&
+                                equiposFiltrados.length ===
+                                0 && (
+                                    <div className="text-xs text-amber-700">
+                                        No se encontraron equipos para esta búsqueda.
+                                    </div>
+                                )}
+
                         </div>
 
-                        <div className="space-y-2">
+                        {/* =================================================
+                            TIPO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Tipo
                             </label>
@@ -529,8 +622,9 @@ export default function EditarAdicionalModal({
                                             .value
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             >
+
                                 {TIPOS.map(
                                     (
                                         value
@@ -543,14 +637,23 @@ export default function EditarAdicionalModal({
                                                 value
                                             }
                                         >
-                                            {value}
+                                            {
+                                                value
+                                            }
                                         </option>
                                     )
                                 )}
+
                             </select>
+
                         </div>
 
-                        <div className="space-y-2">
+                        {/* =================================================
+                            ESTADO
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Estado
                             </label>
@@ -567,8 +670,9 @@ export default function EditarAdicionalModal({
                                             .value as EstadoAdicional
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             >
+
                                 {ESTADOS.map(
                                     (
                                         option
@@ -587,10 +691,17 @@ export default function EditarAdicionalModal({
                                         </option>
                                     )
                                 )}
+
                             </select>
+
                         </div>
 
-                        <div className="space-y-2">
+                        {/* =================================================
+                            SERIAL
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Serial adicional
                             </label>
@@ -607,11 +718,17 @@ export default function EditarAdicionalModal({
                                             .value
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             />
+
                         </div>
 
-                        <div className="space-y-2">
+                        {/* =================================================
+                            CANTIDAD
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Cantidad
                             </label>
@@ -636,11 +753,17 @@ export default function EditarAdicionalModal({
                                         )
                                     )
                                 }
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             />
+
                         </div>
 
-                        <div className="space-y-2 md:col-span-2">
+                        {/* =================================================
+                            DESCRIPCIÓN
+                        ================================================= */}
+
+                        <div className="min-w-0 space-y-2 sm:col-span-2">
+
                             <label className="text-sm font-semibold text-slate-700">
                                 Descripción
                             </label>
@@ -661,13 +784,27 @@ export default function EditarAdicionalModal({
                                 maxLength={
                                     500
                                 }
-                                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                                className="w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             />
+
+                            <div className="text-right text-xs text-slate-400">
+                                {
+                                    descripcion.length
+                                }
+                                /500
+                            </div>
+
                         </div>
+
                     </div>
+
                 </div>
 
-                <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                {/* =================================================
+                    FOOTER
+                ================================================= */}
+
+                <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-6 sm:py-4">
 
                     <button
                         type="button"
@@ -677,7 +814,7 @@ export default function EditarAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     >
                         Cancelar
                     </button>
@@ -690,8 +827,9 @@ export default function EditarAdicionalModal({
                         disabled={
                             saving
                         }
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
+
                         {saving ? (
                             <LoadingOutlined />
                         ) : (
@@ -701,9 +839,13 @@ export default function EditarAdicionalModal({
                         {saving
                             ? "Guardando..."
                             : "Guardar cambios"}
+
                     </button>
+
                 </div>
+
             </div>
+
         </div>
     );
 }
