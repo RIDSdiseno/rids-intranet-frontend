@@ -630,22 +630,17 @@ export default function EquipoViewModal({
 
     const adicionalesEquipo = viewAgent?.adicionales ?? row.adicionales ?? [];
 
-    const adicionalesAgente =
+    const monitoresEquipo =
         adicionalesEquipo.filter(
-            (item) =>
-                item.origen === "AGENTE" ||
+            (
+                item
+            ) =>
                 String(
-                    item.descripcion ?? ""
-                ).startsWith("[AGENTE]")
+                    item.tipo ??
+                    ""
+                ).toUpperCase() ===
+                "MONITOR"
         );
-
-    const monitoresDetectados = adicionalesAgente.filter(
-        (item) => String(item.tipo ?? "").toUpperCase() === "MONITOR"
-    );
-
-    const impresorasDetectadas = adicionalesAgente.filter(
-        (item) => String(item.tipo ?? "").toUpperCase() === "IMPRESORA"
-    );
 
     return (
         <div
@@ -1705,15 +1700,12 @@ export default function EquipoViewModal({
                                             {adicionalesEquipo.length} adicional(es)
                                         </span>
 
-                                        {monitoresDetectados.length > 0 ? (
+                                        {monitoresEquipo.length > 0 ? (
                                             <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
-                                                {monitoresDetectados.length} monitor(es)
-                                            </span>
-                                        ) : null}
-
-                                        {impresorasDetectadas.length > 0 ? (
-                                            <span className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                                                {impresorasDetectadas.length} impresora(s)
+                                                {
+                                                    monitoresEquipo.length
+                                                }{" "}
+                                                monitor(es)
                                             </span>
                                         ) : null}
                                     </div>
@@ -1722,67 +1714,326 @@ export default function EquipoViewModal({
                                 {adicionalesEquipo.length > 0 ? (
                                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
                                         {adicionalesEquipo.map((a) => {
-                                            const tipo = String(a.tipo ?? "").toUpperCase();
-                                            const esAgente = String(a.descripcion ?? "").startsWith("[AGENTE]");
+                                            const tipo =
+                                                String(
+                                                    a.tipo ?? ""
+                                                ).toUpperCase();
 
-                                            const descripcionLimpia = String(a.descripcion ?? "")
-                                                .replace(/^\[AGENTE\]\s*/i, "")
-                                                .replace(/\s*\|\s*Serial:\s*[^|]+/i, "")
-                                                .trim();
-                                            const tipoLabel = ADICIONAL_TIPO_LABEL[tipo] || a.tipo || "Adicional";
+                                            /*
+                                             * El campo origen es la fuente actual.
+                                             * [AGENTE] se mantiene solamente
+                                             * por compatibilidad con datos históricos.
+                                             */
+                                            const esAgente =
+                                                a.origen === "AGENTE" ||
+                                                String(
+                                                    a.descripcion ?? ""
+                                                )
+                                                    .trim()
+                                                    .toUpperCase()
+                                                    .startsWith(
+                                                        "[AGENTE]"
+                                                    );
+
+                                            const descripcionLimpia =
+                                                String(
+                                                    a.descripcion ?? ""
+                                                )
+                                                    .replace(
+                                                        /^\[AGENTE\]\s*/i,
+                                                        ""
+                                                    )
+                                                    .replace(
+                                                        /\s*\|\s*Serial:\s*[^|]+/i,
+                                                        ""
+                                                    )
+                                                    .trim();
+
+                                            const nombre =
+                                                String(
+                                                    a.nombre ?? ""
+                                                ).trim();
+
+                                            const marcaModelo =
+                                                [
+                                                    a.marca,
+                                                    a.modelo,
+                                                ]
+                                                    .map(
+                                                        (
+                                                            value
+                                                        ) =>
+                                                            String(
+                                                                value ?? ""
+                                                            ).trim()
+                                                    )
+                                                    .filter(Boolean)
+                                                    .join(" ");
+
+                                            const serial =
+                                                String(
+                                                    a.serialAdicional ??
+                                                    ""
+                                                ).trim();
+
+                                            const tipoLabel =
+                                                ADICIONAL_TIPO_LABEL[
+                                                tipo as keyof typeof ADICIONAL_TIPO_LABEL
+                                                ] ||
+                                                a.tipo ||
+                                                "Adicional";
+
+                                            const estadoLabel =
+                                                a.estado === "ASIGNADO"
+                                                    ? "Asignado"
+                                                    : a.estado === "EN_STOCK"
+                                                        ? "En stock"
+                                                        : a.estado === "EN_REPARACION"
+                                                            ? "En reparación"
+                                                            : a.estado === "DADO_DE_BAJA"
+                                                                ? "Dado de baja"
+                                                                : a.estado ||
+                                                                "Sin estado";
+
+                                            const estadoClass =
+                                                a.estado === "ASIGNADO"
+                                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                    : a.estado === "EN_STOCK"
+                                                        ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                                                        : a.estado === "EN_REPARACION"
+                                                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                                                            : a.estado === "DADO_DE_BAJA"
+                                                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                                                : "border-slate-200 bg-slate-50 text-slate-600";
 
                                             return (
                                                 <div
-                                                    key={a.id}
-                                                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm"
+                                                    key={
+                                                        a.id
+                                                    }
+                                                    className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-sm shadow-sm transition hover:border-cyan-200 hover:shadow-md"
                                                 >
-                                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                                            {tipoLabel}
-                                                        </span>
 
-                                                        {esAgente ? (
-                                                            <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
-                                                                Detectado por agente
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                                                                Manual
-                                                            </span>
-                                                        )}
+                                                    {/* ============================================
+        CABECERA
+    ============================================ */}
+
+                                                    <div className="border-b border-slate-200 bg-white px-4 py-3">
+
+                                                        <div className="flex flex-wrap items-start justify-between gap-2">
+
+                                                            <div className="min-w-0">
+
+                                                                <div className="flex flex-wrap items-center gap-2">
+
+                                                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                                                                        {
+                                                                            tipoLabel
+                                                                        }
+                                                                    </span>
+
+                                                                    <span
+                                                                        className={clsx(
+                                                                            "inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+                                                                            estadoClass
+                                                                        )}
+                                                                    >
+                                                                        {
+                                                                            estadoLabel
+                                                                        }
+                                                                    </span>
+
+                                                                </div>
+
+                                                                {nombre ? (
+                                                                    <div className="mt-2 break-words text-sm font-bold text-slate-900">
+                                                                        {
+                                                                            nombre
+                                                                        }
+                                                                    </div>
+                                                                ) : null}
+
+                                                                {marcaModelo ? (
+                                                                    <div className="mt-1 break-words text-xs font-medium text-slate-600">
+                                                                        {
+                                                                            marcaModelo
+                                                                        }
+                                                                    </div>
+                                                                ) : null}
+
+                                                            </div>
+
+                                                            {esAgente ? (
+                                                                <span className="inline-flex shrink-0 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
+                                                                    Detectado por agente
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+                                                                    Manual
+                                                                </span>
+                                                            )}
+
+                                                        </div>
+
                                                     </div>
 
-                                                    <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-                                                        <div className="text-[11px] font-medium text-slate-500">
-                                                            Descripción
+                                                    {/* ============================================
+        CONTENIDO
+    ============================================ */}
+
+                                                    <div className="space-y-3 p-4">
+
+                                                        {/* DESCRIPCIÓN */}
+
+                                                        {descripcionLimpia ? (
+                                                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+
+                                                                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                                                                    Descripción
+                                                                </div>
+
+                                                                <div className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800">
+                                                                    {
+                                                                        descripcionLimpia
+                                                                    }
+                                                                </div>
+
+                                                            </div>
+                                                        ) : null}
+
+                                                        {/* SERIAL / CANTIDAD */}
+
+                                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+                                                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+
+                                                                <div className="text-[11px] font-medium text-slate-500">
+                                                                    Serial
+                                                                </div>
+
+                                                                <div className="mt-1 break-all font-mono text-xs font-semibold text-slate-800">
+                                                                    {
+                                                                        serial ||
+                                                                        (
+                                                                            tipo ===
+                                                                                "IMPRESORA"
+                                                                                ? "No informado"
+                                                                                : "—"
+                                                                        )
+                                                                    }
+                                                                </div>
+
+                                                            </div>
+
+                                                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+
+                                                                <div className="text-[11px] font-medium text-slate-500">
+                                                                    Cantidad
+                                                                </div>
+
+                                                                <div className="mt-1 font-semibold text-slate-800">
+                                                                    {
+                                                                        a.cantidad ??
+                                                                        1
+                                                                    }
+                                                                </div>
+
+                                                            </div>
+
                                                         </div>
 
-                                                        <div className="mt-1 whitespace-pre-wrap break-words font-semibold text-slate-800">
-                                                            {descripcionLimpia || "—"}
-                                                        </div>
+                                                        {/* ============================================
+            RED
+        ============================================ */}
+
+                                                        {(
+                                                            a.ipAddress ||
+                                                            a.macAddress ||
+                                                            a.hostname
+                                                        ) ? (
+                                                            <div className="rounded-xl border border-cyan-100 bg-cyan-50/40 px-3 py-3">
+
+                                                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-cyan-700">
+                                                                    Información de red
+                                                                </div>
+
+                                                                <div className="space-y-2 text-xs">
+
+                                                                    {a.ipAddress ? (
+                                                                        <div>
+
+                                                                            <div className="text-[11px] text-slate-500">
+                                                                                IP
+                                                                            </div>
+
+                                                                            <div className="mt-0.5 break-all font-mono font-semibold text-slate-800">
+                                                                                {
+                                                                                    a.ipAddress
+                                                                                }
+                                                                            </div>
+
+                                                                        </div>
+                                                                    ) : null}
+
+                                                                    {a.macAddress ? (
+                                                                        <div>
+
+                                                                            <div className="text-[11px] text-slate-500">
+                                                                                MAC
+                                                                            </div>
+
+                                                                            <div className="mt-0.5 break-all font-mono font-semibold text-slate-800">
+                                                                                {
+                                                                                    a.macAddress
+                                                                                }
+                                                                            </div>
+
+                                                                        </div>
+                                                                    ) : null}
+
+                                                                    {a.hostname ? (
+                                                                        <div>
+
+                                                                            <div className="text-[11px] text-slate-500">
+                                                                                Hostname
+                                                                            </div>
+
+                                                                            <div className="mt-0.5 break-all font-mono font-semibold text-slate-800">
+                                                                                {
+                                                                                    a.hostname
+                                                                                }
+                                                                            </div>
+
+                                                                        </div>
+                                                                    ) : null}
+
+                                                                </div>
+
+                                                            </div>
+                                                        ) : null}
+
+                                                        {/* ============================================
+            UBICACIÓN
+        ============================================ */}
+
+                                                        {a.ubicacion ? (
+                                                            <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-2">
+
+                                                                <div className="text-[11px] font-medium text-indigo-600">
+                                                                    Ubicación
+                                                                </div>
+
+                                                                <div className="mt-1 break-words text-sm font-medium text-slate-800">
+                                                                    {
+                                                                        a.ubicacion
+                                                                    }
+                                                                </div>
+
+                                                            </div>
+                                                        ) : null}
+
                                                     </div>
 
-                                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-                                                            <div className="text-[11px] font-medium text-slate-500">
-                                                                Cantidad
-                                                            </div>
-
-                                                            <div className="mt-1 font-semibold text-slate-800">
-                                                                {a.cantidad ?? 1}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="rounded-lg border border-slate-100 bg-white px-2.5 py-2">
-                                                            <div className="text-[11px] font-medium text-slate-500">
-                                                                Serial
-                                                            </div>
-
-                                                            <div className="mt-1 break-all font-mono text-xs font-semibold text-slate-800">
-                                                                {a.serialAdicional || (tipo === "IMPRESORA" ? "No informado por Windows" : "—")}
-                                                            </div>
-                                                        </div>
-                                                    </div>
                                                 </div>
                                             );
                                         })}

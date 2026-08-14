@@ -258,8 +258,38 @@ export default function AdicionalViewModal({
 
                         <dl className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
 
-                            <div className="min-w-0">
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    Nombre
+                                </dt>
 
+                                <dd className="mt-1 break-words text-sm font-semibold text-slate-800">
+                                    {
+                                        row.nombre ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    Marca / modelo
+                                </dt>
+
+                                <dd className="mt-1 break-words text-sm text-slate-800">
+                                    {
+                                        [
+                                            row.marca,
+                                            row.modelo,
+                                        ]
+                                            .filter(Boolean)
+                                            .join(" ") ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div>
                                 <dt className="text-xs text-slate-500">
                                     Serial
                                 </dt>
@@ -269,11 +299,9 @@ export default function AdicionalViewModal({
                                         serialAdicional
                                     }
                                 </dd>
-
                             </div>
 
-                            <div className="min-w-0">
-
+                            <div>
                                 <dt className="text-xs text-slate-500">
                                     Cantidad
                                 </dt>
@@ -283,21 +311,70 @@ export default function AdicionalViewModal({
                                         row.cantidad
                                     }
                                 </dd>
-
                             </div>
 
-                            <div className="min-w-0 sm:col-span-2">
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    MAC
+                                </dt>
 
+                                <dd className="mt-1 break-all font-mono text-sm text-slate-800">
+                                    {
+                                        row.macAddress ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    IP
+                                </dt>
+
+                                <dd className="mt-1 break-all font-mono text-sm text-slate-800">
+                                    {
+                                        row.ipAddress ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    Hostname
+                                </dt>
+
+                                <dd className="mt-1 break-words text-sm text-slate-800">
+                                    {
+                                        row.hostname ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div>
+                                <dt className="text-xs text-slate-500">
+                                    Ubicación
+                                </dt>
+
+                                <dd className="mt-1 break-words text-sm text-slate-800">
+                                    {
+                                        row.ubicacion ||
+                                        "—"
+                                    }
+                                </dd>
+                            </div>
+
+                            <div className="sm:col-span-2">
                                 <dt className="text-xs text-slate-500">
                                     Descripción
                                 </dt>
 
-                                <dd className="mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-slate-700">
+                                <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
                                     {
                                         descripcion
                                     }
                                 </dd>
-
                             </div>
 
                         </dl>
@@ -305,102 +382,153 @@ export default function AdicionalViewModal({
                     </section>
 
                     {/* =================================================
-                        EQUIPO
-                    ================================================= */}
+    EQUIPOS ASOCIADOS
+================================================= */}
 
                     <section className="mt-5 min-w-0 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50/60 to-indigo-50/40 p-4 sm:p-5">
 
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 items-center justify-between gap-3">
 
-                            <DesktopOutlined className="shrink-0 text-cyan-700" />
+                            <div className="flex min-w-0 items-center gap-2">
 
-                            <h3 className="break-words font-semibold text-slate-900">
-                                Equipo asociado
-                            </h3>
+                                <DesktopOutlined className="shrink-0 text-cyan-700" />
+
+                                <h3 className="break-words font-semibold text-slate-900">
+                                    Equipos asociados
+                                </h3>
+
+                            </div>
+
+                            <span className="rounded-full border border-cyan-200 bg-white px-2.5 py-1 text-xs font-semibold text-cyan-800">
+                                {
+                                    row.totalEquipos ??
+                                    row.equipos.length
+                                }
+                            </span>
 
                         </div>
 
-                        <dl className="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                        {row.equipos.length ===
+                            0 ? (
 
-                            <div className="min-w-0">
+                            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white/60 p-4 text-center text-sm text-slate-500">
+                                Este adicional no tiene equipos asociados.
+                            </div>
 
-                                <dt className="text-xs text-slate-500">
-                                    ID equipo
-                                </dt>
+                        ) : (
 
-                                <dd className="mt-1 text-sm font-semibold text-slate-900">
-                                    #
-                                    {
-                                        row.equipo
-                                            .id_equipo
+                            <div className="mt-4 space-y-3">
+
+                                {row.equipos.map(
+                                    (
+                                        relacion
+                                    ) => {
+
+                                        const equipo =
+                                            relacion.equipo;
+
+                                        const empresa =
+                                            equipo.empresa ??
+                                            equipo.solicitante
+                                                ?.empresa ??
+                                            null;
+
+                                        return (
+                                            <div
+                                                key={
+                                                    relacion.id
+                                                }
+                                                className="rounded-xl border border-slate-200 bg-white p-4"
+                                            >
+
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+
+                                                    <div className="min-w-0">
+
+                                                        <div className="font-semibold text-slate-900">
+                                                            Equipo #
+                                                            {
+                                                                equipo.id_equipo
+                                                            }
+                                                        </div>
+
+                                                        <div className="mt-1 break-all font-mono text-xs text-slate-500">
+                                                            {
+                                                                equipo.serial ||
+                                                                "Sin serial"
+                                                            }
+                                                        </div>
+
+                                                    </div>
+
+                                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                                                        {
+                                                            relacion.origen ===
+                                                                "AGENTE"
+                                                                ? "Agente"
+                                                                : "Manual"
+                                                        }
+                                                    </span>
+
+                                                </div>
+
+                                                <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+
+                                                    <div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Marca / modelo
+                                                        </div>
+
+                                                        <div className="mt-1 break-words text-slate-800">
+                                                            {
+                                                                [
+                                                                    equipo.marca,
+                                                                    equipo.modelo,
+                                                                ]
+                                                                    .filter(Boolean)
+                                                                    .join(" ") ||
+                                                                "—"
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Solicitante
+                                                        </div>
+
+                                                        <div className="mt-1 break-words text-slate-800">
+                                                            {
+                                                                equipo.solicitante
+                                                                    ?.nombre ||
+                                                                "—"
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="sm:col-span-2">
+                                                        <div className="text-xs text-slate-500">
+                                                            Empresa
+                                                        </div>
+
+                                                        <div className="mt-1 break-words font-semibold text-slate-800">
+                                                            {
+                                                                empresa
+                                                                    ?.nombre ||
+                                                                "—"
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+                                        );
                                     }
-                                </dd>
+                                )}
 
                             </div>
-
-                            <div className="min-w-0">
-
-                                <dt className="text-xs text-slate-500">
-                                    Serial equipo
-                                </dt>
-
-                                <dd className="mt-1 break-all font-mono text-sm text-slate-800">
-                                    {row.equipo
-                                        .serial ||
-                                        "—"}
-                                </dd>
-
-                            </div>
-
-                            <div className="min-w-0">
-
-                                <dt className="text-xs text-slate-500">
-                                    Marca / modelo
-                                </dt>
-
-                                <dd className="mt-1 break-words [overflow-wrap:anywhere] text-sm text-slate-800">
-
-                                    {row.equipo
-                                        .marca ||
-                                        "—"}{" "}
-
-                                    {row.equipo
-                                        .modelo ||
-                                        ""}
-
-                                </dd>
-
-                            </div>
-
-                            <div className="min-w-0">
-
-                                <dt className="text-xs text-slate-500">
-                                    Solicitante
-                                </dt>
-
-                                <dd className="mt-1 break-words [overflow-wrap:anywhere] text-sm text-slate-800">
-                                    {row.solicitante
-                                        ?.nombre ||
-                                        "—"}
-                                </dd>
-
-                            </div>
-
-                            <div className="min-w-0 sm:col-span-2">
-
-                                <dt className="text-xs text-slate-500">
-                                    Empresa
-                                </dt>
-
-                                <dd className="mt-1 break-words [overflow-wrap:anywhere] text-sm font-semibold text-slate-800">
-                                    {row.empresa
-                                        ?.nombre ||
-                                        "—"}
-                                </dd>
-
-                            </div>
-
-                        </dl>
+                        )}
 
                     </section>
 

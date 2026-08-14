@@ -22,26 +22,49 @@ export type EstadoEquipoAdicional =
 export type EquipoAdicional = {
   id: number;
 
-  equipoId?: number;
+  nombre?: string | null;
 
   tipo: string;
 
-  descripcion?:
-  | string
-  | null;
+  marca?: string | null;
+  modelo?: string | null;
+
+  descripcion?: string | null;
 
   cantidad: number;
 
-  serialAdicional?:
+  serialAdicional?: string | null;
+
+  macAddress?: string | null;
+  ipAddress?: string | null;
+
+  hostname?: string | null;
+
+  ubicacion?: string | null;
+
+  origen: "MANUAL" | "AGENTE";
+
+  estado:
+  | "ASIGNADO"
+  | "EN_STOCK"
+  | "EN_REPARACION"
+  | "DADO_DE_BAJA";
+
+  /*
+   * Datos de la relación AdicionalEquipo.
+   * El backend los agrega al hacer flatten
+   * de la relación N:N.
+   */
+  relacionId?: number;
+
+  equipoId?: number;
+
+  origenRelacion?:
+  | "MANUAL"
+  | "AGENTE";
+
+  observacionRelacion?:
   | string
-  | null;
-
-  origen?:
-  | OrigenEquipoAdicional
-  | null;
-
-  estado?:
-  | EstadoEquipoAdicional
   | null;
 
   createdAt?: string;

@@ -19,6 +19,7 @@ import {
     SearchOutlined,
     TeamOutlined,
     EyeOutlined,
+    FileExcelOutlined
 } from "@ant-design/icons";
 
 import {
@@ -126,6 +127,166 @@ function strHash(
     }
 
     return Math.abs(hash);
+}
+
+function getEmpresaPrincipal(
+    row: AdicionalRow
+): string | null {
+    return (
+        row.empresas?.[0]
+            ?.nombre ??
+        null
+    );
+}
+
+function formatEquiposResumen(
+    row: AdicionalRow
+): string {
+    const equipos =
+        row.equipos ??
+        [];
+
+    if (
+        equipos.length ===
+        0
+    ) {
+        return "Sin equipos";
+    }
+
+    const primeros =
+        equipos
+            .slice(
+                0,
+                3
+            )
+            .map(
+                (
+                    relacion
+                ) => {
+                    const equipo =
+                        relacion.equipo;
+
+                    const serial =
+                        String(
+                            equipo.serial ??
+                            ""
+                        ).trim();
+
+                    return serial
+                        ? `#${equipo.id_equipo} · ${serial}`
+                        : `#${equipo.id_equipo}`;
+                }
+            );
+
+    const restantes =
+        equipos.length -
+        primeros.length;
+
+    return [
+        primeros.join(
+            " | "
+        ),
+
+        restantes > 0
+            ? `+${restantes}`
+            : null,
+    ]
+        .filter(Boolean)
+        .join(" ");
+}
+
+function getTipoAdicionalClass(
+    tipo?: string | null
+): string {
+    switch (
+    String(
+        tipo ?? ""
+    ).toUpperCase()
+    ) {
+        case "MONITOR":
+            return (
+                "border-blue-200 " +
+                "bg-blue-50 " +
+                "text-blue-800"
+            );
+
+        case "IMPRESORA":
+            return (
+                "border-fuchsia-200 " +
+                "bg-fuchsia-50 " +
+                "text-fuchsia-800"
+            );
+
+        case "TECLADO":
+            return (
+                "border-amber-200 " +
+                "bg-amber-50 " +
+                "text-amber-800"
+            );
+
+        case "MOUSE":
+            return (
+                "border-orange-200 " +
+                "bg-orange-50 " +
+                "text-orange-800"
+            );
+
+        case "DOCK":
+            return (
+                "border-indigo-200 " +
+                "bg-indigo-50 " +
+                "text-indigo-800"
+            );
+
+        case "CARGADOR":
+            return (
+                "border-yellow-200 " +
+                "bg-yellow-50 " +
+                "text-yellow-800"
+            );
+
+        case "CAMARA":
+            return (
+                "border-violet-200 " +
+                "bg-violet-50 " +
+                "text-violet-800"
+            );
+
+        case "SWITCH":
+            return (
+                "border-cyan-200 " +
+                "bg-cyan-50 " +
+                "text-cyan-800"
+            );
+
+        case "ROUTER":
+            return (
+                "border-sky-200 " +
+                "bg-sky-50 " +
+                "text-sky-800"
+            );
+
+        case "UPS":
+            return (
+                "border-emerald-200 " +
+                "bg-emerald-50 " +
+                "text-emerald-800"
+            );
+
+        case "OTRO":
+            return (
+                "border-slate-200 " +
+                "bg-slate-50 " +
+                "text-slate-700"
+            );
+
+        default:
+            return (
+                "border-neutral-200 " +
+                "bg-neutral-50 " +
+                "text-neutral-700"
+            );
+    }
 }
 
 /* =========================================================
@@ -436,6 +597,13 @@ const AdicionalesPage:
         ] = useState("");
 
         const [
+            minCantidadPorEquipo,
+            setMinCantidadPorEquipo,
+        ] = useState<number | null>(
+            null
+        );
+
+        const [
             origen,
             setOrigen,
         ] =
@@ -599,6 +767,130 @@ const AdicionalesPage:
                 ]
             );
 
+        const [
+            exporting,
+            setExporting,
+        ] = useState(false);
+
+        async function handleExportExcel() {
+
+            try {
+
+                setExporting(
+                    true
+                );
+
+                const response =
+                    await http.get(
+                        "/equipos-adicionales/export",
+                        {
+                            params: {
+                                search:
+                                    searchDebounced ||
+                                    undefined,
+
+                                empresaId:
+                                    empresaFilterId ||
+                                    undefined,
+
+                                tipo:
+                                    tipo ||
+                                    undefined,
+
+                                minCantidadPorEquipo:
+                                    minCantidadPorEquipo ??
+                                    undefined,
+
+                                origen:
+                                    origen ||
+                                    undefined,
+
+                                estado:
+                                    estado ||
+                                    undefined,
+
+                                sortBy:
+                                    "empresa",
+
+                                sortDir:
+                                    "asc",
+                            },
+
+                            responseType:
+                                "blob",
+                        }
+                    );
+
+                const blob =
+                    new Blob(
+                        [
+                            response.data,
+                        ],
+                        {
+                            type:
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        }
+                    );
+
+                const url =
+                    window.URL.createObjectURL(
+                        blob
+                    );
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+                link.href =
+                    url;
+
+                const today =
+                    new Date()
+                        .toISOString()
+                        .slice(
+                            0,
+                            10
+                        );
+
+                link.download =
+                    `Adicionales_${today}.xlsx`;
+
+                document.body.appendChild(
+                    link
+                );
+
+                link.click();
+
+                link.remove();
+
+                window.URL.revokeObjectURL(
+                    url
+                );
+
+            } catch (
+            err: any
+            ) {
+
+                const message =
+                    err?.response?.status ===
+                        404
+                        ? "No existen adicionales para los filtros seleccionados."
+                        : err?.message ||
+                        "No se pudo exportar el Excel.";
+
+                alert(
+                    message
+                );
+
+            } finally {
+
+                setExporting(
+                    false
+                );
+            }
+        }
+
         /* =======================================================
            CARGAR ADICIONALES
         ======================================================= */
@@ -633,6 +925,10 @@ const AdicionalesPage:
 
                                 tipo:
                                     tipo ||
+                                    undefined,
+
+                                minCantidadPorEquipo:
+                                    minCantidadPorEquipo ??
                                     undefined,
 
                                 origen:
@@ -843,6 +1139,7 @@ const AdicionalesPage:
             searchDebounced,
             empresaFilterId,
             tipo,
+            minCantidadPorEquipo,
             origen,
             estado,
         ]);
@@ -910,6 +1207,11 @@ const AdicionalesPage:
         function clearAll() {
             setSearch("");
             setTipo("");
+
+            setMinCantidadPorEquipo(
+                null
+            );
+
             setOrigen("");
             setEstado("");
 
@@ -1120,7 +1422,7 @@ const AdicionalesPage:
                                     </h1>
 
                                     <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                                        Inventario de adicionales vinculados a los equipos.
+                                        Inventario de dispositivos y adicionales, con sus equipos asociados e información de red.
                                     </p>
 
                                 </div>
@@ -1168,7 +1470,7 @@ const AdicionalesPage:
 
                                             setPage(1);
                                         }}
-                                        placeholder="serial, tipo, descripción, equipo, solicitante, empresa…"
+                                        placeholder="nombre, tipo, marca, modelo, serial, MAC, IP, equipo, solicitante, empresa…"
                                         className="w-full min-w-0 rounded-2xl border border-cyan-200/70 bg-white/90 py-2.5 pl-9 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                     />
 
@@ -1245,6 +1547,28 @@ const AdicionalesPage:
                                             </span>
                                         </button>
 
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                void handleExportExcel()
+                                            }
+                                            disabled={
+                                                exporting ||
+                                                loading
+                                            }
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {exporting ? (
+                                                <LoadingOutlined />
+                                            ) : (
+                                                <FileExcelOutlined />
+                                            )}
+
+                                            {exporting
+                                                ? "Exportando..."
+                                                : "Exportar Excel"}
+                                        </button>
+
                                     </div>
 
                                 </div>
@@ -1255,7 +1579,7 @@ const AdicionalesPage:
 
                                 <div className="min-w-0 lg:col-span-12">
 
-                                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
 
                                         {/* EMPRESA */}
 
@@ -1376,6 +1700,10 @@ const AdicionalesPage:
                                                         e.target.value
                                                     );
 
+                                                    setMinCantidadPorEquipo(
+                                                        null
+                                                    );
+
                                                     setPage(1);
                                                 }}
                                                 className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition-all duration-200 hover:border-cyan-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
@@ -1430,6 +1758,77 @@ const AdicionalesPage:
                                                 </option>
 
                                             </select>
+
+                                        </div>
+
+                                        {/* CANTIDAD POR EQUIPO */}
+
+                                        <div className="min-w-0 space-y-2">
+
+                                            <label className="block text-sm font-medium text-slate-700">
+                                                Cantidad por equipo
+                                            </label>
+
+                                            <select
+                                                value={
+                                                    minCantidadPorEquipo ??
+                                                    ""
+                                                }
+                                                onChange={(
+                                                    e
+                                                ) => {
+                                                    const value =
+                                                        e.target.value;
+
+                                                    setMinCantidadPorEquipo(
+                                                        value
+                                                            ? Number(
+                                                                value
+                                                            )
+                                                            : null
+                                                    );
+
+                                                    setPage(1);
+                                                }}
+                                                disabled={
+                                                    !tipo
+                                                }
+                                                className={clsx(
+                                                    "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm",
+                                                    "transition-all duration-200",
+                                                    "hover:border-cyan-300",
+                                                    "focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20",
+                                                    "disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                                                )}
+                                            >
+
+                                                <option value="">
+                                                    Cualquier cantidad
+                                                </option>
+
+                                                <option value="2">
+                                                    2 o más
+                                                </option>
+
+                                                <option value="3">
+                                                    3 o más
+                                                </option>
+
+                                                <option value="4">
+                                                    4 o más
+                                                </option>
+
+                                                <option value="5">
+                                                    5 o más
+                                                </option>
+
+                                            </select>
+
+                                            {!tipo && (
+                                                <div className="text-xs text-slate-400">
+                                                    Selecciona primero un tipo de adicional.
+                                                </div>
+                                            )}
 
                                         </div>
 
@@ -1587,6 +1986,11 @@ const AdicionalesPage:
                                                     className="shrink-0"
                                                     onClick={() => {
                                                         setTipo("");
+
+                                                        setMinCantidadPorEquipo(
+                                                            null
+                                                        );
+
                                                         setPage(1);
                                                     }}
                                                 >
@@ -1649,6 +2053,36 @@ const AdicionalesPage:
 
                                             </span>
                                         )}
+
+                                        {minCantidadPorEquipo !==
+                                            null && (
+                                                <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs text-violet-900">
+
+                                                    Cantidad por equipo:
+
+                                                    <strong>
+                                                        {
+                                                            minCantidadPorEquipo
+                                                        }
+                                                        +
+                                                    </strong>
+
+                                                    <button
+                                                        type="button"
+                                                        className="shrink-0"
+                                                        onClick={() => {
+                                                            setMinCantidadPorEquipo(
+                                                                null
+                                                            );
+
+                                                            setPage(1);
+                                                        }}
+                                                    >
+                                                        <CloseCircleFilled />
+                                                    </button>
+
+                                                </span>
+                                            )}
 
                                     </div>
 
@@ -1763,17 +2197,52 @@ const AdicionalesPage:
                                                         }
                                                     </div>
 
-                                                    <h3 className="mt-0.5 break-words text-base font-semibold text-slate-900">
-                                                        {
-                                                            row.tipo
-                                                        }
-                                                    </h3>
+                                                    <div className="mt-1">
+                                                        <span
+                                                            className={clsx(
+                                                                "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                getTipoAdicionalClass(
+                                                                    row.tipo
+                                                                )
+                                                            )}
+                                                        >
+                                                            {
+                                                                row.tipo
+                                                            }
+                                                        </span>
+                                                    </div>
 
-                                                    <p className="mt-1 line-clamp-3 break-words [overflow-wrap:anywhere] text-xs text-slate-600">
-                                                        {
-                                                            descripcion
-                                                        }
-                                                    </p>
+                                                    {row.nombre && (
+                                                        <div className="mt-1 break-words text-sm font-semibold text-indigo-700">
+                                                            {
+                                                                row.nombre
+                                                            }
+                                                        </div>
+                                                    )}
+
+                                                    {(
+                                                        row.marca ||
+                                                        row.modelo
+                                                    ) && (
+                                                            <div className="mt-1 break-words text-xs font-medium text-slate-700">
+                                                                {
+                                                                    [
+                                                                        row.marca,
+                                                                        row.modelo,
+                                                                    ]
+                                                                        .filter(Boolean)
+                                                                        .join(" ")
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                    {descripcion !== "—" && (
+                                                        <p className="mt-1 line-clamp-3 break-words [overflow-wrap:anywhere] text-xs text-slate-600">
+                                                            {
+                                                                descripcion
+                                                            }
+                                                        </p>
+                                                    )}
 
                                                 </div>
 
@@ -1825,94 +2294,112 @@ const AdicionalesPage:
                                                         </span>
                                                     )}
 
-                                                {row.empresa
-                                                    ?.nombre && (
+                                                {row.empresas?.map(
+                                                    (
+                                                        empresa
+                                                    ) => (
                                                         <span
+                                                            key={
+                                                                empresa.id
+                                                            }
                                                             className={clsx(
                                                                 "inline-flex max-w-full min-w-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
                                                                 companyTagClasses(
-                                                                    row
-                                                                        .empresa
-                                                                        .nombre
+                                                                    empresa.nombre
                                                                 )
                                                             )}
                                                         >
-                                                            <TeamOutlined className="shrink-0" />
+                                                            <TeamOutlined />
 
                                                             <span className="truncate">
                                                                 {
-                                                                    row
-                                                                        .empresa
-                                                                        .nombre
+                                                                    empresa.nombre
                                                                 }
                                                             </span>
-
                                                         </span>
-                                                    )}
+                                                    )
+                                                )}
 
                                             </div>
 
+                                            {(
+                                                row.ipAddress ||
+                                                row.macAddress ||
+                                                row.hostname ||
+                                                row.ubicacion
+                                            ) && (
+                                                    <div className="mt-3 min-w-0 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 text-xs text-slate-600">
+
+                                                        {row.ipAddress && (
+                                                            <div className="break-all font-mono">
+                                                                <strong>
+                                                                    IP:
+                                                                </strong>{" "}
+                                                                {
+                                                                    row.ipAddress
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                        {row.macAddress && (
+                                                            <div className="mt-1 break-all font-mono">
+                                                                <strong>
+                                                                    MAC:
+                                                                </strong>{" "}
+                                                                {
+                                                                    row.macAddress
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                        {row.hostname && (
+                                                            <div className="mt-1 break-words">
+                                                                <strong>
+                                                                    Hostname:
+                                                                </strong>{" "}
+                                                                {
+                                                                    row.hostname
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                        {row.ubicacion && (
+                                                            <div className="mt-1 break-words">
+                                                                <strong>
+                                                                    Ubicación:
+                                                                </strong>{" "}
+                                                                {
+                                                                    row.ubicacion
+                                                                }
+                                                            </div>
+                                                        )}
+
+                                                    </div>
+                                                )}
+
                                             <div className="mt-3 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
 
-                                                <div>
-                                                    <strong>
-                                                        Equipo:
-                                                    </strong>{" "}
-                                                    #
-                                                    {
-                                                        row.equipo
-                                                            .id_equipo
-                                                    }
-                                                </div>
-
-                                                <div className="mt-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2">
 
                                                     <strong>
-                                                        Serial equipo:
-                                                    </strong>{" "}
+                                                        Equipos asociados
+                                                    </strong>
 
-                                                    <span className="break-all font-mono">
+                                                    <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-semibold text-cyan-800">
                                                         {
-                                                            row.equipo
-                                                                .serial ||
-                                                            "—"
+                                                            row.totalEquipos ??
+                                                            row.equipos.length
                                                         }
                                                     </span>
 
                                                 </div>
 
-                                                <div className="mt-1 break-words">
-
-                                                    <strong>
-                                                        Equipo:
-                                                    </strong>{" "}
-
+                                                <div className="mt-2 break-words font-mono text-xs text-slate-600">
                                                     {
-                                                        row.equipo
-                                                            .marca ||
-                                                        "—"
-                                                    }{" "}
-
-                                                    {
-                                                        row.equipo
-                                                            .modelo ||
-                                                        ""
+                                                        formatEquiposResumen(
+                                                            row
+                                                        )
                                                     }
-
-                                                </div>
-
-                                                <div className="mt-1 break-words">
-
-                                                    <strong>
-                                                        Solicitante:
-                                                    </strong>{" "}
-
-                                                    {
-                                                        row.solicitante
-                                                            ?.nombre ||
-                                                        "—"
-                                                    }
-
                                                 </div>
 
                                             </div>
@@ -1996,27 +2483,27 @@ const AdicionalesPage:
                                             Tipo
                                         </th>
 
-                                        <th className="min-w-[300px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
-                                            Descripción
+                                        <th className="min-w-[280px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                            Dispositivo
                                         </th>
 
-                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[150px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Serial
                                         </th>
 
-                                        <th className="min-w-[200px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
-                                            Equipo
+                                        <th className="min-w-[220px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                            Equipos asociados
                                         </th>
 
-                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
-                                            Solicitante
+                                        <th className="min-w-[180px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                            Solicitantes
                                         </th>
 
-                                        <th className="min-w-[130px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[180px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Empresa
                                         </th>
 
-                                        <th className="min-w-[100px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
+                                        <th className="min-w-[110px] border-r border-cyan-100 px-4 py-3 text-left font-semibold text-slate-800">
                                             Estado
                                         </th>
 
@@ -2046,7 +2533,7 @@ const AdicionalesPage:
                                                 >
 
                                                     {Array.from({
-                                                        length: 9,
+                                                        length: 8,
                                                     }).map(
                                                         (
                                                             __,
@@ -2074,7 +2561,7 @@ const AdicionalesPage:
                                             <tr>
 
                                                 <td
-                                                    colSpan={9}
+                                                    colSpan={8}
                                                     className="px-4 py-12"
                                                 >
 
@@ -2137,9 +2624,9 @@ const AdicionalesPage:
                                                     );
 
                                                 const empresa =
-                                                    row.empresa
-                                                        ?.nombre ||
-                                                    null;
+                                                    getEmpresaPrincipal(
+                                                        row
+                                                    );
 
                                                 const theme =
                                                     companyRowTheme(
@@ -2162,32 +2649,79 @@ const AdicionalesPage:
 
                                                         <td
                                                             className={clsx(
-                                                                "border-l-2 px-4 py-3 font-semibold",
+                                                                "border-l-2 px-4 py-3",
                                                                 theme.borderLeft
                                                             )}
                                                         >
-                                                            {
-                                                                row.tipo
-                                                            }
+                                                            <span
+                                                                className={clsx(
+                                                                    "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                                    getTipoAdicionalClass(
+                                                                        row.tipo
+                                                                    )
+                                                                )}
+                                                            >
+                                                                {
+                                                                    row.tipo
+                                                                }
+                                                            </span>
                                                         </td>
 
-                                                        {/* DESCRIPCIÓN */}
+                                                        {/* DISPOSITIVO */}
 
                                                         <td className="max-w-[440px] px-4 py-3">
 
-                                                            <div
-                                                                className="line-clamp-2 break-words [overflow-wrap:anywhere] text-slate-700"
-                                                                title={
-                                                                    descripcion ===
-                                                                        "—"
-                                                                        ? ""
-                                                                        : descripcion
-                                                                }
-                                                            >
+                                                            <div className="font-semibold text-slate-900">
                                                                 {
-                                                                    descripcion
+                                                                    row.nombre ||
+                                                                    (
+                                                                        descripcion !==
+                                                                            "—"
+                                                                            ? descripcion
+                                                                            : "—"
+                                                                    )
                                                                 }
                                                             </div>
+
+                                                            {(
+                                                                row.marca ||
+                                                                row.modelo
+                                                            ) && (
+                                                                    <div className="mt-1 break-words text-xs text-slate-600">
+                                                                        {
+                                                                            [
+                                                                                row.marca,
+                                                                                row.modelo,
+                                                                            ]
+                                                                                .filter(Boolean)
+                                                                                .join(" ")
+                                                                        }
+                                                                    </div>
+                                                                )}
+
+                                                            {row.nombre &&
+                                                                descripcion !==
+                                                                "—" && (
+                                                                    <div
+                                                                        className="mt-1 line-clamp-2 break-words [overflow-wrap:anywhere] text-xs text-slate-500"
+                                                                        title={
+                                                                            descripcion
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            descripcion
+                                                                        }
+                                                                    </div>
+                                                                )}
+
+                                                            {row.ubicacion && (
+                                                                <div className="mt-1 break-words text-[11px] text-slate-400">
+                                                                    Ubicación:{" "}
+                                                                    {
+                                                                        row.ubicacion
+                                                                    }
+                                                                </div>
+                                                            )}
 
                                                         </td>
 
@@ -2211,96 +2745,132 @@ const AdicionalesPage:
 
                                                         </td>
 
-                                                        {/* EQUIPO */}
+                                                        {/* EQUIPOS ASOCIADOS */}
 
                                                         <td className="px-4 py-3">
 
                                                             <div className="font-semibold text-slate-900">
-                                                                Equipo #
                                                                 {
-                                                                    row.equipo
-                                                                        .id_equipo
-                                                                }
+                                                                    row.totalEquipos ??
+                                                                    row.equipos.length
+                                                                }{" "}
+                                                                equipo(s)
                                                             </div>
 
-                                                            <div className="mt-0.5 max-w-[230px] break-words text-xs text-slate-500">
+                                                            {row.equipos?.length > 0 ? (
 
-                                                                <span className="break-all font-mono">
-                                                                    {
-                                                                        row.equipo
-                                                                            .serial ||
-                                                                        "Sin serial"
-                                                                    }
-                                                                </span>
+                                                                <div className="mt-1 space-y-1">
 
-                                                                {" · "}
+                                                                    {row.equipos
+                                                                        .slice(
+                                                                            0,
+                                                                            3
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                relacion
+                                                                            ) => {
 
-                                                                {
-                                                                    row.equipo
-                                                                        .marca ||
-                                                                    "Sin marca"
-                                                                }
+                                                                                const equipo =
+                                                                                    relacion.equipo;
 
-                                                                {" "}
+                                                                                const serial =
+                                                                                    String(
+                                                                                        equipo.serial ??
+                                                                                        ""
+                                                                                    ).trim();
 
-                                                                {
-                                                                    row.equipo
-                                                                        .modelo ||
-                                                                    ""
-                                                                }
+                                                                                return (
+                                                                                    <div
+                                                                                        key={
+                                                                                            relacion.id
+                                                                                        }
+                                                                                        className="min-w-0"
+                                                                                    >
 
-                                                            </div>
+                                                                                        <div className="font-mono text-xs font-semibold text-slate-600">
+                                                                                            #
+                                                                                            {
+                                                                                                equipo.id_equipo
+                                                                                            }
+                                                                                        </div>
 
-                                                        </td>
+                                                                                        {serial && (
+                                                                                            <div
+                                                                                                className="truncate font-mono text-[11px] text-slate-400"
+                                                                                                title={
+                                                                                                    serial
+                                                                                                }
+                                                                                            >
+                                                                                                {
+                                                                                                    serial
+                                                                                                }
+                                                                                            </div>
+                                                                                        )}
 
-                                                        {/* SOLICITANTE */}
+                                                                                    </div>
+                                                                                );
+                                                                            }
+                                                                        )}
 
-                                                        <td className="px-4 py-3">
+                                                                    {row.equipos.length >
+                                                                        3 && (
+                                                                            <div className="text-[11px] font-medium text-cyan-700">
+                                                                                +
+                                                                                {
+                                                                                    row.equipos.length -
+                                                                                    3
+                                                                                }{" "}
+                                                                                más
+                                                                            </div>
+                                                                        )}
 
-                                                            {row.solicitante
-                                                                ?.nombre ? (
-                                                                <span className="inline-flex max-w-[200px] items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-medium text-cyan-900">
+                                                                </div>
 
-                                                                    <span className="truncate">
-                                                                        {
-                                                                            row
-                                                                                .solicitante
-                                                                                .nombre
-                                                                        }
-                                                                    </span>
-
-                                                                </span>
                                                             ) : (
-                                                                <span className="text-slate-400">
-                                                                    —
-                                                                </span>
+                                                                <div className="mt-1 text-xs text-slate-400">
+                                                                    Sin equipos
+                                                                </div>
                                                             )}
 
                                                         </td>
 
-                                                        {/* EMPRESA */}
+                                                        {/* SOLICITANTES */}
 
                                                         <td className="px-4 py-3">
 
-                                                            {empresa ? (
-                                                                <span
-                                                                    className={clsx(
-                                                                        "inline-flex max-w-[220px] min-w-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                                                                        companyTagClasses(
-                                                                            empresa
+                                                            {row.solicitantes?.length >
+                                                                0 ? (
+
+                                                                <div className="flex flex-col items-start gap-1">
+
+                                                                    {row.solicitantes.map(
+                                                                        (
+                                                                            solicitante
+                                                                        ) => (
+                                                                            <div
+                                                                                key={
+                                                                                    solicitante.id
+                                                                                }
+                                                                                className="max-w-[220px]"
+                                                                            >
+
+                                                                                <span className="inline-flex max-w-full min-w-0 items-center rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-medium text-cyan-900">
+
+                                                                                    <span className="truncate">
+                                                                                        {
+                                                                                            solicitante.nombre
+                                                                                        }
+                                                                                    </span>
+
+                                                                                </span>
+
+                                                                            </div>
                                                                         )
                                                                     )}
-                                                                >
 
-                                                                    <TeamOutlined className="shrink-0 opacity-80" />
+                                                                </div>
 
-                                                                    <span className="truncate">
-                                                                        {
-                                                                            empresa
-                                                                        }
-                                                                    </span>
-
-                                                                </span>
                                                             ) : (
                                                                 <span className="text-slate-400">
                                                                     —
@@ -2308,6 +2878,55 @@ const AdicionalesPage:
                                                             )}
 
                                                         </td>
+
+                                                        {/* EMPRESAS */}
+
+                                                        <td className="px-4 py-3">
+
+                                                            {row.empresas?.length >
+                                                                0 ? (
+
+                                                                <div className="flex flex-wrap gap-1">
+
+                                                                    {row.empresas.map(
+                                                                        (
+                                                                            empresaItem
+                                                                        ) => (
+                                                                            <span
+                                                                                key={
+                                                                                    empresaItem.id
+                                                                                }
+                                                                                className={clsx(
+                                                                                    "inline-flex max-w-[220px] min-w-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                                                                                    companyTagClasses(
+                                                                                        empresaItem.nombre
+                                                                                    )
+                                                                                )}
+                                                                            >
+
+                                                                                <TeamOutlined className="shrink-0 opacity-80" />
+
+                                                                                <span className="truncate">
+                                                                                    {
+                                                                                        empresaItem.nombre
+                                                                                    }
+                                                                                </span>
+
+                                                                            </span>
+                                                                        )
+                                                                    )}
+
+                                                                </div>
+
+                                                            ) : (
+                                                                <span className="text-slate-400">
+                                                                    —
+                                                                </span>
+                                                            )}
+
+                                                        </td>
+
+
 
                                                         {/* ESTADO */}
 

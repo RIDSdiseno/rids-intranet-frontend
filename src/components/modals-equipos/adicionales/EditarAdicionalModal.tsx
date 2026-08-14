@@ -16,9 +16,16 @@ import {
 import { http } from "../../../service/http";
 
 import type {
+    AdicionalEquipoLite,
     AdicionalRow,
     EstadoAdicional,
 } from "./adicionales.types";
+
+import {
+    ADICIONAL_ESTADOS,
+    ADICIONAL_TIPOS,
+    ADICIONAL_TIPO_LABEL,
+} from "./adicionales.constants";
 
 /* =========================================================
    TIPOS
@@ -31,64 +38,20 @@ type Props = {
     onSaved: () => void | Promise<void>;
 };
 
-type EquipoSelectorRow = {
-    id_equipo: number;
-    serial?: string | null;
-    marca?: string | null;
-    modelo?: string | null;
-    tipo?: string | null;
-    estado?: string | null;
-
-    solicitante?: {
-        id_solicitante: number;
-        nombre: string;
-        email?: string | null;
-    } | null;
-};
-
 type EquiposResponse = {
-    items: EquipoSelectorRow[];
+    items: AdicionalEquipoLite[];
 };
 
-/* =========================================================
-   CATÁLOGOS
-========================================================= */
+type EmpresaOption = {
+    id_empresa: number;
+    nombre: string;
+};
 
-const TIPOS = [
-    "MONITOR",
-    "IMPRESORA",
-    "TECLADO",
-    "MOUSE",
-    "DOCK",
-    "CARGADOR",
-    "CAMARA",
-    "SWITCH",
-    "UPS",
-    "ROUTER",
-    "OTRO",
-];
-
-const ESTADOS: Array<{
-    value: EstadoAdicional;
-    label: string;
-}> = [
-        {
-            value: "ASIGNADO",
-            label: "Asignado",
-        },
-        {
-            value: "EN_STOCK",
-            label: "En stock",
-        },
-        {
-            value: "EN_REPARACION",
-            label: "En reparación",
-        },
-        {
-            value: "DADO_DE_BAJA",
-            label: "Dado de baja",
-        },
-    ];
+type EmpresasResponse = {
+    success: boolean;
+    data: EmpresaOption[];
+    total: number;
+};
 
 /* =========================================================
    COMPONENTE
@@ -102,15 +65,64 @@ export default function EditarAdicionalModal({
 }: Props) {
 
     const [
-        equipoId,
-        setEquipoId,
-    ] = useState<number | null>(
-        null
-    );
+        equipoIds,
+        setEquipoIds,
+    ] =
+        useState<number[]>(
+            []
+        );
+
+    const [
+        empresas,
+        setEmpresas,
+    ] =
+        useState<
+            EmpresaOption[]
+        >([]);
+
+    const [
+        loadingEmpresas,
+        setLoadingEmpresas,
+    ] = useState(false);
 
     const [
         tipo,
         setTipo,
+    ] = useState("");
+
+    const [
+        nombre,
+        setNombre,
+    ] = useState("");
+
+    const [
+        marca,
+        setMarca,
+    ] = useState("");
+
+    const [
+        modelo,
+        setModelo,
+    ] = useState("");
+
+    const [
+        macAddress,
+        setMacAddress,
+    ] = useState("");
+
+    const [
+        ipAddress,
+        setIpAddress,
+    ] = useState("");
+
+    const [
+        hostname,
+        setHostname,
+    ] = useState("");
+
+    const [
+        ubicacion,
+        setUbicacion,
     ] = useState("");
 
     const [
@@ -141,13 +153,27 @@ export default function EditarAdicionalModal({
         setEquipos,
     ] =
         useState<
-            EquipoSelectorRow[]
+            AdicionalEquipoLite[]
         >([]);
 
     const [
         equipoSearch,
         setEquipoSearch,
     ] = useState("");
+
+    const [
+        empresaEquipoFilter,
+        setEmpresaEquipoFilter,
+    ] = useState<number | null>(
+        null
+    );
+
+    const [
+        solicitanteEquipoFilter,
+        setSolicitanteEquipoFilter,
+    ] = useState<number | null>(
+        null
+    );
 
     const [
         loadingEquipos,
@@ -179,12 +205,35 @@ export default function EditarAdicionalModal({
             return;
         }
 
-        setEquipoId(
-            row.equipoId
+        setEquipoIds(
+            (
+                row.equipos ??
+                []
+            ).map(
+                (
+                    relacion
+                ) =>
+                    relacion.equipoId
+            )
+        );
+
+        setNombre(
+            row.nombre ??
+            ""
         );
 
         setTipo(
             row.tipo
+        );
+
+        setMarca(
+            row.marca ??
+            ""
+        );
+
+        setModelo(
+            row.modelo ??
+            ""
         );
 
         setDescripcion(
@@ -205,7 +254,29 @@ export default function EditarAdicionalModal({
         );
 
         setSerialAdicional(
-            row.serialAdicional ??
+            row.serialAdicional
+                ?.trim()
+                .toUpperCase() ??
+            ""
+        );
+
+        setMacAddress(
+            row.macAddress ??
+            ""
+        );
+
+        setIpAddress(
+            row.ipAddress ??
+            ""
+        );
+
+        setHostname(
+            row.hostname ??
+            ""
+        );
+
+        setUbicacion(
+            row.ubicacion ??
             ""
         );
 
@@ -214,7 +285,92 @@ export default function EditarAdicionalModal({
         );
 
         setEquipoSearch("");
-        setError(null);
+
+        const relaciones =
+            row.equipos ??
+            [];
+
+        const empresasIds =
+            Array.from(
+                new Set(
+                    relaciones
+                        .map(
+                            (
+                                relacion
+                            ) => {
+                                const equipo =
+                                    relacion.equipo;
+
+                                const empresa =
+                                    equipo.empresa ??
+                                    equipo.solicitante
+                                        ?.empresa ??
+                                    null;
+
+                                return (
+                                    empresa?.id_empresa ??
+                                    null
+                                );
+                            }
+                        )
+                        .filter(
+                            (
+                                id
+                            ): id is number =>
+                                typeof id ===
+                                "number"
+                        )
+                )
+            );
+
+        const solicitantesIds =
+            Array.from(
+                new Set(
+                    relaciones
+                        .map(
+                            (
+                                relacion
+                            ) =>
+                                relacion.equipo
+                                    .solicitante
+                                    ?.id_solicitante ??
+                                null
+                        )
+                        .filter(
+                            (
+                                id
+                            ): id is number =>
+                                typeof id ===
+                                "number"
+                        )
+                )
+            );
+
+        /*
+         * Si todos los equipos pertenecen a
+         * una única empresa, la seleccionamos.
+         */
+        setEmpresaEquipoFilter(
+            empresasIds.length ===
+                1
+                ? empresasIds[0]
+                : null
+        );
+
+        /*
+         * Si todos pertenecen a un único
+         * solicitante, también lo seleccionamos.
+         */
+        setSolicitanteEquipoFilter(
+            solicitantesIds.length ===
+                1
+                ? solicitantesIds[0]
+                : null
+        );
+
+        setError(
+            null
+        );
     }, [
         open,
         row,
@@ -291,30 +447,262 @@ export default function EditarAdicionalModal({
     }, [open]);
 
     /* =====================================================
+   OPCIONES DE EMPRESAS
+===================================================== */
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        const controller =
+            new AbortController();
+
+        async function loadEmpresas() {
+            try {
+                setLoadingEmpresas(
+                    true
+                );
+
+                const res =
+                    await http.get(
+                        "/empresas",
+                        {
+                            signal:
+                                controller.signal,
+
+                            params: {
+                                estado:
+                                    "ACTIVAS",
+                            },
+                        }
+                    );
+
+                const response =
+                    res.data as EmpresasResponse;
+
+                setEmpresas(
+                    Array.isArray(
+                        response.data
+                    )
+                        ? response.data
+                        : []
+                );
+
+            } catch (
+            err
+            ) {
+
+                if (
+                    (
+                        err as Error
+                    ).name ===
+                    "AbortError"
+                ) {
+                    return;
+                }
+
+                console.error(
+                    "[EditarAdicionalModal] load empresas",
+                    err
+                );
+
+                setEmpresas(
+                    []
+                );
+
+            } finally {
+                setLoadingEmpresas(
+                    false
+                );
+            }
+        }
+
+        void loadEmpresas();
+
+        return () =>
+            controller.abort();
+
+    }, [
+        open,
+    ]);
+
+    const empresasEquipoOptions =
+        useMemo(
+            () =>
+                [...empresas]
+                    .sort(
+                        (
+                            a,
+                            b
+                        ) =>
+                            a.nombre.localeCompare(
+                                b.nombre,
+                                "es",
+                                {
+                                    sensitivity:
+                                        "base",
+                                }
+                            )
+                    ),
+            [
+                empresas,
+            ]
+        );
+
+    /* =====================================================
+       OPCIONES DE SOLICITANTES
+    ===================================================== */
+
+    const solicitantesEquipoOptions =
+        useMemo(() => {
+
+            const map =
+                new Map<
+                    number,
+                    {
+                        id: number;
+                        nombre: string;
+                        empresaId: number | null;
+                    }
+                >();
+
+            for (
+                const equipo
+                of equipos
+            ) {
+                const solicitante =
+                    equipo.solicitante;
+
+                if (!solicitante) {
+                    continue;
+                }
+
+                const empresa =
+                    equipo.empresa ??
+                    solicitante.empresa ??
+                    null;
+
+                map.set(
+                    solicitante.id_solicitante,
+                    {
+                        id:
+                            solicitante.id_solicitante,
+
+                        nombre:
+                            solicitante.nombre,
+
+                        empresaId:
+                            empresa?.id_empresa ??
+                            null,
+                    }
+                );
+            }
+
+            return Array.from(
+                map.values()
+            )
+                .filter(
+                    (
+                        solicitante
+                    ) =>
+                        empresaEquipoFilter ===
+                        null ||
+                        solicitante.empresaId ===
+                        empresaEquipoFilter
+                )
+                .sort(
+                    (
+                        a,
+                        b
+                    ) =>
+                        a.nombre.localeCompare(
+                            b.nombre,
+                            "es",
+                            {
+                                sensitivity:
+                                    "base",
+                            }
+                        )
+                );
+
+        }, [
+            equipos,
+            empresaEquipoFilter,
+        ]);
+
+    /* =====================================================
        FILTRAR EQUIPOS
     ===================================================== */
 
     const equiposFiltrados =
         useMemo(() => {
+
             const q =
                 equipoSearch
                     .trim()
                     .toLowerCase();
 
-            if (!q) {
-                return equipos;
-            }
-
             return equipos.filter(
-                (equipo) => {
+                (
+                    equipo
+                ) => {
+
+                    const empresa =
+                        equipo.empresa ??
+                        equipo.solicitante
+                            ?.empresa ??
+                        null;
+
+                    /* =========================
+                       EMPRESA
+                    ========================= */
+
+                    if (
+                        empresaEquipoFilter !==
+                        null &&
+                        empresa?.id_empresa !==
+                        empresaEquipoFilter
+                    ) {
+                        return false;
+                    }
+
+                    /* =========================
+                       SOLICITANTE
+                    ========================= */
+
+                    if (
+                        solicitanteEquipoFilter !==
+                        null &&
+                        equipo.solicitante
+                            ?.id_solicitante !==
+                        solicitanteEquipoFilter
+                    ) {
+                        return false;
+                    }
+
+                    /* =========================
+                       BÚSQUEDA
+                    ========================= */
+
+                    if (!q) {
+                        return true;
+                    }
+
                     const text = [
                         equipo.id_equipo,
                         equipo.serial,
                         equipo.marca,
                         equipo.modelo,
                         equipo.tipo,
-                        equipo.solicitante?.nombre,
-                        equipo.solicitante?.email,
+
+                        equipo.solicitante
+                            ?.nombre,
+
+                        equipo.solicitante
+                            ?.email,
+
+                        empresa?.nombre,
                     ]
                         .filter(
                             Boolean
@@ -327,9 +715,12 @@ export default function EditarAdicionalModal({
                     );
                 }
             );
+
         }, [
             equipos,
             equipoSearch,
+            empresaEquipoFilter,
+            solicitanteEquipoFilter,
         ]);
 
     /* =====================================================
@@ -337,10 +728,7 @@ export default function EditarAdicionalModal({
     ===================================================== */
 
     async function handleSave() {
-        if (
-            !row ||
-            !equipoId
-        ) {
+        if (!row) {
             return;
         }
 
@@ -372,10 +760,22 @@ export default function EditarAdicionalModal({
             await http.patch(
                 `/equipos-adicionales/${row.id}`,
                 {
-                    equipoId,
+                    nombre:
+                        nombre.trim() ||
+                        null,
 
                     tipo:
-                        tipo.trim(),
+                        tipo
+                            .trim()
+                            .toUpperCase(),
+
+                    marca:
+                        marca.trim() ||
+                        null,
+
+                    modelo:
+                        modelo.trim() ||
+                        null,
 
                     descripcion:
                         descripcion.trim() ||
@@ -384,10 +784,30 @@ export default function EditarAdicionalModal({
                     cantidad,
 
                     serialAdicional:
-                        serialAdicional.trim() ||
+                        serialAdicional
+                            .trim()
+                            .toUpperCase() ||
+                        null,
+
+                    macAddress:
+                        macAddress.trim() ||
+                        null,
+
+                    ipAddress:
+                        ipAddress.trim() ||
+                        null,
+
+                    hostname:
+                        hostname.trim() ||
+                        null,
+
+                    ubicacion:
+                        ubicacion.trim() ||
                         null,
 
                     estado,
+
+                    equipoIds,
                 }
             );
 
@@ -437,7 +857,7 @@ export default function EditarAdicionalModal({
                         </h2>
 
                         <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">
-                            Modifica la información o reasigna el adicional a otro equipo.
+                            Modifica la información y administra los equipos asociados al adicional.
                         </p>
 
                     </div>
@@ -486,118 +906,417 @@ export default function EditarAdicionalModal({
                             EQUIPO
                         ================================================= */}
 
-                        <div className="min-w-0 space-y-2 sm:col-span-2">
+                        <div className="min-w-0 space-y-3 sm:col-span-2">
 
-                            <label className="text-sm font-semibold text-slate-700">
-                                Equipo asociado
-                            </label>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-sm font-semibold text-slate-700">
+                                    Equipos asociados
+                                </label>
 
-                            <div className="relative min-w-0">
+                                <span className="text-xs text-slate-500">
+                                    Filtra por empresa o solicitante, o busca directamente un equipo.
+                                </span>
+                            </div>
 
-                                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3">
 
-                                <input
+                                {/* EMPRESA */}
+
+                                <select
                                     value={
-                                        equipoSearch
+                                        empresaEquipoFilter ??
+                                        ""
                                     }
                                     onChange={(
                                         e
-                                    ) =>
-                                        setEquipoSearch(
-                                            e.target
-                                                .value
+                                    ) => {
+                                        const value =
+                                            e.target.value;
+
+                                        setEmpresaEquipoFilter(
+                                            value
+                                                ? Number(
+                                                    value
+                                                )
+                                                : null
+                                        );
+
+                                        /*
+                                         * Un solicitante de la empresa
+                                         * anterior ya no debe seguir activo.
+                                         */
+                                        setSolicitanteEquipoFilter(
+                                            null
+                                        );
+                                    }}
+                                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                >
+                                    <option value="">
+                                        Todas las empresas
+                                    </option>
+
+                                    {empresasEquipoOptions.map(
+                                        (
+                                            empresa
+                                        ) => (
+                                            <option
+                                                key={
+                                                    empresa.id_empresa
+                                                }
+                                                value={
+                                                    empresa.id_empresa
+                                                }
+                                            >
+                                                {
+                                                    empresa.nombre
+                                                }
+                                            </option>
                                         )
+                                    )}
+                                </select>
+
+                                {/* SOLICITANTE */}
+
+                                <select
+                                    value={
+                                        solicitanteEquipoFilter ??
+                                        ""
                                     }
-                                    placeholder="Buscar por ID, serial, marca, modelo o solicitante..."
-                                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                                />
+                                    onChange={(
+                                        e
+                                    ) => {
+                                        const value =
+                                            e.target.value;
+
+                                        setSolicitanteEquipoFilter(
+                                            value
+                                                ? Number(
+                                                    value
+                                                )
+                                                : null
+                                        );
+                                    }}
+                                    className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                >
+                                    <option value="">
+                                        Todos los solicitantes
+                                    </option>
+
+                                    {solicitantesEquipoOptions.map(
+                                        (
+                                            solicitante
+                                        ) => (
+                                            <option
+                                                key={
+                                                    solicitante.id
+                                                }
+                                                value={
+                                                    solicitante.id
+                                                }
+                                            >
+                                                {
+                                                    solicitante.nombre
+                                                }
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+
+                                {/* BÚSQUEDA */}
+
+                                <div className="relative min-w-0">
+
+                                    <SearchOutlined className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+                                    <input
+                                        value={
+                                            equipoSearch
+                                        }
+                                        onChange={(
+                                            e
+                                        ) =>
+                                            setEquipoSearch(
+                                                e.target.value
+                                            )
+                                        }
+                                        placeholder="ID, serial, marca, modelo..."
+                                        className="w-full min-w-0 rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                                    />
+
+                                </div>
 
                             </div>
 
-                            <select
-                                value={
-                                    equipoId ??
-                                    ""
-                                }
-                                onChange={(
-                                    e
-                                ) =>
-                                    setEquipoId(
-                                        e.target
-                                            .value
-                                            ? Number(
-                                                e.target
-                                                    .value
-                                            )
-                                            : null
-                                    )
-                                }
-                                disabled={
-                                    loadingEquipos
-                                }
-                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
+                            <div className="max-h-64 min-w-0 overflow-y-auto rounded-xl border border-slate-200 bg-white">
 
                                 {loadingEquipos && (
-                                    <option value="">
+                                    <div className="p-4 text-center text-sm text-slate-500">
+                                        <LoadingOutlined className="mr-2" />
+
                                         Cargando equipos...
-                                    </option>
+                                    </div>
                                 )}
+
+                                {!loadingEquipos &&
+                                    equiposFiltrados.length === 0 && (
+                                        <div className="p-4 text-center text-sm text-slate-500">
+                                            No se encontraron equipos.
+                                        </div>
+                                    )}
 
                                 {!loadingEquipos &&
                                     equiposFiltrados.map(
                                         (
                                             equipo
-                                        ) => (
-                                            <option
-                                                key={
+                                        ) => {
+
+                                            const selected =
+                                                equipoIds.includes(
                                                     equipo.id_equipo
-                                                }
-                                                value={
-                                                    equipo.id_equipo
-                                                }
-                                            >
-                                                Equipo #
-                                                {
-                                                    equipo.id_equipo
-                                                }
-                                                {" · "}
-                                                {
-                                                    equipo.serial ||
-                                                    "Sin serial"
-                                                }
-                                                {" · "}
-                                                {
-                                                    equipo.marca ||
-                                                    ""
-                                                }
-                                                {" "}
-                                                {
-                                                    equipo.modelo ||
-                                                    ""
-                                                }
-                                                {" · "}
-                                                Solicitante:{" "}
-                                                {
-                                                    equipo.solicitante
-                                                        ?.nombre ||
-                                                    "Sin solicitante"
-                                                }
-                                            </option>
-                                        )
+                                                );
+
+                                            const empresa =
+                                                equipo.empresa ??
+                                                equipo.solicitante
+                                                    ?.empresa ??
+                                                null;
+
+                                            return (
+                                                <label
+                                                    key={
+                                                        equipo.id_equipo
+                                                    }
+                                                    className="flex cursor-pointer items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 hover:bg-cyan-50/50"
+                                                >
+
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={
+                                                            selected
+                                                        }
+                                                        onChange={() => {
+
+                                                            setEquipoIds(
+                                                                (
+                                                                    current
+                                                                ) =>
+                                                                    selected
+                                                                        ? current.filter(
+                                                                            (
+                                                                                id
+                                                                            ) =>
+                                                                                id !==
+                                                                                equipo.id_equipo
+                                                                        )
+                                                                        : [
+                                                                            ...current,
+                                                                            equipo.id_equipo,
+                                                                        ]
+                                                            );
+
+                                                        }}
+                                                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                                    />
+
+                                                    <div className="min-w-0 flex-1">
+
+                                                        <div className="break-words text-sm font-semibold text-slate-900">
+
+                                                            Equipo #
+                                                            {
+                                                                equipo.id_equipo
+                                                            }
+
+                                                            {" · "}
+
+                                                            {
+                                                                equipo.serial ||
+                                                                "Sin serial"
+                                                            }
+
+                                                        </div>
+
+                                                        <div className="mt-0.5 break-words text-xs text-slate-500">
+
+                                                            {
+                                                                equipo.marca ||
+                                                                "Sin marca"
+                                                            }
+
+                                                            {" "}
+
+                                                            {
+                                                                equipo.modelo ||
+                                                                ""
+                                                            }
+
+                                                        </div>
+
+                                                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+
+                                                            <span>
+                                                                Solicitante:{" "}
+
+                                                                <strong className="font-medium text-slate-700">
+                                                                    {
+                                                                        equipo.solicitante
+                                                                            ?.nombre ||
+                                                                        "Sin solicitante"
+                                                                    }
+                                                                </strong>
+                                                            </span>
+
+                                                            <span>
+                                                                Empresa:{" "}
+
+                                                                <strong className="font-medium text-slate-700">
+                                                                    {
+                                                                        empresa
+                                                                            ?.nombre ||
+                                                                        "Sin empresa"
+                                                                    }
+                                                                </strong>
+                                                            </span>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </label>
+                                            );
+                                        }
                                     )}
 
-                            </select>
+                            </div>
 
-                            {!loadingEquipos &&
-                                equipoSearch.trim() &&
-                                equiposFiltrados.length ===
-                                0 && (
-                                    <div className="text-xs text-amber-700">
-                                        No se encontraron equipos para esta búsqueda.
+                            {/* =================================================
+    EQUIPOS SELECCIONADOS
+================================================= */}
+
+                            {equipoIds.length > 0 && (
+                                <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-3">
+
+                                    <div className="mb-2 flex items-center justify-between gap-3">
+
+                                        <div className="text-xs font-semibold text-cyan-900">
+                                            Equipos seleccionados
+                                        </div>
+
+                                        <span className="rounded-full border border-cyan-200 bg-white px-2 py-0.5 text-xs font-semibold text-cyan-800">
+                                            {
+                                                equipoIds.length
+                                            }
+                                        </span>
+
                                     </div>
-                                )}
 
+                                    <div className="flex flex-wrap gap-2">
+
+                                        {equipoIds.map(
+                                            (
+                                                equipoId
+                                            ) => {
+
+                                                const equipo =
+                                                    equipos.find(
+                                                        (
+                                                            item
+                                                        ) =>
+                                                            item.id_equipo ===
+                                                            equipoId
+                                                    );
+
+                                                if (!equipo) {
+                                                    return null;
+                                                }
+
+                                                const serial =
+                                                    String(
+                                                        equipo.serial ??
+                                                        ""
+                                                    ).trim();
+
+                                                return (
+                                                    <button
+                                                        key={
+                                                            equipoId
+                                                        }
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setEquipoIds(
+                                                                (
+                                                                    current
+                                                                ) =>
+                                                                    current.filter(
+                                                                        (
+                                                                            id
+                                                                        ) =>
+                                                                            id !==
+                                                                            equipoId
+                                                                    )
+                                                            )
+                                                        }
+                                                        className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1.5 text-xs font-medium text-cyan-900 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                                                        title="Quitar equipo"
+                                                    >
+
+                                                        <span className="truncate">
+                                                            #
+                                                            {
+                                                                equipo.id_equipo
+                                                            }
+
+                                                            {serial
+                                                                ? ` · ${serial}`
+                                                                : ""}
+                                                        </span>
+
+                                                        <CloseOutlined className="shrink-0" />
+
+                                                    </button>
+                                                );
+                                            }
+                                        )}
+
+                                    </div>
+
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+
+                                <span>
+                                    <strong className="text-slate-700">
+                                        {
+                                            equiposFiltrados.length
+                                        }
+                                    </strong>{" "}
+                                    equipo(s) mostrado(s)
+
+                                    {" · "}
+
+                                    <strong className="text-cyan-700">
+                                        {
+                                            equipoIds.length
+                                        }
+                                    </strong>{" "}
+                                    seleccionado(s)
+                                </span>
+
+                                {equipoIds.length >
+                                    0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setEquipoIds([])
+                                            }
+                                            className="font-medium text-rose-600 hover:text-rose-700"
+                                        >
+                                            Quitar todos
+                                        </button>
+                                    )}
+
+                            </div>
                         </div>
 
                         {/* =================================================
@@ -625,10 +1344,8 @@ export default function EditarAdicionalModal({
                                 className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             >
 
-                                {TIPOS.map(
-                                    (
-                                        value
-                                    ) => (
+                                {ADICIONAL_TIPOS.map(
+                                    (value) => (
                                         <option
                                             key={
                                                 value
@@ -638,7 +1355,9 @@ export default function EditarAdicionalModal({
                                             }
                                         >
                                             {
+                                                ADICIONAL_TIPO_LABEL[
                                                 value
+                                                ]
                                             }
                                         </option>
                                     )
@@ -673,7 +1392,7 @@ export default function EditarAdicionalModal({
                                 className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             >
 
-                                {ESTADOS.map(
+                                {ADICIONAL_ESTADOS.map(
                                     (
                                         option
                                     ) => (
@@ -697,6 +1416,90 @@ export default function EditarAdicionalModal({
                         </div>
 
                         {/* =================================================
+    NOMBRE
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Nombre
+                            </label>
+
+                            <input
+                                value={
+                                    nombre
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setNombre(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={200}
+                                placeholder="Ej: Impresora Contabilidad"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
+    MARCA
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Marca
+                            </label>
+
+                            <input
+                                value={
+                                    marca
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setMarca(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={200}
+                                placeholder="Ej: RICOH"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
+    MODELO
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Modelo
+                            </label>
+
+                            <input
+                                value={
+                                    modelo
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setModelo(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={200}
+                                placeholder="Ej: MP C307"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
                             SERIAL
                         ================================================= */}
 
@@ -705,7 +1508,6 @@ export default function EditarAdicionalModal({
                             <label className="text-sm font-semibold text-slate-700">
                                 Serial adicional
                             </label>
-
                             <input
                                 value={
                                     serialAdicional
@@ -716,10 +1518,18 @@ export default function EditarAdicionalModal({
                                     setSerialAdicional(
                                         e.target
                                             .value
+                                            .toUpperCase()
                                     )
                                 }
+                                maxLength={200}
+                                autoComplete="off"
+                                placeholder="Serial único del adicional"
                                 className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             />
+
+                            <p className="text-xs text-slate-500">
+                                * El serial es único en todo el inventario de adicionales. *
+                            </p>
 
                         </div>
 
@@ -759,6 +1569,119 @@ export default function EditarAdicionalModal({
                         </div>
 
                         {/* =================================================
+    MAC
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Dirección MAC
+                            </label>
+
+                            <input
+                                value={
+                                    macAddress
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setMacAddress(
+                                        e.target.value
+                                            .toUpperCase()
+                                    )
+                                }
+                                maxLength={100}
+                                placeholder="AA:BB:CC:DD:EE:FF"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
+    IP
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Dirección IP
+                            </label>
+
+                            <input
+                                value={
+                                    ipAddress
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setIpAddress(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={100}
+                                placeholder="192.168.1.20"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
+    HOSTNAME
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Hostname
+                            </label>
+
+                            <input
+                                value={
+                                    hostname
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setHostname(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={200}
+                                placeholder="Ej: RICOH-CONTAB"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
+    UBICACIÓN
+================================================= */}
+
+                        <div className="min-w-0 space-y-2">
+
+                            <label className="text-sm font-semibold text-slate-700">
+                                Ubicación
+                            </label>
+
+                            <input
+                                value={
+                                    ubicacion
+                                }
+                                onChange={(
+                                    e
+                                ) =>
+                                    setUbicacion(
+                                        e.target.value
+                                    )
+                                }
+                                maxLength={300}
+                                placeholder="Ej: Oficina Contabilidad"
+                                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+
+                        </div>
+
+                        {/* =================================================
                             DESCRIPCIÓN
                         ================================================= */}
 
@@ -782,7 +1705,7 @@ export default function EditarAdicionalModal({
                                 }
                                 rows={4}
                                 maxLength={
-                                    500
+                                    1000
                                 }
                                 className="w-full min-w-0 resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                             />
@@ -791,7 +1714,7 @@ export default function EditarAdicionalModal({
                                 {
                                     descripcion.length
                                 }
-                                /500
+                                /1000
                             </div>
 
                         </div>
