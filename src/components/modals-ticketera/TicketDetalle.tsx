@@ -516,17 +516,33 @@ export default function TicketDetailPage() {
         const incomingFiles = Array.from(fileList);
 
         const allowedTypes = [
+            // Imágenes
             "image/jpeg",
             "image/png",
             "image/webp",
             "image/gif",
+
+            // PDF
             "application/pdf",
+
+            // Word
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+            // Excel
             "application/vnd.ms-excel",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-excel.sheet.macroEnabled.12",
+
+            // Texto
             "text/plain",
+
+            // ZIP
+            "application/zip",
+            "application/x-zip-compressed",
+
+            // MP4
+            "video/mp4",
         ];
 
         const invalidFile = incomingFiles.find(
@@ -1397,9 +1413,14 @@ Soporte Técnico`
                                                                         type="file"
                                                                         multiple
                                                                         hidden
+                                                                        accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.txt,.zip,.mp4"
                                                                         onChange={(e) => {
-                                                                            handleAddReplyFiles(e.target.files);
-                                                                            e.target.value = "";
+                                                                            handleAddReplyFiles(
+                                                                                e.target.files
+                                                                            );
+
+                                                                            e.target.value =
+                                                                                "";
                                                                         }}
                                                                     />
 

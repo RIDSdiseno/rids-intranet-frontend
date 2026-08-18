@@ -33,7 +33,8 @@ import {
     ArrowDownOutlined,
     BellOutlined,
     SettingOutlined,
-
+    DeleteOutlined,
+    LockOutlined
 } from "@ant-design/icons";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -326,7 +327,7 @@ function SlaCard({
 export default function TicketeraRids() {
     const navigate = useNavigate();
 
-    const { isCliente } = useAuth();
+    const { isCliente, isAdminLike } = useAuth();
 
     const [notificationApi, notificationContextHolder] = notification.useNotification();
 
@@ -1144,19 +1145,78 @@ export default function TicketeraRids() {
 
     // función confirmar la eliminación de un ticket.
     const confirmDelete = async () => {
-        if (!ticketToDelete) return;
-        try {
-            setDeletingTicket(true);
+        if (!ticketToDelete) {
+            return;
+        }
 
-            await api.delete(`/helpdesk/tickets/${ticketToDelete}`);
-            message.success("Ticket eliminado correctamente");
-            setDeleteModalOpen(false);
-            setTickets(prev => prev.filter(t => t.id !== ticketToDelete));
-            setTicketToDelete(null);
-        } catch {
-            message.error("No se pudo eliminar el ticket");
+        try {
+            setDeletingTicket(
+                true
+            );
+
+            await api.delete(
+                `/helpdesk/tickets/${ticketToDelete}`
+            );
+
+            message.success(
+                "Ticket eliminado correctamente"
+            );
+
+            setDeleteModalOpen(
+                false
+            );
+
+            setTickets(
+                (
+                    prev
+                ) =>
+                    prev.filter(
+                        (
+                            ticket
+                        ) =>
+                            ticket.id !==
+                            ticketToDelete
+                    )
+            );
+
+            setTicketToDelete(
+                null
+            );
+        } catch (
+        error: any
+        ) {
+            if (
+                error?.response
+                    ?.status ===
+                403
+            ) {
+                notificationApi.warning({
+                    message:
+                        "Permiso denegado",
+
+                    description:
+                        "No tienes permisos para eliminar tickets.",
+
+                    placement:
+                        "topRight",
+
+                    duration:
+                        5,
+                });
+
+                return;
+            }
+
+            message.error(
+                error?.response
+                    ?.data
+                    ?.message ||
+                "No se pudo eliminar el ticket"
+            );
         } finally {
-            setDeletingTicket(false);
+            setDeletingTicket(
+                false
+            );
         }
     };
 
@@ -1919,10 +1979,53 @@ export default function TicketeraRids() {
                                     { type: "divider" },
                                     {
                                         key: "delete",
-                                        label: <span className="text-red-500">Eliminar</span>,
+
+                                        disabled:
+                                            !isAdminLike,
+
+                                        icon:
+                                            isAdminLike
+                                                ? (
+                                                    <DeleteOutlined
+                                                        style={{
+                                                            color:
+                                                                "#ef4444",
+                                                        }}
+                                                    />
+                                                )
+                                                : (
+                                                    <LockOutlined />
+                                                ),
+
+                                        label: (
+                                            <span
+                                                className={
+                                                    isAdminLike
+                                                        ? "text-red-500"
+                                                        : "text-slate-400"
+                                                }
+                                                title={
+                                                    isAdminLike
+                                                        ? "Eliminar ticket"
+                                                        : "Esta acción requiere permisos de administrador"
+                                                }
+                                            >
+                                                {isAdminLike
+                                                    ? "Eliminar"
+                                                    : "Eliminar · Sin permisos"}
+                                            </span>
+                                        ),
+
                                         onClick: ({ domEvent }) => {
                                             domEvent.stopPropagation();
-                                            handleDelete(ticket.id);
+
+                                            if (!isAdminLike) {
+                                                return;
+                                            }
+
+                                            handleDelete(
+                                                ticket.id
+                                            );
                                         },
                                     },
                                 ];

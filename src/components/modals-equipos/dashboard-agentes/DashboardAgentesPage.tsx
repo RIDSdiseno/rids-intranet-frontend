@@ -10,6 +10,7 @@ import {
     ClearOutlined,
     ReloadOutlined,
     SearchOutlined,
+    DownloadOutlined
 } from "@ant-design/icons";
 
 import {
@@ -47,6 +48,8 @@ import type {
 } from "./dashboard-agente.types";
 
 import axios from "axios";
+
+import XLSX from "xlsx-js-style";
 
 type EmpresaOption = {
     id: number;
@@ -1322,6 +1325,9 @@ export default function DashboardAgentesPage() {
 
     const now = new Date();
 
+    const [exporting, setExporting] =
+        useState(false);
+
     const [year, setYear] = useState(now.getFullYear());
 
     const [month, setMonth] = useState(now.getMonth() + 1);
@@ -1609,6 +1615,679 @@ export default function DashboardAgentesPage() {
         setExpandedId(null);
     };
 
+    async function exportDashboardToExcel() {
+        if (
+            !data ||
+            data.items.length === 0
+        ) {
+            return;
+        }
+
+        try {
+            setExporting(true);
+
+            /* =====================================================
+               DETALLE DE EQUIPOS
+            ===================================================== */
+
+            const rowsEquipos =
+                data.items.map(
+                    (item) => ({
+                        "ID Equipo":
+                            item.idEquipo,
+
+                        Empresa:
+                            item.empresa
+                                ?.nombre ??
+                            "",
+
+                        Solicitante:
+                            item.solicitante
+                                ?.nombre ??
+                            "",
+
+                        "Correo solicitante":
+                            item.solicitante
+                                ?.email ??
+                            "",
+
+                        Serial:
+                            item.serial ??
+                            "",
+
+                        Marca:
+                            item.marca ??
+                            "",
+
+                        Modelo:
+                            item.modelo ??
+                            "",
+
+                        Hostname:
+                            item.agente
+                                .hostname ??
+                            "",
+
+                        "Usuario actual":
+                            item.agente
+                                .usuarioActual ??
+                            "",
+
+                        "Sistema operativo":
+                            item.hardware
+                                .sistemaOperativo ??
+                            "",
+
+                        "RAM GB":
+                            item.hardware
+                                .ramGb ??
+                            "",
+
+                        "Disco total GB":
+                            item.hardware
+                                .diskTotalGb ??
+                            "",
+
+                        "Disco libre GB":
+                            item.hardware
+                                .diskFreeGb ??
+                            "",
+
+                        "Estado agente":
+                            getAgentStateLabel(
+                                item.agente.estado
+                            ),
+
+                        "Versión agente":
+                            item.agente
+                                .version ??
+                            "",
+
+                        "Versión recomendada":
+                            item.agente
+                                .versionRecomendada ??
+                            "",
+
+                        "Versión desactualizada":
+                            item.agente
+                                .versionDesactualizada
+                                ? "Sí"
+                                : "No",
+
+                        "Última conexión":
+                            formatDateTimeCL(
+                                item.agente
+                                    .ultimaConexion
+                            ),
+
+                        "Último arranque":
+                            formatDateTimeCL(
+                                item.agente
+                                    .ultimoArranque
+                            ),
+
+                        "Análisis del mes":
+                            item.analisisMes
+                                .cantidad,
+
+                        "Días analizados":
+                            item.analisisMes
+                                .diasAnalizados,
+
+                        "Analizado este mes":
+                            item.analisisMes
+                                .analizado
+                                ? "Sí"
+                                : "No",
+
+                        "Último análisis":
+                            formatDateTimeCL(
+                                item.analisisMes
+                                    .ultimoAnalisis
+                            ),
+
+                        "Estado OneDrive":
+                            getOneDriveStateLabel(
+                                item.oneDrive.estado
+                            ),
+
+                        "OneDrive instalado":
+                            item.oneDrive
+                                .instalado === null
+                                ? "Sin información"
+                                : item.oneDrive
+                                    .instalado
+                                    ? "Sí"
+                                    : "No",
+
+                        "OneDrive en ejecución":
+                            item.oneDrive
+                                .enEjecucion === null
+                                ? "Sin información"
+                                : item.oneDrive
+                                    .enEjecucion
+                                    ? "Sí"
+                                    : "No",
+
+                        "OneDrive operativo":
+                            item.oneDrive
+                                .operativo === null
+                                ? "Sin información"
+                                : item.oneDrive
+                                    .operativo
+                                    ? "Sí"
+                                    : "No",
+
+                        "Usuario OneDrive":
+                            item.oneDrive
+                                .usuario ??
+                            "",
+
+                        "Versión OneDrive":
+                            item.oneDrive
+                                .version ??
+                            "",
+
+                        "Salud mensual OneDrive":
+                            getOneDriveHealthLabel(
+                                item.oneDrive
+                                    .saludMes
+                                    .estado
+                            ),
+
+                        "Operatividad OneDrive":
+                            item.oneDrive
+                                .saludMes
+                                .estado ===
+                                "SIN_DATOS"
+                                ? "Sin datos"
+                                : item.oneDrive
+                                    .saludMes
+                                    .estado ===
+                                    "NO_INSTALADO"
+                                    ? "No instalado"
+                                    : `${item.oneDrive.saludMes.porcentajeOperativo}%`,
+
+                        "Análisis OneDrive con datos":
+                            item.oneDrive
+                                .saludMes
+                                .totalAnalisisConDatos,
+
+                        "Análisis OneDrive correctos":
+                            item.oneDrive
+                                .saludMes
+                                .analisisOperativos,
+
+                        "Análisis OneDrive con falla":
+                            item.oneDrive
+                                .saludMes
+                                .analisisConFalla,
+
+                        Antivirus:
+                            item.seguridad
+                                .antivirusNombre ??
+                            "",
+
+                        "Antivirus activo":
+                            item.seguridad
+                                .antivirusActivo ===
+                                null
+                                ? "Sin información"
+                                : item.seguridad
+                                    .antivirusActivo
+                                    ? "Sí"
+                                    : "No",
+
+                        Firewall:
+                            item.seguridad
+                                .firewallActivo ===
+                                null
+                                ? "Sin información"
+                                : item.seguridad
+                                    .firewallActivo
+                                    ? "Sí"
+                                    : "No",
+
+                        BitLocker:
+                            item.seguridad
+                                .cifradoEstado ??
+                            "",
+
+                        "Windows Update":
+                            item.seguridad
+                                .windowsUpdate ??
+                            "",
+
+                        "Revisión solicitante":
+                            item.clasificacion
+                                .requiereRevision
+                                ? "Sí"
+                                : "No",
+
+                        "Motivo revisión":
+                            item.clasificacion
+                                .motivo ??
+                            "",
+
+                        Alertas:
+                            item.alertas.length,
+
+                        "Detalle alertas":
+                            item.alertas.join(
+                                " | "
+                            ),
+                    })
+                );
+
+            /* =====================================================
+               RESUMEN
+            ===================================================== */
+
+            const resumen =
+                data.resumen;
+
+            const rowsResumen = [
+                {
+                    Indicador:
+                        "Equipos administrados",
+
+                    Valor:
+                        resumen.totalEquipos,
+                },
+
+                {
+                    Indicador:
+                        "Equipos analizados",
+
+                    Valor:
+                        resumen.equiposAnalizados,
+                },
+
+                {
+                    Indicador:
+                        "Equipos no analizados",
+
+                    Valor:
+                        resumen.equiposNoAnalizados,
+                },
+
+                {
+                    Indicador:
+                        "Cobertura",
+
+                    Valor:
+                        `${resumen.porcentajeAnalizados}%`,
+                },
+
+                {
+                    Indicador:
+                        "Total análisis",
+
+                    Valor:
+                        resumen.totalAnalisis,
+                },
+
+                {
+                    Indicador:
+                        "Agentes activos",
+
+                    Valor:
+                        resumen.agentesActivos,
+                },
+
+                {
+                    Indicador:
+                        "Agentes sin conexión",
+
+                    Valor:
+                        resumen.agentesSinConexion,
+                },
+
+                {
+                    Indicador:
+                        "Equipos sin agente",
+
+                    Valor:
+                        resumen.equiposSinAgente,
+                },
+
+                {
+                    Indicador:
+                        "Agentes desactualizados",
+
+                    Valor:
+                        resumen.agentesDesactualizados,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive operativo",
+
+                    Valor:
+                        resumen.oneDriveOperativo,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive no instalado",
+
+                    Valor:
+                        resumen.oneDriveNoInstalado,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive con advertencias",
+
+                    Valor:
+                        resumen.oneDriveConAdvertencias,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive sin información",
+
+                    Valor:
+                        resumen.oneDriveSinInformacion,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive estable durante el mes",
+
+                    Valor:
+                        resumen.oneDriveEstableMes,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive intermitente",
+
+                    Valor:
+                        resumen.oneDriveIntermitenteMes,
+                },
+
+                {
+                    Indicador:
+                        "OneDrive con fallas",
+
+                    Valor:
+                        resumen.oneDriveConFallasMes,
+                },
+            ];
+
+            /* =====================================================
+               COBERTURA POR EMPRESA
+            ===================================================== */
+
+            const rowsEmpresas =
+                data.graficos
+                    .coberturaPorEmpresa
+                    .map(
+                        (empresa) => ({
+                            Empresa:
+                                empresa.nombre,
+
+                            "Total equipos":
+                                empresa.total,
+
+                            Revisados:
+                                empresa.revisados,
+
+                            Pendientes:
+                                empresa.pendientes,
+
+                            "Total análisis":
+                                empresa.analisis,
+
+                            Cobertura:
+                                `${empresa.porcentaje}%`,
+                        })
+                    );
+
+            /* =====================================================
+               CREAR LIBRO
+            ===================================================== */
+
+            const workbook =
+                XLSX.utils.book_new();
+
+            const wsEquipos =
+                XLSX.utils.json_to_sheet(
+                    rowsEquipos
+                );
+
+            const wsResumen =
+                XLSX.utils.json_to_sheet(
+                    rowsResumen
+                );
+
+            const wsEmpresas =
+                XLSX.utils.json_to_sheet(
+                    rowsEmpresas
+                );
+
+            /* =====================================================
+               ANCHOS
+            ===================================================== */
+
+            wsEquipos["!cols"] = [
+                { wch: 10 },
+                { wch: 28 },
+                { wch: 26 },
+                { wch: 32 },
+                { wch: 20 },
+                { wch: 16 },
+                { wch: 22 },
+                { wch: 22 },
+                { wch: 26 },
+                { wch: 28 },
+                { wch: 12 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 20 },
+                { wch: 20 },
+                { wch: 22 },
+                { wch: 22 },
+            ];
+
+            wsResumen["!cols"] = [
+                { wch: 38 },
+                { wch: 18 },
+            ];
+
+            wsEmpresas["!cols"] = [
+                { wch: 32 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 16 },
+            ];
+
+            /* =====================================================
+               AUTOFILTER
+            ===================================================== */
+
+            if (
+                wsEquipos["!ref"]
+            ) {
+                wsEquipos["!autofilter"] = {
+                    ref:
+                        wsEquipos["!ref"],
+                };
+            }
+
+            if (
+                wsEmpresas["!ref"]
+            ) {
+                wsEmpresas["!autofilter"] = {
+                    ref:
+                        wsEmpresas["!ref"],
+                };
+            }
+
+            /* =====================================================
+               ESTILO DE ENCABEZADOS
+            ===================================================== */
+
+            const aplicarEstiloEncabezado =
+                (
+                    worksheet:
+                        XLSX.WorkSheet
+                ) => {
+                    if (
+                        !worksheet["!ref"]
+                    ) {
+                        return;
+                    }
+
+                    const range =
+                        XLSX.utils.decode_range(
+                            worksheet["!ref"]
+                        );
+
+                    for (
+                        let col =
+                            range.s.c;
+                        col <=
+                        range.e.c;
+                        col++
+                    ) {
+                        const address =
+                            XLSX.utils.encode_cell({
+                                r:
+                                    0,
+
+                                c:
+                                    col,
+                            });
+
+                        if (
+                            !worksheet[
+                            address
+                            ]
+                        ) {
+                            continue;
+                        }
+
+                        worksheet[
+                            address
+                        ].s = {
+                            font: {
+                                bold:
+                                    true,
+
+                                color: {
+                                    rgb:
+                                        "FFFFFF",
+                                },
+                            },
+
+                            fill: {
+                                fgColor: {
+                                    rgb:
+                                        "0891B2",
+                                },
+                            },
+
+                            alignment: {
+                                vertical:
+                                    "center",
+
+                                horizontal:
+                                    "center",
+                            },
+                        };
+                    }
+                };
+
+            aplicarEstiloEncabezado(
+                wsEquipos
+            );
+
+            aplicarEstiloEncabezado(
+                wsResumen
+            );
+
+            aplicarEstiloEncabezado(
+                wsEmpresas
+            );
+
+            /* =====================================================
+               HOJAS
+            ===================================================== */
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                wsResumen,
+                "Resumen"
+            );
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                wsEquipos,
+                "Equipos"
+            );
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                wsEmpresas,
+                "Cobertura empresas"
+            );
+
+            /* =====================================================
+               DESCARGAR
+            ===================================================== */
+
+            const empresaSeleccionada =
+                empresaOptions.find(
+                    (
+                        empresa
+                    ) =>
+                        empresa.id ===
+                        empresaId
+                );
+
+            const empresaSegura =
+                empresaSeleccionada
+                    ?.nombre
+                    ?.trim()
+                    .replace(
+                        /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,
+                        "_"
+                    ) ??
+                "TODAS";
+
+            const monthText =
+                String(
+                    month
+                ).padStart(
+                    2,
+                    "0"
+                );
+
+            const fileName =
+                `Dashboard_Agentes_${empresaSegura}_${year}-${monthText}.xlsx`;
+
+            XLSX.writeFile(
+                workbook,
+                fileName
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error exportando dashboard:",
+                error
+            );
+        } finally {
+            setExporting(false);
+        }
+    }
+
     /*
  * La paginación se realiza localmente porque el backend
  * ya devuelve los equipos filtrados del dashboard.
@@ -1735,6 +2414,28 @@ export default function DashboardAgentesPage() {
                                         className="sm:!w-auto"
                                     >
                                         Recargar
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        icon={
+                                            <DownloadOutlined />
+                                        }
+                                        loading={
+                                            exporting
+                                        }
+                                        disabled={
+                                            loading ||
+                                            !data ||
+                                            data.items.length ===
+                                            0
+                                        }
+                                        onClick={() =>
+                                            void exportDashboardToExcel()
+                                        }
+                                        block
+                                        className="sm:!w-auto"
+                                    >
+                                        Exportar
                                     </Button>
                                 </div>
                             </div>

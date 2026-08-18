@@ -246,8 +246,12 @@ export default function MantencionesRemotasPage() {
   const [tecnicoId, setTecnicoId] = useState<IdOrEmpty>("");
   const [empresaId, setEmpresaId] = useState<IdOrEmpty>("");
   const [status, setStatus] = useState<MantencionStatus | "">("");
-  const [month, setMonth] = useState<IdOrEmpty>("");
-  const [year, setYear] = useState<IdOrEmpty>("");
+  const [fromDate, setFromDate] =
+    useState("");
+
+  const [toDate, setToDate] =
+    useState("");
+
   const [q, setQ] = useState("");
 
   const [state, setState] = useState<LoadState>("idle");
@@ -288,20 +292,38 @@ export default function MantencionesRemotasPage() {
     setState("loading");
     setErr(null);
     try {
-      const resp = await listMantencionesRemotas({
-        page,
-        pageSize,
-        tecnicoId: tecnicoId === "" ? undefined : tecnicoId,
-        status: status === "" ? undefined : status,
-        empresaId: isCliente
-          ? undefined
-          : empresaId === ""
-            ? undefined
-            : empresaId,
-        month: month === "" ? undefined : month,
-        year: year === "" ? undefined : year,
-        q,
-      });
+      const resp =
+        await listMantencionesRemotas({
+          page,
+          pageSize,
+
+          tecnicoId:
+            tecnicoId === ""
+              ? undefined
+              : tecnicoId,
+
+          status:
+            status === ""
+              ? undefined
+              : status,
+
+          empresaId:
+            isCliente
+              ? undefined
+              : empresaId === ""
+                ? undefined
+                : empresaId,
+
+          fromDate:
+            fromDate ||
+            undefined,
+
+          toDate:
+            toDate ||
+            undefined,
+
+          q,
+        });
       setItems(resp.items ?? []);
       setTotal(resp.total ?? 0);
       setState("idle");
@@ -314,7 +336,16 @@ export default function MantencionesRemotasPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, tecnicoId, empresaId, status, month, year, q]);
+  }, [
+    page,
+    pageSize,
+    tecnicoId,
+    empresaId,
+    status,
+    fromDate,
+    toDate,
+    q,
+  ]);
 
   function resetUpsertState() {
     setForm(defaultForm());
@@ -333,8 +364,10 @@ export default function MantencionesRemotasPage() {
     setTecnicoId("");
     setEmpresaId("");
     setStatus("");
-    setMonth("");
-    setYear("");
+
+    setFromDate("");
+    setToDate("");
+
     setPage(1);
   }
 
@@ -628,10 +661,11 @@ export default function MantencionesRemotasPage() {
           setEmpresaId={setEmpresaId}
           status={status}
           setStatus={setStatus}
-          month={month}
-          setMonth={setMonth}
-          year={year}
-          setYear={setYear}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+
+          toDate={toDate}
+          setToDate={setToDate}
           filters={filters}
           isCliente={isCliente}
           STATUS={STATUS}
@@ -641,6 +675,9 @@ export default function MantencionesRemotasPage() {
           onReload={() => void load()}
           onOpenCreate={openCreate}
           setPage={setPage}
+
+          total={total}
+          state={state}
         />
       )}
 

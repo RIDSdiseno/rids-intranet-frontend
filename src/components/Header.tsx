@@ -34,7 +34,8 @@ import {
   Funnel,
   Cog,
   Star,
-  MonitorSpeaker
+  MonitorSpeaker,
+  Contact
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -211,10 +212,16 @@ const NAV: NavEntry[] = [
         icon: <Cog size={20} />,
         match: [
           TECNICOS_PATH,
+          CLIENTES_EXT_PATH,
           BITACORA_TECNICO_PATH,
           MAPA_TECNICOS_PATH,
         ],
         children: [
+          {
+            label: "Clientes externos",
+            to: CLIENTES_EXT_PATH,
+            icon: <Contact size={18} />,
+          },
           {
             label: "Listado Técnicos",
             to: TECNICOS_PATH,
@@ -256,7 +263,7 @@ const NAV: NavEntry[] = [
       },
       { label: "PickUP", to: ENTREGAS_PATH, icon: <Package size={20} /> },
     ],
-    match: [TECNICOS_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH, ENTREGAS_PATH],
+    match: [TECNICOS_PATH, CLIENTES_EXT_PATH, CALENDARIO_PATH, VISITAS_PATH, BITACORA_TECNICO_PATH, MAPA_TECNICOS_PATH, ENTREGAS_PATH],
   },
   {
     type: "group",

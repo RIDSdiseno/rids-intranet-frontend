@@ -222,7 +222,7 @@ export function CrearTicketDrawer({
                             type="file"
                             multiple
                             hidden
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.txt,.jpg,.jpeg,.png,.webp,.gif,.zip,.mp4"
                             onChange={(e) => {
                                 const selectedFiles = e.target.files;
                                 if (!selectedFiles?.length) return;

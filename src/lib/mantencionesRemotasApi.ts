@@ -45,14 +45,24 @@ export type FiltersResp = {
   empresas: Array<{ id: number; nombre: string }>;
 };
 
-export type ListMantencionesParams = {
+ export type ListMantencionesParams = {
   page?: number;
   pageSize?: number;
+
   tecnicoId?: number;
   empresaId?: number;
+
   status?: MantencionStatus;
-  month?: number;
-  year?: number;
+
+  /*
+   * Nuevo filtro por rango de fechas.
+   * ISO string, por ejemplo:
+   * 2026-06-01T04:00:00.000Z
+   */
+  fromDate?: string;
+
+  toDate?: string;
+
   q?: string;
 };
 

@@ -843,6 +843,155 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
     }
   }
 
+  async function exportMantencionesToExcel() {
+    try {
+      setExportError(null);
+      setExporting(true);
+
+      const res =
+        await http.get(
+          "/equipos/equipos-mantencion/export",
+          {
+            params: {
+              search:
+                qDebounced ||
+                undefined,
+
+              empresaId:
+                empresaFilterId ||
+                undefined,
+
+              mantencionDesde:
+                mantencionDesde ||
+                undefined,
+
+              mantencionHasta:
+                mantencionHasta ||
+                undefined,
+
+              mantGeneral:
+                mantGeneralFilter !==
+                  "TODOS"
+                  ? mantGeneralFilter
+                  : undefined,
+
+              mantGeneralDesde:
+                mantGeneralDesde ||
+                undefined,
+
+              mantGeneralHasta:
+                mantGeneralHasta ||
+                undefined,
+            },
+
+            responseType:
+              "blob",
+          }
+        );
+
+      const blob =
+        res.data as Blob;
+
+      const url =
+        window.URL.createObjectURL(
+          blob
+        );
+
+      const empresaSegura =
+        empresaFilterName
+          ? empresaFilterName
+            .trim()
+            .replace(
+              /[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,
+              "_"
+            )
+          : "TODAS";
+
+      const fecha =
+        dayjs().format(
+          "YYYY-MM-DD"
+        );
+
+      const fileName =
+        `Mantenciones_Generales_${empresaSegura}_${fecha}.xlsx`;
+
+      const anchor =
+        document.createElement(
+          "a"
+        );
+
+      anchor.href =
+        url;
+
+      anchor.download =
+        fileName;
+
+      document.body.appendChild(
+        anchor
+      );
+
+      anchor.click();
+
+      anchor.remove();
+
+      window.URL.revokeObjectURL(
+        url
+      );
+    } catch (err: any) {
+      let errorMessage =
+        "Error al exportar mantenciones";
+
+      const responseBlob =
+        err?.response?.data;
+
+      if (
+        responseBlob instanceof
+        Blob
+      ) {
+        try {
+          const text =
+            await responseBlob.text();
+
+          const parsed =
+            JSON.parse(
+              text
+            );
+
+          if (
+            typeof parsed?.error ===
+            "string"
+          ) {
+            errorMessage =
+              parsed.error;
+          }
+        } catch {
+          // mantener mensaje genérico
+        }
+      } else if (
+        typeof err?.response
+          ?.data?.error ===
+        "string"
+      ) {
+        errorMessage =
+          err.response.data.error;
+      } else if (
+        err instanceof Error &&
+        err.message
+      ) {
+        errorMessage =
+          err.message;
+      }
+
+      setExportError(
+        errorMessage
+      );
+    } finally {
+      setExporting(
+        false
+      );
+    }
+  }
+
   /* =================== Effects =================== */
 
   useEffect(() => {
@@ -1132,7 +1281,7 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                   className={clsx(
                     "grid gap-2 justify-end",
                     isMantencionesPage
-                      ? "grid-cols-1 sm:grid-cols-2"
+                      ? "grid-cols-1 sm:grid-cols-3"
                       : "grid-cols-2 sm:grid-cols-4"
                   )}
                 >
@@ -1172,23 +1321,47 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                     <span className="hidden sm:inline">Recargar</span>
                   </button>
 
-                  {!isMantencionesPage && (
-                    <button
-                      onClick={() => void exportToExcel()}
-                      disabled={exporting || loading || (data?.total ?? 0) === 0}
-                      className={clsx(
-                        "col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
-                        "bg-gradient-to-tr from-emerald-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)] hover:brightness-110",
-                        (exporting || loading || (data?.total ?? 0) === 0) &&
-                        "opacity-60 cursor-not-allowed"
-                      )}
-                      title="Exportar a Excel"
-                      type="button"
-                    >
-                      <DownloadOutlined />
-                      {exporting ? "Exportando…" : "Exportar"}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      if (
+                        isMantencionesPage
+                      ) {
+                        void exportMantencionesToExcel();
+                        return;
+                      }
+
+                      void exportToExcel();
+                    }}
+                    disabled={
+                      exporting ||
+                      loading ||
+                      (data?.total ?? 0) === 0
+                    }
+                    className={clsx(
+                      "col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium text-white",
+                      "bg-gradient-to-tr from-emerald-600 to-cyan-600 shadow-[0_6px_18px_-6px_rgba(16,185,129,0.45)] hover:brightness-110",
+
+                      (
+                        exporting ||
+                        loading ||
+                        (data?.total ?? 0) ===
+                        0
+                      ) &&
+                      "opacity-60 cursor-not-allowed"
+                    )}
+                    title={
+                      isMantencionesPage
+                        ? "Exportar mantenciones a Excel"
+                        : "Exportar inventario a Excel"
+                    }
+                    type="button"
+                  >
+                    <DownloadOutlined />
+
+                    {exporting
+                      ? "Exportando…"
+                      : "Exportar"}
+                  </button>
                 </div>
               </div>
 

@@ -232,7 +232,7 @@ function prepararAudioNotificaciones() {
     try {
         if (!audioNotificacionGlobal) {
             audioNotificacionGlobal = new Audio(
-                "/sounds/ticket_alert.mp3"
+                "/sounds/ticket_alert2.mp3"
             );
 
             /*
@@ -240,7 +240,7 @@ function prepararAudioNotificaciones() {
              * 0.0 = silencio
              * 1.0 = volumen completo
              */
-            audioNotificacionGlobal.volume = 0.45;
+            audioNotificacionGlobal.volume = 0.70;
 
             /*
              * Precarga el archivo para que suene más rápido
@@ -335,14 +335,28 @@ export default function RecordatoriosBell() {
     const notificadosEnSesion =
         useRef<Set<number>>(new Set());
 
+    const cargandoRecordatoriosRef =
+        useRef(false);
+
     /* =====================================================
        CARGAR RECORDATORIOS
     ===================================================== */
 
     const cargarRecordatorios =
         useCallback(async () => {
+            if (
+                cargandoRecordatoriosRef.current
+            ) {
+                return;
+            }
+
             try {
-                setLoading(true);
+                cargandoRecordatoriosRef.current =
+                    true;
+
+                setLoading(
+                    true
+                );
 
                 const response =
                     await api.get<RecordatoriosResponse>(
@@ -356,7 +370,9 @@ export default function RecordatoriosBell() {
                         ? response.data.data
                         : [];
 
-                setRecordatorios(lista);
+                setRecordatorios(
+                    lista
+                );
 
                 setPendientesNoLeidos(
                     Number(
@@ -366,38 +382,27 @@ export default function RecordatoriosBell() {
                     )
                 );
 
-                /*
-                 * Generar notificación solamente si:
-                 * - sigue pendiente;
-                 * - no está leído;
-                 * - ya llegó la fecha;
-                 * - no fue notificado antes en esta sesión.
-                 */
                 lista.forEach(
-                    (recordatorio) => {
+                    (
+                        recordatorio
+                    ) => {
                         const debeNotificar =
-                            recordatorio.estado === "PENDIENTE" &&
+                            recordatorio.estado ===
+                            "PENDIENTE" &&
                             !recordatorio.leidoAt &&
-                            recordatorioCuentaEnBadge(recordatorio) &&
+                            recordatorioCuentaEnBadge(
+                                recordatorio
+                            ) &&
                             !notificadosEnSesion.current.has(
                                 recordatorio.id
                             );
 
-                        /*
-                         * Si el recordatorio debe notificarse,
-                         * mostramos la notificación del navegador
-                         * y lo marcamos como notificado en esta sesión.
-                         */
-                        if (debeNotificar) {
-                            /*
-                             * Si el recordatorio viene de tickets,
-                             * emitimos sonido solo cuando fue detectado por polling.
-                             *
-                             * Si llegó por socket, el sonido ya se reproduce
-                             * en onTicketCreated o onCustomerReplied.
-                             */
+                        if (
+                            debeNotificar
+                        ) {
                             if (
-                                recordatorio.origen === "TICKET" &&
+                                recordatorio.origen ===
+                                "TICKET" &&
                                 !socket.connected
                             ) {
                                 reproducirSonidoRecordatorioTicket();
@@ -413,13 +418,20 @@ export default function RecordatoriosBell() {
                         }
                     }
                 );
-            } catch (error) {
+            } catch (
+            error
+            ) {
                 console.error(
                     "Error cargando recordatorios:",
                     error
                 );
             } finally {
-                setLoading(false);
+                cargandoRecordatoriosRef.current =
+                    false;
+
+                setLoading(
+                    false
+                );
             }
         }, []);
 
