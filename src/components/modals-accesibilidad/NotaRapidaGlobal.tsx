@@ -494,6 +494,7 @@ export default function NotaRapidaGlobal() {
                 width={620}
                 centered
                 destroyOnClose
+                rootClassName="nota-rapida-modal"
                 maskClosable={!saving}
                 closable={!saving}
                 styles={{

@@ -1333,8 +1333,14 @@ const Header = () => {
                     className={`
               flex w-full items-center justify-between gap-3 rounded-xl
               px-3 py-2 text-left transition-colors
-              ${groupActive
-                        ? "bg-cyan-50/70 text-cyan-700"
+             ${groupActive
+                        ? `
+      bg-cyan-100/80
+      text-cyan-900
+      font-bold
+      ring-1 ring-inset ring-cyan-300
+      shadow-sm
+    `
                         : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                       }
             `}

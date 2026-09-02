@@ -2405,6 +2405,7 @@ export default function BitacoraTecnicoPage() {
                     onCancel={cerrarModalNotaRapida}
                     footer={null}
                     width={620}
+                    rootClassName="nota-rapida-modal"
                     centered
                     destroyOnClose
                     maskClosable={!savingNotaRapida}

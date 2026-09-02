@@ -3879,3 +3879,64 @@ html.a11y-theme-dark .visitas-page .ant-space .ant-btn-default:hover {
   word-break: break-word;
   line-height: 1.3;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NOTA RÁPIDA — BOTONES DE HORAS EN DARK MODE
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark .nota-rapida-modal .ant-btn[class*="bg-amber-50"] {
+  background: #3b2108 !important;
+  border: 1px solid #a16207 !important;
+  color: #0c0c0c !important;
+
+  font-weight: 700 !important;
+  opacity: 1 !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* El texto está realmente dentro de un span de Ant Design */
+html.a11y-theme-dark .nota-rapida-modal .ant-btn[class*="bg-amber-50"] span {
+  color: #5c452f !important;
+  opacity: 1 !important;
+}
+
+/* Hover */
+html.a11y-theme-dark .nota-rapida-modal .ant-btn[class*="bg-amber-50"]:hover {
+  background: #57300a !important;
+  border-color: #f59e0b !important;
+  color: #fde68a !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 191, 36, 0.12),
+    0 2px 5px rgba(0, 0, 0, 0.3) !important;
+}
+
+html.a11y-theme-dark .nota-rapida-modal .ant-btn[class*="bg-amber-50"]:hover span {
+  color: #fde68a !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SIDEBAR — GRUPO ACTIVO
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html.a11y-theme-dark aside button.bg-cyan-100\/80 {
+  background-color: rgba(8, 145, 178, 0.18) !important;
+  color: #05eaff !important;
+  border-color: #345660 !important;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(68, 169, 185, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.18) !important;
+}
+
+html.a11y-theme-dark aside button.bg-cyan-100\/80 span {
+  color: #cffafe !important;
+}
+
+html.a11y-theme-dark aside button.bg-cyan-100\/80 svg {
+  color: #67e8f9 !important;
+  stroke-width: 2.2;
+}

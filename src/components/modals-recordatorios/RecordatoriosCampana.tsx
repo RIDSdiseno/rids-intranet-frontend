@@ -232,7 +232,7 @@ function prepararAudioNotificaciones() {
     try {
         if (!audioNotificacionGlobal) {
             audioNotificacionGlobal = new Audio(
-                "/sounds/ticket_alert2.mp3"
+                "/sounds/ticket_alert3.mp3"
             );
 
             /*
