@@ -53,7 +53,7 @@ function getEstadoRcv(doc: any, mode: "rcv" | "cobranza" = "rcv") {
             const d = s ? new Date(s.indexOf('T') === -1 && /\d{4}-\d{2}-\d{2}/.test(s) ? s + 'T00:00:00' : s) : null;
             if (d && !isNaN(d.getTime())) {
                 const today = new Date();
-                today.setHours(0,0,0,0);
+                today.setHours(0, 0, 0, 0);
                 if (d < today) return 'VENCIDA';
                 return 'PENDIENTE';
             }
@@ -327,23 +327,53 @@ const DocumentosRcvTable: React.FC<Props> = ({
             </div>
 
             {/* Desktop table */}
-            {/* Desktop table */}
             <div className="hidden overflow-hidden md:block">
-                <table className="w-full table-fixed text-left text-xs">
+                <table className="w-full table-auto text-left text-xs">
                     <thead className="border-y border-cyan-100 bg-cyan-50/70 text-[10px] uppercase tracking-wide text-slate-500">
                         <tr>
-                            <th className="w-[7%] px-4 py-3">Tipo</th>
-                            <th className="w-[24%] px-4 py-3">
-                                {activeTab === "ventas" ? "Cliente" : "Proveedor"}
+                            <th className="min-w-[65px] px-3 py-3">
+                                Tipo
                             </th>
-                            <th className="w-[12%] px-4 py-3">RUT</th>
-                            <th className="w-[9%] px-4 py-3">Folio</th>
-                            <th className="w-[10%] px-4 py-3">Fecha</th>
-                            <th className="w-[14%] px-4 py-3">Estado</th>
-                            <th className="w-[8%] px-4 py-3 text-right">Neto</th>
-                            <th className="w-[8%] px-4 py-3 text-right">IVA</th>
-                            <th className="w-[8%] px-4 py-3 text-right">Total</th>
-                            {renderRowActions && <th className="w-[10%] px-4 py-3 text-center">Acciones</th>}
+
+                            <th className="min-w-[210px] px-3 py-3">
+                                {activeTab === "ventas"
+                                    ? "Cliente"
+                                    : "Proveedor"}
+                            </th>
+
+                            <th className="min-w-[110px] px-3 py-3">
+                                RUT
+                            </th>
+
+                            <th className="min-w-[75px] px-3 py-3">
+                                Folio
+                            </th>
+
+                            <th className="min-w-[95px] px-3 py-3">
+                                Fecha
+                            </th>
+
+                            <th className="min-w-[120px] px-3 py-3">
+                                Estado
+                            </th>
+
+                            <th className="min-w-[110px] px-3 py-3 text-right">
+                                Neto
+                            </th>
+
+                            <th className="min-w-[100px] px-3 py-3 text-right">
+                                IVA
+                            </th>
+
+                            <th className="min-w-[115px] px-3 py-3 text-right">
+                                Total
+                            </th>
+
+                            {renderRowActions && (
+                                <th className="min-w-[100px] px-3 py-3 text-center">
+                                    Acciones
+                                </th>
+                            )}
                         </tr>
                     </thead>
 
@@ -431,11 +461,17 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         <EstadoBadge estado={estado} />
                                     </td>
 
-                                    <td className="truncate px-4 py-3 text-right text-slate-600">
-                                        {formatCLP(getValue(doc, ["Monto Neto", "montoNeto"], 0))}
+                                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">
+                                        {formatCLP(
+                                            getValue(
+                                                doc,
+                                                ["Monto Neto", "montoNeto"],
+                                                0
+                                            )
+                                        )}
                                     </td>
 
-                                    <td className="truncate px-4 py-3 text-right text-slate-600">
+                                    <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">
                                         {formatCLP(
                                             getValue(
                                                 doc,
@@ -451,9 +487,13 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         )}
                                     </td>
 
-                                    <td className="truncate px-4 py-3 text-right font-bold text-slate-700">
+                                    <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-700">
                                         {formatCLP(
-                                            getValue(doc, ["Monto total", "Monto Total", "montoTotal"], 0)
+                                            getValue(
+                                                doc,
+                                                ["Monto total", "Monto Total", "montoTotal"],
+                                                0
+                                            )
                                         )}
                                     </td>
                                     {renderRowActions && (

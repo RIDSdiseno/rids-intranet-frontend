@@ -1,5 +1,7 @@
+// src/host/Cobranza.tsx
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import ReactDOM from "react-dom";
+import { api } from "../api/api";
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
 import DetalleBaseApiModal from "../components/modals-facturasBaseapi/DetalleBaseApiModal";
 import CobranzaDetalleModal from "../components/modals-cobranza/CobranzaDetalleModal";
@@ -20,7 +22,9 @@ import {
     imageUrlToBase64,
     escapeHtml,
 } from "../components/modals-facturasBaseapi/utils";
-import { generarPdfDocumentoSeleccionado } from "../components/modals-facturasBaseapi/pdfDocumento";
+import {
+    generarPdfDocumentoSeleccionado,
+} from "../components/modals-facturasBaseapi/pdfDocumento";
 import { Pagination } from "antd";
 import {
     FileTextOutlined,
@@ -34,7 +38,11 @@ import {
     CalendarOutlined,
 } from "@ant-design/icons";
 
-const BASE_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000/api";
+import type {
+    EmpresaKey,
+    TabRCV,
+} from "../components/modals-facturasBaseapi/types";
+
 
 export default function Cobranza() {
     const now = new Date();
@@ -43,8 +51,9 @@ export default function Cobranza() {
 
     const [mes, setMes] = useState(String(now.getMonth() + 1).padStart(2, "0"));
     const [ano, setAno] = useState(String(now.getFullYear()));
-    const [activeTab, setActiveTab] = useState<"ventas" | "compras">("ventas");
-    const [empresa, setEmpresa] = useState<string>("econnet");
+    const [activeTab, setActiveTab] = useState<TabRCV>("ventas");
+    const [empresa, setEmpresa] =
+        useState<EmpresaKey>("econnet");
 
     const [loading, setLoading] = useState(false);
     const [respuesta, setRespuesta] = useState<any | null>(null);
@@ -74,14 +83,6 @@ export default function Cobranza() {
     const [pageSize, setPageSize] = useState(50);
     const [downloadingFolio, setDownloadingFolio] = useState<string | null>(null);
 
-    const getAuthHeaders = () => {
-        const token = localStorage.getItem("accessToken") ?? "";
-        return {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-    };
-
     const fetchDatos = useCallback(async (forceRefresh = false) => {
         setLoading(true);
         setRespuesta(null);
@@ -92,11 +93,7 @@ export default function Cobranza() {
                 setActiveTab("ventas");
                 return;
             }
-            
-            
-            const params = new URLSearchParams({ mes, ano });
-            if (!isCliente) params.set("empresa", empresa);
-            if (forceRefresh) params.set("forceRefresh", "true");
+
 
             const cacheKey = `${activeTab}|${empresa}|${mes}|${ano}`;
 
@@ -122,23 +119,26 @@ export default function Cobranza() {
                 const mem = cacheRef.get(cacheKey);
                 if (mem) {
                     json = mem;
-                    try { console.log("Cobranza: using memory cache for:", cacheKey); } catch {}
+                    try { console.log("Cobranza: using memory cache for:", cacheKey); } catch { }
                 }
             }
 
             if (!json) {
                 const endpoint =
                     activeTab === "ventas"
-                        ? `${BASE_URL}/baseapi/rcv/ventas?${params.toString()}`
-                        : `${BASE_URL}/baseapi/rcv/compras?${params.toString()}`;
+                        ? "/baseapi/rcv/ventas"
+                        : "/baseapi/rcv/compras";
 
-                const res = await fetch(endpoint, { headers: getAuthHeaders() });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
-                }
+                const { data } = await api.get(endpoint, {
+                    params: {
+                        mes,
+                        ano,
+                        ...(!isCliente ? { empresa } : {}),
+                        ...(forceRefresh ? { forceRefresh: true } : {}),
+                    },
+                });
 
-                json = await res.json();
+                json = data;
                 setRespuesta(json);
 
                 // store in caches
@@ -263,7 +263,7 @@ export default function Cobranza() {
             // Construir lista de folios existentes y cuáles serán excluidos
             const existingFolios = rawDocs.map((d: any) => Number(String(getValue(d, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "") || 0)).filter((n: number) => Number.isFinite(n) && n > 0);
             const excludedList = Array.from(referencedByNC).filter((n) => existingFolios.includes(n));
-            try { console.log('Cobranza: folios referenciados por NC encontrados:', Array.from(referencedByNC).sort((a,b)=>a-b)); } catch { }
+            try { console.log('Cobranza: folios referenciados por NC encontrados:', Array.from(referencedByNC).sort((a, b) => a - b)); } catch { }
             setExcluidosPorNC(excludedList);
 
             const docs = rawDocs
@@ -298,7 +298,7 @@ export default function Cobranza() {
         fetchDatos();
     }, [fetchDatos]);
 
-    
+
 
     const documentosFiltrados = useMemo(() => {
         const q = String(busqueda ?? "").trim().toLowerCase();
@@ -345,7 +345,7 @@ export default function Cobranza() {
             const numRe = /([0-9]{1,3}(?:[\.,][0-9]{3})*(?:[\.,][0-9]{2})?)/g;
             let match; let max = 0;
             while ((match = numRe.exec(rawStr)) !== null) {
-                const cleaned = match[1].replace(/\./g,"").replace(/,/g,"");
+                const cleaned = match[1].replace(/\./g, "").replace(/,/g, "");
                 const n = Number(cleaned);
                 if (!Number.isNaN(n) && Number.isFinite(n) && n > max) max = n;
             }
@@ -373,7 +373,7 @@ export default function Cobranza() {
 
             // último recurso: sumar con heurística getNumericFromDoc
             const perDoc = documentosFiltrados.map((d) => ({ folio: getValue(d, ["Folio", "folio", "Nro", "numero"], "-"), value: getNumericFromDoc(d) }));
-            try { console.log('Cobranza: valores detectados por doc para totalImporte (heurística):', perDoc); } catch {}
+            try { console.log('Cobranza: valores detectados por doc para totalImporte (heurística):', perDoc); } catch { }
             return perDoc.reduce((s, it) => s + (Number(it.value) || 0), 0);
         } catch { return 0; }
     }, [documentosFiltrados, resumenPorTipo]);
@@ -386,8 +386,8 @@ export default function Cobranza() {
     }
 
     const pendienteCount = useMemo(() => documentos.filter(d => String(estadoFromDoc(d)).toUpperCase().includes("PENDIENTE")).length, [documentos]);
-    const vencidaCount = useMemo(() => documentos.filter(d => { const s=String(estadoFromDoc(d)).toUpperCase(); return s.includes("VENC") || s.includes("VENCIDA"); }).length, [documentos]);
-    const pagadaCount = useMemo(() => documentos.filter(d => { const s=String(estadoFromDoc(d)).toUpperCase(); return s.includes("CONFIRM") || s.includes("PAG") || s.includes("PAGADA") || s.includes("PAGADO"); }).length, [documentos]);
+    const vencidaCount = useMemo(() => documentos.filter(d => { const s = String(estadoFromDoc(d)).toUpperCase(); return s.includes("VENC") || s.includes("VENCIDA"); }).length, [documentos]);
+    const pagadaCount = useMemo(() => documentos.filter(d => { const s = String(estadoFromDoc(d)).toUpperCase(); return s.includes("CONFIRM") || s.includes("PAG") || s.includes("PAGADA") || s.includes("PAGADO"); }).length, [documentos]);
 
     const handleSeleccionarDocumento = (doc: any) => {
         // Abrir modal específico de Cobranza (vista rápida y flags NC/ND)
@@ -476,25 +476,24 @@ export default function Cobranza() {
                 getValue(doc, ["empresaOrigen", "empresa", "empresaKey"], empresa)
             ).toLowerCase();
 
-            const params = new URLSearchParams({ periodo: `${ano}-${mes}`, empresa: empresaDocumento, tipoDTE: String(tipoDTE), ...(forceRefresh ? { forceRefresh: "true" } : {}) });
+            const { data } = await api.get(`/baseapi/dte/folio/${folio}`, {
+                params: {
+                    periodo: `${ano}-${mes}`,
+                    empresa: empresaDocumento,
+                    tipoDTE: String(tipoDTE),
+                    ...(forceRefresh ? { forceRefresh: true } : {}),
+                },
+            });
 
-            const token = localStorage.getItem("accessToken") ?? "";
-            const headers: any = { "Content-Type": "application/json" };
-            if (token) headers.Authorization = `Bearer ${token}`;
+            setDetalleDte(data);
 
-            const res = await fetch(`${BASE_URL}/baseapi/dte/folio/${folio}?${params.toString()}`, { headers });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.error ?? err?.message ?? `Error ${res.status}`);
-            }
-
-            const json = await res.json();
-
-            setDetalleDte(json);
-
-            return json;
+            return data;
         } catch (error: any) {
-            const message = error?.message ?? "No se pudo consultar el DTE";
+            const message =
+                error?.response?.data?.error ??
+                error?.response?.data?.message ??
+                error?.message ??
+                "No se pudo consultar el DTE";
             setDetalleError(message);
             return null;
         } finally {
@@ -518,24 +517,12 @@ export default function Cobranza() {
             }
 
             const folio = String(getValue(doc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
-            const tipo = String(getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"], "33"));
             if (!folio) {
                 alert("No se pudo determinar el folio del documento");
                 return;
             }
 
             setDownloadingFolio(folio);
-
-            // Determinar clave de empresa usada por BaseAPI (como en facturasBaseapi)
-            const empresaDocumento = String(
-                getValue(doc, ["empresaOrigen", "empresa", "empresaKey"], empresa)
-            ).toLowerCase();
-
-            const params = new URLSearchParams({ periodo: `${ano}-${mes}`, empresa: empresaDocumento, tipoDTE: String(tipo) });
-
-            const token = localStorage.getItem("accessToken") ?? "";
-            const headers: any = { "Content-Type": "application/json" };
-            if (token) headers.Authorization = `Bearer ${token}`;
 
             // Reusar fetchDetalleDte para mantener consistencia y caché
             const detalle = await fetchDetalleDte(doc, false);
@@ -544,7 +531,7 @@ export default function Cobranza() {
             const pdfResult = await generarPdfDocumentoSeleccionado({
                 documento: doc,
                 detalleDte: detalle,
-                activeTab: activeTab === "ventas" ? "ventas" : "compras",
+                activeTab,
                 empresa,
                 mes,
                 ano,
@@ -594,7 +581,7 @@ export default function Cobranza() {
                                 if (newDate) {
                                     const nd = new Date(newDate + 'T00:00:00');
                                     const today = new Date();
-                                    today.setHours(0,0,0,0);
+                                    today.setHours(0, 0, 0, 0);
                                     if (!isNaN(nd.getTime()) && nd < today) status = "VENCIDA";
                                 }
 
@@ -615,26 +602,26 @@ export default function Cobranza() {
                 const folio = String(getValue(editDoc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
                 const empresaDocumento = String(getValue(editDoc, ["empresaOrigen", "empresa", "empresaKey"], empresa)).toLowerCase();
 
-                const res = await fetch(`${BASE_URL}/baseapi/rcv/vencimiento`, {
-                    method: 'PATCH',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ empresaKey: empresaDocumento, tipoDoc: String(tipo), folio, fechaVencimiento: newDate || null }),
+                await api.patch("/baseapi/rcv/vencimiento", {
+                    empresaKey: empresaDocumento,
+                    tipoDoc: String(tipo),
+                    folio,
+                    fechaVencimiento: newDate || null,
                 });
 
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    const msg = err?.error ?? err?.message ?? `Error ${res.status}`;
-                    alert('No se pudo persistir la fecha en el servidor: ' + String(msg));
-                    // refrescar datos desde API para sincronizar estado
-                    await fetchDatos(true);
-                } else {
-                    alert('Fecha de vencimiento guardada');
-                    // refrescar desde servidor para actualizar cache y mantener persistencia
-                    await fetchDatos(true);
-                }
-            } catch (e) {
-                console.error('Error persistiendo vencimiento en backend:', e);
-                alert('Error al persistir la fecha en el servidor');
+                alert('Fecha de vencimiento guardada');
+                // refrescar desde servidor para actualizar cache y mantener persistencia
+                await fetchDatos(true);
+            } catch (error: any) {
+                console.error('Error persistiendo vencimiento en backend:', error);
+
+                const message =
+                    error?.response?.data?.error ??
+                    error?.response?.data?.message ??
+                    error?.message ??
+                    'Error al persistir la fecha en el servidor';
+
+                alert(String(message));
                 await fetchDatos(true);
             }
 
@@ -649,7 +636,7 @@ export default function Cobranza() {
     };
 
     return (
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 p-6">
+        <div className="mx-auto flex w-full max-w-[1550px] flex-col gap-5 px-4 py-6 sm:px-6">
 
             {/* Header */}
             <div className="rounded-3xl border border-cyan-200 bg-white shadow-sm overflow-hidden">
@@ -688,80 +675,87 @@ export default function Cobranza() {
             </div>
 
             <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5 overflow-visible">
-                    <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <h2 className="text-sm font-bold text-slate-900">Filtros de consulta</h2>
-                            <p className="text-xs text-slate-500">Define el periodo, empresa y tipo de movimiento para Cobranza.</p>
-                        </div>
-
-                        <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{activeTab === 'ventas' ? 'Ventas' : 'Compras'} · {MESES[Number(mes) - 1]} {ano}</span>
+                <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900">Filtros de consulta</h2>
+                        <p className="text-xs text-slate-500">Define el periodo, empresa y tipo de movimiento para Cobranza.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {!isCliente && (
-                            <div>
-                                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Empresa</label>
+                    <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{activeTab === 'ventas' ? 'Ventas' : 'Compras'} · {MESES[Number(mes) - 1]} {ano}</span>
+                </div>
 
-                                <select
-                                    value={empresa}
-                                    onChange={(e) => setEmpresa(e.target.value)}
-                                    className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                                >
-                                    <option value="econnet">ECONNET</option>
-                                    <option value="rids">RIDS</option>
-                                </select>
-                            </div>
-                        )}
-
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {!isCliente && (
                         <div>
-                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Mes</label>
+                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Empresa</label>
 
                             <select
-                                value={mes}
-                                onChange={(e) => setMes(e.target.value)}
+                                value={empresa}
+                                onChange={(e) =>
+                                    setEmpresa(e.target.value as EmpresaKey)
+                                }
                                 className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                             >
-                                {MESES.map((nombre, index) => {
-                                    const value = String(index + 1).padStart(2, "0");
-                                    return (
-                                        <option key={value} value={value}>{nombre}</option>
-                                    );
-                                })}
+                                <option value="econnet">
+                                    ECONNET
+                                </option>
+
+                                <option value="rids">
+                                    RIDS
+                                </option>
                             </select>
                         </div>
+                    )}
 
-                        <div>
-                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Año</label>
+                    <div>
+                        <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Mes</label>
 
-                            <input
-                                value={ano}
-                                onChange={(e) => setAno(e.target.value)}
-                                className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                            />
-                        </div>
+                        <select
+                            value={mes}
+                            onChange={(e) => setMes(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                        >
+                            {MESES.map((nombre, index) => {
+                                const value = String(index + 1).padStart(2, "0");
+                                return (
+                                    <option key={value} value={value}>{nombre}</option>
+                                );
+                            })}
+                        </select>
+                    </div>
 
-                        <div className="flex items-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => fetchDatos(false)}
-                                disabled={loading}
-                                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {loading ? "Consultando..." : "Consultar"}
-                            </button>
+                    <div>
+                        <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Año</label>
 
-                            <button
-                                type="button"
-                                onClick={() => fetchDatos(true)}
-                                disabled={loading}
-                                title="Forzar actualización desde SII/BaseAPI"
-                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-600 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                ⟳
-                            </button>
-                        </div>
+                        <input
+                            value={ano}
+                            onChange={(e) => setAno(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                        />
+                    </div>
+
+                    <div className="flex items-end gap-2">
+                        <button
+                            type="button"
+                            onClick={() => fetchDatos(false)}
+                            disabled={loading}
+                            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {loading ? "Consultando..." : "Consultar"}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => fetchDatos(true)}
+                            disabled={loading}
+                            title="Forzar actualización desde SII/BaseAPI"
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-600 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            ⟳
+                        </button>
                     </div>
                 </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -824,7 +818,7 @@ export default function Cobranza() {
                 documentosFiltrados={paged}
                 documentosLength={documentos.length}
                 loading={loading}
-                activeTab={activeTab === "ventas" ? "ventas" : "compras"}
+                activeTab={activeTab}
                 busqueda={busqueda}
                 onBusquedaChange={(v) => { setBusqueda(v); setPage(1); }}
                 onSelectDocumento={handleSeleccionarDocumento}
@@ -859,7 +853,7 @@ export default function Cobranza() {
 
                         const close = () => setOpen(false);
 
-                        const initialFecha = String(getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], "")).slice(0,10);
+                        const initialFecha = String(getValue(doc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], "")).slice(0, 10);
 
                         // render menu as fixed portal so it escapes table clipping
                         const menu = open && anchor && typeof document !== 'undefined' ? ReactDOM.createPortal(
@@ -895,7 +889,7 @@ export default function Cobranza() {
                                         <div className="mt-2 w-48 rounded-lg border border-slate-200 bg-white shadow-lg" style={{ maxHeight: maxMenuH, overflow: 'auto' }}>
                                             <div className="flex flex-col p-2">
                                                 <button
-                                                    onClick={async (e) => { e.stopPropagation(); close(); const fol = String(getValue(doc, ["Folio","folio"], "")).replace(/[^0-9]/g,""); if (fol) { await handleDescargarFactura(doc); } else { alert('Folio no disponible'); } }}
+                                                    onClick={async (e) => { e.stopPropagation(); close(); const fol = String(getValue(doc, ["Folio", "folio"], "")).replace(/[^0-9]/g, ""); if (fol) { await handleDescargarFactura(doc); } else { alert('Folio no disponible'); } }}
                                                     className="w-full text-left rounded px-2 py-2 text-sm hover:bg-slate-100"
                                                 >
                                                     Descargar
@@ -944,7 +938,7 @@ export default function Cobranza() {
             />
 
             <div className="mt-4 flex justify-end">
-                <Pagination current={page} pageSize={pageSize} total={documentosFiltrados.length} onChange={(p, ps) => { setPage(p); setPageSize(ps); }} showSizeChanger pageSizeOptions={[10,20,50,100]} />
+                <Pagination current={page} pageSize={pageSize} total={documentosFiltrados.length} onChange={(p, ps) => { setPage(p); setPageSize(ps); }} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} />
             </div>
 
             {cobranzaModalOpen && cobranzaSelectedDoc && (
@@ -953,18 +947,18 @@ export default function Cobranza() {
 
                     // usar la empresa del documento seleccionado para filtrar
                     const ekThis = String(getValue(cobranzaSelectedDoc, ["empresaOrigen", "empresa", "empresaKey", "rutEmpresa"], "")).toLowerCase().trim();
-                    const rutThis = String(getValue(cobranzaSelectedDoc, ['RUT Receptor','rutReceptor','rutCliente','rutProveedor'], '')).replace(/[^0-9kK]/g,'').toLowerCase();
-                    const razonThis = String(getValue(cobranzaSelectedDoc, ['Razon Social','Razón Social','razonSocial','razonSocialReceptor','razonSocialProveedor'], '')).toLowerCase().trim();
+                    const rutThis = String(getValue(cobranzaSelectedDoc, ['RUT Receptor', 'rutReceptor', 'rutCliente', 'rutProveedor'], '')).replace(/[^0-9kK]/g, '').toLowerCase();
+                    const razonThis = String(getValue(cobranzaSelectedDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).toLowerCase().trim();
 
                     const filtered = (all || []).filter((d: any) => {
                         try {
                             const ek = String(getValue(d, ["empresaOrigen", "empresa", "empresaKey", "rutEmpresa"], "")).toLowerCase().trim();
                             if (ekThis && ek && ek === ekThis) return true;
 
-                            const rut = String(getValue(d, ['RUT Receptor','rutReceptor','rutCliente','rutProveedor'], '')).replace(/[^0-9kK]/g,'').toLowerCase();
+                            const rut = String(getValue(d, ['RUT Receptor', 'rutReceptor', 'rutCliente', 'rutProveedor'], '')).replace(/[^0-9kK]/g, '').toLowerCase();
                             if (rutThis && rut && rut === rutThis) return true;
 
-                            const razon = String(getValue(d, ['Razon Social','Razón Social','razonSocial','razonSocialReceptor','razonSocialProveedor'], '')).toLowerCase().trim();
+                            const razon = String(getValue(d, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).toLowerCase().trim();
                             if (razonThis && razon && (razon.includes(razonThis) || razonThis.includes(razon))) return true;
 
                             return false;
@@ -987,7 +981,7 @@ export default function Cobranza() {
             {clienteModalOpen && clienteModalSeedDoc && (
                 (() => {
                     const all = getDocumentos(respuesta) || documentos;
-                    const tipoRcv = activeTab === "ventas" ? "ventas" : "compras";
+                    const tipoRcv = activeTab;
                     const rutSeedRaw = String(getRutContraparte(clienteModalSeedDoc, tipoRcv));
                     const rutThis = rutSeedRaw.replace(/[^0-9kK]/g, '').toLowerCase();
                     const nombreThis = String(getValue(clienteModalSeedDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '—'));
@@ -1005,7 +999,7 @@ export default function Cobranza() {
                             nombre={nombreThis}
                             rut={rutSeedRaw}
                             empresa={empresa}
-                            activeTab={activeTab === "ventas" ? "ventas" : "compras"}
+                            activeTab={activeTab}
                             mes={mes}
                             ano={ano}
                             onClose={() => { setClienteModalOpen(false); setClienteModalSeedDoc(null); }}
@@ -1026,7 +1020,7 @@ export default function Cobranza() {
 
             <DetalleBaseApiModal
                 documento={documentoSeleccionado}
-                activeTab={activeTab === "ventas" ? "ventas" : "compras"}
+                activeTab={activeTab}
                 empresa={empresa}
                 mes={mes}
                 ano={ano}
@@ -1076,7 +1070,7 @@ export default function Cobranza() {
 
                         <div className="mt-4">
                             <div className="text-sm text-slate-600">Documento</div>
-                            <div className="mt-1 font-semibold">{String(getValue(editDoc, ["Razon Social","razonSocial","empresa"], "-"))} · Folio {String(getValue(editDoc, ["Folio","folio","Nro","numero"], "-"))}</div>
+                            <div className="mt-1 font-semibold">{String(getValue(editDoc, ["Razon Social", "razonSocial", "empresa"], "-"))} · Folio {String(getValue(editDoc, ["Folio", "folio", "Nro", "numero"], "-"))}</div>
                         </div>
 
                         <div className="mt-4">
@@ -1098,14 +1092,19 @@ export default function Cobranza() {
                     documentosAll={getDocumentos(respuesta) || documentos}
                     fetchAuditLogs={async (folio: string) => {
                         try {
-                            const token = localStorage.getItem('accessToken') ?? '';
-                            const headers: any = { 'Content-Type': 'application/json' };
-                            if (token) headers.Authorization = `Bearer ${token}`;
-                            const res = await fetch(`${BASE_URL}/audit?entity=Documento&entityId=${encodeURIComponent(folio)}&limit=200`, { headers });
-                            if (!res.ok) return [];
-                            const json = await res.json();
-                            return json?.data ?? [];
-                        } catch (e) { return []; }
+                            const { data } = await api.get("/audit", {
+                                params: {
+                                    entity: "Documento",
+                                    entityId: folio,
+                                    limit: 200,
+                                },
+                            });
+
+                            return data?.data ?? [];
+                        } catch (error) {
+                            console.error("Error cargando historial:", error);
+                            return [];
+                        }
                     }}
                 />
             )}
@@ -1136,7 +1135,26 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 // Componente interno para el contenido del modal, separado para mantener Cobranza claro
-function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empresa, mes, ano }: { reminderDoc: any; onClose: () => void; fetchDetalleDte: (doc:any, force?:boolean)=>Promise<any>; activeTab: any; empresa: any; mes:string; ano:string }) {
+function ReminderBody({
+    reminderDoc,
+    onClose,
+    fetchDetalleDte,
+    activeTab,
+    empresa,
+    mes,
+    ano,
+}: {
+    reminderDoc: any;
+    onClose: () => void;
+    fetchDetalleDte: (
+        doc: any,
+        force?: boolean
+    ) => Promise<any>;
+    activeTab: TabRCV;
+    empresa: EmpresaKey;
+    mes: string;
+    ano: string;
+}) {
     const [canal, setCanal] = React.useState<string>("email");
     const [tipo, setTipo] = React.useState<string>("");
     const [manualEmail, setManualEmail] = React.useState<string>("");
@@ -1156,7 +1174,7 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
         const nombreDoc = String(getNombreContraparte(reminderDoc) ?? "");
         if (nombreDoc && nombreDoc !== "Sin razón social") setManualNombre(nombreDoc);
 
-        const rutDoc = String(getRutContraparte(reminderDoc, activeTab === "ventas" ? "ventas" : "compras") ?? "");
+        const rutDoc = String(getRutContraparte(reminderDoc, activeTab) ?? "");
         if (!rutDoc || rutDoc === "Sin RUT") return;
 
         let mounted = true;
@@ -1226,33 +1244,34 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
 
             <div className="mt-4">
                 <label className="block text-xs font-medium text-slate-600 mb-2">Observación (se incluirá en el PDF)</label>
-                <textarea value={observacion} onChange={(e)=>setObservacion(e.target.value)} className="w-full rounded border border-slate-200 p-2 text-sm" rows={3} />
+                <textarea value={observacion} onChange={(e) => setObservacion(e.target.value)} className="w-full rounded border border-slate-200 p-2 text-sm" rows={3} />
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">
                 <button onClick={onClose} className="rounded border px-4 py-2 text-sm">Cerrar</button>
-                <button onClick={async ()=>{
+                <button onClick={async () => {
                     if (!emailValido || !canal || !tipo) return;
                     try {
-                            setGenerando(true);
-                            // obtener detalle DTE si es necesario
-                            const detalle = await fetchDetalleDte(reminderDoc, false);
+                        setGenerando(true);
+                        // obtener detalle DTE si es necesario
+                        const detalle = await fetchDetalleDte(reminderDoc, false);
 
-                            // Construir HTML de previsualización similar al Mailer
-                            const empresaKey = String(empresa || 'econnet').toLowerCase();
-                            const empresaPdf = EMPRESAS_PDF[empresaKey] ?? EMPRESAS_PDF['econnet'];
+                        // Construir HTML de previsualización similar al Mailer
+                        const empresaPdf =
+                            EMPRESAS_PDF[empresa] ??
+                            EMPRESAS_PDF.econnet;
 
-                            const folio = String(getValue(reminderDoc, ["Folio","folio","Nro","numero"], "—"));
-                            const fechaVenc = String(getValue(reminderDoc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], getValue(detalle, ["fechaVencimiento","FchVenc","vencimiento"], "—")));
-                            const total = formatCLP(getMontoTotalDoc(reminderDoc));
-                            const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
-                            const titulo = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
+                        const folio = String(getValue(reminderDoc, ["Folio", "folio", "Nro", "numero"], "—"));
+                        const fechaVenc = String(getValue(reminderDoc, ["FchVenc", "FchVencimiento", "fechaVencimiento", "vencimiento", "fecha_vencimiento", "Vencimiento"], getValue(detalle, ["fechaVencimiento", "FchVenc", "vencimiento"], "—")));
+                        const total = formatCLP(getMontoTotalDoc(reminderDoc));
+                        const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
+                        const titulo = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
 
-                            const saludo = manualNombre.trim() ? `Estimado(a) ${manualNombre.trim()}:` : 'Estimado(a):';
+                        const saludo = manualNombre.trim() ? `Estimado(a) ${manualNombre.trim()}:` : 'Estimado(a):';
 
-                            const logoBase64 = empresaPdf.logo ? await imageUrlToBase64(empresaPdf.logo) : '';
+                        const logoBase64 = empresaPdf.logo ? await imageUrlToBase64(empresaPdf.logo) : '';
 
-                            const html = `
+                        const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${escapeHtml(titulo)}</title></head>
@@ -1354,103 +1373,109 @@ function ReminderBody({ reminderDoc, onClose, fetchDetalleDte, activeTab, empres
 </html>
                             `;
 
-                            setPreviewHtml(html);
-                            setShowPreviewHtml(true);
-                        } catch (e) {
-                            console.error(e);
-                            alert('Error generando previsualización');
-                        } finally { setGenerando(false); }
+                        setPreviewHtml(html);
+                        setShowPreviewHtml(true);
+                    } catch (e) {
+                        console.error(e);
+                        alert('Error generando previsualización');
+                    } finally { setGenerando(false); }
                 }} disabled={!emailValido || !canal || !tipo || generando} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!emailValido || !canal || !tipo) ? 'opacity-60 cursor-not-allowed' : ''}`}>
                     {generando ? 'Generando...' : 'Previsualizar'}
                 </button>
             </div>
 
-                {showPreviewHtml && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                        <div className="w-full max-w-2xl rounded-lg bg-white p-4 shadow-lg max-h-[80vh] overflow-auto">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-lg font-bold">Previsualización</h3>
-                                <button onClick={()=>setShowPreviewHtml(false)} className="text-slate-600">✕</button>
-                            </div>
+            {showPreviewHtml && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="w-full max-w-2xl rounded-lg bg-white p-4 shadow-lg max-h-[80vh] overflow-auto">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-bold">Previsualización</h3>
+                            <button onClick={() => setShowPreviewHtml(false)} className="text-slate-600">✕</button>
+                        </div>
 
-                            <div className="border rounded p-3" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                        <div className="border rounded p-3" dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
-                            <div className="mt-3 flex justify-end gap-2">
-                                <button onClick={()=>setShowPreviewHtml(false)} className="rounded border px-4 py-2 text-sm">Cerrar</button>
-                                <button onClick={async ()=>{
-                                    try {
-                                        setGenerando(true);
-                                        const detalle = await fetchDetalleDte(reminderDoc, false);
-                                        const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
-                                        const a = document.createElement('a'); a.href = pdfResult.url; a.download = pdfResult.fileName; document.body.appendChild(a); a.click(); a.remove();
-                                    } catch (e) { console.error(e); alert('Error descargando PDF'); }
-                                    finally { setGenerando(false); }
-                                }} className="rounded bg-cyan-600 px-4 py-2 text-sm text-white">Descargar en PDF</button>
-                                <button onClick={async ()=>{
-                                    try {
-                                        if (!emailValido) { alert('Ingresa un correo válido'); return; }
-                                        setGenerando(true);
+                        <div className="mt-3 flex justify-end gap-2">
+                            <button onClick={() => setShowPreviewHtml(false)} className="rounded border px-4 py-2 text-sm">Cerrar</button>
+                            <button onClick={async () => {
+                                try {
+                                    setGenerando(true);
+                                    const detalle = await fetchDetalleDte(reminderDoc, false);
+                                    const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
+                                    const a = document.createElement('a'); a.href = pdfResult.url; a.download = pdfResult.fileName; document.body.appendChild(a); a.click(); a.remove();
+                                } catch (e) { console.error(e); alert('Error descargando PDF'); }
+                                finally { setGenerando(false); }
+                            }} className="rounded bg-cyan-600 px-4 py-2 text-sm text-white">Descargar en PDF</button>
+                            <button onClick={async () => {
+                                try {
+                                    if (!emailValido) { alert('Ingresa un correo válido'); return; }
+                                    setGenerando(true);
 
-                                        const token = localStorage.getItem('accessToken') ?? '';
-                                        const headers: any = { 'Content-Type': 'application/json' };
-                                        if (token) headers.Authorization = `Bearer ${token}`;
+                                    const targets = [{ email: manualEmail.trim(), nombre: manualNombre.trim() || manualEmail.trim() }];
+                                    const folio = String(getValue(reminderDoc, ["Folio", "folio", "Nro", "numero"], "—"));
+                                    const subject = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
+                                    const bodyHtml = previewHtml;
 
-                                        const targets = [{ email: manualEmail.trim(), nombre: manualNombre.trim() || manualEmail.trim() }];
-                                        const folio = String(getValue(reminderDoc, ["Folio","folio","Nro","numero"], "—"));
-                                        const subject = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
-                                        const bodyHtml = previewHtml;
+                                    // Generar la factura en PDF y adjuntarla al correo
+                                    const detalle = await fetchDetalleDte(reminderDoc, false);
+                                    const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
+                                    const pdfBase64 = await blobToBase64(pdfResult.blob);
+                                    const attachments = [{ name: pdfResult.fileName, contentType: 'application/pdf', contentBytes: pdfBase64, size: pdfResult.blob.size }];
 
-                                        // Generar la factura en PDF y adjuntarla al correo
-                                        const detalle = await fetchDetalleDte(reminderDoc, false);
-                                        const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
-                                        const pdfBase64 = await blobToBase64(pdfResult.blob);
-                                        const attachments = [{ name: pdfResult.fileName, contentType: 'application/pdf', contentBytes: pdfBase64, size: pdfResult.blob.size }];
-
-                                        const sendResp = await fetch(`${BASE_URL}/correo/enviar-masivo`, { method: 'POST', headers, body: JSON.stringify({ targets, subject, bodyHtml, attachments, ratePerMin: 30 }) });
-                                        const sendJson = await sendResp.json().catch(() => ({}));
-                                        if (!sendResp.ok || !sendJson?.ok) {
-                                            const msg = sendJson?.message || sendJson?.error || `Error ${sendResp.status}`;
-                                            throw new Error(String(msg));
+                                    const { data: sendJson } = await api.post(
+                                        "/correo/enviar-masivo",
+                                        {
+                                            targets,
+                                            subject,
+                                            bodyHtml,
+                                            attachments,
+                                            ratePerMin: 30,
                                         }
+                                    );
 
-                                        // Registrar en audit logs que se envió un recordatorio (queda visible en el Historial del documento)
-                                        try {
-                                            const empresaId = Number(getValue(reminderDoc, ['empresaId','empresa_id','id_empresa'], '') ) || null;
-                                            const folioAudit = String(getValue(reminderDoc, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'') || null;
-                                            const auditBody = {
-                                                entity: 'Documento',
-                                                entityId: folioAudit || null,
-                                                empresaId: empresaId,
-                                                action: 'CREATE',
-                                                description: `Recordatorio (${subject})`,
-                                                changes: { canal, tipo, contacto: manualEmail.trim(), observacion }
-                                            };
+                                    if (!sendJson?.ok) {
+                                        throw new Error(
+                                            sendJson?.message ??
+                                            sendJson?.error ??
+                                            "No se pudo enviar el recordatorio"
+                                        );
+                                    }
 
-                                            const auditResp = await fetch(`${BASE_URL}/audit`, { method: 'POST', headers, body: JSON.stringify(auditBody) });
-                                            if (!auditResp.ok) {
-                                                const auditErr = await auditResp.json().catch(() => ({}));
-                                                console.warn('No se pudo crear audit log:', auditResp.status, auditErr);
-                                            }
-                                        } catch (e) { console.warn('No se pudo crear audit log:', e); }
+                                    // Registrar en audit logs que se envió un recordatorio (queda visible en el Historial del documento)
+                                    try {
+                                        const empresaId = Number(getValue(reminderDoc, ['empresaId', 'empresa_id', 'id_empresa'], '')) || null;
+                                        const folioAudit = String(getValue(reminderDoc, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '') || null;
+                                        const auditBody = {
+                                            entity: 'Documento',
+                                            entityId: folioAudit || null,
+                                            empresaId: empresaId,
+                                            action: 'CREATE',
+                                            description: `Recordatorio (${subject})`,
+                                            changes: { canal, tipo, contacto: manualEmail.trim(), observacion }
+                                        };
 
-                                        alert('Recordatorio encolado para envío correctamente');
-                                        setShowPreviewHtml(false);
-                                        onClose();
-                                    } catch (e: any) {
-                                        console.error('Error enviando recordatorio:', e);
-                                        alert(String(e?.message ?? e));
-                                    } finally { setGenerando(false); }
-                                }} className="rounded bg-emerald-600 px-4 py-2 text-sm text-white">Enviar</button>
-                            </div>
+                                        await api.post("/audit", auditBody);
+                                    } catch (auditError) {
+                                        console.warn('No se pudo crear audit log:', auditError);
+                                    }
+
+                                    alert('Recordatorio encolado para envío correctamente');
+                                    setShowPreviewHtml(false);
+                                    onClose();
+                                } catch (e: any) {
+                                    console.error('Error enviando recordatorio:', e);
+                                    alert(String(e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? e));
+                                } finally { setGenerando(false); }
+                            }} className="rounded bg-emerald-600 px-4 py-2 text-sm text-white">Enviar</button>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
         </div>
     );
 }
 
 // Historial modal component (simple timeline built from documento, related docs and audit logs)
-function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: { documento: any; onClose: () => void; documentosAll: any[]; fetchAuditLogs: (folio:string)=>Promise<any[]> }) {
+function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: { documento: any; onClose: () => void; documentosAll: any[]; fetchAuditLogs: (folio: string) => Promise<any[]> }) {
     const [loading, setLoading] = React.useState(false);
     const [items, setItems] = React.useState<any[]>([]);
 
@@ -1459,8 +1484,8 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
         (async () => {
             setLoading(true);
             try {
-                const fol = String(getValue(documento, ["Folio","folio","Nro","numero"], "")).replace(/[^0-9]/g,"");
-                const rawFecha = getValue(documento, ["FchEmis","Fecha Emisión","fechaEmision","fecha","fechaEmisionDocumento","FechaEmision","FecEmis"], "");
+                const fol = String(getValue(documento, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
+                const rawFecha = getValue(documento, ["FchEmis", "Fecha Emisión", "fechaEmision", "fecha", "fechaEmisionDocumento", "FechaEmision", "FecEmis"], "");
                 const fechaEmi = formatFechaVista(rawFecha);
                 const monto = formatCLP(getMontoTotalDoc(documento));
 
@@ -1468,9 +1493,9 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                 // helper para mapear tipoDTE a etiqueta legible
                 const tipoLabelFor = (doc: any) => {
                     try {
-                        const explicit = getValue(doc, ['tipoDTEString','tipoDTEString','Tipo DTE','tipoDTEString','tipoDTEStr'], null);
+                        const explicit = getValue(doc, ['tipoDTEString', 'tipoDTEString', 'Tipo DTE', 'tipoDTEString', 'tipoDTEStr'], null);
                         if (explicit && explicit !== '—') return String(explicit);
-                        const t = String(getValue(doc, ['Tipo Doc','tipoDoc','tipoDTE'], '')).trim();
+                        const t = String(getValue(doc, ['Tipo Doc', 'tipoDoc', 'tipoDTE'], '')).trim();
                         const n = Number(t);
                         if (n === 33) return 'Factura';
                         if (n === 34) return 'Factura Exenta';
@@ -1485,18 +1510,18 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
 
                 // buscar documentos relacionados transitivamente (BFS)
                 const folNum = Number(fol || 0);
-                const relatedWithDepth: Array<{doc:any, depth:number}> = [];
+                const relatedWithDepth: Array<{ doc: any, depth: number }> = [];
 
                 // helper: extrae folios referenciados por un documento
                 const getReferencedFoliosFromDoc = (d: any): number[] => {
                     const out: number[] = [];
                     try {
                         const raw = d?.raw ?? d ?? {};
-                        const possibleKeys = ['folioDocReferencia','folioDocRef','folioRef','FolioRef','folioReferencia','folioDoc','folioReferenciado','referenciaFolio'];
+                        const possibleKeys = ['folioDocReferencia', 'folioDocRef', 'folioRef', 'FolioRef', 'folioReferencia', 'folioDoc', 'folioReferenciado', 'referenciaFolio'];
                         for (const k of possibleKeys) {
                             const v = raw?.[k];
                             if (!v) continue;
-                            const num = Number(String(v).replace(/[^0-9]/g,'')) || 0;
+                            const num = Number(String(v).replace(/[^0-9]/g, '')) || 0;
                             if (num) out.push(num);
                         }
 
@@ -1562,7 +1587,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                         };
 
                         // First: check common explicit keys
-                        const explicit = ['createdAt','created_at','fechaCreacion','FchCreacion','fecha_creacion','created','createdOn','created_on','createdAtISO','fechaRegistro','fecha_registro','FchRegistro'];
+                        const explicit = ['createdAt', 'created_at', 'fechaCreacion', 'FchCreacion', 'fecha_creacion', 'created', 'createdOn', 'created_on', 'createdAtISO', 'fechaRegistro', 'fecha_registro', 'FchRegistro'];
                         for (const k of explicit) {
                             const v = d?.[k] ?? d?.raw?.[k] ?? d?.data?.[k] ?? d?.documento?.[k];
                             const out = tryFormat(v);
@@ -1615,11 +1640,11 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                 const getDateCandidates = (d: any): string[] => {
                     const out: string[] = [];
                     try {
-                        const keys = ['FchEmis','Fecha Emisión','fecha','fechaEmision','FechaEmision','FecEmis','createdAt','created_at','fechaCreacion','FchCreacion','fecha_creacion','created','createdOn','created_on','FechaRecepcion'];
+                        const keys = ['FchEmis', 'Fecha Emisión', 'fecha', 'fechaEmision', 'FechaEmision', 'FecEmis', 'createdAt', 'created_at', 'fechaCreacion', 'FchCreacion', 'fecha_creacion', 'created', 'createdOn', 'created_on', 'FechaRecepcion'];
                         for (const k of keys) {
                             const v = d?.[k] ?? d?.raw?.[k] ?? d?.data?.[k] ?? d?.documento?.[k];
                             if (v !== undefined && v !== null && String(v).trim() !== '') {
-                                out.push(`${k}: ${String(v).slice(0,40)}`);
+                                out.push(`${k}: ${String(v).slice(0, 40)}`);
                             }
                         }
 
@@ -1643,7 +1668,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                     // para poder mostrar la Factura original -> NC -> ND en orden
                     const findDocByFolio = (f: number) => {
                         return (documentosAll || []).find((dd: any) => {
-                            const fol = Number(String(getValue(dd, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'')) || 0;
+                            const fol = Number(String(getValue(dd, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '')) || 0;
                             return fol === f;
                         }) || null;
                     };
@@ -1676,11 +1701,11 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                         for (const r of rev) {
                             const tipoLbl = tipoLabelFor(r);
                             const title = tipoLbl ? `${tipoLbl} emitida` : 'Documento relacionado';
-                            const rawRFecha = getValue(r, ['FchEmis','Fecha Emisión','fecha','fechaEmision','FechaEmision','FecEmis'], '');
+                            const rawRFecha = getValue(r, ['FchEmis', 'Fecha Emisión', 'fecha', 'fechaEmision', 'FechaEmision', 'FecEmis'], '');
                             const rFecha = formatFechaVista(rawRFecha);
                             const rCreated = getCreatedFromDoc(r);
-                            baseItems.push({ type: 'ancestro', title, date: rFecha || null, created: rCreated || null, subtitle: `#${String(getValue(r,['Folio','folio','Nro','numero'],''))} → ${formatCLP(getMontoTotalDoc(r))}`, doc: r, candidates: getDateCandidates(r) });
-                            try { console.debug('Historial: ancestro created check', { fol: getValue(r,['Folio','folio','Nro','numero'],''), rFecha, rCreated, keys: Object.keys(r || {}).slice(0,20), sampleRaw: JSON.stringify(r?.raw ?? r ?? {}).slice(0,200) }); } catch {};
+                            baseItems.push({ type: 'ancestro', title, date: rFecha || null, created: rCreated || null, subtitle: `#${String(getValue(r, ['Folio', 'folio', 'Nro', 'numero'], ''))} → ${formatCLP(getMontoTotalDoc(r))}`, doc: r, candidates: getDateCandidates(r) });
+                            try { console.debug('Historial: ancestro created check', { fol: getValue(r, ['Folio', 'folio', 'Nro', 'numero'], ''), rFecha, rCreated, keys: Object.keys(r || {}).slice(0, 20), sampleRaw: JSON.stringify(r?.raw ?? r ?? {}).slice(0, 200) }); } catch { };
                         }
                     }
 
@@ -1689,7 +1714,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                     const visitedFolios = new Set<number>();
                     if (folNum) visitedFolios.add(folNum);
 
-                    const queue: Array<{folio:number, depth:number}> = folNum ? [{ folio: folNum, depth: 0 }] : [];
+                    const queue: Array<{ folio: number, depth: number }> = folNum ? [{ folio: folNum, depth: 0 }] : [];
 
                     while (queue.length > 0) {
                         const { folio: parentFolio, depth } = queue.shift()!;
@@ -1704,7 +1729,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                                 const dDepth = depth + 1;
                                 relatedWithDepth.push({ doc: d, depth: dDepth });
 
-                                const ownFol = Number(String(getValue(d, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'')) || 0;
+                                const ownFol = Number(String(getValue(d, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '')) || 0;
                                 if (ownFol && !visitedFolios.has(ownFol)) {
                                     visitedFolios.add(ownFol);
                                     queue.push({ folio: ownFol, depth: dDepth });
@@ -1715,23 +1740,23 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                 } catch (e) { /* ignore BFS errors */ }
 
                 // ordenar por profundidad asc y luego por fecha asc
-                relatedWithDepth.sort((a,b) => a.depth - b.depth || (String(getValue(a.doc,['FchEmis','Fecha Emisión','fecha','fechaEmision'],'')).localeCompare(String(getValue(b.doc,['FchEmis','Fecha Emisión','fecha','fechaEmision'],'')))));
+                relatedWithDepth.sort((a, b) => a.depth - b.depth || (String(getValue(a.doc, ['FchEmis', 'Fecha Emisión', 'fecha', 'fechaEmision'], '')).localeCompare(String(getValue(b.doc, ['FchEmis', 'Fecha Emisión', 'fecha', 'fechaEmision'], '')))));
 
                 for (const entry of relatedWithDepth) {
                     const r = entry.doc;
                     const tipoLbl = tipoLabelFor(r);
                     const tTitle = tipoLbl ? `${tipoLbl} emitida` : 'Documento relacionado';
-                    const rawRFecha = getValue(r, ['FchEmis','Fecha Emisión','fecha','fechaEmision','FechaEmision','FecEmis'], '');
+                    const rawRFecha = getValue(r, ['FchEmis', 'Fecha Emisión', 'fecha', 'fechaEmision', 'FechaEmision', 'FecEmis'], '');
                     const rFecha = formatFechaVista(rawRFecha);
                     const rCreated = getCreatedFromDoc(r);
-                    baseItems.push({ type: 'relacionado', title: tTitle, date: rFecha || null, created: rCreated || null, subtitle: `#${String(getValue(r,['Folio','folio','Nro','numero'],''))} → ${formatCLP(getMontoTotalDoc(r))}`, doc: r, depth: entry.depth, candidates: getDateCandidates(r) });
-                    try { console.debug('Historial: relacionado created check', { fol: getValue(r,['Folio','folio','Nro','numero'],''), rFecha, rCreated, keys: Object.keys(r || {}).slice(0,20), sampleRaw: JSON.stringify(r?.raw ?? r ?? {}).slice(0,200) }); } catch {};
+                    baseItems.push({ type: 'relacionado', title: tTitle, date: rFecha || null, created: rCreated || null, subtitle: `#${String(getValue(r, ['Folio', 'folio', 'Nro', 'numero'], ''))} → ${formatCLP(getMontoTotalDoc(r))}`, doc: r, depth: entry.depth, candidates: getDateCandidates(r) });
+                    try { console.debug('Historial: relacionado created check', { fol: getValue(r, ['Folio', 'folio', 'Nro', 'numero'], ''), rFecha, rCreated, keys: Object.keys(r || {}).slice(0, 20), sampleRaw: JSON.stringify(r?.raw ?? r ?? {}).slice(0, 200) }); } catch { };
                 }
 
                 // finalmente, añadir el documento seleccionado (ND) al final de la cadena
                 const createdSel = getCreatedFromDoc(documento);
                 baseItems.push({ type: 'emitido', title: `${tipoLabelFor(documento)} emitida`, date: fechaEmi || null, created: createdSel || null, subtitle: `#${fol} → ${monto}`, doc: documento, candidates: getDateCandidates(documento) });
-                try { console.debug('Historial: seleccionado created check', { fol, fechaEmi, createdSel, keys: Object.keys(documento || {}).slice(0,20), sampleRaw: JSON.stringify(documento?.raw ?? documento ?? {}).slice(0,200) }); } catch {};
+                try { console.debug('Historial: seleccionado created check', { fol, fechaEmi, createdSel, keys: Object.keys(documento || {}).slice(0, 20), sampleRaw: JSON.stringify(documento?.raw ?? documento ?? {}).slice(0, 200) }); } catch { };
 
                 // obtener audit logs asociados al folio de este documento (recordatorios enviados, ediciones, etc.)
                 let auditEntries: any[] = [];
@@ -1750,12 +1775,12 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
 
                 for (const a of auditEntries) {
                     const title = a.description || a.action || 'Acción';
-                    const when = a.createdAt ? String(a.createdAt).slice(0,10) : null;
+                    const when = a.createdAt ? String(a.createdAt).slice(0, 10) : null;
                     baseItems.push({ type: 'audit', title, date: when, created: null, dateLabel: 'Enviado', subtitle: a.actor?.nombre ?? String(a.actorId ?? ''), raw: a });
                 }
 
                 // ordenar cronológicamente asc por fecha (nulls last)
-                baseItems.sort((A,B) => {
+                baseItems.sort((A, B) => {
                     const a = A.date || '9999-12-31';
                     const b = B.date || '9999-12-31';
                     return a < b ? -1 : a > b ? 1 : 0;
@@ -1768,12 +1793,12 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                     try {
                         let key = '';
                         if (it.doc) {
-                            const fol = String(getValue(it.doc, ['Folio','folio','Nro','numero'], '')).replace(/[^0-9]/g,'') || '';
-                            key = `${String(it.title||'')}` + '::' + fol + '::' + String(it.subtitle||'');
+                            const fol = String(getValue(it.doc, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '') || '';
+                            key = `${String(it.title || '')}` + '::' + fol + '::' + String(it.subtitle || '');
                         } else if (it.raw && (it.raw.entityId || it.raw.id)) {
-                            key = `${String(it.title||'')}` + '::' + String(it.raw.entityId ?? it.raw.id) + '::' + String(it.subtitle||'');
+                            key = `${String(it.title || '')}` + '::' + String(it.raw.entityId ?? it.raw.id) + '::' + String(it.subtitle || '');
                         } else {
-                            key = `${String(it.title||'')}` + '::' + String(it.subtitle||'') + '::' + String(it.date||it.created||'');
+                            key = `${String(it.title || '')}` + '::' + String(it.subtitle || '') + '::' + String(it.date || it.created || '');
                         }
 
                         if (!seen.has(key)) {
@@ -1781,7 +1806,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                             deduped.push(it);
                         }
                     } catch (e) {
-                        const fallback = JSON.stringify(it).slice(0,200);
+                        const fallback = JSON.stringify(it).slice(0, 200);
                         if (!seen.has(fallback)) { seen.add(fallback); deduped.push(it); }
                     }
                 }
@@ -1799,7 +1824,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
 
             <div className="relative w-full max-w-3xl rounded-lg bg-white p-6 shadow-lg">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Historial · Folio {String(getValue(documento, ['Folio','folio','Nro','numero'], '-'))}</h2>
+                    <h2 className="text-lg font-semibold">Historial · Folio {String(getValue(documento, ['Folio', 'folio', 'Nro', 'numero'], '-'))}</h2>
                     <button onClick={onClose} className="text-slate-500 hover:text-slate-700">✕</button>
                 </div>
 
@@ -1828,7 +1853,7 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
                                             )}
 
                                             {/* Mostrar fecha de origen: emisión y/o creación */}
-                                            {( (it.date && it.date !== '—') || (it.created && it.created !== '—') ) && (
+                                            {((it.date && it.date !== '—') || (it.created && it.created !== '—')) && (
                                                 <div className="mt-2 text-xs text-slate-500">
                                                     {it.date && it.date !== '—' && (<div>{it.dateLabel ?? 'Emitido'}: <span className="font-medium text-slate-700">{it.date}</span></div>)}
                                                     {it.created && it.created !== '—' && (<div>Creado: <span className="font-medium text-slate-700">{it.created}</span></div>)}
@@ -1837,12 +1862,12 @@ function HistorialModal({ documento, onClose, documentosAll, fetchAuditLogs }: {
 
                                             {/* Si no hay fechas explícitas, mostrar candidatos detectados */}
                                             {(!(it.date && it.date !== '—') && !(it.created && it.created !== '—') && it.candidates && it.candidates.length > 0) && (
-                                                <div className="mt-2 text-xs text-amber-600">Fechas detectadas: {it.candidates.slice(0,3).join(' · ')}{it.candidates.length>3?` (+${it.candidates.length-3})`:''}</div>
+                                                <div className="mt-2 text-xs text-amber-600">Fechas detectadas: {it.candidates.slice(0, 3).join(' · ')}{it.candidates.length > 3 ? ` (+${it.candidates.length - 3})` : ''}</div>
                                             )}
 
                                             {it.doc && (
                                                 <div className="mt-2 text-xs text-slate-700">
-                                                    <a href="#" onClick={(e)=>{e.preventDefault(); onClose(); setTimeout(()=>{ const ev = new CustomEvent('openFullDetailFromCobranza', { detail: it.doc }); window.dispatchEvent(ev); }, 50); }} className="text-cyan-700 font-semibold">Ver detalle</a>
+                                                    <a href="#" onClick={(e) => { e.preventDefault(); onClose(); setTimeout(() => { const ev = new CustomEvent('openFullDetailFromCobranza', { detail: it.doc }); window.dispatchEvent(ev); }, 50); }} className="text-cyan-700 font-semibold">Ver detalle</a>
                                                 </div>
                                             )}
                                         </div>

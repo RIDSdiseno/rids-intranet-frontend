@@ -32,9 +32,6 @@ const MailerPage = lazy(() => import("./host/Mailer"));
 const CobranzaPage = lazy(() => import("./host/Cobranza"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
-const FacturasDashboardPage = lazy(() => import("./host/FacturasDashboard"));
-const ConciliacionPage = lazy(() => import("./host/Conciliacion"));
-const ConciliacionEcconetPage = lazy(() => import("./host/ConciliacionEcconet"));
 
 const HelpdeskLayout = lazy(() => import("../src/components/modals-ticketera/HelpdeskLayout"));
 const TicketeraRids = lazy(() => import("./host/TicketeraRids"));

@@ -23,7 +23,7 @@ export default function ConciliacionRcv() {
     if (!puedeVer) return null;
 
     return (
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 p-6">
+        <div className="mx-auto flex w-full max-w-[1550px] flex-col gap-5 px-4 py-6 sm:px-6">
 
             {/* Header */}
             <div className="rounded-3xl border border-cyan-200 bg-white shadow-sm overflow-hidden">

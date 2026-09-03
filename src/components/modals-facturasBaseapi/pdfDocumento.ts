@@ -1,13 +1,12 @@
 // src/components/modals-facturasBaseapi/pdfDocumento.tsx
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import * as bwipjs from "bwip-js";
+import bwipjs from "bwip-js";
 
 import type { EmpresaKey, TabRCV } from "./types";
 
 import {
     getDocumentoDte,
-    getItemsFromDteResponse,
     getXmlBase64FromDteResponse,
     decodeBase64Utf8,
     parseDteXml,
@@ -28,7 +27,6 @@ import {
 import {
     EMPRESAS_PDF,
 } from "./utils";
-import type { utils } from "xlsx-js-style";
 
 /** Extrae el bloque <TED>...</TED> completo (DD + FRMT) tal cual aparece en el XML firmado.
  *  Es lo que debe codificarse en el PDF417 del Timbre Electrónico SII — el FRMT (firma) solo no basta. */
@@ -47,17 +45,25 @@ function extractTedXml(xmlRaw: string): string | null {
 function generarTimbrePdf417(tedXml: string): string | null {
     try {
         const canvas = document.createElement("canvas");
-        bwipjs.toCanvas(canvas, {
+
+        const options = {
             bcid: "pdf417",
             text: tedXml,
             scale: 3,
             eclevel: 5,
             includetext: false,
             backgroundcolor: "FFFFFF",
-        });
+        } as any;
+
+        bwipjs.toCanvas(canvas, options);
+
         return canvas.toDataURL("image/png");
     } catch (err) {
-        console.error("Error generando PDF417 del Timbre Electrónico SII:", err);
+        console.error(
+            "Error generando PDF417 del Timbre Electrónico SII:",
+            err
+        );
+
         return null;
     }
 }
@@ -83,7 +89,7 @@ export async function generarPdfDocumentoSeleccionado(params: {
 }> {
     const autoDownload = params.autoDownload ?? true;
 
-    const { documento, detalleDte, activeTab, empresa, mes, ano } = params;
+    const { documento, detalleDte, activeTab, empresa } = params;
 
     const empresaPdf = EMPRESAS_PDF[empresa];
 
@@ -92,7 +98,6 @@ export async function generarPdfDocumentoSeleccionado(params: {
     }
 
     const dteDocumento = getDocumentoDte(detalleDte);
-    const itemsCache = getItemsFromDteResponse(detalleDte);
 
     const xmlBase64 = getXmlBase64FromDteResponse(detalleDte);
     const xmlDecodificado = decodeBase64Utf8(xmlBase64);
