@@ -53,6 +53,13 @@ const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
+const ReceptoresFacturacionPage =
+  lazy(
+    () =>
+      import(
+        "./components/modals-facturasBaseapi/receptores-facturacion/ReceptoresFacturacionPage"
+      )
+  );
 
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
@@ -304,8 +311,28 @@ export default function App() {
             </Route>
 
             {/* ── Cobranza (acceso restringido: solo Administración) ──────── */}
-            <Route element={<RoleRoute allowedRoles={["ADMIN", "ADMINISTRACION"]} />}>
-              <Route path="/facturas/cobranza" element={<CobranzaPage />} />
+            <Route
+              element={
+                <RoleRoute
+                  allowedRoles={[
+                    "ADMINISTRACION",
+                  ]}
+                />
+              }
+            >
+              <Route
+                path="/facturas/cobranza"
+                element={
+                  <CobranzaPage />
+                }
+              />
+
+              <Route
+                path="/facturas/receptores"
+                element={
+                  <ReceptoresFacturacionPage />
+                }
+              />
             </Route>
 
             {/* ── Conciliación RCV (solo Administración) ──────────────────── */}

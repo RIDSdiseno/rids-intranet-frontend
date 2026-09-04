@@ -35,7 +35,8 @@ import {
   Cog,
   Star,
   MonitorSpeaker,
-  Contact
+  Contact,
+  MailCheck
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -63,9 +64,12 @@ const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 //const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
+
 const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
 const CONCILIACION_PATH = "/conciliacion-rcv";
+const RECEPTORES_FACTURACION_PATH = "/facturas/receptores";
+
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
 const MAPA_TECNICOS_PATH = "/mapa-tecnicos";
@@ -334,11 +338,43 @@ const NAV: NavEntry[] = [
     type: "group",
     label: "Administración Finanzas",
     items: [
-      { label: "Facturas", to: FACTURAS_BASEAPI_PATH, icon: <FileText size={20} /> },
-      { label: "Conciliación", to: CONCILIACION_PATH, icon: <Handshake size={20} /> },
-      { label: "Cobranza", to: COBRANZA_PATH, icon: <FileSpreadsheet size={20} /> },
+      {
+        label:
+          "Facturas",
+        to:
+          FACTURAS_BASEAPI_PATH,
+        icon:
+          <FileText size={20} />,
+      },
+
+      {
+        label:
+          "Receptores",
+        to:
+          RECEPTORES_FACTURACION_PATH,
+        icon:
+          <MailCheck size={20} />,
+      },
+
+      {
+        label:
+          "Conciliación",
+        to:
+          CONCILIACION_PATH,
+        icon:
+          <Handshake size={20} />,
+      },
+
+      {
+        label:
+          "Cobranza",
+        to:
+          COBRANZA_PATH,
+        icon:
+          <FileSpreadsheet size={20} />,
+      },
     ],
-    match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH],
+    match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH, RECEPTORES_FACTURACION_PATH],
   },
   {
     type: "group",
@@ -550,6 +586,8 @@ const Header = () => {
 
   const canAccessConciliacion = userRole === "ADMINISTRACION";
 
+  const canAccessReceptoresFacturacion = userRole === "ADMINISTRACION";
+
   const canAccessFunnel =
     userRole === "ADMIN" || userRole === "ADMINISTRACION" || userRole === "VENTAS";
 
@@ -571,23 +609,43 @@ const Header = () => {
            */
           const items = entry.items.filter(
             (item): item is NavLinkItem => {
-              if (!isNavLinkItem(item)) {
+              if (
+                !isNavLinkItem(
+                  item
+                )
+              ) {
                 return false;
               }
 
-              if (item.to === FACTURAS_BASEAPI_PATH) {
+              if (
+                item.to ===
+                FACTURAS_BASEAPI_PATH
+              ) {
                 return canAccessFacturas;
               }
 
-              if (item.to === CONCILIACION_PATH) {
+              if (
+                item.to ===
+                RECEPTORES_FACTURACION_PATH
+              ) {
+                return canAccessReceptoresFacturacion;
+              }
+
+              if (
+                item.to ===
+                CONCILIACION_PATH
+              ) {
                 return canAccessConciliacion;
               }
 
-              if (item.to === COBRANZA_PATH) {
+              if (
+                item.to ===
+                COBRANZA_PATH
+              ) {
                 return canAccessCobranza;
               }
 
-              return true;
+              return false;
             }
           );
 
