@@ -159,15 +159,56 @@ const OrdenesTaller: React.FC = () => {
 
     const [generandoPdf, setGenerandoPdf] = useState(false);
 
+    const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const existeSalidaParaGrupo = (
+        orden: DetalleTrabajoGestioo
+    ): boolean => {
+        const grupoId =
+            orden.ordenGrupoId ??
+            orden.id;
+
+        return ordenes.some(
+            (item) =>
+                (item.ordenGrupoId ?? item.id) === grupoId &&
+                item.area === "SALIDA"
+        );
+    };
+
     // Función para duplicar orden a SALIDA
-    const duplicarOrdenSalida = async (orden: DetalleTrabajoGestioo) => {
+    const duplicarOrdenSalida = async (
+        orden: DetalleTrabajoGestioo
+    ) => {
+        const grupoId =
+            orden.ordenGrupoId ??
+            orden.id;
+
+        const salidaExistente =
+            ordenes.find(
+                (item) =>
+                    (item.ordenGrupoId ?? item.id) === grupoId &&
+                    item.area === "SALIDA"
+            );
+
+        if (salidaExistente) {
+            setToast({
+                type: "error",
+                message:
+                    `La orden #${grupoId} ya tiene una salida registrada.`,
+            });
+
+            return;
+        }
+
         if (
             !confirm(
                 "Se creará una nueva orden de SALIDA para mantener el historial del equipo.\n\n¿Desea continuar?"
             )
-        ) return;
+        ) {
+            return;
+        }
 
-        // Crear nueva orden de SALIDA
         try {
             const payload = {
                 tipoTrabajo: orden.tipoTrabajo,
@@ -175,36 +216,71 @@ const OrdenesTaller: React.FC = () => {
                 prioridad: orden.prioridad,
                 estado: "PENDIENTE",
                 notas: orden.notas,
+
                 area: "SALIDA",
-                ordenGrupoId: orden.ordenGrupoId ?? orden.id,
-                fecha: new Date().toISOString(),
-                fechaIngreso: orden.fechaIngreso ?? orden.fecha,
-                entidadId: orden.entidad?.id ?? null,
-                equipoId: orden.equipo?.id_equipo ?? null,
-                tecnicoId: orden.tecnico?.id_tecnico ?? null,
-                incluyeCargador: orden.incluyeCargador ?? false,
-                destinoEquipo: orden.destinoEquipo ?? "SIN_DEFINIR",
-                destinoEquipoNota: orden.destinoEquipoNota ?? null,
+
+                ordenGrupoId:
+                    grupoId,
+
+                fecha:
+                    new Date().toISOString(),
+
+                fechaIngreso:
+                    orden.fechaIngreso ??
+                    orden.fecha,
+
+                entidadId:
+                    orden.entidad?.id ??
+                    null,
+
+                equipoId:
+                    orden.equipo?.id_equipo ??
+                    null,
+
+                tecnicoId:
+                    orden.tecnico?.id_tecnico ??
+                    null,
+
+                incluyeCargador:
+                    orden.incluyeCargador ??
+                    false,
+
+                destinoEquipo:
+                    orden.destinoEquipo ??
+                    "SIN_DEFINIR",
+
+                destinoEquipoNota:
+                    orden.destinoEquipoNota ??
+                    null,
             };
 
-            await http.post("/detalle-trabajo-gestioo", payload);
+            await http.post(
+                "/detalle-trabajo-gestioo",
+                payload
+            );
 
             setToast({
                 type: "success",
-                message: "Orden de salida creada correctamente",
+                message:
+                    `Salida de la orden #${grupoId} creada correctamente`,
             });
 
-            fetchOrdenes();
-        } catch (err) {
+            await fetchOrdenes();
+        } catch (err: any) {
+            console.error(
+                "Error creando salida:",
+                err
+            );
+
             setToast({
                 type: "error",
-                message: (err as Error).message || "No se pudo crear la orden de salida",
+                message:
+                    err?.response?.data?.error ??
+                    err?.message ??
+                    "No se pudo crear la orden de salida",
             });
         }
     };
-
-    const [ordenes, setOrdenes] = useState<DetalleTrabajoGestioo[]>([]);
-    const [loading, setLoading] = useState(false);
 
     const [paginaActual, setPaginaActual] = useState(1);
     const [ordenesPorPagina, setOrdenesPorPagina] = useState(10);
@@ -448,10 +524,33 @@ const OrdenesTaller: React.FC = () => {
         // Área original y nueva
         const originalArea = selectedOrden.area;
         const nuevaArea = areaToApi(formData.area);
+        const grupoId =
+            selectedOrden.ordenGrupoId ??
+            selectedOrden.id;
 
         // ¿Debe duplicar a SALIDA?
         const debeDuplicar =
             originalArea !== "SALIDA" && nuevaArea === "SALIDA";
+
+        if (debeDuplicar) {
+            const salidaExistente =
+                ordenes.find(
+                    (item) =>
+                        (item.ordenGrupoId ?? item.id) === grupoId &&
+                        item.area === "SALIDA" &&
+                        item.id !== selectedOrden.id
+                );
+
+            if (salidaExistente) {
+                setToast({
+                    type: "error",
+                    message:
+                        `La orden #${grupoId} ya tiene una salida registrada.`,
+                });
+
+                return;
+            }
+        }
 
         setUpdating(true);
 
@@ -473,6 +572,10 @@ const OrdenesTaller: React.FC = () => {
                 incluyeCargador: formData.incluyeCargador,
                 destinoEquipo: formData.destinoEquipo,
                 destinoEquipoNota: formData.destinoEquipoNota.trim() || null,
+                ordenGrupoId: grupoId,
+                fechaIngreso:
+                    selectedOrden.fechaIngreso ??
+                    selectedOrden.fecha,
             };
 
             // DUPLICAR (ENTRADA → SALIDA)
@@ -495,11 +598,18 @@ const OrdenesTaller: React.FC = () => {
 
             setEditOpen(false);
             fetchOrdenes();
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error(
+                "Error guardando orden:",
+                err
+            );
+
             setToast({
                 type: "error",
-                message: (err as Error).message || "Error al guardar cambios",
+                message:
+                    err?.response?.data?.error ??
+                    err?.message ??
+                    "Error al guardar cambios",
             });
         } finally {
             setUpdating(false);
@@ -1256,15 +1366,18 @@ const OrdenesTaller: React.FC = () => {
                                                                     <EditOutlined />
                                                                 </button>
 
-                                                                {o.area !== "SALIDA" && (
-                                                                    <button
-                                                                        onClick={() => duplicarOrdenSalida(o)}   // ✅ AHORA SÍ
-                                                                        className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
-                                                                        title="Generar orden de salida"
-                                                                    >
-                                                                        <SwapOutlined />
-                                                                    </button>
-                                                                )}
+                                                                {o.area !== "SALIDA" &&
+                                                                    !existeSalidaParaGrupo(o) && (
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                duplicarOrdenSalida(o)
+                                                                            }
+                                                                            className="rounded-lg border border-emerald-200 text-emerald-700 p-2 hover:bg-emerald-50"
+                                                                            title="Generar orden de salida"
+                                                                        >
+                                                                            <SwapOutlined />
+                                                                        </button>
+                                                                    )}
                                                             </>
                                                         )}
 
@@ -1486,6 +1599,7 @@ const OrdenesTaller: React.FC = () => {
                 <ModalOrden
                     key="create-modal"
                     title="Nueva Orden de Trabajo"
+                    isEditing={false}
                     onClose={() => setModalOpen(false)}
                     formData={formData}
                     setFormData={setFormData}
@@ -1509,7 +1623,9 @@ const OrdenesTaller: React.FC = () => {
             {!isCliente && editOpen && selectedOrden && (
                 <ModalOrden
                     key={`edit-modal-${selectedOrden.id}`}
-                    title={`Editar Orden #${selectedOrden.id}`}
+                    title={`Editar Orden #${selectedOrden.ordenGrupoId ?? selectedOrden.id}`}
+                    isEditing={true}
+                    originalArea={normalizeArea(selectedOrden.area) as Area}
                     onClose={() => setEditOpen(false)}
                     formData={formData}
                     setFormData={setFormData}

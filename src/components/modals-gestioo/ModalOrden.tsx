@@ -62,6 +62,9 @@ export interface ModalOrdenProps {
     loading: boolean;
     buttonLabel: string;
 
+    isEditing?: boolean;
+    originalArea?: Area;
+
     setShowNewEntidadModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowNuevoEquipoModal: React.Dispatch<React.SetStateAction<boolean>>;
     setShowEditEntidadModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -82,6 +85,8 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     tecnicos,
     loading,
     buttonLabel,
+    isEditing = false,
+    originalArea,
     setShowNewEntidadModal,
     setShowNuevoEquipoModal,
     setShowEditEntidadModal,
@@ -421,24 +426,41 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                             <label className="block text-xs font-medium text-slate-600 mb-1">Área</label>
                                             <select
                                                 value={formData.area}
+                                                disabled={isEditing && originalArea === "salida"}
                                                 onChange={(e) => {
-                                                    const nuevaArea = e.target.value as Area;
+                                                    const nuevaArea =
+                                                        e.target.value as Area;
 
                                                     setFormData((prev) => ({
                                                         ...prev,
                                                         area: nuevaArea,
+
                                                         fechaIngreso:
                                                             nuevaArea === "salida"
-                                                                ? prev.fechaIngreso ?? prev.fecha
+                                                                ? prev.fechaIngreso ??
+                                                                prev.fecha
                                                                 : prev.fechaIngreso,
-
                                                     }));
                                                 }}
-                                                className="w-full border border-cyan-200 rounded-xl px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-cyan-400"
+                                                className={`w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400 ${isEditing &&
+                                                    originalArea === "salida"
+                                                    ? "border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                                                    : "border-cyan-200 bg-white"
+                                                    }`}
                                             >
-                                                <option value="entrada"> Entrada</option>
-                                                <option value="domicilio"> Domicilio</option>
-                                                <option value="salida"> Salida</option>
+                                                <option value="entrada">
+                                                    Entrada
+                                                </option>
+
+                                                <option value="domicilio">
+                                                    Domicilio
+                                                </option>
+
+                                                {isEditing && (
+                                                    <option value="salida">
+                                                        Salida
+                                                    </option>
+                                                )}
                                             </select>
                                         </div>
 
@@ -459,11 +481,23 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                             />
 
                                             {/* AQUÍ VA EXACTAMENTE */}
-                                            {formData.area === "salida" && (
-                                                <p className="text-xs text-amber-700 mt-1">
-                                                    Se creará una nueva orden de salida para mantener el historial
-                                                </p>
-                                            )}
+                                            {isEditing &&
+                                                originalArea !== "salida" &&
+                                                formData.area === "salida" && (
+                                                    <p className="text-xs text-amber-700 mt-1">
+                                                        Al guardar se creará un nuevo registro de salida
+                                                        asociado a esta misma orden, manteniendo el ingreso
+                                                        original en el historial.
+                                                    </p>
+                                                )}
+
+                                            {isEditing &&
+                                                originalArea === "salida" && (
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        Este registro corresponde a la salida del equipo.
+                                                        El área no puede modificarse.
+                                                    </p>
+                                                )}
                                         </div>
 
                                         <div className="mt-4 sm:col-span-2">
