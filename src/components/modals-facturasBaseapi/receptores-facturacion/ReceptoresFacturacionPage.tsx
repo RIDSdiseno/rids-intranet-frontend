@@ -1056,26 +1056,188 @@ function ReceptorDesktopRow(
             </td>
 
             <td className="px-5 py-4">
-                <div className="flex items-center gap-2">
-                    <Contact
-                        size={16}
-                        className="text-slate-400"
-                    />
+                {receptor.contactos.length ===
+                    0 ? (
+                    <div
+                        className="
+                flex
+                items-center
+                gap-2
+                text-sm
+                text-slate-400
+            "
+                    >
+                        <Contact
+                            size={16}
+                            className="shrink-0"
+                        />
 
-                    <span className="text-sm font-medium text-slate-700">
-                        {
-                            receptor.contactos
-                                .length
-                        }
-                    </span>
+                        Sin contactos
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <div
+                            className="
+                    flex
+                    items-center
+                    gap-2
+                    text-xs
+                    text-slate-500
+                "
+                        >
+                            <Contact
+                                size={15}
+                                className="shrink-0 text-slate-400"
+                            />
 
-                    {contactosValidos >
-                        0 && (
-                            <span className="text-xs text-emerald-600">
-                                ({contactosValidos} válidos)
+                            <span>
+                                {
+                                    receptor.contactos
+                                        .length
+                                } contacto
+                                {receptor.contactos
+                                    .length !==
+                                    1
+                                    ? "s"
+                                    : ""}
                             </span>
-                        )}
-                </div>
+
+                            {contactosValidos >
+                                0 && (
+                                    <span className="font-medium text-emerald-600">
+                                        · {contactosValidos} válido
+                                        {contactosValidos !==
+                                            1
+                                            ? "s"
+                                            : ""}
+                                    </span>
+                                )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                            {receptor.contactos
+                                .slice(
+                                    0,
+                                    3
+                                )
+                                .map(
+                                    (
+                                        contacto
+                                    ) => (
+                                        <div
+                                            key={
+                                                contacto.id
+                                            }
+                                            className="
+        min-w-0
+        rounded-lg
+        border
+        border-slate-100
+        bg-slate-50
+        px-2
+        py-1.5
+    "
+                                        >
+                                            <div
+                                                className="
+                                        flex
+                                        min-w-0
+                                        items-center
+                                        gap-2
+                                    "
+                                            >
+                                                <span
+                                                    className="
+        receptor-contacto-nombre
+        truncate
+        text-xs
+        font-semibold
+        text-slate-700
+    "
+                                                >
+                                                    {
+                                                        contacto.nombre ||
+                                                        "Sin nombre"
+                                                    }
+                                                </span>
+
+                                                {contacto.principal && (
+                                                    <Badge variant="info">
+                                                        Principal
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <div
+                                                className="
+        receptor-contacto-email
+        mt-0.5
+        truncate
+        text-xs
+        text-slate-500
+    "
+                                                title={
+                                                    contacto.email
+                                                }
+                                            >
+                                                {
+                                                    contacto.email
+                                                }
+                                            </div>
+
+                                            <div
+                                                className="
+                                        mt-1
+                                        flex
+                                        flex-wrap
+                                        gap-1
+                                    "
+                                            >
+                                                {!contacto.activo && (
+                                                    <Badge variant="neutral">
+                                                        Inactivo
+                                                    </Badge>
+                                                )}
+
+                                                {contacto.activo &&
+                                                    contacto.recibeFacturas && (
+                                                        <Badge variant="success">
+                                                            Recibe facturas
+                                                        </Badge>
+                                                    )}
+
+                                                {contacto.activo &&
+                                                    !contacto.recibeFacturas && (
+                                                        <Badge variant="warning">
+                                                            No recibe
+                                                        </Badge>
+                                                    )}
+                                            </div>
+                                        </div>
+                                    )
+                                )}
+
+                            {receptor.contactos
+                                .length >
+                                3 && (
+                                    <div
+                                        className="
+                                px-1
+                                text-xs
+                                font-medium
+                                text-slate-500
+                            "
+                                    >
+                                        +
+                                        {receptor.contactos
+                                            .length -
+                                            3}{" "}
+                                        más
+                                    </div>
+                                )}
+                        </div>
+                    </div>
+                )}
             </td>
 
             <td className="px-5 py-4">

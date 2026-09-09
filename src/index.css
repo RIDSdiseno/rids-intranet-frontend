@@ -3940,3 +3940,20 @@ html.a11y-theme-dark aside button.bg-cyan-100\/80 svg {
   color: #67e8f9 !important;
   stroke-width: 2.2;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RECEPTORES DE FACTURACIÓN — contactos en modo oscuro
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Nombre del contacto */
+html.a11y-theme-dark .receptor-contacto-nombre.text-xs.font-semibold {
+  color: #f8fafc !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
+}
+
+/* Email del contacto */
+html.a11y-theme-dark .receptor-contacto-email.text-xs.text-slate-500 {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
