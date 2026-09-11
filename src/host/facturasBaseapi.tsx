@@ -1047,7 +1047,7 @@ const FacturasBaseapi: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 lg:px-6">
-            <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+            <div className="mx-auto w-full max-w-[1800px] space-y-4 sm:space-y-5">
 
                 {/* =================================================
                     HEADER
@@ -1617,6 +1617,11 @@ const FacturasBaseapi: React.FC = () => {
                                 }
                                 onSelectDocumento={
                                     handleSeleccionarDocumento
+                                }
+                                mode={
+                                    activeTab === "ventas"
+                                        ? "facturacion"
+                                        : "rcv"
                                 }
                             />
 

@@ -6,7 +6,10 @@ import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosR
 import DetalleBaseApiModal from "../components/modals-facturasBaseapi/DetalleBaseApiModal";
 import CobranzaDetalleModal from "../components/modals-cobranza/CobranzaDetalleModal";
 import ClienteDetalleModal from "../components/modals-cobranza/ClienteDetalleModal";
-import { buscarCorreoPorRut } from "../components/modals-cobranza/buscarCorreoCliente";
+import {
+    buscarReceptorCobranzaPorRut,
+    type ContactoCobranza,
+} from "../components/modals-cobranza/buscarCorreoCliente";
 import {
     MESES,
     getDocumentos,
@@ -25,7 +28,10 @@ import {
 import {
     generarPdfDocumentoSeleccionado,
 } from "../components/modals-facturasBaseapi/pdfDocumento";
-import { Pagination } from "antd";
+import {
+    Pagination,
+    Select
+} from "antd";
 import {
     FileTextOutlined,
     ClockCircleOutlined,
@@ -83,216 +89,687 @@ export default function Cobranza() {
     const [pageSize, setPageSize] = useState(50);
     const [downloadingFolio, setDownloadingFolio] = useState<string | null>(null);
 
-    const fetchDatos = useCallback(async (forceRefresh = false) => {
-        setLoading(true);
-        setRespuesta(null);
-        setDocumentoSeleccionado(null);
+    const fetchDatos = useCallback(
+        async (
+            forceRefresh = false
+        ) => {
+            setLoading(true);
+            setRespuesta(null);
+            setDocumentoSeleccionado(null);
 
-        try {
-            if (isCliente && activeTab === "compras") {
-                setActiveTab("ventas");
-                return;
-            }
+            try {
+                if (
+                    isCliente &&
+                    activeTab === "compras"
+                ) {
+                    setActiveTab(
+                        "ventas"
+                    );
 
-
-            const cacheKey = `${activeTab}|${empresa}|${mes}|${ano}`;
-
-            // simple in-memory cache + sessionStorage persistence
-            if (!(fetchDatos as any)._cacheRef) (fetchDatos as any)._cacheRef = new Map<string, any>();
-            const cacheRef: Map<string, any> = (fetchDatos as any)._cacheRef;
-
-            let json: any = null;
-
-            // try sessionStorage first when not forcing refresh
-            if (!forceRefresh) {
-                try {
-                    const sess = sessionStorage.getItem(`cobranza:${cacheKey}`);
-                    if (sess) {
-                        json = JSON.parse(sess);
-                        console.log("Cobranza: using session cache for:", cacheKey);
-                    }
-                } catch { /* ignore parse errors */ }
-            }
-
-            // fallback to in-memory cache
-            if (!json && !forceRefresh) {
-                const mem = cacheRef.get(cacheKey);
-                if (mem) {
-                    json = mem;
-                    try { console.log("Cobranza: using memory cache for:", cacheKey); } catch { }
+                    return;
                 }
-            }
 
-            if (!json) {
+                /*
+                 * IMPORTANTE:
+                 *
+                 * Cobranza SIEMPRE consulta nuestro backend.
+                 *
+                 * forceRefresh=false:
+                 * - el backend puede usar SiiApiCache
+                 * - NO obliga a consultar BaseAPI/SII
+                 * - pero vuelve a enriquecer documentos con:
+                 *      conciliaciones
+                 *      vencimientos
+                 *      recordatorios automáticos
+                 *
+                 * forceRefresh=true:
+                 * - fuerza nueva consulta BaseAPI/SII
+                 * - actualiza SiiApiCache
+                 * - luego aplica igualmente los datos locales
+                 */
                 const endpoint =
-                    activeTab === "ventas"
+                    activeTab ===
+                        "ventas"
                         ? "/baseapi/rcv/ventas"
                         : "/baseapi/rcv/compras";
 
-                const { data } = await api.get(endpoint, {
-                    params: {
-                        mes,
-                        ano,
-                        ...(!isCliente ? { empresa } : {}),
-                        ...(forceRefresh ? { forceRefresh: true } : {}),
-                    },
-                });
+                const {
+                    data: json,
+                } = await api.get(
+                    endpoint,
+                    {
+                        params: {
+                            mes,
+                            ano,
 
-                json = data;
-                setRespuesta(json);
+                            ...(
+                                !isCliente
+                                    ? {
+                                        empresa,
+                                    }
+                                    : {}
+                            ),
 
-                // store in caches
-                try {
-                    cacheRef.set(cacheKey, json);
-                    sessionStorage.setItem(`cobranza:${cacheKey}`, JSON.stringify(json));
-                } catch (e) { /* ignore storage errors */ }
-            } else {
-                // we already have json from cache - reflect in UI state
-                setRespuesta(json);
-            }
-
-            const rawDocs = getDocumentos(json);
-
-            // Detectar folios referenciados por Notas de Crédito (tipo 61)
-            const referencedByNC = new Set<number>();
-
-            // Helper: extrae folios numéricos desde un objeto/array/string recursivamente
-            function extractFoliosFromObject(obj: any, ownFol: number | null) {
-                try {
-                    if (obj === null || obj === undefined) return;
-
-                    if (typeof obj === 'number') {
-                        const n = Number(obj);
-                        if (Number.isFinite(n) && n > 0 && (!ownFol || n !== ownFol)) referencedByNC.add(n);
-                        return;
+                            ...(
+                                forceRefresh
+                                    ? {
+                                        forceRefresh:
+                                            true,
+                                    }
+                                    : {}
+                            ),
+                        },
                     }
+                );
 
-                    if (typeof obj === 'string') {
-                        // Buscar patrones <FolioRef>123</FolioRef> y números aislados de 2-6 dígitos
-                        const xmlRe = /<FolioRef>(\d+)<\/FolioRef>/gi;
-                        for (const m of obj.matchAll(xmlRe)) {
-                            const num = Number(m[1]);
-                            if (num && (!ownFol || num !== ownFol)) referencedByNC.add(num);
-                        }
+                setRespuesta(
+                    json
+                );
 
-                        const numRe = /\b(\d{2,6})\b/g;
-                        for (const m of obj.matchAll(numRe)) {
-                            const num = Number(m[1]);
-                            if (num && (!ownFol || num !== ownFol)) referencedByNC.add(num);
-                        }
+                const rawDocs =
+                    getDocumentos(
+                        json
+                    );
 
-                        return;
-                    }
+                /*
+                 * Detectar folios referenciados
+                 * por Notas de Crédito (tipo 61).
+                 */
+                const referencedByNC =
+                    new Set<number>();
 
-                    if (Array.isArray(obj)) {
-                        for (const it of obj) extractFoliosFromObject(it, ownFol);
-                        return;
-                    }
-
-                    if (typeof obj === 'object') {
-                        for (const k of Object.keys(obj)) {
-                            const v = obj[k];
-                            // si la clave sugiere referencia, intentar parsear valor directo
-                            if (/folio|Folio|FolioRef|folioRef|folioDocRef|folioDocReferencia/i.test(k)) {
-                                const num = Number(v ?? 0);
-                                if (Number.isFinite(num) && num > 0 && (!ownFol || num !== ownFol)) referencedByNC.add(num);
-                            }
-                            extractFoliosFromObject(v, ownFol);
-                        }
-                    }
-                } catch { /* ignore */ }
-            }
-
-            rawDocs.forEach((doc: any) => {
-                try {
-                    const tipo = String(getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"], "")).trim();
-                    const raw = doc?.raw ?? doc;
-
-                    if (String(tipo) === "61") {
-                        const ownFol = Number(String(getValue(doc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "") || 0);
-                        // 1) campos JSON explícitos comunes
-                        const possibleKeys = ['folioDocReferencia', 'folioDocRef', 'folioRef', 'FolioRef', 'folioReferencia', 'folioDoc', 'folioReferenciado'];
-                        for (const key of possibleKeys) {
-                            const val = raw?.[key];
-                            const num = Number(val ?? 0);
-                            if (!Number.isFinite(num) || num <= 0) continue;
-                            if (ownFol && num === ownFol) continue;
-                            referencedByNC.add(num);
-                        }
-
-                        // Extracción recursiva adicional para capturar referencias en rutas anidadas
-                        extractFoliosFromObject(raw, ownFol);
-                        extractFoliosFromObject(raw?.data, ownFol);
-                        extractFoliosFromObject(raw?.documento, ownFol);
-                        extractFoliosFromObject(raw?.data?.documento, ownFol);
-
-                        // 2) array de referencias en raw
-                        if (Array.isArray(raw?.referencias)) {
-                            for (const r of raw.referencias) {
-                                const fol = Number(r?.FolioRef ?? r?.folioRef ?? r?.folio ?? r?.Folio ?? 0);
-                                if (!fol) continue;
-                                if (ownFol && fol === ownFol) continue;
-                                referencedByNC.add(fol);
-                            }
-                        }
-
-                        // 3) buscar en XML/texto embebido etiquetas <FolioRef>123</FolioRef>
-                        try {
-                            const rawStr = JSON.stringify(raw || '');
-                            const xmlMatches = rawStr.matchAll(/<FolioRef>(\d+)<\/FolioRef>/gi);
-                            for (const m of xmlMatches) {
-                                const num = Number(m[1]);
-                                if (!num) continue;
-                                if (ownFol && num === ownFol) continue;
-                                referencedByNC.add(num);
-                            }
-
-                            // 4) buscar claves JSON tipo "FolioRef":"123"
-                            const jsonMatches = rawStr.matchAll(/\"(?:FolioRef|folioDocReferencia|folioDocRef|folioRef|folioDocReferencia)\"\s*:\s*\"?(\d+)\"?/gi);
-                            for (const m of jsonMatches) {
-                                const num = Number(m[1]);
-                                if (!num) continue;
-                                if (ownFol && num === ownFol) continue;
-                                referencedByNC.add(num);
-                            }
-                        } catch { /* ignore */ }
-                    }
-                } catch { /* ignore per doc */ }
-            });
-
-            // Construir lista de folios existentes y cuáles serán excluidos
-            const existingFolios = rawDocs.map((d: any) => Number(String(getValue(d, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "") || 0)).filter((n: number) => Number.isFinite(n) && n > 0);
-            const excludedList = Array.from(referencedByNC).filter((n) => existingFolios.includes(n));
-            try { console.log('Cobranza: folios referenciados por NC encontrados:', Array.from(referencedByNC).sort((a, b) => a - b)); } catch { }
-            setExcluidosPorNC(excludedList);
-
-            const docs = rawDocs
-                .filter((d: any) => {
-                    const tipo = String(getValue(d, ["Tipo Doc", "tipoDoc", "tipoDTE"], "")).trim();
-
-
-                    // excluir si viene marcado por backend como `hasNC` o `_excludedByNC`
+                function extractFoliosFromObject(
+                    obj: any,
+                    ownFol:
+                        number |
+                        null
+                ) {
                     try {
-                        if (d?.hasNC === true || d?._excludedByNC === true) return false;
-                    } catch { }
+                        if (
+                            obj === null ||
+                            obj === undefined
+                        ) {
+                            return;
+                        }
 
-                    // excluir si está explícitamente referenciada por una NC encontrada (por folio)
-                    const fol = Number(String(getValue(d, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "") || 0);
-                    if (fol && referencedByNC.has(fol)) return false;
+                        if (
+                            typeof obj ===
+                            "number"
+                        ) {
+                            const n =
+                                Number(
+                                    obj
+                                );
 
-                    return tipo !== "61"; // excluir Notas de Crédito (61) solamente; incluir Notas de Débito (56)
-                });
+                            if (
+                                Number.isFinite(
+                                    n
+                                ) &&
+                                n >
+                                0 &&
+                                (
+                                    !ownFol ||
+                                    n !==
+                                    ownFol
+                                )
+                            ) {
+                                referencedByNC.add(
+                                    n
+                                );
+                            }
 
-            setDocumentos(docs);
-            console.log('Cobranza: excluded folios intersecting with payload:', excludedList);
-            setResumenPorTipo(getResumenPorTipo(json));
-        } catch (err: any) {
-            console.error("Cobranza fetch error:", err);
-            setDocumentos([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [mes, ano, activeTab, empresa, isCliente]);
+                            return;
+                        }
+
+                        if (
+                            typeof obj ===
+                            "string"
+                        ) {
+                            const xmlRe =
+                                /<FolioRef>(\d+)<\/FolioRef>/gi;
+
+                            for (
+                                const m
+                                of obj.matchAll(
+                                    xmlRe
+                                )
+                            ) {
+                                const num =
+                                    Number(
+                                        m[1]
+                                    );
+
+                                if (
+                                    num &&
+                                    (
+                                        !ownFol ||
+                                        num !==
+                                        ownFol
+                                    )
+                                ) {
+                                    referencedByNC.add(
+                                        num
+                                    );
+                                }
+                            }
+
+                            const numRe =
+                                /\b(\d{2,6})\b/g;
+
+                            for (
+                                const m
+                                of obj.matchAll(
+                                    numRe
+                                )
+                            ) {
+                                const num =
+                                    Number(
+                                        m[1]
+                                    );
+
+                                if (
+                                    num &&
+                                    (
+                                        !ownFol ||
+                                        num !==
+                                        ownFol
+                                    )
+                                ) {
+                                    referencedByNC.add(
+                                        num
+                                    );
+                                }
+                            }
+
+                            return;
+                        }
+
+                        if (
+                            Array.isArray(
+                                obj
+                            )
+                        ) {
+                            for (
+                                const it
+                                of obj
+                            ) {
+                                extractFoliosFromObject(
+                                    it,
+                                    ownFol
+                                );
+                            }
+
+                            return;
+                        }
+
+                        if (
+                            typeof obj ===
+                            "object"
+                        ) {
+                            for (
+                                const k
+                                of Object.keys(
+                                    obj
+                                )
+                            ) {
+                                const v =
+                                    obj[k];
+
+                                if (
+                                    /folio|Folio|FolioRef|folioRef|folioDocRef|folioDocReferencia/i.test(
+                                        k
+                                    )
+                                ) {
+                                    const num =
+                                        Number(
+                                            v ??
+                                            0
+                                        );
+
+                                    if (
+                                        Number.isFinite(
+                                            num
+                                        ) &&
+                                        num >
+                                        0 &&
+                                        (
+                                            !ownFol ||
+                                            num !==
+                                            ownFol
+                                        )
+                                    ) {
+                                        referencedByNC.add(
+                                            num
+                                        );
+                                    }
+                                }
+
+                                extractFoliosFromObject(
+                                    v,
+                                    ownFol
+                                );
+                            }
+                        }
+                    } catch {
+                        /* ignore */
+                    }
+                }
+
+                rawDocs.forEach(
+                    (
+                        doc:
+                            any
+                    ) => {
+                        try {
+                            const tipo =
+                                String(
+                                    getValue(
+                                        doc,
+                                        [
+                                            "Tipo Doc",
+                                            "tipoDoc",
+                                            "tipoDTE",
+                                        ],
+                                        ""
+                                    )
+                                ).trim();
+
+                            const raw =
+                                doc?.raw ??
+                                doc;
+
+                            if (
+                                tipo ===
+                                "61"
+                            ) {
+                                const ownFol =
+                                    Number(
+                                        String(
+                                            getValue(
+                                                doc,
+                                                [
+                                                    "Folio",
+                                                    "folio",
+                                                    "Nro",
+                                                    "numero",
+                                                ],
+                                                ""
+                                            )
+                                        ).replace(
+                                            /[^0-9]/g,
+                                            ""
+                                        )
+                                    ) ||
+                                    0;
+
+                                const possibleKeys =
+                                    [
+                                        "folioDocReferencia",
+                                        "folioDocRef",
+                                        "folioRef",
+                                        "FolioRef",
+                                        "folioReferencia",
+                                        "folioDoc",
+                                        "folioReferenciado",
+                                    ];
+
+                                for (
+                                    const key
+                                    of possibleKeys
+                                ) {
+                                    const val =
+                                        raw?.[
+                                        key
+                                        ];
+
+                                    const num =
+                                        Number(
+                                            val ??
+                                            0
+                                        );
+
+                                    if (
+                                        !Number.isFinite(
+                                            num
+                                        ) ||
+                                        num <=
+                                        0
+                                    ) {
+                                        continue;
+                                    }
+
+                                    if (
+                                        ownFol &&
+                                        num ===
+                                        ownFol
+                                    ) {
+                                        continue;
+                                    }
+
+                                    referencedByNC.add(
+                                        num
+                                    );
+                                }
+
+                                extractFoliosFromObject(
+                                    raw,
+                                    ownFol
+                                );
+
+                                extractFoliosFromObject(
+                                    raw?.data,
+                                    ownFol
+                                );
+
+                                extractFoliosFromObject(
+                                    raw?.documento,
+                                    ownFol
+                                );
+
+                                extractFoliosFromObject(
+                                    raw?.data
+                                        ?.documento,
+                                    ownFol
+                                );
+
+                                if (
+                                    Array.isArray(
+                                        raw?.referencias
+                                    )
+                                ) {
+                                    for (
+                                        const r
+                                        of raw.referencias
+                                    ) {
+                                        const fol =
+                                            Number(
+                                                r?.FolioRef ??
+                                                r?.folioRef ??
+                                                r?.folio ??
+                                                r?.Folio ??
+                                                0
+                                            );
+
+                                        if (
+                                            !fol
+                                        ) {
+                                            continue;
+                                        }
+
+                                        if (
+                                            ownFol &&
+                                            fol ===
+                                            ownFol
+                                        ) {
+                                            continue;
+                                        }
+
+                                        referencedByNC.add(
+                                            fol
+                                        );
+                                    }
+                                }
+
+                                try {
+                                    const rawStr =
+                                        JSON.stringify(
+                                            raw ??
+                                            ""
+                                        );
+
+                                    const xmlMatches =
+                                        rawStr.matchAll(
+                                            /<FolioRef>(\d+)<\/FolioRef>/gi
+                                        );
+
+                                    for (
+                                        const m
+                                        of xmlMatches
+                                    ) {
+                                        const num =
+                                            Number(
+                                                m[1]
+                                            );
+
+                                        if (
+                                            !num
+                                        ) {
+                                            continue;
+                                        }
+
+                                        if (
+                                            ownFol &&
+                                            num ===
+                                            ownFol
+                                        ) {
+                                            continue;
+                                        }
+
+                                        referencedByNC.add(
+                                            num
+                                        );
+                                    }
+
+                                    const jsonMatches =
+                                        rawStr.matchAll(
+                                            /\"(?:FolioRef|folioDocReferencia|folioDocRef|folioRef|folioDocReferencia)\"\s*:\s*\"?(\d+)\"?/gi
+                                        );
+
+                                    for (
+                                        const m
+                                        of jsonMatches
+                                    ) {
+                                        const num =
+                                            Number(
+                                                m[1]
+                                            );
+
+                                        if (
+                                            !num
+                                        ) {
+                                            continue;
+                                        }
+
+                                        if (
+                                            ownFol &&
+                                            num ===
+                                            ownFol
+                                        ) {
+                                            continue;
+                                        }
+
+                                        referencedByNC.add(
+                                            num
+                                        );
+                                    }
+                                } catch {
+                                    /* ignore */
+                                }
+                            }
+                        } catch {
+                            /* ignore per doc */
+                        }
+                    }
+                );
+
+                const existingFolios =
+                    rawDocs
+                        .map(
+                            (
+                                d:
+                                    any
+                            ) =>
+                                Number(
+                                    String(
+                                        getValue(
+                                            d,
+                                            [
+                                                "Folio",
+                                                "folio",
+                                                "Nro",
+                                                "numero",
+                                            ],
+                                            ""
+                                        )
+                                    ).replace(
+                                        /[^0-9]/g,
+                                        ""
+                                    )
+                                )
+                        )
+                        .filter(
+                            (
+                                n:
+                                    number
+                            ) =>
+                                Number.isFinite(
+                                    n
+                                ) &&
+                                n >
+                                0
+                        );
+
+                const excludedList =
+                    Array.from(
+                        referencedByNC
+                    ).filter(
+                        (
+                            n
+                        ) =>
+                            existingFolios.includes(
+                                n
+                            )
+                    );
+
+                console.log(
+                    "Cobranza: folios referenciados por NC encontrados:",
+                    Array.from(
+                        referencedByNC
+                    ).sort(
+                        (
+                            a,
+                            b
+                        ) =>
+                            a -
+                            b
+                    )
+                );
+
+                setExcluidosPorNC(
+                    excludedList
+                );
+
+                const docs =
+                    rawDocs.filter(
+                        (
+                            d:
+                                any
+                        ) => {
+                            const tipo =
+                                String(
+                                    getValue(
+                                        d,
+                                        [
+                                            "Tipo Doc",
+                                            "tipoDoc",
+                                            "tipoDTE",
+                                        ],
+                                        ""
+                                    )
+                                ).trim();
+
+                            if (
+                                d?.hasNC ===
+                                true ||
+                                d?._excludedByNC ===
+                                true
+                            ) {
+                                return false;
+                            }
+
+                            const fol =
+                                Number(
+                                    String(
+                                        getValue(
+                                            d,
+                                            [
+                                                "Folio",
+                                                "folio",
+                                                "Nro",
+                                                "numero",
+                                            ],
+                                            ""
+                                        )
+                                    ).replace(
+                                        /[^0-9]/g,
+                                        ""
+                                    )
+                                ) ||
+                                0;
+
+                            if (
+                                fol &&
+                                referencedByNC.has(
+                                    fol
+                                )
+                            ) {
+                                return false;
+                            }
+
+                            return (
+                                tipo !==
+                                "61"
+                            );
+                        }
+                    );
+
+                setDocumentos(
+                    docs
+                );
+
+                setResumenPorTipo(
+                    getResumenPorTipo(
+                        json
+                    )
+                );
+
+                console.log(
+                    "Cobranza: documentos actualizados desde backend",
+                    {
+                        forceRefresh,
+                        backendCached:
+                            json?.cached ??
+                            null,
+                        documentos:
+                            docs.length,
+                    }
+                );
+            } catch (
+            err:
+                any
+            ) {
+                console.error(
+                    "Cobranza fetch error:",
+                    err
+                );
+
+                setDocumentos(
+                    []
+                );
+            } finally {
+                setLoading(
+                    false
+                );
+            }
+        },
+        [
+            mes,
+            ano,
+            activeTab,
+            empresa,
+            isCliente,
+        ]
+    );
 
     useEffect(() => {
         fetchDatos();
@@ -602,27 +1079,69 @@ export default function Cobranza() {
                 const folio = String(getValue(editDoc, ["Folio", "folio", "Nro", "numero"], "")).replace(/[^0-9]/g, "");
                 const empresaDocumento = String(getValue(editDoc, ["empresaOrigen", "empresa", "empresaKey"], empresa)).toLowerCase();
 
-                await api.patch("/baseapi/rcv/vencimiento", {
-                    empresaKey: empresaDocumento,
-                    tipoDoc: String(tipo),
-                    folio,
-                    fechaVencimiento: newDate || null,
-                });
+                await api.patch(
+                    "/baseapi/rcv/vencimiento",
+                    {
+                        empresaKey:
+                            empresaDocumento,
 
-                alert('Fecha de vencimiento guardada');
-                // refrescar desde servidor para actualizar cache y mantener persistencia
-                await fetchDatos(true);
-            } catch (error: any) {
-                console.error('Error persistiendo vencimiento en backend:', error);
+                        tipoDoc:
+                            String(
+                                tipo
+                            ),
+
+                        folio,
+
+                        fechaVencimiento:
+                            newDate ||
+                            null,
+                    }
+                );
+
+                alert(
+                    "Fecha de vencimiento guardada"
+                );
+
+                /*
+                 * Refrescar solamente desde nuestro backend.
+                 *
+                 * El backend reutiliza el RCV cacheado si corresponde,
+                 * pero vuelve a aplicar los datos locales actuales:
+                 * - vencimiento manual
+                 * - conciliación
+                 * - automatización de cobranza
+                 */
+                await fetchDatos(
+                    false
+                );
+            } catch (
+            error:
+                any
+            ) {
+                console.error(
+                    "Error persistiendo vencimiento en backend:",
+                    error
+                );
 
                 const message =
                     error?.response?.data?.error ??
                     error?.response?.data?.message ??
                     error?.message ??
-                    'Error al persistir la fecha en el servidor';
+                    "Error al persistir la fecha en el servidor";
 
-                alert(String(message));
-                await fetchDatos(true);
+                alert(
+                    String(
+                        message
+                    )
+                );
+
+                /*
+                 * Restaurar estado desde nuestro backend,
+                 * sin forzar una nueva consulta al SII.
+                 */
+                await fetchDatos(
+                    false
+                );
             }
 
             // cerrar modal
@@ -668,8 +1187,27 @@ export default function Cobranza() {
                 </div>
 
                 {respuesta && (
-                    <div className="border-t border-slate-100 bg-emerald-50/60 px-6 py-2.5 text-xs font-medium text-emerald-700 flex items-center gap-2">
-                        <InfoCircleOutlined /> Datos cargados desde cache si estaban disponibles
+                    <div
+                        className="
+            flex
+            items-center
+            gap-2
+            border-t
+            border-slate-100
+            bg-emerald-50/60
+            px-6
+            py-2.5
+            text-xs
+            font-medium
+            text-emerald-700
+        "
+                    >
+                        <InfoCircleOutlined />
+
+                        {respuesta?.cached
+                            ? "RCV cargado desde caché local. El estado de cobranza está actualizado."
+                            : "RCV actualizado desde BaseAPI/SII. El estado de cobranza está actualizado."
+                        }
                     </div>
                 )}
             </div>
@@ -950,20 +1488,114 @@ export default function Cobranza() {
                     const rutThis = String(getValue(cobranzaSelectedDoc, ['RUT Receptor', 'rutReceptor', 'rutCliente', 'rutProveedor'], '')).replace(/[^0-9kK]/g, '').toLowerCase();
                     const razonThis = String(getValue(cobranzaSelectedDoc, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).toLowerCase().trim();
 
-                    const filtered = (all || []).filter((d: any) => {
-                        try {
-                            const ek = String(getValue(d, ["empresaOrigen", "empresa", "empresaKey", "rutEmpresa"], "")).toLowerCase().trim();
-                            if (ekThis && ek && ek === ekThis) return true;
+                    const filtered =
+                        (all || []).filter(
+                            (
+                                d:
+                                    any
+                            ) => {
+                                try {
+                                    const ek =
+                                        String(
+                                            getValue(
+                                                d,
+                                                [
+                                                    "empresaOrigen",
+                                                    "empresa",
+                                                    "empresaKey",
+                                                ],
+                                                ""
+                                            )
+                                        )
+                                            .toLowerCase()
+                                            .trim();
 
-                            const rut = String(getValue(d, ['RUT Receptor', 'rutReceptor', 'rutCliente', 'rutProveedor'], '')).replace(/[^0-9kK]/g, '').toLowerCase();
-                            if (rutThis && rut && rut === rutThis) return true;
+                                    /*
+                                     * Primero exigimos que pertenezca
+                                     * al mismo emisor RCV.
+                                     */
+                                    if (
+                                        ekThis &&
+                                        ek &&
+                                        ek !==
+                                        ekThis
+                                    ) {
+                                        return false;
+                                    }
 
-                            const razon = String(getValue(d, ['Razon Social', 'Razón Social', 'razonSocial', 'razonSocialReceptor', 'razonSocialProveedor'], '')).toLowerCase().trim();
-                            if (razonThis && razon && (razon.includes(razonThis) || razonThis.includes(razon))) return true;
+                                    const rut =
+                                        String(
+                                            getValue(
+                                                d,
+                                                [
+                                                    "RUT Receptor",
+                                                    "RUT Cliente",
+                                                    "Rut cliente",
+                                                    "rutReceptor",
+                                                    "rutCliente",
+                                                    "rutProveedor",
+                                                ],
+                                                ""
+                                            )
+                                        )
+                                            .replace(
+                                                /[^0-9kK]/g,
+                                                ""
+                                            )
+                                            .toLowerCase();
 
-                            return false;
-                        } catch { return false; }
-                    });
+                                    /*
+                                     * RUT es la identidad principal
+                                     * de la contraparte.
+                                     */
+                                    if (
+                                        rutThis &&
+                                        rut
+                                    ) {
+                                        return (
+                                            rut ===
+                                            rutThis
+                                        );
+                                    }
+
+                                    /*
+                                     * Solo si no tenemos RUT,
+                                     * usamos razón social como fallback.
+                                     */
+                                    const razon =
+                                        String(
+                                            getValue(
+                                                d,
+                                                [
+                                                    "Razon Social",
+                                                    "Razón Social",
+                                                    "razonSocial",
+                                                    "razonSocialReceptor",
+                                                    "razonSocialProveedor",
+                                                ],
+                                                ""
+                                            )
+                                        )
+                                            .toLowerCase()
+                                            .trim();
+
+                                    return Boolean(
+                                        razonThis &&
+                                        razon &&
+                                        (
+                                            razon.includes(
+                                                razonThis
+                                            ) ||
+                                            razonThis.includes(
+                                                razon
+                                            )
+                                        )
+                                    );
+                                } catch {
+                                    return false;
+                                }
+                            }
+                        );
 
                     return (
                         <CobranzaDetalleModal
@@ -1120,6 +1752,30 @@ const TITULOS_RECORDATORIO: Record<string, string> = {
     nuevo_doc_nc: 'Nuevo Documento',
 };
 
+const DATOS_PAGO: Record<
+    EmpresaKey,
+    {
+        banco: string;
+        cuenta: string;
+        rut: string;
+        correo: string;
+    }
+> = {
+    econnet: {
+        banco: "Itaú",
+        cuenta: "0213150814",
+        rut: "76.758.352-4",
+        correo: "carenas@rids.cl",
+    },
+
+    rids: {
+        banco: "Itaú",
+        cuenta: "226746680",
+        rut: "77.825.186-8",
+        correo: "pagos@rids.cl",
+    },
+};
+
 function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1157,34 +1813,171 @@ function ReminderBody({
 }) {
     const [canal, setCanal] = React.useState<string>("email");
     const [tipo, setTipo] = React.useState<string>("");
-    const [manualEmail, setManualEmail] = React.useState<string>("");
-    const [manualNombre, setManualNombre] = React.useState<string>("");
+    const [
+        contactosCobranza,
+        setContactosCobranza,
+    ] = React.useState<ContactoCobranza[]>([]);
+
+    const [
+        emailsSeleccionados,
+        setEmailsSeleccionados,
+    ] = React.useState<string[]>([]);
+
+    const [
+        receptorEncontrado,
+        setReceptorEncontrado,
+    ] = React.useState(false);
+
+    const [
+        receptorHabilitado,
+        setReceptorHabilitado,
+    ] = React.useState(false);
     const [observacion, setObservacion] = React.useState<string>("");
     const [generando, setGenerando] = React.useState(false);
     const [buscandoCorreo, setBuscandoCorreo] = React.useState(false);
     const [showPreviewHtml, setShowPreviewHtml] = React.useState(false);
     const [previewHtml, setPreviewHtml] = React.useState<string>("");
 
-    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualEmail.trim());
+    const puedeEnviar =
+        receptorHabilitado &&
+        emailsSeleccionados.length >
+        0;
 
     // Al abrir el recordatorio, buscar automáticamente el correo y nombre del cliente por su RUT
     React.useEffect(() => {
-        if (!reminderDoc) return;
+        if (!reminderDoc) {
+            return;
+        }
 
-        const nombreDoc = String(getNombreContraparte(reminderDoc) ?? "");
-        if (nombreDoc && nombreDoc !== "Sin razón social") setManualNombre(nombreDoc);
+        const rutDoc = String(
+            getRutContraparte(
+                reminderDoc,
+                activeTab
+            ) ?? ""
+        );
 
-        const rutDoc = String(getRutContraparte(reminderDoc, activeTab) ?? "");
-        if (!rutDoc || rutDoc === "Sin RUT") return;
+        setContactosCobranza([]);
+        setEmailsSeleccionados([]);
+        setReceptorEncontrado(false);
+        setReceptorHabilitado(false);
+
+        if (
+            !rutDoc ||
+            rutDoc === "Sin RUT"
+        ) {
+            return;
+        }
 
         let mounted = true;
-        setBuscandoCorreo(true);
-        buscarCorreoPorRut(rutDoc).then((found) => {
-            if (mounted && found) setManualEmail(found);
-            if (mounted) setBuscandoCorreo(false);
-        });
-        return () => { mounted = false; };
-    }, [reminderDoc, activeTab]);
+
+        const cargarDestinatarios =
+            async () => {
+                try {
+                    setBuscandoCorreo(
+                        true
+                    );
+
+                    const receptor =
+                        await buscarReceptorCobranzaPorRut(
+                            rutDoc
+                        );
+
+                    if (
+                        !mounted
+                    ) {
+                        return;
+                    }
+
+                    if (
+                        !receptor
+                    ) {
+                        return;
+                    }
+
+                    setReceptorEncontrado(
+                        true
+                    );
+
+                    const habilitado =
+                        receptor.activo &&
+                        receptor.recibeCobranza;
+
+                    setReceptorHabilitado(
+                        habilitado
+                    );
+
+                    if (
+                        !habilitado
+                    ) {
+                        return;
+                    }
+
+                    const contactosValidos =
+                        receptor.contactos
+                            .filter(
+                                (
+                                    contacto
+                                ) =>
+                                    contacto.activo &&
+                                    contacto.recibeCobranza &&
+                                    Boolean(
+                                        contacto.email?.trim()
+                                    )
+                            )
+                            .sort(
+                                (
+                                    a,
+                                    b
+                                ) =>
+                                    Number(
+                                        b.principal
+                                    ) -
+                                    Number(
+                                        a.principal
+                                    )
+                            );
+
+                    setContactosCobranza(
+                        contactosValidos
+                    );
+
+                    setEmailsSeleccionados(
+                        contactosValidos.map(
+                            (
+                                contacto
+                            ) =>
+                                contacto.email
+                                    .trim()
+                                    .toLowerCase()
+                        )
+                    );
+                } catch (
+                error
+                ) {
+                    console.error(
+                        "Error buscando destinatarios de cobranza:",
+                        error
+                    );
+                } finally {
+                    if (
+                        mounted
+                    ) {
+                        setBuscandoCorreo(
+                            false
+                        );
+                    }
+                }
+            };
+
+        void cargarDestinatarios();
+
+        return () => {
+            mounted = false;
+        };
+    }, [
+        reminderDoc,
+        activeTab,
+    ]);
 
     return (
         <div className="mt-4">
@@ -1196,10 +1989,19 @@ function ReminderBody({
                     </div>
 
                     <label className="block text-xs font-medium text-slate-600 mb-2">Canal</label>
-                    <select value={canal} onChange={(e) => setCanal(e.target.value)} className="mb-3 h-10 w-full rounded border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100">
-                        <option value="email">Correo electrónico</option>
-                        <option value="sms">Mensaje SMS</option>
-                        <option value="whatsapp">Mensaje WhatsApp</option>
+                    <select
+                        value={canal}
+                        onChange={
+                            (e) =>
+                                setCanal(
+                                    e.target.value
+                                )
+                        }
+                        className="mb-3 h-10 w-full rounded border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100"
+                    >
+                        <option value="email">
+                            Correo electrónico
+                        </option>
                     </select>
 
                     <label className="block text-xs font-medium text-slate-600 mb-2">Tipo de recordatorio</label>
@@ -1214,31 +2016,135 @@ function ReminderBody({
                 </div>
 
                 <div>
-                    <div className="mb-3 flex items-center gap-3">
-                        <div className="rounded-full bg-slate-200 px-3 py-1 text-slate-700 font-bold">2</div>
-                        <h3 className="text-sm font-semibold">Destinatario</h3>
-                    </div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Destinatarios
+                    </label>
 
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre (opcional)</label>
-                    <input
-                        type="text"
-                        value={manualNombre}
-                        onChange={(e) => setManualNombre(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
-                        className="mb-3 h-10 w-full rounded border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100"
-                    />
+                    <Select
+                        mode="multiple"
+                        value={
+                            emailsSeleccionados
+                        }
+                        onChange={
+                            (
+                                values:
+                                    string[]
+                            ) =>
+                                setEmailsSeleccionados(
+                                    values.map(
+                                        (
+                                            value
+                                        ) =>
+                                            value
+                                                .trim()
+                                                .toLowerCase()
+                                    )
+                                )
+                        }
+                        loading={
+                            buscandoCorreo
+                        }
+                        disabled={
+                            buscandoCorreo ||
+                            !receptorHabilitado
+                        }
+                        placeholder={
+                            buscandoCorreo
+                                ? "Buscando destinatarios..."
+                                : "Seleccionar destinatarios"
+                        }
+                        className="w-full"
+                        options={
+                            contactosCobranza.map(
+                                (
+                                    contacto
+                                ) => ({
+                                    value:
+                                        contacto.email,
 
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Correo de destino <span className="text-red-500">*</span></label>
-                    <input
-                        type="email"
-                        value={manualEmail}
-                        onChange={(e) => setManualEmail(e.target.value)}
-                        placeholder={buscandoCorreo ? "Buscando correo..." : "correo@ejemplo.com"}
-                        className={`h-10 w-full rounded border px-3 text-sm outline-none focus:ring-2 focus:ring-cyan-100 ${manualEmail && !emailValido ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}
+                                    label:
+                                        contacto.nombre
+                                            ? `${contacto.nombre} · ${contacto.email}`
+                                            : contacto.email,
+                                })
+                            )
+                        }
+                        optionFilterProp="label"
+                        allowClear
+                        maxTagCount={
+                            emailsSeleccionados.length >
+                                1
+                                ? 0
+                                : 1
+                        }
+                        maxTagPlaceholder={
+                            (
+                                omittedValues
+                            ) =>
+                                `${omittedValues.length} destinatario${omittedValues.length !==
+                                    1
+                                    ? "s"
+                                    : ""
+                                } seleccionado${omittedValues.length !==
+                                    1
+                                    ? "s"
+                                    : ""
+                                }`
+                        }
                     />
-                    {manualEmail && !emailValido && (
-                        <p className="mt-1 text-xs text-red-500">Ingresa un correo válido</p>
-                    )}
+                    {!buscandoCorreo &&
+                        receptorEncontrado &&
+                        receptorHabilitado &&
+                        contactosCobranza.length >
+                        0 && (
+                            <p className="mt-1.5 text-xs font-medium text-emerald-600">
+                                {
+                                    emailsSeleccionados.length
+                                }{" "}
+                                de{" "}
+                                {
+                                    contactosCobranza.length
+                                }{" "}
+                                destinatario
+                                {
+                                    contactosCobranza.length !==
+                                        1
+                                        ? "s"
+                                        : ""
+                                }{" "}
+                                seleccionado
+                                {
+                                    emailsSeleccionados.length !==
+                                        1
+                                        ? "s"
+                                        : ""
+                                }.
+                            </p>
+                        )}
+
+                    {!buscandoCorreo &&
+                        !receptorEncontrado && (
+                            <p className="mt-1.5 text-xs font-medium text-amber-600">
+                                Este RUT no tiene un receptor de cobranza configurado.
+                            </p>
+                        )}
+
+                    {!buscandoCorreo &&
+                        receptorEncontrado &&
+                        !receptorHabilitado && (
+                            <p className="mt-1.5 text-xs font-medium text-amber-600">
+                                El receptor existe, pero no está habilitado para recibir cobranza.
+                            </p>
+                        )}
+
+                    {!buscandoCorreo &&
+                        receptorHabilitado &&
+                        contactosCobranza.length ===
+                        0 && (
+                            <p className="mt-1.5 text-xs font-medium text-amber-600">
+                                El receptor no tiene contactos válidos habilitados para cobranza.
+                            </p>
+                        )}
                 </div>
             </div>
 
@@ -1250,7 +2156,13 @@ function ReminderBody({
             <div className="mt-6 flex items-center justify-end gap-3">
                 <button onClick={onClose} className="rounded border px-4 py-2 text-sm">Cerrar</button>
                 <button onClick={async () => {
-                    if (!emailValido || !canal || !tipo) return;
+                    if (
+                        !puedeEnviar ||
+                        !canal ||
+                        !tipo
+                    ) {
+                        return;
+                    }
                     try {
                         setGenerando(true);
                         // obtener detalle DTE si es necesario
@@ -1267,7 +2179,93 @@ function ReminderBody({
                         const montoPagar = formatCLP(getMontoTotalDoc(reminderDoc));
                         const titulo = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
 
-                        const saludo = manualNombre.trim() ? `Estimado(a) ${manualNombre.trim()}:` : 'Estimado(a):';
+                        const saludo =
+                            "Estimado(a):";
+
+                        const mensajePrincipal = (() => {
+                            switch (tipo) {
+                                case "vencida":
+                                    return `
+                Junto con saludar, le recordamos que nuestro sistema registra un saldo de
+                <strong>${montoPagar}</strong>
+                pendiente de pago correspondiente a la factura
+                <strong>#${escapeHtml(folio)}</strong>,
+                cuyo vencimiento fue el
+                <strong>${formatFechaVista(fechaVenc)}</strong>.
+            `;
+
+                                case "por_vencer":
+                                    return `
+                Junto con saludar, le recordamos que la factura
+                <strong>#${escapeHtml(folio)}</strong>,
+                por un monto de
+                <strong>${montoPagar}</strong>,
+                tiene fecha de vencimiento el
+                <strong>${formatFechaVista(fechaVenc)}</strong>.
+            `;
+
+                                case "factura_emitida":
+                                    return `
+                Junto con saludar, informamos que se ha emitido la factura
+                <strong>#${escapeHtml(folio)}</strong>,
+                por un monto total de
+                <strong>${montoPagar}</strong>,
+                con vencimiento el
+                <strong>${formatFechaVista(fechaVenc)}</strong>.
+            `;
+
+                                case "pago_recibido":
+                                    return `
+                Junto con saludar, confirmamos la recepción del pago asociado a la factura
+                <strong>#${escapeHtml(folio)}</strong>,
+                por un monto de
+                <strong>${montoPagar}</strong>.
+            `;
+
+                                case "nuevo_doc_nc":
+                                    return `
+                Junto con saludar, informamos que se ha registrado un nuevo documento
+                asociado al folio
+                <strong>#${escapeHtml(folio)}</strong>,
+                por un monto de
+                <strong>${montoPagar}</strong>.
+            `;
+
+                                default:
+                                    return `
+                Junto con saludar, le informamos que existe información disponible
+                respecto del documento
+                <strong>#${escapeHtml(folio)}</strong>.
+            `;
+                            }
+                        })();
+
+                        const mensajeCierre = (() => {
+                            switch (tipo) {
+                                case "vencida":
+                                    return "Agradecemos regularizar el pago pendiente a la brevedad posible.";
+
+                                case "por_vencer":
+                                    return "Agradecemos considerar esta fecha para realizar el pago dentro del plazo correspondiente.";
+
+                                case "factura_emitida":
+                                    return "Adjuntamos la factura correspondiente para su revisión y gestión de pago.";
+
+                                case "pago_recibido":
+                                    return "Agradecemos su pago. Este correo corresponde a la confirmación de recepción.";
+
+                                case "nuevo_doc_nc":
+                                    return "Adjuntamos el documento correspondiente para su revisión.";
+
+                                default:
+                                    return "";
+                            }
+                        })();
+
+                        const datosPago =
+                            DATOS_PAGO[
+                            empresa
+                            ];
 
                         const logoBase64 = empresaPdf.logo ? await imageUrlToBase64(empresaPdf.logo) : '';
 
@@ -1297,13 +2295,35 @@ function ReminderBody({
 
         <!-- Cuerpo -->
         <tr>
-          <td style="padding:26px 28px 6px; color:#1f2937; font-size:14px; line-height:1.7;">
-            <p style="margin:0 0 14px;">${escapeHtml(saludo)}</p>
-            <p style="margin:0 0 14px;">Junto con saludar le recordamos que al día de hoy nuestro sistema indica que usted mantiene un saldo de <strong>${montoPagar}</strong> pendiente de pago por la factura <strong>#${escapeHtml(folio)}</strong> que venció el <strong>${formatFechaVista(fechaVenc)}</strong>.</p>
-            <p style="margin:0 0 14px;">Le pedimos por favor cancelar a la brevedad posible la deuda indicada en este correo.</p>
-            ${observacion ? `<p style="margin:0 0 14px;"><strong>Observación:</strong> ${escapeHtml(observacion)}</p>` : ''}
-          </td>
-        </tr>
+    <td style="padding:26px 28px 6px; color:#1f2937; font-size:14px; line-height:1.7;">
+        <p style="margin:0 0 14px;">
+            ${escapeHtml(saludo)}
+        </p>
+
+        <p style="margin:0 0 14px;">
+            ${mensajePrincipal}
+        </p>
+
+        ${mensajeCierre
+                                ? `
+                    <p style="margin:0 0 14px;">
+                        ${escapeHtml(mensajeCierre)}
+                    </p>
+                `
+                                : ""
+                            }
+
+        ${observacion
+                                ? `
+                    <p style="margin:0 0 14px;">
+                        <strong>Observación:</strong>
+                        ${escapeHtml(observacion)}
+                    </p>
+                `
+                                : ""
+                            }
+    </td>
+</tr>
 
         <!-- Tarjeta del documento -->
         <tr>
@@ -1346,10 +2366,45 @@ function ReminderBody({
               <tr><td style="background-color:#f8fafc; padding:10px 16px; font-weight:700; color:#334155; border-bottom:1px solid #e5e7eb;">Datos para el pago</td></tr>
               <tr><td style="padding:12px 16px;">
                 <table width="100%" cellpadding="0" cellspacing="0">
-                  <tr><td style="padding:3px 0; color:#64748b;">Banco</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">Itaú</td></tr>
-                  <tr><td style="padding:3px 0; color:#64748b;">Cuenta corriente</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">0213150814</td></tr>
-                  <tr><td style="padding:3px 0; color:#64748b;">RUT</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">76.758.352-4</td></tr>
-                  <tr><td style="padding:3px 0; color:#64748b;">Correo de pagos</td><td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">pagos@rids.cl</td></tr>
+                  <tr>
+    <td style="padding:3px 0; color:#64748b;">
+        Banco
+    </td>
+
+    <td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">
+        ${escapeHtml(datosPago.banco)}
+    </td>
+</tr>
+
+<tr>
+    <td style="padding:3px 0; color:#64748b;">
+        Cuenta corriente
+    </td>
+
+    <td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">
+        ${escapeHtml(datosPago.cuenta)}
+    </td>
+</tr>
+
+<tr>
+    <td style="padding:3px 0; color:#64748b;">
+        RUT
+    </td>
+
+    <td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">
+        ${escapeHtml(datosPago.rut)}
+    </td>
+</tr>
+
+<tr>
+    <td style="padding:3px 0; color:#64748b;">
+        Correo de pagos
+    </td>
+
+    <td style="padding:3px 0; text-align:right; font-weight:700; color:#0f172a;">
+        ${escapeHtml(datosPago.correo)}
+    </td>
+</tr>
                 </table>
               </td></tr>
             </table>
@@ -1379,7 +2434,26 @@ function ReminderBody({
                         console.error(e);
                         alert('Error generando previsualización');
                     } finally { setGenerando(false); }
-                }} disabled={!emailValido || !canal || !tipo || generando} className={`rounded bg-cyan-600 px-4 py-2 text-sm text-white ${(!emailValido || !canal || !tipo) ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                }} disabled={
+                    !puedeEnviar ||
+                    !canal ||
+                    !tipo ||
+                    generando
+                } className={`
+    rounded
+    bg-cyan-600
+    px-4
+    py-2
+    text-sm
+    text-white
+    ${!puedeEnviar ||
+                        !canal ||
+                        !tipo ||
+                        generando
+                        ? "cursor-not-allowed opacity-60"
+                        : "hover:bg-cyan-700"
+                    }
+`}>
                     {generando ? 'Generando...' : 'Previsualizar'}
                 </button>
             </div>
@@ -1405,67 +2479,151 @@ function ReminderBody({
                                 } catch (e) { console.error(e); alert('Error descargando PDF'); }
                                 finally { setGenerando(false); }
                             }} className="rounded bg-cyan-600 px-4 py-2 text-sm text-white">Descargar en PDF</button>
-                            <button onClick={async () => {
-                                try {
-                                    if (!emailValido) { alert('Ingresa un correo válido'); return; }
-                                    setGenerando(true);
-
-                                    const targets = [{ email: manualEmail.trim(), nombre: manualNombre.trim() || manualEmail.trim() }];
-                                    const folio = String(getValue(reminderDoc, ["Folio", "folio", "Nro", "numero"], "—"));
-                                    const subject = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
-                                    const bodyHtml = previewHtml;
-
-                                    // Generar la factura en PDF y adjuntarla al correo
-                                    const detalle = await fetchDetalleDte(reminderDoc, false);
-                                    const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
-                                    const pdfBase64 = await blobToBase64(pdfResult.blob);
-                                    const attachments = [{ name: pdfResult.fileName, contentType: 'application/pdf', contentBytes: pdfBase64, size: pdfResult.blob.size }];
-
-                                    const { data: sendJson } = await api.post(
-                                        "/correo/enviar-masivo",
-                                        {
-                                            targets,
-                                            subject,
-                                            bodyHtml,
-                                            attachments,
-                                            ratePerMin: 30,
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        if (
+                                            !puedeEnviar ||
+                                            !tipo
+                                        ) {
+                                            return;
                                         }
-                                    );
 
-                                    if (!sendJson?.ok) {
-                                        throw new Error(
-                                            sendJson?.message ??
-                                            sendJson?.error ??
-                                            "No se pudo enviar el recordatorio"
+                                        setGenerando(
+                                            true
+                                        );
+
+                                        const targets =
+                                            emailsSeleccionados.map(
+                                                (email) => {
+                                                    const contacto =
+                                                        contactosCobranza.find(
+                                                            (item) =>
+                                                                item.email
+                                                                    .trim()
+                                                                    .toLowerCase() ===
+                                                                email
+                                                                    .trim()
+                                                                    .toLowerCase()
+                                                        );
+
+                                                    return {
+                                                        email,
+
+                                                        nombre:
+                                                            contacto?.nombre?.trim() ||
+                                                            email,
+                                                    };
+                                                }
+                                            );
+                                        const folio = String(getValue(reminderDoc, ["Folio", "folio", "Nro", "numero"], "—"));
+                                        const subject = TITULOS_RECORDATORIO[tipo] ?? 'Recordatorio';
+                                        const bodyHtml = previewHtml;
+
+                                        // Generar la factura en PDF y adjuntarla al correo
+                                        const detalle = await fetchDetalleDte(reminderDoc, false);
+                                        const pdfResult = await generarPdfDocumentoSeleccionado({ documento: reminderDoc, detalleDte: detalle, activeTab, empresa, mes, ano, autoDownload: false, observacion });
+                                        const pdfBase64 = await blobToBase64(pdfResult.blob);
+                                        const attachments = [{ name: pdfResult.fileName, contentType: 'application/pdf', contentBytes: pdfBase64, size: pdfResult.blob.size }];
+
+                                        const { data: sendJson } = await api.post(
+                                            "/correo/enviar-masivo",
+                                            {
+                                                targets,
+                                                subject,
+                                                bodyHtml,
+                                                attachments,
+                                                ratePerMin: 30,
+                                            }
+                                        );
+
+                                        if (!sendJson?.ok) {
+                                            throw new Error(
+                                                sendJson?.message ??
+                                                sendJson?.error ??
+                                                "No se pudo enviar el recordatorio"
+                                            );
+                                        }
+
+                                        // Registrar en audit logs que se envió un recordatorio (queda visible en el Historial del documento)
+                                        try {
+                                            const empresaId = Number(getValue(reminderDoc, ['empresaId', 'empresa_id', 'id_empresa'], '')) || null;
+                                            const folioAudit = String(getValue(reminderDoc, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '') || null;
+                                            const auditBody = {
+                                                entity: 'Documento',
+                                                entityId: folioAudit || null,
+                                                empresaId: empresaId,
+                                                action: 'CREATE',
+                                                description: `Recordatorio (${subject})`,
+                                                changes: {
+                                                    canal,
+                                                    tipo,
+
+                                                    contactos:
+                                                        emailsSeleccionados,
+
+                                                    totalDestinatarios:
+                                                        emailsSeleccionados.length,
+
+                                                    observacion,
+                                                }
+                                            };
+
+                                            await api.post("/audit", auditBody);
+                                        } catch (auditError) {
+                                            console.warn('No se pudo crear audit log:', auditError);
+                                        }
+
+                                        alert('Recordatorio encolado para envío correctamente');
+                                        setShowPreviewHtml(false);
+                                        onClose();
+                                    } catch (e: any) {
+                                        console.error(
+                                            "Error enviando recordatorio:",
+                                            e
+                                        );
+
+                                        alert(
+                                            String(
+                                                e?.response?.data?.error ??
+                                                e?.response?.data?.message ??
+                                                e?.message ??
+                                                e
+                                            )
+                                        );
+                                    } finally {
+                                        setGenerando(
+                                            false
                                         );
                                     }
-
-                                    // Registrar en audit logs que se envió un recordatorio (queda visible en el Historial del documento)
-                                    try {
-                                        const empresaId = Number(getValue(reminderDoc, ['empresaId', 'empresa_id', 'id_empresa'], '')) || null;
-                                        const folioAudit = String(getValue(reminderDoc, ['Folio', 'folio', 'Nro', 'numero'], '')).replace(/[^0-9]/g, '') || null;
-                                        const auditBody = {
-                                            entity: 'Documento',
-                                            entityId: folioAudit || null,
-                                            empresaId: empresaId,
-                                            action: 'CREATE',
-                                            description: `Recordatorio (${subject})`,
-                                            changes: { canal, tipo, contacto: manualEmail.trim(), observacion }
-                                        };
-
-                                        await api.post("/audit", auditBody);
-                                    } catch (auditError) {
-                                        console.warn('No se pudo crear audit log:', auditError);
+                                }}
+                                disabled={
+                                    !puedeEnviar ||
+                                    !tipo ||
+                                    generando
+                                }
+                                className={`
+        rounded
+        bg-emerald-600
+        px-4
+        py-2
+        text-sm
+        font-semibold
+        text-white
+        transition
+        ${!puedeEnviar ||
+                                        !tipo ||
+                                        generando
+                                        ? "cursor-not-allowed opacity-60"
+                                        : "hover:bg-emerald-700"
                                     }
-
-                                    alert('Recordatorio encolado para envío correctamente');
-                                    setShowPreviewHtml(false);
-                                    onClose();
-                                } catch (e: any) {
-                                    console.error('Error enviando recordatorio:', e);
-                                    alert(String(e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? e));
-                                } finally { setGenerando(false); }
-                            }} className="rounded bg-emerald-600 px-4 py-2 text-sm text-white">Enviar</button>
+    `}
+                            >
+                                {
+                                    generando
+                                        ? "Enviando..."
+                                        : "Enviar"
+                                }</button>
                         </div>
                     </div>
                 </div>

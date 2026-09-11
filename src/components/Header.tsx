@@ -65,6 +65,7 @@ const REPORTES_PATH = "/reportes";
 //const TICKETS_PATH = "/tickets";
 const HELPDESK_PATH = "/helpdesk";
 
+const FINANZAS_DASHBOARD_PATH = "/finanzas";
 const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
 const CONCILIACION_PATH = "/conciliacion-rcv";
@@ -341,21 +342,54 @@ const NAV: NavEntry[] = [
 
     items: [
       {
-        label: "Facturas",
-        to: FACTURAS_BASEAPI_PATH,
-        icon: <FileText size={20} />,
+        label: "Resumen financiero",
+        to: FINANZAS_DASHBOARD_PATH,
+        icon: <BarChart3 size={20} />,
+      },
+      {
+        type: "submenu",
+        id: "finanzas-facturacion",
+        label: "Facturación",
+        icon: <ReceiptText size={20} />,
+        match: [
+          FACTURAS_BASEAPI_PATH,
+          RECEPTORES_FACTURACION_PATH,
+        ],
+        children: [
+          {
+            label: "Facturas",
+            to: FACTURAS_BASEAPI_PATH,
+            icon: <FileText size={18} />,
+          },
+          {
+            label: "Receptores facturación",
+            to: RECEPTORES_FACTURACION_PATH,
+            icon: <MailCheck size={18} />,
+          },
+        ],
       },
 
       {
-        label: "Receptores facturación",
-        to: RECEPTORES_FACTURACION_PATH,
-        icon: <MailCheck size={20} />,
-      },
-
-      {
-        label: "Receptores cobranza",
-        to: RECEPTORES_COBRANZA_PATH,
-        icon: <Contact size={20} />,
+        type: "submenu",
+        id: "finanzas-cobranza",
+        label: "Cobranza",
+        icon: <FileSpreadsheet size={20} />,
+        match: [
+          COBRANZA_PATH,
+          RECEPTORES_COBRANZA_PATH,
+        ],
+        children: [
+          {
+            label: "Gestión cobranza",
+            to: COBRANZA_PATH,
+            icon: <FileSpreadsheet size={18} />,
+          },
+          {
+            label: "Receptores cobranza",
+            to: RECEPTORES_COBRANZA_PATH,
+            icon: <Contact size={18} />,
+          },
+        ],
       },
 
       {
@@ -363,20 +397,15 @@ const NAV: NavEntry[] = [
         to: CONCILIACION_PATH,
         icon: <Handshake size={20} />,
       },
-
-      {
-        label: "Cobranza",
-        to: COBRANZA_PATH,
-        icon: <FileSpreadsheet size={20} />,
-      },
     ],
 
     match: [
+      FINANZAS_DASHBOARD_PATH,
       FACTURAS_BASEAPI_PATH,
       RECEPTORES_FACTURACION_PATH,
+      COBRANZA_PATH,
       RECEPTORES_COBRANZA_PATH,
       CONCILIACION_PATH,
-      COBRANZA_PATH,
     ],
   },
   {
@@ -478,6 +507,26 @@ const Header = () => {
           pathname,
           VISITAS_PATH
         ),
+
+      "finanzas-facturacion":
+        isActivePath(
+          pathname,
+          FACTURAS_BASEAPI_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          RECEPTORES_FACTURACION_PATH
+        ),
+
+      "finanzas-cobranza":
+        isActivePath(
+          pathname,
+          COBRANZA_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          RECEPTORES_COBRANZA_PATH
+        ),
     });
 
   useEffect(() => {
@@ -507,6 +556,16 @@ const Header = () => {
         current.visitas ||
         isActivePath(pathname, CALENDARIO_PATH) ||
         isActivePath(pathname, VISITAS_PATH),
+
+      "finanzas-facturacion":
+        current["finanzas-facturacion"] ||
+        isActivePath(pathname, FACTURAS_BASEAPI_PATH) ||
+        isActivePath(pathname, RECEPTORES_FACTURACION_PATH),
+
+      "finanzas-cobranza":
+        current["finanzas-cobranza"] ||
+        isActivePath(pathname, COBRANZA_PATH) ||
+        isActivePath(pathname, RECEPTORES_COBRANZA_PATH),
     }));
   }, [pathname]);
 
@@ -584,8 +643,9 @@ const Header = () => {
 
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
-  const canAccessCobranza =
-    userRole === "ADMINISTRACION";
+  const canAccessFinanzas = userRole === "ADMINISTRACION";
+
+  const canAccessCobranza = userRole === "ADMINISTRACION";
 
   const canAccessConciliacion = userRole === "ADMINISTRACION";
 
@@ -606,68 +666,105 @@ const Header = () => {
           entry.type === "group" &&
           entry.label === "Administración Finanzas"
         ) {
-          /*
-           * Finanzas contiene solamente enlaces normales.
-           * El predicado también informa a TypeScript que
-           * el resultado será NavLinkItem[].
-           */
-          const items = entry.items.filter(
-            (item): item is NavLinkItem => {
+          const items = entry.items
+            .map((item): NavItem | null => {
+
+              /*
+               * Enlaces directos.
+               */
+              if (isNavLinkItem(item)) {
+                if (
+                  item.to === FINANZAS_DASHBOARD_PATH &&
+                  !canAccessFinanzas
+                ) {
+                  return null;
+                }
+
+                if (
+                  item.to === CONCILIACION_PATH &&
+                  !canAccessConciliacion
+                ) {
+                  return null;
+                }
+
+                return item;
+              }
+              /*
+               * Submenús.
+               */
+              const children =
+                item.children.filter(
+                  (child) => {
+
+                    if (
+                      child.to === FACTURAS_BASEAPI_PATH
+                    ) {
+                      return canAccessFacturas;
+                    }
+
+                    if (
+                      child.to === RECEPTORES_FACTURACION_PATH
+                    ) {
+                      return canAccessReceptoresFacturacion;
+                    }
+
+                    if (
+                      child.to === COBRANZA_PATH
+                    ) {
+                      return canAccessCobranza;
+                    }
+
+                    if (
+                      child.to === RECEPTORES_COBRANZA_PATH
+                    ) {
+                      return canAccessReceptoresCobranza;
+                    }
+
+                    return false;
+                  }
+                );
+
               if (
-                !isNavLinkItem(
-                  item
-                )
+                children.length === 0
               ) {
-                return false;
+                return null;
               }
 
-              if (
-                item.to ===
-                FACTURAS_BASEAPI_PATH
-              ) {
-                return canAccessFacturas;
-              }
+              return {
+                ...item,
 
-              if (
-                item.to ===
-                RECEPTORES_FACTURACION_PATH
-              ) {
-                return canAccessReceptoresFacturacion;
-              }
+                children,
 
-              if (
-                item.to ===
-                RECEPTORES_COBRANZA_PATH
-              ) {
-                return canAccessReceptoresCobranza;
-              }
+                match:
+                  children.map(
+                    (child) =>
+                      child.to
+                  ),
+              };
+            })
+            .filter(
+              (item): item is NavItem =>
+                item !== null
+            );
 
-              if (
-                item.to ===
-                CONCILIACION_PATH
-              ) {
-                return canAccessConciliacion;
-              }
-
-              if (
-                item.to ===
-                COBRANZA_PATH
-              ) {
-                return canAccessCobranza;
-              }
-
-              return false;
-            }
-          );
-
-          if (items.length === 0) {
+          if (
+            items.length === 0
+          ) {
             return null;
           }
 
           return {
             ...entry,
+
             items,
-            match: items.map((item) => item.to),
+
+            match:
+              items.flatMap(
+                (item) =>
+                  isNavLinkItem(item)
+                    ? [item.to]
+                    : item.match
+              ),
           };
         }
 
@@ -851,6 +948,7 @@ const Header = () => {
     ];
   }, [
     isCliente,
+    canAccessFinanzas,
     canAccessFacturas,
     canAccessTecnicos,
     canAccessGestionTecnicosClientes,

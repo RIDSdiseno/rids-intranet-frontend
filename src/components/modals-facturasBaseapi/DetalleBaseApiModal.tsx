@@ -30,7 +30,11 @@ import {
     ShopOutlined,
     TagsOutlined,
     UnorderedListOutlined,
-    LoadingOutlined
+    LoadingOutlined,
+    MailOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    CloseCircleOutlined,
 } from "@ant-design/icons";
 
 const DetalleBaseApiModal: React.FC<{
@@ -86,6 +90,16 @@ const DetalleBaseApiModal: React.FC<{
             "—"
         );
 
+        const facturaEnvio =
+            documento?.facturaEnvio ?? null;
+
+        const destinatariosFactura =
+            Array.isArray(
+                facturaEnvio?.destinatarios
+            )
+                ? facturaEnvio.destinatarios
+                : [];
+
         const [pdfLoading, setPdfLoading] = React.useState(false);
 
         const montoExento = getValue(documento, ["Monto Exento", "montoExento"], 0);
@@ -126,7 +140,7 @@ const DetalleBaseApiModal: React.FC<{
             "Estado", "estado", "Estado Documento", "estadoDocumento",
             "Monto Exento", "montoExento", "Monto Neto", "montoNeto",
             "Monto IVA", "Monto Iva", "Monto IVA Recuperable", "montoIva", "montoIVA",
-            "Monto total", "Monto Total", "montoTotal",
+            "Monto total", "Monto Total", "montoTotal", "facturaEnvio",
         ];
 
         const filasExtra = Object.entries(documento).filter(([key]) => !camposPrincipales.includes(key));
@@ -335,12 +349,12 @@ const DetalleBaseApiModal: React.FC<{
 
                                     <span
                                         className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${detalleLoading || pdfPreparando
-                                                ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                                                : detalleDte && pdfPreparadoUrl
-                                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                                                    : detalleDte
-                                                        ? "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200"
-                                                        : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                                            ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                                            : detalleDte && pdfPreparadoUrl
+                                                ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                                                : detalleDte
+                                                    ? "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200"
+                                                    : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
                                             }`}
                                     >
                                         {detalleLoading
@@ -354,6 +368,154 @@ const DetalleBaseApiModal: React.FC<{
                                                         : "Pendiente"}
                                     </span>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === "ventas" && (
+                            <div className="mt-4 rounded-3xl border border-cyan-100 bg-white p-4 shadow-sm">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <h3 className="flex items-center gap-2 text-sm font-black text-slate-900">
+                                            <MailOutlined className="text-cyan-600" />
+                                            Envío de factura
+                                        </h3>
+
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Trazabilidad del envío del documento al receptor.
+                                        </p>
+                                    </div>
+
+                                    {facturaEnvio?.tieneRegistro ? (
+                                        <FacturaEnvioBadge
+                                            estado={
+                                                facturaEnvio.estado
+                                            }
+                                        />
+                                    ) : (
+                                        <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                                            Sin envío
+                                        </span>
+                                    )}
+                                </div>
+
+                                {!facturaEnvio?.tieneRegistro ? (
+                                    <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                                        Esta factura todavía no registra envíos.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                                            <InfoField
+                                                label="Destinatarios"
+                                                value={
+                                                    facturaEnvio.totalDestinatarios ??
+                                                    0
+                                                }
+                                            />
+
+                                            <InfoField
+                                                label="Enviados"
+                                                value={
+                                                    facturaEnvio.enviados ??
+                                                    0
+                                                }
+                                            />
+
+                                            <InfoField
+                                                label="Último envío"
+                                                value={
+                                                    facturaEnvio.ultimoEnvioAt
+                                                        ? formatFechaHoraVista(
+                                                            facturaEnvio.ultimoEnvioAt
+                                                        )
+                                                        : "—"
+                                                }
+                                            />
+
+                                            <InfoField
+                                                label="Último intento"
+                                                value={
+                                                    facturaEnvio.ultimoIntentoAt
+                                                        ? formatFechaHoraVista(
+                                                            facturaEnvio.ultimoIntentoAt
+                                                        )
+                                                        : "—"
+                                                }
+                                            />
+                                        </div>
+
+                                        {facturaEnvio.asunto && (
+                                            <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+                                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                                    Asunto
+                                                </p>
+
+                                                <p className="mt-1 text-sm font-semibold text-slate-800">
+                                                    {facturaEnvio.asunto}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {destinatariosFactura.length > 0 && (
+                                            <div className="mt-4">
+                                                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                                    Destinatarios
+                                                </p>
+
+                                                <div className="space-y-2">
+                                                    {destinatariosFactura.map(
+                                                        (
+                                                            destinatario: any,
+                                                            index: number
+                                                        ) => (
+                                                            <div
+                                                                key={
+                                                                    destinatario.id ??
+                                                                    `${destinatario.email}-${index}`
+                                                                }
+                                                                className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-sm font-bold text-slate-900">
+                                                                        {destinatario.nombre ||
+                                                                            "Contacto"}
+                                                                    </p>
+
+                                                                    <p className="mt-0.5 truncate text-xs text-cyan-700">
+                                                                        {destinatario.email}
+                                                                    </p>
+
+                                                                    {destinatario.enviadoAt && (
+                                                                        <p className="mt-1 text-[11px] text-slate-500">
+                                                                            Enviado:{" "}
+                                                                            {formatFechaHoraVista(
+                                                                                destinatario.enviadoAt
+                                                                            )}
+                                                                        </p>
+                                                                    )}
+
+                                                                    {destinatario.error && (
+                                                                        <p className="mt-1 text-[11px] font-semibold text-red-600">
+                                                                            {destinatario.error}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="shrink-0">
+                                                                    <FacturaEnvioBadge
+                                                                        estado={
+                                                                            destinatario.estado
+                                                                        }
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         )}
 
@@ -669,6 +831,93 @@ const DetalleBaseApiModal: React.FC<{
             </div>
         );
     };
+
+function FacturaEnvioBadge({
+    estado,
+}: {
+    estado:
+    string |
+    null |
+    undefined;
+}) {
+    const normalizado =
+        String(
+            estado ??
+            ""
+        ).toUpperCase();
+
+    if (
+        normalizado === "ENVIADO"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+                <CheckCircleOutlined />
+                Enviado
+            </span>
+        );
+    }
+
+    if (
+        normalizado === "PENDIENTE"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-200">
+                <ClockCircleOutlined />
+                Pendiente
+            </span>
+        );
+    }
+
+    if (
+        normalizado === "PROCESANDO"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700 ring-1 ring-cyan-200">
+                <ClockCircleOutlined />
+                Procesando
+            </span>
+        );
+    }
+
+    if (
+        normalizado === "ERROR"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 ring-1 ring-red-200">
+                <CloseCircleOutlined />
+                Error
+            </span>
+        );
+    }
+
+    if (
+        normalizado === "PARCIAL"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 ring-1 ring-orange-200">
+                <ClockCircleOutlined />
+                Parcial
+            </span>
+        );
+    }
+
+    if (
+        normalizado === "CANCELADO"
+    ) {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                <CloseCircleOutlined />
+                Cancelado
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+            Sin envío
+        </span>
+    );
+}
 
 function InfoField({
     label,

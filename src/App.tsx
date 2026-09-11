@@ -51,6 +51,7 @@ const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
+const FinanzasDashboardsPage = lazy(() => import("./host/FinanzasDashboard"));
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 const ReceptoresFacturacionPage =
@@ -314,6 +315,7 @@ export default function App() {
 
             {/* ── Facturas ─────────────────────────────────────────────── */}
             <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS", "CLIENTE"]} />}>
+              <Route path="/finanzas" element={<FinanzasDashboardsPage />} />
               <Route path="/facturas" element={<FacturasBaseapiPage />} />
               <Route path="/facturas-baseapi" element={<Navigate to="/facturas" replace />} />
             </Route>

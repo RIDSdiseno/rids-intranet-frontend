@@ -1110,7 +1110,7 @@ function ReceptorDesktopRow(
 
             <td className="px-5 py-4">
 
-                <div className="font-semibold text-slate-900">
+                <div className="font-semibold uppercase text-slate-900">
                     {
                         receptor.razonSocial ??
                         "Sin razón social"
@@ -1426,7 +1426,7 @@ function ReceptorMobileCard(
 
                 <div className="min-w-0">
 
-                    <div className="break-words font-semibold text-slate-900">
+                    <div className="break-words font-semibold uppercase text-slate-900">
                         {
                             receptor.razonSocial ??
                             "Sin razón social"

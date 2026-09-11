@@ -921,18 +921,19 @@ export default function ReceptorCobranzaModal(
             {/* DRAWER */}
             <div
                 className="
-                    fixed
-                    inset-y-0
-                    right-0
-                    z-[110]
-                    flex
-                    w-full
-                    flex-col
-                    bg-white
-                    shadow-2xl
-                    sm:max-w-xl
-                    lg:max-w-2xl
-                "
+        fixed
+        inset-y-0
+        right-0
+        z-[110]
+        flex
+        w-full
+        flex-col
+        bg-white
+        shadow-3xl
+        sm:max-w-4xl
+        lg:max-w-5xl
+        xl:max-w-6xl
+    "
                 role="dialog"
                 aria-modal="true"
             >
