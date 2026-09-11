@@ -1,3 +1,4 @@
+// src/components/modals-cobranza/CobranzaDetalleModal.tsx
 import React, { useMemo } from "react";
 import {
     FileTextOutlined,

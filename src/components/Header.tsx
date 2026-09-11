@@ -69,6 +69,7 @@ const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
 const CONCILIACION_PATH = "/conciliacion-rcv";
 const RECEPTORES_FACTURACION_PATH = "/facturas/receptores";
+const RECEPTORES_COBRANZA_PATH = "/facturas/receptores-cobranza";
 
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
@@ -337,44 +338,46 @@ const NAV: NavEntry[] = [
   {
     type: "group",
     label: "Administración Finanzas",
+
     items: [
       {
-        label:
-          "Facturas",
-        to:
-          FACTURAS_BASEAPI_PATH,
-        icon:
-          <FileText size={20} />,
+        label: "Facturas",
+        to: FACTURAS_BASEAPI_PATH,
+        icon: <FileText size={20} />,
       },
 
       {
-        label:
-          "Receptores",
-        to:
-          RECEPTORES_FACTURACION_PATH,
-        icon:
-          <MailCheck size={20} />,
+        label: "Receptores facturación",
+        to: RECEPTORES_FACTURACION_PATH,
+        icon: <MailCheck size={20} />,
       },
 
       {
-        label:
-          "Conciliación",
-        to:
-          CONCILIACION_PATH,
-        icon:
-          <Handshake size={20} />,
+        label: "Receptores cobranza",
+        to: RECEPTORES_COBRANZA_PATH,
+        icon: <Contact size={20} />,
       },
 
       {
-        label:
-          "Cobranza",
-        to:
-          COBRANZA_PATH,
-        icon:
-          <FileSpreadsheet size={20} />,
+        label: "Conciliación",
+        to: CONCILIACION_PATH,
+        icon: <Handshake size={20} />,
+      },
+
+      {
+        label: "Cobranza",
+        to: COBRANZA_PATH,
+        icon: <FileSpreadsheet size={20} />,
       },
     ],
-    match: [FACTURAS_BASEAPI_PATH, CONCILIACION_PATH, COBRANZA_PATH, RECEPTORES_FACTURACION_PATH],
+
+    match: [
+      FACTURAS_BASEAPI_PATH,
+      RECEPTORES_FACTURACION_PATH,
+      RECEPTORES_COBRANZA_PATH,
+      CONCILIACION_PATH,
+      COBRANZA_PATH,
+    ],
   },
   {
     type: "group",
@@ -582,11 +585,12 @@ const Header = () => {
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
   const canAccessCobranza =
-    userRole === "ADMIN" || userRole === "ADMINISTRACION";
+    userRole === "ADMINISTRACION";
 
   const canAccessConciliacion = userRole === "ADMINISTRACION";
 
   const canAccessReceptoresFacturacion = userRole === "ADMINISTRACION";
+  const canAccessReceptoresCobranza = userRole === "ADMINISTRACION";
 
   const canAccessFunnel =
     userRole === "ADMIN" || userRole === "ADMINISTRACION" || userRole === "VENTAS";
@@ -629,6 +633,13 @@ const Header = () => {
                 RECEPTORES_FACTURACION_PATH
               ) {
                 return canAccessReceptoresFacturacion;
+              }
+
+              if (
+                item.to ===
+                RECEPTORES_COBRANZA_PATH
+              ) {
+                return canAccessReceptoresCobranza;
               }
 
               if (
@@ -847,6 +858,8 @@ const Header = () => {
     canAccessCobranza,
     canAccessConciliacion,
     canAccessFunnel,
+    canAccessReceptoresFacturacion,
+    canAccessReceptoresCobranza,
   ]);
 
   /*

@@ -61,6 +61,14 @@ const ReceptoresFacturacionPage =
       )
   );
 
+const ReceptoresCobranzaPage =
+  lazy(
+    () =>
+      import(
+        "./components/modals-facturasBaseapi/receptores-cobranza/ReceptoresCobranzaPage"
+      )
+  );
+
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
 const EntregasPage = lazy(() => import("./host/EntregasPage"));
@@ -311,6 +319,7 @@ export default function App() {
             </Route>
 
             {/* ── Cobranza (acceso restringido: solo Administración) ──────── */}
+            {/* ── Finanzas / Cobranza (solo Administración) ─────────────── */}
             <Route
               element={
                 <RoleRoute
@@ -320,6 +329,7 @@ export default function App() {
                 />
               }
             >
+              {/* Cobranza */}
               <Route
                 path="/facturas/cobranza"
                 element={
@@ -327,10 +337,19 @@ export default function App() {
                 }
               />
 
+              {/* Receptores de facturación */}
               <Route
                 path="/facturas/receptores"
                 element={
                   <ReceptoresFacturacionPage />
+                }
+              />
+
+              {/* Receptores de cobranza */}
+              <Route
+                path="/facturas/receptores-cobranza"
+                element={
+                  <ReceptoresCobranzaPage />
                 }
               />
             </Route>

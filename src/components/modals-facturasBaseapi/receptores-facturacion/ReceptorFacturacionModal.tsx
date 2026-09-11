@@ -9,7 +9,6 @@ import {
 import {
     AlertCircle,
     Building2,
-    CheckCircle2,
     Edit3,
     Mail,
     Plus,
