@@ -1,3 +1,4 @@
+// src/components/models-facturasBaseapi/finanzas/FinanzasChart.tsx
 import React from "react";
 
 import {
@@ -9,6 +10,7 @@ import {
     Tooltip,
     XAxis,
     YAxis,
+    Cell,
 } from "recharts";
 
 import type {
@@ -25,6 +27,15 @@ type Props = {
 
     ventaMode:
     FinanzasVentaMode;
+
+    selectedMonth:
+    number |
+    null;
+
+    onMonthSelect:
+    (
+        month: number
+    ) => void;
 };
 
 function formatCompact(
@@ -69,6 +80,8 @@ const FinanzasChart:
         data,
         activeTab,
         ventaMode,
+        selectedMonth,
+        onMonthSelect,
     }) => {
         const chartData =
             data.map(
@@ -86,6 +99,27 @@ const FinanzasChart:
                             ),
                 })
             );
+
+        function handleBarClick(
+            entry: any
+        ) {
+            const month =
+                Number(
+                    entry
+                        ?.payload
+                        ?.mes
+                );
+
+            if (
+                Number.isFinite(
+                    month
+                )
+            ) {
+                onMonthSelect(
+                    month
+                );
+            }
+        }
 
         return (
             <div className="h-[420px] w-full">
@@ -120,6 +154,57 @@ const FinanzasChart:
 
                         <XAxis
                             dataKey="mesCorto"
+                            tick={(
+                                props: any
+                            ) => {
+                                const {
+                                    x,
+                                    y,
+                                    payload,
+                                    index,
+                                } = props;
+
+                                const item =
+                                    chartData[
+                                    index
+                                    ];
+
+                                const active =
+                                    item
+                                        ?.mes ===
+                                    selectedMonth;
+
+                                return (
+                                    <text
+                                        x={
+                                            x
+                                        }
+                                        y={
+                                            y +
+                                            16
+                                        }
+                                        textAnchor="middle"
+                                        fill={
+                                            active
+                                                ? "#0891b2"
+                                                : "#64748b"
+                                        }
+                                        fontSize={
+                                            12
+                                        }
+                                        fontWeight={
+                                            active
+                                                ? 700
+                                                : 400
+                                        }
+                                    >
+                                        {
+                                            payload
+                                                .value
+                                        }
+                                    </text>
+                                );
+                            }}
                         />
 
                         <YAxis
@@ -180,7 +265,32 @@ const FinanzasChart:
                                         0,
                                         0,
                                     ]}
-                                />
+                                    cursor="pointer"
+                                    onClick={
+                                        handleBarClick
+                                    }
+                                >
+                                    {chartData.map(
+                                        (
+                                            entry
+                                        ) => (
+                                            <Cell
+                                                key={
+                                                    `ventas-${entry.mes}`
+                                                }
+                                                fillOpacity={
+                                                    selectedMonth ===
+                                                        null
+                                                        ? 1
+                                                        : entry.mes ===
+                                                            selectedMonth
+                                                            ? 1
+                                                            : 0.35
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </Bar>
                             )}
 
                         {activeTab ===
@@ -205,7 +315,32 @@ const FinanzasChart:
                                         0,
                                         0,
                                     ]}
-                                />
+                                    cursor="pointer"
+                                    onClick={
+                                        handleBarClick
+                                    }
+                                >
+                                    {chartData.map(
+                                        (
+                                            entry
+                                        ) => (
+                                            <Cell
+                                                key={
+                                                    `compras-${entry.mes}`
+                                                }
+                                                fillOpacity={
+                                                    selectedMonth ===
+                                                        null
+                                                        ? 1
+                                                        : entry.mes ===
+                                                            selectedMonth
+                                                            ? 1
+                                                            : 0.35
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </Bar>
                             )}
 
                         {activeTab ===
@@ -220,7 +355,33 @@ const FinanzasChart:
                                         0,
                                         0,
                                     ]}
-                                />
+                                    cursor="pointer"
+                                    onClick={handleBarClick}
+
+                                >
+                                    {chartData.map(
+                                        (
+                                            entry
+                                        ) => (
+                                            <Cell
+                                                key={
+                                                    `pagos-${entry.mes}`
+                                                }
+                                                fillOpacity={
+                                                    selectedMonth ===
+                                                        null
+                                                        ? 1
+                                                        : entry.mes ===
+                                                            selectedMonth
+                                                            ? 1
+                                                            : 0.35
+                                                }
+                                            />
+                                        )
+                                    )}
+
+                                </Bar>
+
                             )}
 
                         {activeTab ===
@@ -235,7 +396,30 @@ const FinanzasChart:
                                         0,
                                         0,
                                     ]}
-                                />
+                                    cursor="pointer"
+                                    onClick={handleBarClick}
+                                >
+                                    {chartData.map(
+                                        (
+                                            entry
+                                        ) => (
+                                            <Cell
+                                                key={
+                                                    `recordatorios-${entry.mes}`
+                                                }
+                                                fillOpacity={
+                                                    selectedMonth ===
+                                                        null
+                                                        ? 1
+                                                        : entry.mes ===
+                                                            selectedMonth
+                                                            ? 1
+                                                            : 0.35
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </Bar>
                             )}
 
                         {activeTab ===
@@ -253,7 +437,31 @@ const FinanzasChart:
                                             0,
                                             0,
                                         ]}
-                                    />
+                                        cursor="pointer"
+                                        onClick={handleBarClick}
+                                    >
+
+                                        {chartData.map(
+                                            (
+                                                entry
+                                            ) => (
+                                                <Cell
+                                                    key={
+                                                        `por-vencer-${entry.mes}`
+                                                    }
+                                                    fillOpacity={
+                                                        selectedMonth ===
+                                                            null
+                                                            ? 1
+                                                            : entry.mes ===
+                                                                selectedMonth
+                                                                ? 1
+                                                                : 0.35
+                                                    }
+                                                />
+                                            )
+                                        )}
+                                    </Bar>
 
                                     <Bar
                                         dataKey="vencido"
@@ -265,7 +473,30 @@ const FinanzasChart:
                                             0,
                                             0,
                                         ]}
-                                    />
+                                        cursor="pointer"
+                                        onClick={handleBarClick}
+                                    >
+                                        {chartData.map(
+                                            (
+                                                entry
+                                            ) => (
+                                                <Cell
+                                                    key={
+                                                        `vencido-${entry.mes}`
+                                                    }
+                                                    fillOpacity={
+                                                        selectedMonth ===
+                                                            null
+                                                            ? 1
+                                                            : entry.mes ===
+                                                                selectedMonth
+                                                                ? 1
+                                                                : 0.35
+                                                    }
+                                                />
+                                            )
+                                        )}
+                                    </Bar>
                                 </>
                             )}
                     </BarChart>

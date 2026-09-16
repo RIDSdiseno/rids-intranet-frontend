@@ -1,3 +1,4 @@
+// src/components/models-facturasBaseapi/finanzas/finanzas.types.ts
 export type EmpresaFinanzas =
     | "econnet"
     | "rids";
@@ -27,6 +28,7 @@ export type FinanzasMes = {
 
     facturadoBruto: number;
     facturadoNeto: number;
+    documentosVentas: number;
 
     pagado: number;
     documentosPagados: number;

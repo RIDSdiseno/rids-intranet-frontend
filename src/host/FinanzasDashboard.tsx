@@ -1,3 +1,4 @@
+// src/host/FinanzasDashboard.tsx
 import React, {
     useCallback,
     useEffect,
@@ -172,6 +173,17 @@ const FinanzasDashboard:
             );
 
         const [
+            selectedMonth,
+            setSelectedMonth,
+        ] =
+            useState<
+                number |
+                null
+            >(
+                null
+            );
+
+        const [
             ventaMode,
             setVentaMode,
         ] =
@@ -262,9 +274,50 @@ const FinanzasDashboard:
             ]
         );
 
+        useEffect(
+            () => {
+                setSelectedMonth(
+                    null
+                );
+            },
+            [
+                empresa,
+                ano,
+            ]
+        );
+
         const resumen =
             data
                 ?.resumen;
+
+        const mesSeleccionado =
+            useMemo(
+                () => {
+                    if (
+                        selectedMonth ===
+                        null
+                    ) {
+                        return null;
+                    }
+
+                    return (
+                        data
+                            ?.meses
+                            .find(
+                                (
+                                    item
+                                ) =>
+                                    item.mes ===
+                                    selectedMonth
+                            ) ??
+                        null
+                    );
+                },
+                [
+                    data,
+                    selectedMonth,
+                ]
+            );
 
         const mesesDisponibles =
             useMemo(
@@ -462,6 +515,42 @@ const FinanzasDashboard:
                         </div>
                     )}
 
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm text-slate-500">
+                            {mesSeleccionado ? (
+                                <>
+                                    Mostrando:
+                                    {" "}
+                                    <strong className="text-slate-900">
+                                        {mesSeleccionado.label} {ano}
+                                    </strong>
+                                </>
+                            ) : (
+                                <>
+                                    Mostrando:
+                                    {" "}
+                                    <strong className="text-slate-900">
+                                        Año completo {ano}
+                                    </strong>
+                                </>
+                            )}
+                        </div>
+
+                        {mesSeleccionado && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setSelectedMonth(
+                                        null
+                                    )
+                                }
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                            >
+                                Ver todo el año
+                            </button>
+                        )}
+                    </div>
+
                     {/* KPIs */}
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -470,12 +559,17 @@ const FinanzasDashboard:
                             label="Facturado"
                             value={
                                 formatCLP(
-                                    resumen
-                                        ?.montoFacturado ??
-                                    0
+                                    mesSeleccionado
+                                        ? mesSeleccionado.facturadoBruto
+                                        : resumen?.montoFacturado ??
+                                        0
                                 )
                             }
-                            helper={`${resumen?.totalDocumentos ?? 0} documentos emitidos`}
+                            helper={
+                                mesSeleccionado
+                                    ? `${mesSeleccionado.documentosVentas} documentos emitidos`
+                                    : `${resumen?.totalDocumentos ?? 0} documentos emitidos`
+                            }
                             icon={
                                 <DollarSign
                                     size={
@@ -490,17 +584,20 @@ const FinanzasDashboard:
                             label="Compras"
                             value={
                                 formatCLP(
-                                    resumen
-                                        ?.montoCompras ??
-                                    0
+                                    mesSeleccionado
+                                        ? mesSeleccionado.comprasBruto
+                                        : resumen?.montoCompras ??
+                                        0
                                 )
                             }
-                            helper={`${resumen?.totalDocumentosCompras ?? 0} documentos recibidos`}
+                            helper={
+                                mesSeleccionado
+                                    ? `${mesSeleccionado.documentosCompras} documentos recibidos`
+                                    : `${resumen?.totalDocumentosCompras ?? 0} documentos recibidos`
+                            }
                             icon={
                                 <ShoppingCart
-                                    size={
-                                        20
-                                    }
+                                    size={20}
                                 />
                             }
                             tone="cyan"
@@ -510,17 +607,20 @@ const FinanzasDashboard:
                             label="Por vencer"
                             value={
                                 formatCLP(
-                                    resumen
-                                        ?.montoPorVencer ??
-                                    0
+                                    mesSeleccionado
+                                        ? mesSeleccionado.porVencer
+                                        : resumen?.montoPorVencer ??
+                                        0
                                 )
                             }
-                            helper={`${resumen?.documentosPorVencer ?? 0} documentos pendientes`}
+                            helper={
+                                mesSeleccionado
+                                    ? `${mesSeleccionado.documentosPorVencer} documentos pendientes`
+                                    : `${resumen?.documentosPorVencer ?? 0} documentos pendientes`
+                            }
                             icon={
                                 <Clock3
-                                    size={
-                                        20
-                                    }
+                                    size={20}
                                 />
                             }
                             tone="amber"
@@ -530,17 +630,20 @@ const FinanzasDashboard:
                             label="Vencido"
                             value={
                                 formatCLP(
-                                    resumen
-                                        ?.montoVencido ??
-                                    0
+                                    mesSeleccionado
+                                        ? mesSeleccionado.vencido
+                                        : resumen?.montoVencido ??
+                                        0
                                 )
                             }
-                            helper={`${resumen?.documentosVencidos ?? 0} documentos vencidos`}
+                            helper={
+                                mesSeleccionado
+                                    ? `${mesSeleccionado.documentosVencidos} documentos vencidos`
+                                    : `${resumen?.documentosVencidos ?? 0} documentos vencidos`
+                            }
                             icon={
                                 <TriangleAlert
-                                    size={
-                                        20
-                                    }
+                                    size={20}
                                 />
                             }
                             tone="red"
@@ -550,17 +653,20 @@ const FinanzasDashboard:
                             label="Pagado"
                             value={
                                 formatCLP(
-                                    resumen
-                                        ?.montoPagado ??
-                                    0
+                                    mesSeleccionado
+                                        ? mesSeleccionado.pagado
+                                        : resumen?.montoPagado ??
+                                        0
                                 )
                             }
-                            helper={`${resumen?.documentosPagados ?? 0} documentos conciliados`}
+                            helper={
+                                mesSeleccionado
+                                    ? `${mesSeleccionado.documentosPagados} documentos conciliados`
+                                    : `${resumen?.documentosPagados ?? 0} documentos conciliados`
+                            }
                             icon={
                                 <CheckCircle2
-                                    size={
-                                        20
-                                    }
+                                    size={20}
                                 />
                             }
                             tone="emerald"
@@ -733,6 +839,22 @@ const FinanzasDashboard:
                                     ventaMode={
                                         ventaMode
                                     }
+                                    selectedMonth={
+                                        selectedMonth
+                                    }
+                                    onMonthSelect={(
+                                        month
+                                    ) => {
+                                        setSelectedMonth(
+                                            (
+                                                current
+                                            ) =>
+                                                current === month
+                                                    ? null
+                                                    : month
+                                        );
+                                    }}
+
                                 />
                             )}
 
