@@ -35,80 +35,80 @@ export type DestinoEquipoTaller =
 
 export const DestinoEquipoTallerLabel:
     Record<DestinoEquipoTaller, string> = {
-        SIN_DEFINIR:
-            "Sin definir",
+    SIN_DEFINIR:
+        "Sin definir",
 
-        VENTA:
-            "Venta",
+    VENTA:
+        "Venta",
 
-        VENTA_EMPRESA:
-            "Venta empresa",
+    VENTA_EMPRESA:
+        "Venta empresa",
 
-        RIDS:
-            "RIDS",
+    RIDS:
+        "RIDS",
 
-        CLIENTE:
-            "Cliente",
+    CLIENTE:
+        "Cliente",
 
-        BAJA:
-            "Baja",
-    };
+    BAJA:
+        "Baja",
+};
 
 export const DestinoEquipoTallerColor:
     Record<DestinoEquipoTaller, string> = {
-        SIN_DEFINIR:
-            "bg-slate-50 text-slate-600 ring-slate-200",
+    SIN_DEFINIR:
+        "bg-slate-50 text-slate-600 ring-slate-200",
 
-        VENTA:
-            "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    VENTA:
+        "bg-emerald-50 text-emerald-700 ring-emerald-200",
 
-        VENTA_EMPRESA:
-            "bg-violet-50 text-violet-700 ring-violet-200",
+    VENTA_EMPRESA:
+        "bg-violet-50 text-violet-700 ring-violet-200",
 
-        RIDS:
-            "bg-cyan-50 text-cyan-700 ring-cyan-200",
+    RIDS:
+        "bg-cyan-50 text-cyan-700 ring-cyan-200",
 
-        CLIENTE:
-            "bg-blue-50 text-blue-700 ring-blue-200",
+    CLIENTE:
+        "bg-blue-50 text-blue-700 ring-blue-200",
 
-        BAJA:
-            "bg-rose-50 text-rose-700 ring-rose-200",
-    };
+    BAJA:
+        "bg-rose-50 text-rose-700 ring-rose-200",
+};
 
 export const DestinoEquipoTallerOptions: Array<{
     value: DestinoEquipoTaller;
     label: string;
 }> = [
-    {
-        value: "SIN_DEFINIR",
-        label: "Sin definir",
-    },
+        {
+            value: "SIN_DEFINIR",
+            label: "Sin definir",
+        },
 
-    {
-        value: "VENTA",
-        label: "Venta",
-    },
+        {
+            value: "VENTA",
+            label: "Venta",
+        },
 
-    {
-        value: "VENTA_EMPRESA",
-        label: "Venta empresa",
-    },
+        {
+            value: "VENTA_EMPRESA",
+            label: "Venta empresa",
+        },
 
-    {
-        value: "RIDS",
-        label: "RIDS",
-    },
+        {
+            value: "RIDS",
+            label: "RIDS",
+        },
 
-    {
-        value: "CLIENTE",
-        label: "Cliente",
-    },
+        {
+            value: "CLIENTE",
+            label: "Cliente",
+        },
 
-    {
-        value: "BAJA",
-        label: "Baja",
-    },
-];
+        {
+            value: "BAJA",
+            label: "Baja",
+        },
+    ];
 
 export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
     ACTIVO: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -279,6 +279,11 @@ export interface DetalleTrabajoGestioo {
         id: number;
         estado: "BORRADOR" | "APROBADA" | "RECHAZADA" | "FACTURADA";
     } | null;
+
+    nombreFirmanteEntrada?: string | null;
+    firmaEntradaUrl?: string | null;
+    firmaEntradaPublicId?: string | null;
+    firmaEntradaAt?: string | null;
 }
 
 export interface Tecnico {

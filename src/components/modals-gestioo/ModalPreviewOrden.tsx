@@ -125,6 +125,69 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                         title="Notas del técnico"
                         content={orden.notas ?? "Sin observaciones"}
                     />
+                    {/* Confirmación de recepción */}
+                    {orden.area === "ENTRADA" && (
+                        <div>
+                            <h4 className="font-semibold mb-2">
+                                Confirmación de recepción
+                            </h4>
+
+                            <div className="border rounded-xl p-4 bg-slate-50 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                                            Nombre de quien firma
+                                        </p>
+
+                                        <p className="mt-1 font-medium text-slate-800">
+                                            {orden.nombreFirmanteEntrada || "Sin registro"}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                                            Fecha de confirmación
+                                        </p>
+
+                                        <p className="mt-1 font-medium text-slate-800">
+                                            {orden.firmaEntradaAt
+                                                ? new Date(
+                                                    orden.firmaEntradaAt,
+                                                ).toLocaleString("es-CL", {
+                                                    day: "2-digit",
+                                                    month: "2-digit",
+                                                    year: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                    hour12: false,
+                                                })
+                                                : "Sin registro"}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-2">
+                                        Firma
+                                    </p>
+
+                                    {orden.firmaEntradaUrl ? (
+                                        <div className="border rounded-xl bg-white p-4 flex items-center justify-center min-h-[150px]">
+                                            <img
+                                                src={orden.firmaEntradaUrl}
+                                                alt={`Firma de ${orden.nombreFirmanteEntrada ?? "recepción"}`}
+                                                className="max-h-36 max-w-full object-contain"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="border rounded-xl bg-white p-4 text-slate-400">
+                                            Sin firma registrada
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

@@ -1,6 +1,18 @@
-// src/pages/BitacoraTecnico.tsx
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../api/api";
+// src/host/BitacoraTecnico.tsx
+
+import {
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
+
+import type {
+    FormEvent,
+} from "react";
+
+import type {
+    UploadFile,
+} from "antd/es/upload/interface";
 
 import {
     EditOutlined,
@@ -12,7 +24,7 @@ import {
     FormOutlined,
     BellOutlined,
     UndoOutlined,
-    CheckOutlined
+    CheckOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -22,7 +34,6 @@ import {
     Button,
     Tooltip,
     Popconfirm,
-    Modal,
 } from "antd";
 
 import {
@@ -31,802 +42,562 @@ import {
 
 import dayjs from "dayjs";
 import "dayjs/locale/es";
+
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.locale("es");
+import {
+    api,
+} from "../api/api";
 
-const CHILE_TZ = "America/Santiago";
+/* =====================================================
+   COMPONENTES BITÁCORA
+===================================================== */
 
-/*
- * Opciones rápidas disponibles para programar
- * recordatorios desde la nota rápida local.
- */
-const OPCIONES_RAPIDAS_RECORDATORIO = [
-    {
-        label: "30 min",
-        minutos: 30,
-    },
-    {
-        label: "1 hora",
-        minutos: 60,
-    },
-    {
-        label: "1 h 30",
-        minutos: 90,
-    },
-    {
-        label: "2 horas",
-        minutos: 120,
-    },
-    {
-        label: "3 horas",
-        minutos: 180,
-    },
-] as const;
+import BitacoraFormModal from "../components/modals-bitacora/BitacoraFormModal";
+
+import BitacoraDetailModal from "../components/modals-bitacora/BitacoraDetailModal";
+
+import BitacoraNotaRapidaModal from "../components/modals-bitacora/BitacoraNotaRapidaModal";
+
+import BitacoraEvidenciaUploadModal from "../components/modals-bitacora/BitacoraEvidenciaUploadModal";
+
+/* =====================================================
+   API BITÁCORA
+===================================================== */
+
+import {
+    actualizarBitacoraTecnico,
+    actualizarEstadoRecordatorio,
+    crearBitacoraTecnico,
+    eliminarBitacoraTecnico,
+    eliminarEvidenciaBitacora,
+    obtenerBitacoraTecnicoPorId,
+    obtenerBitacorasTecnico,
+    obtenerEvidenciasBitacora,
+    subirEvidenciaBitacora,
+} from "../components/modals-bitacora/bitacora.api";
+
+/* =====================================================
+   CONSTANTES
+===================================================== */
+
+import {
+    CHILE_TZ,
+    ESTADOS,
+    LABEL_BASE,
+    RELACIONES_CONFIG,
+    TIPOS_ACTIVIDAD,
+} from "../components/modals-bitacora/bitacora.constants";
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+import {
+    esNotaRapida,
+    formatFechaChile,
+    formatFechaHoraChile,
+    formatHoraChile,
+    formatRecordatorioChile,
+    formatTituloBitacora,
+    getAxiosErrorMessage,
+    getRecordatorioBadgeClass,
+    getRecordatorioLabel,
+    incluyeBusqueda,
+    mapRelacionOption,
+    obtenerEstadoRecordatorio,
+    renderRelacionResumen,
+    toNumberOrNull,
+    todayInputDate,
+} from "../components/modals-bitacora/bitacora.helpers";
 
 /* =====================================================
    TYPES
 ===================================================== */
 
-type TipoBitacoraTecnico =
-    | "SOPORTE"
-    | "TERRENO"
-    | "REMOTO"
-    | "TALLER"
-    | "INTERNO"
-    | "ADMINISTRATIVO"
-    | "REUNION"
-    | "OTRO";
+import type {
+    ActualizarBitacoraTecnicoPayload,
+    BitacoraEvidencia,
+    BitacoraFormState,
+    BitacoraTecnico,
+    CrearBitacoraTecnicoPayload,
+    EmpresaOption,
+    EstadoBitacoraTecnico,
+    EtapaEvidenciaBitacora,
+    EvidenciaPendiente,
+    FormErrors,
+    NotaRapidaState,
+    OpcionRelacion,
+    RelacionKey,
+    TecnicoOption,
+    TipoBitacoraTecnico,
+} from "../components/modals-bitacora/bitacora.types";
 
-type EstadoBitacoraTecnico = "REGISTRADA" | "REVISADA" | "ANULADA";
+/* =====================================================
+   DAYJS
+===================================================== */
 
-type UiMessageType = "success" | "error" | "warning" | "info";
+dayjs.extend(
+    utc
+);
 
-type TipoRelacionOpcional =
-    | ""
-    | "solicitantes"
-    | "tickets"
-    | "trabajos"
-    | "visitas"
-    | "mantenciones"
-    | "equipos"
-    | "cotizaciones";
+dayjs.extend(
+    timezone
+);
 
-type RelacionKey = Exclude<TipoRelacionOpcional, "">;
+dayjs.locale(
+    "es"
+);
 
-type FormRelacionKey =
-    | "solicitanteId"
-    | "ticketId"
-    | "trabajoId"
-    | "visitaId"
-    | "mantencionId"
-    | "equipoId"
-    | "cotizacionId";
+/* =====================================================
+   TYPES LOCALES
+===================================================== */
 
-interface RelacionConfig {
-    tipo: RelacionKey;
-    label: string;
-    formKey: FormRelacionKey;
-}
+type UiMessageType =
+    | "success"
+    | "error"
+    | "warning"
+    | "info";
 
-type VistaBitacora = "resumen-diario";
+type VistaBitacora =
+    "resumen-diario";
 
 interface UiMessage {
-    type: UiMessageType;
-    text: string;
-}
+    type:
+    UiMessageType;
 
-interface FormErrors {
-    tecnicoId?: string;
-    descripcion?: string;
-    empresaId?: string;
-    relacion?: string;
-}
-
-interface TecnicoOption {
-    id_tecnico: number;
-    nombre: string;
-    email?: string | null;
-    rol?: string | null;
-}
-
-interface EmpresaOption {
-    id_empresa: number;
-    nombre: string;
-}
-
-interface OpcionRelacion {
-    id: number;
-    label: string;
-    raw: unknown;
+    text:
+    string;
 }
 
 interface UsuarioAutenticado {
-    id_tecnico?: number | null;
-    idTecnico?: number | null;
-    tecnicoId?: number | null;
-    nombre?: string | null;
-    email?: string | null;
-    rol?: string | null;
-}
+    id_tecnico?:
+    number | null;
 
-interface BitacoraTecnico {
-    id: number;
-    fecha: string;
-    titulo?: string | null;
-    descripcion: string;
-    tipoActividad: TipoBitacoraTecnico;
-    estado: EstadoBitacoraTecnico;
+    idTecnico?:
+    number | null;
 
-    tecnicoId: number;
-    empresaId?: number | null;
-    solicitanteId?: number | null;
-    ticketId?: number | null;
-    trabajoId?: number | null;
-    visitaId?: number | null;
-    mantencionId?: number | null;
-    equipoId?: number | null;
-    cotizacionId?: number | null;
+    tecnicoId?:
+    number | null;
 
-    // Fecha y hora programada para el recordatorio.
-    recordatorioAt?: string | null;
+    nombre?:
+    string | null;
 
-    // Indica si el usuario ya completó el recordatorio.
-    recordatorioCompletado?: boolean;
+    email?:
+    string | null;
 
-    // Fecha en la que fue marcado como completado.
-    recordatorioCompletadoAt?: string | null;
-
-    // Fecha en la que el backend envió la notificación automática.
-    recordatorioNotificadoAt?: string | null;
-
-    createdAt: string;
-    updatedAt: string;
-
-    tecnico?: {
-        id_tecnico: number;
-        nombre: string;
-        email?: string | null;
-        rol?: string | null;
-    } | null;
-
-    empresa?: {
-        id_empresa: number;
-        nombre: string;
-    } | null;
-
-    solicitante?: {
-        id_solicitante: number;
-        nombre: string;
-        email?: string | null;
-    } | null;
-
-    ticket?: {
-        id: number;
-        publicId: string;
-        subject: string;
-        status: string;
-    } | null;
-
-    trabajo?: {
-        id: number;
-        numeroOrden?: string | null;
-        tipoTrabajo: string;
-        estado?: string | null;
-        area?: string | null;
-        destinoEquipo?: string | null;
-    } | null;
-
-    visita?: {
-        id_visita: number;
-        inicio: string;
-        fin?: string | null;
-        status: string;
-    } | null;
-
-    mantencion?: {
-        id_mantencion: number;
-        inicio: string;
-        fin?: string | null;
-        status: string;
-    } | null;
-
-    equipo?: {
-        id_equipo: number;
-        serial?: string | null;
-        marca: string;
-        modelo: string;
-        tipo: string;
-    } | null;
-
-    cotizacion?: {
-        id: number;
-        fecha: string;
-        estado: string;
-        total: number;
-    } | null;
-}
-
-interface CrearBitacoraTecnicoPayload {
-    fecha?: string;
-    titulo?: string;
-    descripcion: string;
-    tipoActividad?: TipoBitacoraTecnico;
-
-    tecnicoId: number;
-    empresaId?: number | null;
-    solicitanteId?: number | null;
-    ticketId?: number | null;
-    trabajoId?: number | null;
-    visitaId?: number | null;
-    mantencionId?: number | null;
-    equipoId?: number | null;
-    cotizacionId?: number | null;
-
-    // Puede contener una fecha ISO o null para eliminar el recordatorio.
-    recordatorioAt?: string | null;
-}
-
-interface ActualizarBitacoraTecnicoPayload extends CrearBitacoraTecnicoPayload {
-    estado?: EstadoBitacoraTecnico;
-}
-
-interface FiltrosBitacoraTecnico {
-    fecha?: string;
-    desde?: string;
-    hasta?: string;
-    tecnicoId?: number;
-    empresaId?: number;
-    solicitanteId?: number;
-    ticketId?: number;
-    trabajoId?: number;
-    visitaId?: number;
-    mantencionId?: number;
-    equipoId?: number;
-    cotizacionId?: number;
-    tipoActividad?: TipoBitacoraTecnico;
-    estado?: EstadoBitacoraTecnico;
-    search?: string;
+    rol?:
+    string | null;
 }
 
 /* =====================================================
-   API LOCAL
+   HELPERS LOCALES
 ===================================================== */
 
-async function obtenerBitacoraTecnicoPorId(
-    id: number
-): Promise<{ data: BitacoraTecnico }> {
-    /*
-     * Se usa al abrir una bitácora desde
-     * la campana global de recordatorios.
-     */
-    const res = await api.get(
-        `/bitacora-tecnico/${id}`
-    );
-
-    return res.data;
-}
-
-function buildQuery(params?: FiltrosBitacoraTecnico) {
-    const query = new URLSearchParams();
-
-    if (!params) return "";
-
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
-            query.set(key, String(value));
-        }
-    });
-
-    const queryString = query.toString();
-
-    return queryString ? `?${queryString}` : "";
-}
-
-async function obtenerBitacorasTecnico(
-    params?: FiltrosBitacoraTecnico
-): Promise<{ data: BitacoraTecnico[] }> {
-    const res = await api.get(`/bitacora-tecnico${buildQuery(params)}`, {
-        headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-        },
-    });
-
-    return res.data;
-}
-
-async function crearBitacoraTecnico(
-    payload: CrearBitacoraTecnicoPayload
-): Promise<{ data: BitacoraTecnico }> {
-    const res = await api.post("/bitacora-tecnico", payload);
-    return res.data;
-}
-
-async function actualizarBitacoraTecnico(
-    id: number,
-    payload: ActualizarBitacoraTecnicoPayload
-): Promise<{ data: BitacoraTecnico }> {
-    const res = await api.put(`/bitacora-tecnico/${id}`, payload);
-    return res.data;
-}
-
-async function eliminarBitacoraTecnico(id: number): Promise<{ message: string }> {
-    const res = await api.delete(`/bitacora-tecnico/${id}`);
-    return res.data;
-}
-
-async function actualizarEstadoRecordatorio(
-    id: number,
-    completado: boolean
-): Promise<{ data: BitacoraTecnico; message?: string }> {
-    // El backend utiliza PATCH para completar o reactivar.
-    const res = await api.patch(
-        `/bitacora-tecnico/${id}/recordatorio`,
-        {
-            completado,
-        }
-    );
-
-    return res.data;
-}
-
-/* =====================================================
-   CONSTANTES Y HELPERS
-===================================================== */
-
-const tiposActividad: TipoBitacoraTecnico[] = [
-    "SOPORTE",
-    "TERRENO",
-    "REMOTO",
-    "TALLER",
-    "INTERNO",
-    "ADMINISTRATIVO",
-    "REUNION",
-    "OTRO",
-];
-
-const estados: EstadoBitacoraTecnico[] = [
-    "REGISTRADA",
-    "REVISADA",
-    "ANULADA",
-];
-
-const labelBase =
-    "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600";
-
-const cardBase = "rounded-2xl border border-slate-200 bg-white shadow-sm";
-
-function todayInputDate() {
-    return dayjs().tz(CHILE_TZ).format("YYYY-MM-DD");
-}
-
-function formatFechaChile(value: string) {
-    if (!value) return "-";
-
-    const date = dayjs(value);
-
-    if (!date.isValid()) return "-";
-
-    return new Intl.DateTimeFormat("es-CL", {
-        timeZone: CHILE_TZ,
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour12: false,
-    }).format(date.toDate());
-}
-
-function formatHoraChile(value: string) {
-    if (!value) return "-";
-
-    const date = dayjs(value);
-
-    if (!date.isValid()) return "-";
-
-    return new Intl.DateTimeFormat("es-CL", {
-        timeZone: CHILE_TZ,
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    }).format(date.toDate());
-}
-
-function formatFechaHoraChile(value: string) {
-    if (!value) return "-";
-
-    const date = dayjs(value);
-
-    if (!date.isValid()) return "-";
-
-    return new Intl.DateTimeFormat("es-CL", {
-        timeZone: CHILE_TZ,
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    }).format(date.toDate());
-}
-
-function traducirEstadoTicket(status?: string | null) {
-    const estado = String(status ?? "").toUpperCase();
-
-    const estados: Record<string, string> = {
-        NEW: "Nuevo",
-        OPEN: "Abierto",
-        PENDING: "Pendiente",
-        CLOSED: "Cerrado",
-    };
-
-    return estados[estado] ?? status ?? "-";
-}
-
-function normalizarBusqueda(value?: string | number | null) {
-    return String(value ?? "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .trim();
-}
-
-function incluyeBusqueda(texto: unknown, busqueda: unknown) {
-    const textoNormalizado = normalizarBusqueda(String(texto ?? ""));
-    const busquedaNormalizada = normalizarBusqueda(String(busqueda ?? ""));
-
-    if (!busquedaNormalizada) return true;
-
-    const palabras = busquedaNormalizada
-        .split(/\s+/)
-        .filter(Boolean);
-
-    return palabras.every((palabra) => textoNormalizado.includes(palabra));
-}
-
-function toNumberOrNull(value: string): number | null {
-    const n = Number(value);
-    return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-function getAxiosErrorMessage(error: unknown) {
-    const err = error as {
-        response?: {
-            data?: {
-                error?: string;
-                message?: string;
-            };
-        };
-        message?: string;
-    };
-
-    return (
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        err?.message ||
-        "Ocurrió un error inesperado"
-    );
-}
-
-function getUsuarioAutenticado(): UsuarioAutenticado | null {
+function getUsuarioAutenticado():
+    UsuarioAutenticado |
+    null {
     try {
-        const raw = localStorage.getItem("user");
+        const raw =
+            localStorage.getItem(
+                "user"
+            );
 
         if (!raw) {
             return null;
         }
 
-        return JSON.parse(raw) as UsuarioAutenticado;
+        return JSON.parse(
+            raw
+        ) as UsuarioAutenticado;
     } catch {
         return null;
     }
 }
 
-function normalizarEmail(value?: string | null) {
-    return String(value ?? "")
+function normalizarEmail(
+    value?: string | null
+) {
+    return String(
+        value ?? ""
+    )
         .trim()
         .toLowerCase();
 }
-
-function FieldError({ message }: { message?: string }) {
-    if (!message) return null;
-
-    return <p className="mt-1 text-xs font-medium text-red-600">{message}</p>;
-}
-
-function esNotaRapida(bitacora: BitacoraTecnico) {
-    return Boolean(
-        bitacora.titulo?.startsWith("Nota rápida")
-    );
-}
-
-function formatTituloBitacora(titulo?: string | null) {
-    if (!titulo) {
-        return "Sin título";
-    }
-
-    if (titulo === "Nota rápida") {
-        return "Sin título";
-    }
-
-    const prefijoNotaRapida = "Nota rápida · ";
-
-    if (titulo.startsWith(prefijoNotaRapida)) {
-        return titulo.slice(prefijoNotaRapida.length);
-    }
-
-    return titulo;
-}
-
-type EstadoRecordatorioVisual =
-    | "SIN_RECORDATORIO"
-    | "PENDIENTE"
-    | "VENCIDO"
-    | "COMPLETADO";
-
-function obtenerEstadoRecordatorio(
-    bitacora: BitacoraTecnico
-): EstadoRecordatorioVisual {
-    // Si no existe fecha, la bitácora no tiene recordatorio.
-    if (!bitacora.recordatorioAt) {
-        return "SIN_RECORDATORIO";
-    }
-
-    // Un recordatorio completado prevalece sobre la fecha.
-    if (bitacora.recordatorioCompletado) {
-        return "COMPLETADO";
-    }
-
-    // Si la fecha ya pasó y no está completado, está vencido.
-    if (dayjs(bitacora.recordatorioAt).isBefore(dayjs())) {
-        return "VENCIDO";
-    }
-
-    return "PENDIENTE";
-}
-
-function formatRecordatorioChile(
-    value?: string | null
-) {
-    if (!value) {
-        return "-";
-    }
-
-    const fecha = dayjs(value);
-
-    if (!fecha.isValid()) {
-        return "-";
-    }
-
-    return fecha
-        .tz(CHILE_TZ)
-        .format("DD/MM/YYYY [a las] HH:mm");
-}
-
-function getRecordatorioBadgeClass(
-    estado: EstadoRecordatorioVisual
-) {
-    switch (estado) {
-        case "COMPLETADO":
-            return "border-emerald-200 bg-emerald-50 text-emerald-700";
-
-        case "VENCIDO":
-            return "border-red-200 bg-red-50 text-red-700";
-
-        case "PENDIENTE":
-            return "border-amber-200 bg-amber-50 text-amber-700";
-
-        default:
-            return "border-slate-200 bg-slate-50 text-slate-500";
-    }
-}
-
-function getRecordatorioLabel(
-    estado: EstadoRecordatorioVisual
-) {
-    switch (estado) {
-        case "COMPLETADO":
-            return "Completado";
-
-        case "VENCIDO":
-            return "Vencido";
-
-        case "PENDIENTE":
-            return "Pendiente";
-
-        default:
-            return "Sin recordatorio";
-    }
-}
-
-function mapRelacionOption(
-    tipo: TipoRelacionOpcional,
-    item: any
-): OpcionRelacion | null {
-    if (!tipo) return null;
-
-    switch (tipo) {
-        case "solicitantes":
-            return {
-                id: item.id_solicitante,
-                label: `${item.nombre}${item.email ? ` - ${item.email}` : ""}`,
-                raw: item,
-            };
-
-        case "tickets":
-            return {
-                id: item.id,
-                label: `Ticket #${item.id} - ${item.subject} - ${traducirEstadoTicket(item.status)}`,
-                raw: item,
-            };
-
-        case "trabajos":
-            return {
-                id: item.id,
-                label: `${item.numeroOrden ?? `Orden #${item.id}`} - ${item.tipoTrabajo ?? "Trabajo"} - ${item.area ?? ""} - ${item.destinoEquipo ?? ""} `,
-                raw: item,
-            };
-
-        case "visitas":
-            return {
-                id: item.id_visita,
-                label: `Visita #${item.id_visita} - ${new Date(item.inicio).toLocaleString("es-CL")} - ${item.status}`,
-                raw: item,
-            };
-
-        case "mantenciones":
-            return {
-                id: item.id_mantencion,
-                label: `Mantención #${item.id_mantencion} - ${item.deviceNombre ?? item.solicitante ?? "Sin dispositivo"} - ${item.status}`,
-                raw: item,
-            };
-
-        case "equipos":
-            return {
-                id: item.id_equipo,
-                label: `${item.marca ?? ""} ${item.modelo ?? ""}${item.serial ? ` - ${item.serial}` : ""} - ${item.estado ?? ""}`,
-                raw: item,
-            };
-
-        case "cotizaciones":
-            return {
-                id: item.id,
-                label: `Cotización #${item.id} - ${item.estado} - $${Number(item.total ?? 0).toLocaleString("es-CL")}`,
-                raw: item,
-            };
-
-        default:
-            return null;
-    }
-}
-
-const RELACIONES_CONFIG: RelacionConfig[] = [
-    {
-        tipo: "solicitantes",
-        label: "Solicitante",
-        formKey: "solicitanteId",
-    },
-    {
-        tipo: "tickets",
-        label: "Ticket",
-        formKey: "ticketId",
-    },
-    {
-        tipo: "trabajos",
-        label: "Trabajo / Orden de taller",
-        formKey: "trabajoId",
-    },
-    {
-        tipo: "visitas",
-        label: "Visita",
-        formKey: "visitaId",
-    },
-    {
-        tipo: "mantenciones",
-        label: "Mantención remota",
-        formKey: "mantencionId",
-    },
-    {
-        tipo: "equipos",
-        label: "Equipo",
-        formKey: "equipoId",
-    },
-    {
-        tipo: "cotizaciones",
-        label: "Cotización",
-        formKey: "cotizacionId",
-    },
-];
 
 /* =====================================================
    COMPONENTE
 ===================================================== */
 
 export default function BitacoraTecnicoPage() {
-    const [searchParams, setSearchParams] =
+    const [
+        searchParams,
+        setSearchParams,
+    ] =
         useSearchParams();
 
-    const [bitacoras, setBitacoras] = useState<BitacoraTecnico[]>([]);
-    const usuarioAutenticado = useMemo(
-        () => getUsuarioAutenticado(),
-        []
-    );
-    const [tecnicos, setTecnicos] = useState<TecnicoOption[]>([]);
-    const [empresas, setEmpresas] = useState<EmpresaOption[]>([]);
+    /* =====================================================
+       USUARIO
+    ===================================================== */
 
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [loadingRelacion, setLoadingRelacion] = useState(false);
+    const usuarioAutenticado =
+        useMemo(
+            () =>
+                getUsuarioAutenticado(),
+            []
+        );
 
-    const [editId, setEditId] = useState<number | null>(null);
-    const [modalBitacoraOpen, setModalBitacoraOpen] = useState(false);
+    /* =====================================================
+       DATA GENERAL
+    ===================================================== */
 
-    const [opcionesPorRelacion, setOpcionesPorRelacion] = useState<
-        Partial<Record<RelacionKey, OpcionRelacion[]>>
-    >({});
+    const [
+        bitacoras,
+        setBitacoras,
+    ] =
+        useState<
+            BitacoraTecnico[]
+        >([]);
 
-    const [loadingPorRelacion, setLoadingPorRelacion] = useState<
-        Partial<Record<RelacionKey, boolean>>
-    >({});
+    const [
+        tecnicos,
+        setTecnicos,
+    ] =
+        useState<
+            TecnicoOption[]
+        >([]);
 
-    const [uiMessage, setUiMessage] = useState<UiMessage | null>(null);
-    const [formErrors, setFormErrors] = useState<FormErrors>({});
+    const [
+        empresas,
+        setEmpresas,
+    ] =
+        useState<
+            EmpresaOption[]
+        >([]);
 
-    const [modalVisualizarOpen, setModalVisualizarOpen] = useState(false);
-    const [bitacoraSeleccionada, setBitacoraSeleccionada] =
-        useState<BitacoraTecnico | null>(null);
+    const [
+        loading,
+        setLoading,
+    ] =
+        useState(false);
 
-    const [modalNotaRapidaOpen, setModalNotaRapidaOpen] = useState(false);
+    /* =====================================================
+       MENSAJES
+    ===================================================== */
 
-    const [savingNotaRapida, setSavingNotaRapida] = useState(false);
+    const [
+        uiMessage,
+        setUiMessage,
+    ] =
+        useState<
+            UiMessage | null
+        >(null);
 
-    const [notaRapida, setNotaRapida] = useState({
-        tecnicoId: "",
-        titulo: "",
-        descripcion: "",
-        tipoActividad: "INTERNO" as TipoBitacoraTecnico,
+    function showMessage(
+        type:
+            UiMessageType,
+        text:
+            string
+    ) {
+        setUiMessage({
+            type,
+            text,
+        });
 
-        // String ISO enviado al backend.
-        recordatorioAt: "",
-    });
+        window.setTimeout(
+            () => {
+                setUiMessage(
+                    null
+                );
+            },
+            5000
+        );
+    }
 
-    const [vistaActiva, setVistaActiva] = useState<VistaBitacora>("resumen-diario");
+    /* =====================================================
+       VISTA
+    ===================================================== */
 
-    const [filtros, setFiltros] = useState({
-        fecha: todayInputDate(),
-        search: "",
-        tecnicoId: "",
-        empresaId: "",
-        tipoActividad: "",
-        estado: "",
-    });
+    const [
+        vistaActiva,
+        setVistaActiva,
+    ] =
+        useState<VistaBitacora>(
+            "resumen-diario"
+        );
 
-    const [form, setForm] = useState({
-        fecha: todayInputDate(),
-        titulo: "",
-        descripcion: "",
-        tipoActividad: "SOPORTE" as TipoBitacoraTecnico,
-        estado: "REGISTRADA" as EstadoBitacoraTecnico,
-        tecnicoId: "",
-        empresaId: "",
-        solicitanteId: "",
-        ticketId: "",
-        trabajoId: "",
-        visitaId: "",
-        mantencionId: "",
-        equipoId: "",
-        cotizacionId: "",
+    /* =====================================================
+       FILTROS
+    ===================================================== */
 
-        // Fecha y hora opcional del recordatorio.
-        recordatorioAt: "",
-    });
+    const [
+        filtros,
+        setFiltros,
+    ] =
+        useState({
+            fecha:
+                todayInputDate(),
 
-    const tituloFormulario = useMemo(() => {
-        return editId ? "Editar bitácora" : "Nueva bitácora";
-    }, [editId]);
+            search:
+                "",
+
+            tecnicoId:
+                "",
+
+            empresaId:
+                "",
+
+            tipoActividad:
+                "",
+
+            estado:
+                "",
+        });
+
+    /* =====================================================
+       MODAL CREAR / EDITAR
+    ===================================================== */
+
+    const [
+        editId,
+        setEditId,
+    ] =
+        useState<
+            number | null
+        >(null);
+
+    const [
+        modalBitacoraOpen,
+        setModalBitacoraOpen,
+    ] =
+        useState(false);
+
+    const [
+        saving,
+        setSaving,
+    ] =
+        useState(false);
+
+    const [
+        formErrors,
+        setFormErrors,
+    ] =
+        useState<FormErrors>(
+            {}
+        );
+
+    const [
+        form,
+        setForm,
+    ] =
+        useState<BitacoraFormState>({
+            fecha:
+                todayInputDate(),
+
+            titulo:
+                "",
+
+            descripcion:
+                "",
+
+            tipoActividad:
+                "SOPORTE",
+
+            estado:
+                "REGISTRADA",
+
+            tecnicoId:
+                "",
+
+            empresaId:
+                "",
+
+            solicitanteId:
+                "",
+
+            ticketId:
+                "",
+
+            trabajoId:
+                "",
+
+            visitaId:
+                "",
+
+            mantencionId:
+                "",
+
+            equipoId:
+                "",
+
+            cotizacionId:
+                "",
+
+            recordatorioAt:
+                "",
+        });
+
+    /* =====================================================
+       RELACIONES
+    ===================================================== */
+
+    const [
+        opcionesPorRelacion,
+        setOpcionesPorRelacion,
+    ] =
+        useState<
+            Partial<
+                Record<
+                    RelacionKey,
+                    OpcionRelacion[]
+                >
+            >
+        >({});
+
+    const [
+        loadingPorRelacion,
+        setLoadingPorRelacion,
+    ] =
+        useState<
+            Partial<
+                Record<
+                    RelacionKey,
+                    boolean
+                >
+            >
+        >({});
+
+    /* =====================================================
+       DETALLE
+    ===================================================== */
+
+    const [
+        modalVisualizarOpen,
+        setModalVisualizarOpen,
+    ] =
+        useState(false);
+
+    const [
+        bitacoraSeleccionada,
+        setBitacoraSeleccionada,
+    ] =
+        useState<
+            BitacoraTecnico |
+            null
+        >(null);
+
+    /* =====================================================
+       NOTA RÁPIDA
+    ===================================================== */
+
+    const [
+        modalNotaRapidaOpen,
+        setModalNotaRapidaOpen,
+    ] =
+        useState(false);
+
+    const [
+        savingNotaRapida,
+        setSavingNotaRapida,
+    ] =
+        useState(false);
+
+    const [
+        notaRapida,
+        setNotaRapida,
+    ] =
+        useState<NotaRapidaState>({
+            tecnicoId:
+                "",
+
+            titulo:
+                "",
+
+            descripcion:
+                "",
+
+            tipoActividad:
+                "INTERNO",
+
+            recordatorioAt:
+                "",
+        });
+
+    /* =====================================================
+       EVIDENCIAS
+    ===================================================== */
+
+    const [
+        evidenciasBitacora,
+        setEvidenciasBitacora,
+    ] =
+        useState<
+            BitacoraEvidencia[]
+        >([]);
+
+    const [
+        evidenciasPendientes,
+        setEvidenciasPendientes,
+    ] =
+        useState<
+            EvidenciaPendiente[]
+        >([]);
+
+    const [
+        evidenciasAEliminar,
+        setEvidenciasAEliminar,
+    ] =
+        useState<number[]>(
+            []
+        );
+
+    const [
+        loadingEvidencias,
+        setLoadingEvidencias,
+    ] =
+        useState(false);
+
+    const [
+        modalEvidenciaOpen,
+        setModalEvidenciaOpen,
+    ] =
+        useState(false);
+
+    const [
+        etapaEvidenciaSeleccionada,
+        setEtapaEvidenciaSeleccionada,
+    ] =
+        useState<
+            EtapaEvidenciaBitacora |
+            null
+        >(null);
+
+    const [
+        archivoEvidencia,
+        setArchivoEvidencia,
+    ] =
+        useState<
+            File | null
+        >(null);
+
+    const [
+        archivosUpload,
+        setArchivosUpload,
+    ] =
+        useState<
+            UploadFile[]
+        >([]);
+
+    const [
+        descripcionEvidencia,
+        setDescripcionEvidencia,
+    ] =
+        useState("");
+
+    /* =====================================================
+       ESTILOS
+    ===================================================== */
 
     const tabActivo =
         "rounded-xl bg-cyan-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition";
@@ -834,122 +605,250 @@ export default function BitacoraTecnicoPage() {
     const tabInactivo =
         "rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100";
 
-    const resumenPorTipo = useMemo(() => {
-        return bitacoras.reduce<Record<string, number>>((acc, item) => {
-            acc[item.tipoActividad] = (acc[item.tipoActividad] ?? 0) + 1;
-            return acc;
-        }, {});
-    }, [bitacoras]);
+    const cardBase =
+        "rounded-2xl border border-slate-200 bg-white shadow-sm";
 
-    const resumenPorTecnico = useMemo(() => {
-        return bitacoras.reduce<Record<string, number>>((acc, item) => {
-            const nombre = item.tecnico?.nombre ?? "Sin técnico";
-            acc[nombre] = (acc[nombre] ?? 0) + 1;
-            return acc;
-        }, {});
-    }, [bitacoras]);
+    /* =====================================================
+       RESUMEN
+    ===================================================== */
 
-    const tipoMasFrecuente = useMemo(() => {
-        return Object.entries(resumenPorTipo).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "-";
-    }, [resumenPorTipo]);
+    const resumenPorTipo =
+        useMemo(
+            () => {
+                return bitacoras.reduce<
+                    Record<
+                        string,
+                        number
+                    >
+                >(
+                    (
+                        acc,
+                        item
+                    ) => {
+                        acc[
+                            item.tipoActividad
+                        ] =
+                            (
+                                acc[
+                                item
+                                    .tipoActividad
+                                ] ??
+                                0
+                            ) +
+                            1;
 
-    function showMessage(type: UiMessageType, text: string) {
-        setUiMessage({ type, text });
+                        return acc;
+                    },
+                    {}
+                );
+            },
+            [
+                bitacoras,
+            ]
+        );
 
-        window.setTimeout(() => {
-            setUiMessage(null);
-        }, 5000);
-    }
+    const resumenPorTecnico =
+        useMemo(
+            () => {
+                return bitacoras.reduce<
+                    Record<
+                        string,
+                        number
+                    >
+                >(
+                    (
+                        acc,
+                        item
+                    ) => {
+                        const nombre =
+                            item
+                                .tecnico
+                                ?.nombre ??
+                            "Sin técnico";
+
+                        acc[
+                            nombre
+                        ] =
+                            (
+                                acc[
+                                nombre
+                                ] ??
+                                0
+                            ) +
+                            1;
+
+                        return acc;
+                    },
+                    {}
+                );
+            },
+            [
+                bitacoras,
+            ]
+        );
+
+    const tipoMasFrecuente =
+        useMemo(
+            () => {
+                return (
+                    Object.entries(
+                        resumenPorTipo
+                    ).sort(
+                        (
+                            a,
+                            b
+                        ) =>
+                            b[1] -
+                            a[1]
+                    )[0]?.[0] ??
+                    "-"
+                );
+            },
+            [
+                resumenPorTipo,
+            ]
+        );
+
+    /* =====================================================
+       TÉCNICO AUTENTICADO
+    ===================================================== */
 
     function obtenerTecnicoAutenticadoId(
-        listaTecnicos: TecnicoOption[] = tecnicos
+        listaTecnicos:
+            TecnicoOption[] =
+            tecnicos
     ): string {
-        /*
-         * Primero intenta utilizar un ID guardado directamente
-         * en el usuario autenticado.
-         */
         const idDirecto =
-            usuarioAutenticado?.id_tecnico ??
-            usuarioAutenticado?.idTecnico ??
-            usuarioAutenticado?.tecnicoId;
+            usuarioAutenticado
+                ?.id_tecnico ??
+            usuarioAutenticado
+                ?.idTecnico ??
+            usuarioAutenticado
+                ?.tecnicoId;
 
         if (
-            typeof idDirecto === "number" &&
-            Number.isInteger(idDirecto) &&
-            idDirecto > 0
+            typeof idDirecto ===
+            "number" &&
+            Number.isInteger(
+                idDirecto
+            ) &&
+            idDirecto >
+            0
         ) {
-            const existe = listaTecnicos.some(
-                (tecnico) =>
-                    tecnico.id_tecnico === idDirecto
-            );
+            const existe =
+                listaTecnicos.some(
+                    (
+                        tecnico
+                    ) =>
+                        tecnico.id_tecnico ===
+                        idDirecto
+                );
 
-            if (existe) {
-                return String(idDirecto);
+            if (
+                existe
+            ) {
+                return String(
+                    idDirecto
+                );
             }
         }
 
-        /*
-         * Si el usuario guardado no contiene el ID,
-         * busca al técnico por correo.
-         */
-        const emailUsuario = normalizarEmail(
-            usuarioAutenticado?.email
-        );
+        const emailUsuario =
+            normalizarEmail(
+                usuarioAutenticado
+                    ?.email
+            );
 
-        if (!emailUsuario) {
+        if (
+            !emailUsuario
+        ) {
             return "";
         }
 
-        const tecnicoEncontrado = listaTecnicos.find(
-            (tecnico) =>
-                normalizarEmail(tecnico.email) ===
-                emailUsuario
-        );
+        const encontrado =
+            listaTecnicos.find(
+                (
+                    tecnico
+                ) =>
+                    normalizarEmail(
+                        tecnico.email
+                    ) ===
+                    emailUsuario
+            );
 
-        return tecnicoEncontrado
-            ? String(tecnicoEncontrado.id_tecnico)
+        return encontrado
+            ? String(
+                encontrado.id_tecnico
+            )
             : "";
     }
 
-    function validateForm() {
-        const errors: FormErrors = {};
-
-        if (!form.tecnicoId) {
-            errors.tecnicoId = "Debes seleccionar un técnico.";
-        }
-
-        if (!form.descripcion.trim()) {
-            errors.descripcion = "La descripción es obligatoria.";
-        }
-
-        setFormErrors(errors);
-
-        return Object.keys(errors).length === 0;
-    }
+    /* =====================================================
+       RESET FORM
+    ===================================================== */
 
     function resetForm() {
-        setEditId(null);
-        setFormErrors({});
-        setOpcionesPorRelacion({});
-        setLoadingPorRelacion({});
+        setEditId(
+            null
+        );
+
+        setFormErrors(
+            {}
+        );
+
+        setOpcionesPorRelacion(
+            {}
+        );
+
+        setLoadingPorRelacion(
+            {}
+        );
 
         setForm({
-            fecha: todayInputDate(),
-            titulo: "",
-            descripcion: "",
-            tipoActividad: "SOPORTE",
-            estado: "REGISTRADA",
+            fecha:
+                todayInputDate(),
+
+            titulo:
+                "",
+
+            descripcion:
+                "",
+
+            tipoActividad:
+                "SOPORTE",
+
+            estado:
+                "REGISTRADA",
+
             tecnicoId:
                 obtenerTecnicoAutenticadoId(),
-            empresaId: "",
-            solicitanteId: "",
-            ticketId: "",
-            trabajoId: "",
-            visitaId: "",
-            mantencionId: "",
-            equipoId: "",
-            cotizacionId: "",
-            recordatorioAt: "",
+
+            empresaId:
+                "",
+
+            solicitanteId:
+                "",
+
+            ticketId:
+                "",
+
+            trabajoId:
+                "",
+
+            visitaId:
+                "",
+
+            mantencionId:
+                "",
+
+            equipoId:
+                "",
+
+            cotizacionId:
+                "",
+
+            recordatorioAt:
+                "",
         });
     }
 
@@ -957,388 +856,1183 @@ export default function BitacoraTecnicoPage() {
         setNotaRapida({
             tecnicoId:
                 obtenerTecnicoAutenticadoId(),
-            titulo: "",
-            descripcion: "",
-            tipoActividad: "INTERNO",
-            // La nueva nota rápida comienza sin recordatorio.
-            recordatorioAt: "",
+
+            titulo:
+                "",
+
+            descripcion:
+                "",
+
+            tipoActividad:
+                "INTERNO",
+
+            recordatorioAt:
+                "",
         });
     }
 
-    /**
- * Programa rápidamente el recordatorio
- * de la nota rápida local.
- */
-    function aplicarRecordatorioRapidoNota(
-        minutos: number
-    ) {
+    function resetEvidenciasFormulario() {
         /*
-         * Calcular la fecha desde la hora actual de Chile
-         * y enviarla posteriormente como ISO al backend.
+         * Liberar URLs blob creadas para previews locales.
          */
-        const fechaProgramada = dayjs()
-            .tz(CHILE_TZ)
-            .add(minutos, "minute")
-            .second(0)
-            .millisecond(0);
+        evidenciasPendientes.forEach(
+            (
+                evidencia
+            ) => {
+                URL.revokeObjectURL(
+                    evidencia.previewUrl
+                );
+            }
+        );
 
-        setNotaRapida((prev) => ({
-            ...prev,
-            recordatorioAt:
-                fechaProgramada.toISOString(),
-        }));
+        setEvidenciasPendientes(
+            []
+        );
+
+        setEvidenciasAEliminar(
+            []
+        );
+
+        setEvidenciasBitacora(
+            []
+        );
+
+        setArchivoEvidencia(
+            null
+        );
+
+        setArchivosUpload(
+            []
+        );
+
+        setDescripcionEvidencia(
+            ""
+        );
+
+        setEtapaEvidenciaSeleccionada(
+            null
+        );
+
+        setModalEvidenciaOpen(
+            false
+        );
     }
 
-    function cerrarModalBitacora() {
-        setModalBitacoraOpen(false);
-        resetForm();
+    /* =====================================================
+       VALIDACIÓN FORM
+    ===================================================== */
+
+    function validateForm() {
+        const errors:
+            FormErrors = {};
+
+        if (
+            !form.tecnicoId
+        ) {
+            errors.tecnicoId =
+                "Debes seleccionar un técnico.";
+        }
+
+        if (
+            !form.descripcion.trim()
+        ) {
+            errors.descripcion =
+                "La descripción es obligatoria.";
+        }
+
+        setFormErrors(
+            errors
+        );
+
+        return (
+            Object.keys(
+                errors
+            ).length ===
+            0
+        );
     }
+
+    /* =====================================================
+       MODAL CREAR
+    ===================================================== */
 
     function abrirModalCrear() {
         resetForm();
-        setVistaActiva("resumen-diario");
-        setModalBitacoraOpen(true);
+
+        resetEvidenciasFormulario();
+
+        setVistaActiva(
+            "resumen-diario"
+        );
+
+        setModalBitacoraOpen(
+            true
+        );
     }
 
-    function abrirModalNotaRapida() {
-        setNotaRapida({
-            tecnicoId: obtenerTecnicoAutenticadoId(),
-            titulo: "",
-            descripcion: "",
-            tipoActividad: "INTERNO",
-
-            // La nueva nota rápida comienza sin recordatorio.
-            recordatorioAt: "",
-        });
-
-        setModalNotaRapidaOpen(true);
-    }
-
-    function cerrarModalNotaRapida() {
-        if (savingNotaRapida) {
+    function cerrarModalBitacora() {
+        if (
+            saving
+        ) {
             return;
         }
 
-        setModalNotaRapidaOpen(false);
+        setModalBitacoraOpen(
+            false
+        );
+
+        resetForm();
+
+        resetEvidenciasFormulario();
+    }
+
+    /* =====================================================
+       NOTA RÁPIDA
+    ===================================================== */
+
+    function abrirModalNotaRapida() {
+        resetNotaRapida();
+
+        setModalNotaRapidaOpen(
+            true
+        );
+    }
+
+    function cerrarModalNotaRapida() {
+        if (
+            savingNotaRapida
+        ) {
+            return;
+        }
+
+        setModalNotaRapidaOpen(
+            false
+        );
+
         resetNotaRapida();
     }
 
-    function abrirModalVisualizar(bitacora: BitacoraTecnico) {
-        setBitacoraSeleccionada(bitacora);
-        setModalVisualizarOpen(true);
+    function aplicarRecordatorioRapidoNota(
+        minutos:
+            number
+    ) {
+        const fechaProgramada =
+            dayjs()
+                .tz(
+                    CHILE_TZ
+                )
+                .add(
+                    minutos,
+                    "minute"
+                )
+                .second(
+                    0
+                )
+                .millisecond(
+                    0
+                );
+
+        setNotaRapida(
+            (
+                prev
+            ) => ({
+                ...prev,
+
+                recordatorioAt:
+                    fechaProgramada.toISOString(),
+            })
+        );
+    }
+
+    /* =====================================================
+       EVIDENCIAS
+    ===================================================== */
+
+    async function cargarEvidenciasBitacora(
+        bitacoraId:
+            number
+    ) {
+        try {
+            setLoadingEvidencias(
+                true
+            );
+
+            const response =
+                await obtenerEvidenciasBitacora(
+                    bitacoraId
+                );
+
+            setEvidenciasBitacora(
+                response.data ??
+                []
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error cargando evidencias:",
+                error
+            );
+
+            setEvidenciasBitacora(
+                []
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setLoadingEvidencias(
+                false
+            );
+        }
+    }
+
+    function abrirModalEvidencia(
+        etapa:
+            EtapaEvidenciaBitacora
+    ) {
+        setEtapaEvidenciaSeleccionada(
+            etapa
+        );
+
+        setArchivoEvidencia(
+            null
+        );
+
+        setArchivosUpload(
+            []
+        );
+
+        setDescripcionEvidencia(
+            ""
+        );
+
+        setModalEvidenciaOpen(
+            true
+        );
+    }
+
+    function cerrarModalEvidencia() {
+        setModalEvidenciaOpen(
+            false
+        );
+
+        setEtapaEvidenciaSeleccionada(
+            null
+        );
+
+        setArchivoEvidencia(
+            null
+        );
+
+        setArchivosUpload(
+            []
+        );
+
+        setDescripcionEvidencia(
+            ""
+        );
+    }
+
+    function handleAgregarEvidenciaPendiente() {
+        if (
+            !etapaEvidenciaSeleccionada
+        ) {
+            showMessage(
+                "warning",
+                "No se pudo determinar la etapa de la evidencia."
+            );
+
+            return;
+        }
+
+        if (
+            !archivoEvidencia
+        ) {
+            showMessage(
+                "warning",
+                "Debes seleccionar una imagen o video."
+            );
+
+            return;
+        }
+
+        const previewUrl =
+            URL.createObjectURL(
+                archivoEvidencia
+            );
+
+        const nuevaEvidencia:
+            EvidenciaPendiente = {
+            idTemporal:
+                `${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2, 10)}`,
+
+            etapa:
+                etapaEvidenciaSeleccionada,
+
+            archivo:
+                archivoEvidencia,
+
+            descripcion:
+                descripcionEvidencia.trim(),
+
+            previewUrl,
+        };
+
+        setEvidenciasPendientes(
+            (
+                prev
+            ) => [
+                    ...prev,
+                    nuevaEvidencia,
+                ]
+        );
+
+        setModalEvidenciaOpen(
+            false
+        );
+
+        setEtapaEvidenciaSeleccionada(
+            null
+        );
+
+        setArchivoEvidencia(
+            null
+        );
+
+        setArchivosUpload(
+            []
+        );
+
+        setDescripcionEvidencia(
+            ""
+        );
+    }
+
+    function handleEliminarEvidenciaPendiente(
+        idTemporal:
+            string
+    ) {
+        setEvidenciasPendientes(
+            (
+                prev
+            ) => {
+                const encontrada =
+                    prev.find(
+                        (
+                            evidencia
+                        ) =>
+                            evidencia.idTemporal ===
+                            idTemporal
+                    );
+
+                if (
+                    encontrada
+                ) {
+                    URL.revokeObjectURL(
+                        encontrada.previewUrl
+                    );
+                }
+
+                return prev.filter(
+                    (
+                        evidencia
+                    ) =>
+                        evidencia.idTemporal !==
+                        idTemporal
+                );
+            }
+        );
+    }
+
+    function handleMarcarEliminarEvidencia(
+        evidencia:
+            BitacoraEvidencia
+    ) {
+        setEvidenciasAEliminar(
+            (
+                prev
+            ) => {
+                if (
+                    prev.includes(
+                        evidencia.id
+                    )
+                ) {
+                    return prev;
+                }
+
+                return [
+                    ...prev,
+                    evidencia.id,
+                ];
+            }
+        );
+    }
+
+    function handleRestaurarEvidencia(
+        evidenciaId:
+            number
+    ) {
+        setEvidenciasAEliminar(
+            (
+                prev
+            ) =>
+                prev.filter(
+                    (
+                        id
+                    ) =>
+                        id !==
+                        evidenciaId
+                )
+        );
+    }
+
+    async function guardarCambiosEvidencias(
+        bitacoraId:
+            number
+    ) {
+        let errores =
+            0;
+
+        /*
+         * 1. Eliminar existentes marcadas.
+         */
+        for (
+            const evidenciaId
+            of evidenciasAEliminar
+        ) {
+            try {
+                await eliminarEvidenciaBitacora(
+                    bitacoraId,
+                    evidenciaId
+                );
+            } catch (
+            error
+            ) {
+                errores++;
+
+                console.error(
+                    `Error eliminando evidencia ${evidenciaId}:`,
+                    error
+                );
+            }
+        }
+
+        /*
+         * 2. Subir nuevas evidencias.
+         */
+        for (
+            const evidencia
+            of evidenciasPendientes
+        ) {
+            try {
+                await subirEvidenciaBitacora(
+                    bitacoraId,
+                    evidencia.etapa,
+                    evidencia.archivo,
+                    evidencia.descripcion
+                );
+            } catch (
+            error
+            ) {
+                errores++;
+
+                console.error(
+                    `Error subiendo evidencia ${evidencia.archivo.name}:`,
+                    error
+                );
+            }
+        }
+
+        return {
+            errores,
+        };
+    }
+
+    /* =====================================================
+       MODAL DETALLE
+    ===================================================== */
+
+    function abrirModalVisualizar(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        setBitacoraSeleccionada(
+            bitacora
+        );
+
+        setEvidenciasBitacora(
+            []
+        );
+
+        setModalVisualizarOpen(
+            true
+        );
+
+        void cargarEvidenciasBitacora(
+            bitacora.id
+        );
     }
 
     function cerrarModalVisualizar() {
-        setModalVisualizarOpen(false);
-        setBitacoraSeleccionada(null);
+        setModalVisualizarOpen(
+            false
+        );
+
+        setBitacoraSeleccionada(
+            null
+        );
+
+        setEvidenciasBitacora(
+            []
+        );
     }
+
+    /* =====================================================
+       CARGAS GENERALES
+    ===================================================== */
 
     async function cargarTecnicos() {
         try {
-            const res = await api.get("/tecnicos");
-
-            const data = Array.isArray(res.data)
-                ? res.data
-                : Array.isArray(res.data?.data)
-                    ? res.data.data
-                    : Array.isArray(res.data?.tecnicos)
-                        ? res.data.tecnicos
-                        : [];
-
-            const tecnicosCargados =
-                data as TecnicoOption[];
-
-            setTecnicos(tecnicosCargados);
-
-            const tecnicoAutenticadoId =
-                obtenerTecnicoAutenticadoId(
-                    tecnicosCargados
+            const res =
+                await api.get(
+                    "/tecnicos"
                 );
 
-            if (tecnicoAutenticadoId) {
-                /*
-                 * Completa el formulario avanzado.
-                 */
-                setForm((prev) => ({
-                    ...prev,
-                    tecnicoId:
-                        prev.tecnicoId ||
-                        tecnicoAutenticadoId,
-                }));
+            const data =
+                Array.isArray(
+                    res.data
+                )
+                    ? res.data
+                    : Array.isArray(
+                        res.data
+                            ?.data
+                    )
+                        ? res.data
+                            .data
+                        : Array.isArray(
+                            res.data
+                                ?.tecnicos
+                        )
+                            ? res.data
+                                .tecnicos
+                            : [];
 
-                /*
-                 * Completa la nota rápida.
-                 */
-                setNotaRapida((prev) => ({
-                    ...prev,
-                    tecnicoId:
-                        prev.tecnicoId ||
-                        tecnicoAutenticadoId,
-                }));
+            const cargados =
+                data as
+                TecnicoOption[];
+
+            setTecnicos(
+                cargados
+            );
+
+            const tecnicoId =
+                obtenerTecnicoAutenticadoId(
+                    cargados
+                );
+
+            if (
+                tecnicoId
+            ) {
+                setForm(
+                    (
+                        prev
+                    ) => ({
+                        ...prev,
+
+                        tecnicoId:
+                            prev.tecnicoId ||
+                            tecnicoId,
+                    })
+                );
+
+                setNotaRapida(
+                    (
+                        prev
+                    ) => ({
+                        ...prev,
+
+                        tecnicoId:
+                            prev.tecnicoId ||
+                            tecnicoId,
+                    })
+                );
             }
-        } catch (error) {
-            console.error("Error al cargar técnicos:", error);
-            setTecnicos([]);
-            showMessage("error", "No se pudieron cargar los técnicos.");
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al cargar técnicos:",
+                error
+            );
+
+            setTecnicos(
+                []
+            );
+
+            showMessage(
+                "error",
+                "No se pudieron cargar los técnicos."
+            );
         }
     }
 
     async function cargarEmpresas() {
         try {
-            const res = await api.get("/empresas");
+            const res =
+                await api.get(
+                    "/empresas"
+                );
 
-            const data = Array.isArray(res.data)
-                ? res.data
-                : Array.isArray(res.data?.data)
-                    ? res.data.data
-                    : Array.isArray(res.data?.empresas)
-                        ? res.data.empresas
-                        : [];
+            const data =
+                Array.isArray(
+                    res.data
+                )
+                    ? res.data
+                    : Array.isArray(
+                        res.data
+                            ?.data
+                    )
+                        ? res.data
+                            .data
+                        : Array.isArray(
+                            res.data
+                                ?.empresas
+                        )
+                            ? res.data
+                                .empresas
+                            : [];
 
-            setEmpresas(data);
-        } catch (error) {
-            console.error("Error al cargar empresas:", error);
-            setEmpresas([]);
-            showMessage("error", "No se pudieron cargar las empresas.");
+            setEmpresas(
+                data
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al cargar empresas:",
+                error
+            );
+
+            setEmpresas(
+                []
+            );
+
+            showMessage(
+                "error",
+                "No se pudieron cargar las empresas."
+            );
         }
     }
 
     async function cargarBitacoras() {
         try {
-            setLoading(true);
+            setLoading(
+                true
+            );
 
-            const resp = await obtenerBitacorasTecnico({
-                fecha: filtros.fecha || undefined,
-                search: filtros.search || undefined,
-                tecnicoId: filtros.tecnicoId ? Number(filtros.tecnicoId) : undefined,
-                empresaId: filtros.empresaId ? Number(filtros.empresaId) : undefined,
-                tipoActividad: filtros.tipoActividad
-                    ? (filtros.tipoActividad as TipoBitacoraTecnico)
-                    : undefined,
-                estado: filtros.estado
-                    ? (filtros.estado as EstadoBitacoraTecnico)
-                    : undefined,
-            });
+            const response =
+                await obtenerBitacorasTecnico({
+                    fecha:
+                        filtros.fecha ||
+                        undefined,
 
-            setBitacoras(resp.data ?? []);
-        } catch (error) {
-            console.error("Error al cargar bitácoras:", error);
-            showMessage("error", getAxiosErrorMessage(error));
+                    search:
+                        filtros.search ||
+                        undefined,
+
+                    tecnicoId:
+                        filtros.tecnicoId
+                            ? Number(
+                                filtros.tecnicoId
+                            )
+                            : undefined,
+
+                    empresaId:
+                        filtros.empresaId
+                            ? Number(
+                                filtros.empresaId
+                            )
+                            : undefined,
+
+                    tipoActividad:
+                        filtros.tipoActividad
+                            ? filtros.tipoActividad as TipoBitacoraTecnico
+                            : undefined,
+
+                    estado:
+                        filtros.estado
+                            ? filtros.estado as EstadoBitacoraTecnico
+                            : undefined,
+                });
+
+            setBitacoras(
+                response.data ??
+                []
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al cargar bitácoras:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
         } finally {
-            setLoading(false);
+            setLoading(
+                false
+            );
         }
     }
 
-    async function cargarOpcionesRelacion(
-        tipo: RelacionKey,
-        empresaIdValue: string
-    ) {
-        const empresaId = Number(empresaIdValue);
+    /* =====================================================
+       RELACIONES
+    ===================================================== */
 
-        if (!Number.isInteger(empresaId) || empresaId <= 0) {
-            showMessage("warning", "Primero debes seleccionar una empresa.");
+    async function cargarOpcionesRelacion(
+        tipo:
+            RelacionKey,
+        empresaIdValue:
+            string
+    ) {
+        const empresaId =
+            Number(
+                empresaIdValue
+            );
+
+        if (
+            !Number.isInteger(
+                empresaId
+            ) ||
+            empresaId <=
+            0
+        ) {
+            showMessage(
+                "warning",
+                "Primero debes seleccionar una empresa."
+            );
+
             return;
         }
 
         try {
-            setLoadingPorRelacion((prev) => ({
-                ...prev,
-                [tipo]: true,
-            }));
+            setLoadingPorRelacion(
+                (
+                    prev
+                ) => ({
+                    ...prev,
 
-            const res = await api.get("/bitacora-tecnico/opciones-relacion", {
-                params: {
-                    empresaId,
-                    tipo,
-                },
-            });
+                    [tipo]:
+                        true,
+                })
+            );
 
-            const data = Array.isArray(res.data?.data) ? res.data.data : [];
+            const res =
+                await api.get(
+                    "/bitacora-tecnico/opciones-relacion",
+                    {
+                        params: {
+                            empresaId,
+                            tipo,
+                        },
+                    }
+                );
 
-            const mapped = data
-                .map((item: unknown) => mapRelacionOption(tipo, item))
-                .filter(Boolean) as OpcionRelacion[];
+            const data =
+                Array.isArray(
+                    res.data
+                        ?.data
+                )
+                    ? res.data
+                        .data
+                    : [];
 
-            setOpcionesPorRelacion((prev) => ({
-                ...prev,
-                [tipo]: mapped,
-            }));
-        } catch (error) {
-            console.error("Error al cargar opciones de relación:", error);
-            showMessage("error", getAxiosErrorMessage(error));
+            const mapped =
+                data
+                    .map(
+                        (
+                            item:
+                                unknown
+                        ) =>
+                            mapRelacionOption(
+                                tipo,
+                                item
+                            )
+                    )
+                    .filter(
+                        Boolean
+                    ) as
+                OpcionRelacion[];
 
-            setOpcionesPorRelacion((prev) => ({
-                ...prev,
-                [tipo]: [],
-            }));
+            setOpcionesPorRelacion(
+                (
+                    prev
+                ) => ({
+                    ...prev,
+
+                    [tipo]:
+                        mapped,
+                })
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al cargar opciones de relación:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+
+            setOpcionesPorRelacion(
+                (
+                    prev
+                ) => ({
+                    ...prev,
+
+                    [tipo]:
+                        [],
+                })
+            );
         } finally {
-            setLoadingPorRelacion((prev) => ({
-                ...prev,
-                [tipo]: false,
-            }));
+            setLoadingPorRelacion(
+                (
+                    prev
+                ) => ({
+                    ...prev,
+
+                    [tipo]:
+                        false,
+                })
+            );
         }
     }
 
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
+    /* =====================================================
+       CREAR / EDITAR BITÁCORA
+    ===================================================== */
 
-        if (!validateForm()) {
-            showMessage("error", "Revisa los campos marcados antes de guardar.");
+    async function handleSubmit(
+        event:
+            FormEvent<HTMLFormElement>
+    ) {
+        event.preventDefault();
+
+        if (
+            !validateForm()
+        ) {
+            showMessage(
+                "error",
+                "Revisa los campos marcados antes de guardar."
+            );
+
             return;
         }
 
-        const tecnicoId = toNumberOrNull(form.tecnicoId);
+        const tecnicoId =
+            toNumberOrNull(
+                form.tecnicoId
+            );
 
-        if (!tecnicoId) {
-            showMessage("error", "Debes seleccionar un técnico.");
+        if (
+            !tecnicoId
+        ) {
+            showMessage(
+                "error",
+                "Debes seleccionar un técnico."
+            );
+
             return;
         }
 
-        // Evitar enviar recordatorios con fecha pasada.
         if (
             form.recordatorioAt &&
-            !dayjs(form.recordatorioAt).isAfter(dayjs())
+            !dayjs(
+                form.recordatorioAt
+            ).isAfter(
+                dayjs()
+            )
         ) {
             showMessage(
                 "warning",
                 "El recordatorio debe programarse para una fecha futura."
             );
+
             return;
         }
 
         try {
-            setSaving(true);
+            setSaving(
+                true
+            );
 
-            const payload: CrearBitacoraTecnicoPayload = {
-                fecha: form.fecha,
-                descripcion: form.descripcion.trim(),
-                tipoActividad: form.tipoActividad,
+            const payload:
+                CrearBitacoraTecnicoPayload = {
+                fecha:
+                    form.fecha,
+
+                descripcion:
+                    form.descripcion.trim(),
+
+                tipoActividad:
+                    form.tipoActividad,
+
                 tecnicoId,
-                empresaId: toNumberOrNull(form.empresaId),
-                solicitanteId: toNumberOrNull(form.solicitanteId),
-                ticketId: toNumberOrNull(form.ticketId),
-                trabajoId: toNumberOrNull(form.trabajoId),
-                visitaId: toNumberOrNull(form.visitaId),
-                mantencionId: toNumberOrNull(form.mantencionId),
-                equipoId: toNumberOrNull(form.equipoId),
-                cotizacionId: toNumberOrNull(form.cotizacionId),
+
+                empresaId:
+                    toNumberOrNull(
+                        form.empresaId
+                    ),
+
+                solicitanteId:
+                    toNumberOrNull(
+                        form.solicitanteId
+                    ),
+
+                ticketId:
+                    toNumberOrNull(
+                        form.ticketId
+                    ),
+
+                trabajoId:
+                    toNumberOrNull(
+                        form.trabajoId
+                    ),
+
+                visitaId:
+                    toNumberOrNull(
+                        form.visitaId
+                    ),
+
+                mantencionId:
+                    toNumberOrNull(
+                        form.mantencionId
+                    ),
+
+                equipoId:
+                    toNumberOrNull(
+                        form.equipoId
+                    ),
+
+                cotizacionId:
+                    toNumberOrNull(
+                        form.cotizacionId
+                    ),
+
                 recordatorioAt:
-                    form.recordatorioAt || null,
+                    form.recordatorioAt ||
+                    null,
             };
 
-            if (form.titulo.trim()) {
-                payload.titulo = form.titulo.trim();
+            if (
+                form.titulo.trim()
+            ) {
+                payload.titulo =
+                    form.titulo.trim();
             }
 
-            if (editId) {
+            let bitacoraIdGuardada:
+                number;
+
+            if (
+                editId
+            ) {
                 const updatePayload:
                     ActualizarBitacoraTecnicoPayload = {
                     ...payload,
-                    estado: form.estado,
+
+                    estado:
+                        form.estado,
                 };
 
-                await actualizarBitacoraTecnico(
-                    editId,
-                    updatePayload
-                );
+                const response =
+                    await actualizarBitacoraTecnico(
+                        editId,
+                        updatePayload
+                    );
 
-                showMessage(
-                    "success",
-                    "Bitácora actualizada correctamente."
-                );
+                bitacoraIdGuardada =
+                    response.data.id;
             } else {
-                await crearBitacoraTecnico(payload);
+                const response =
+                    await crearBitacoraTecnico(
+                        payload
+                    );
 
-                showMessage(
-                    "success",
-                    "Bitácora registrada correctamente."
-                );
+                bitacoraIdGuardada =
+                    response.data.id;
             }
 
             /*
-             * Refrescar la campana después de crear,
-             * editar o quitar un recordatorio.
+             * Después de crear/actualizar la bitácora,
+             * aplicar cambios multimedia.
              */
+            const resultadoEvidencias =
+                await guardarCambiosEvidencias(
+                    bitacoraIdGuardada
+                );
+
+            if (
+                resultadoEvidencias.errores >
+                0
+            ) {
+                showMessage(
+                    "warning",
+                    `La bitácora fue guardada, pero ${resultadoEvidencias.errores} operación(es) de evidencia no pudieron completarse.`
+                );
+            } else {
+                showMessage(
+                    "success",
+                    editId
+                        ? "Bitácora actualizada correctamente."
+                        : "Bitácora registrada correctamente."
+                );
+            }
+
             window.dispatchEvent(
-                new Event("recordatorios:actualizar")
+                new Event(
+                    "recordatorios:actualizar"
+                )
             );
 
-            setModalBitacoraOpen(false);
+            setModalBitacoraOpen(
+                false
+            );
+
             resetForm();
+
             await cargarBitacoras();
-        } catch (error) {
-            console.error("Error al guardar bitácora:", error);
-            showMessage("error", getAxiosErrorMessage(error));
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al guardar bitácora:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
         } finally {
-            setSaving(false);
+            setSaving(
+                false
+            );
         }
     }
 
+    /* =====================================================
+       NOTA RÁPIDA
+    ===================================================== */
+
     async function handleGuardarNotaRapida() {
-        if (savingNotaRapida) {
+        if (
+            savingNotaRapida
+        ) {
             return;
         }
 
-        const tecnicoId = toNumberOrNull(notaRapida.tecnicoId);
+        const tecnicoId =
+            toNumberOrNull(
+                notaRapida.tecnicoId
+            );
 
-        if (!tecnicoId) {
+        if (
+            !tecnicoId
+        ) {
             showMessage(
                 "warning",
                 "Debes seleccionar un técnico."
             );
+
             return;
         }
 
-        if (!notaRapida.descripcion.trim()) {
+        if (
+            !notaRapida.descripcion.trim()
+        ) {
             showMessage(
                 "warning",
                 "Debes escribir el contenido de la nota."
             );
+
             return;
         }
 
-        // El backend también valida, pero se informa antes al usuario.
         if (
             notaRapida.recordatorioAt &&
-            !dayjs(notaRapida.recordatorioAt).isAfter(dayjs())
+            !dayjs(
+                notaRapida.recordatorioAt
+            ).isAfter(
+                dayjs()
+            )
         ) {
             showMessage(
                 "warning",
                 "El recordatorio debe programarse para una fecha futura."
             );
+
             return;
         }
 
         try {
-            setSavingNotaRapida(true);
+            setSavingNotaRapida(
+                true
+            );
 
-            const payload: CrearBitacoraTecnicoPayload = {
-                fecha: todayInputDate(),
+            const payload:
+                CrearBitacoraTecnicoPayload = {
+                fecha:
+                    todayInputDate(),
+
                 tecnicoId,
+
                 descripcion:
                     notaRapida.descripcion.trim(),
+
                 tipoActividad:
                     notaRapida.tipoActividad,
 
-                // Recordatorio opcional.
                 recordatorioAt:
-                    notaRapida.recordatorioAt || null,
+                    notaRapida.recordatorioAt ||
+                    null,
             };
 
-            const tituloNota = notaRapida.titulo.trim();
+            const titulo =
+                notaRapida.titulo.trim();
 
-            payload.titulo = tituloNota
-                ? `Nota rápida · ${tituloNota}`
-                : "Nota rápida";
+            payload.titulo =
+                titulo
+                    ? `Nota rápida · ${titulo}`
+                    : "Nota rápida";
 
-            await crearBitacoraTecnico(payload);
+            await crearBitacoraTecnico(
+                payload
+            );
 
-            /*
- * Mostrar inmediatamente el recordatorio
- * en la campana global.
- */
             window.dispatchEvent(
-                new Event("recordatorios:actualizar")
+                new Event(
+                    "recordatorios:actualizar"
+                )
             );
 
             showMessage(
@@ -1346,11 +2040,16 @@ export default function BitacoraTecnicoPage() {
                 "Nota rápida registrada correctamente."
             );
 
-            setModalNotaRapidaOpen(false);
+            setModalNotaRapidaOpen(
+                false
+            );
+
             resetNotaRapida();
 
             await cargarBitacoras();
-        } catch (error) {
+        } catch (
+        error
+        ) {
             console.error(
                 "Error al guardar nota rápida:",
                 error
@@ -1358,15 +2057,24 @@ export default function BitacoraTecnicoPage() {
 
             showMessage(
                 "error",
-                getAxiosErrorMessage(error)
+                getAxiosErrorMessage(
+                    error
+                )
             );
         } finally {
-            setSavingNotaRapida(false);
+            setSavingNotaRapida(
+                false
+            );
         }
     }
 
+    /* =====================================================
+       RECORDATORIOS
+    ===================================================== */
+
     async function handleCambiarEstadoRecordatorio(
-        bitacora: BitacoraTecnico
+        bitacora:
+            BitacoraTecnico
     ) {
         try {
             const nuevoEstado =
@@ -1380,17 +2088,15 @@ export default function BitacoraTecnicoPage() {
                     nuevoEstado
                 );
 
-            /*
- * La tabla global Recordatorio fue actualizada
- * por el backend, por lo que se refresca la campana.
- */
             window.dispatchEvent(
-                new Event("recordatorios:actualizar")
+                new Event(
+                    "recordatorios:actualizar"
+                )
             );
 
-            // Actualizar inmediatamente el modal abierto.
             if (
-                bitacoraSeleccionada?.id ===
+                bitacoraSeleccionada
+                    ?.id ===
                 bitacora.id
             ) {
                 setBitacoraSeleccionada(
@@ -1405,9 +2111,10 @@ export default function BitacoraTecnicoPage() {
                     : "Recordatorio reactivado correctamente."
             );
 
-            // Refrescar la lista con la respuesta real del backend.
             await cargarBitacoras();
-        } catch (error) {
+        } catch (
+        error
+        ) {
             console.error(
                 "Error actualizando recordatorio:",
                 error
@@ -1415,318 +2122,406 @@ export default function BitacoraTecnicoPage() {
 
             showMessage(
                 "error",
-                getAxiosErrorMessage(error)
+                getAxiosErrorMessage(
+                    error
+                )
             );
         }
     }
 
-    function cargarFormularioEditar(bitacora: BitacoraTecnico) {
-        setEditId(bitacora.id);
+    /* =====================================================
+       EDITAR
+    ===================================================== */
 
-        setForm({
-            fecha: bitacora.fecha.slice(0, 10),
-            titulo: bitacora.titulo ?? "",
-            descripcion: bitacora.descripcion,
-            tipoActividad: bitacora.tipoActividad,
-            estado: bitacora.estado,
-            tecnicoId: String(bitacora.tecnicoId),
-            empresaId: bitacora.empresaId ? String(bitacora.empresaId) : "",
-            solicitanteId: bitacora.solicitanteId
-                ? String(bitacora.solicitanteId)
-                : "",
-            ticketId: bitacora.ticketId ? String(bitacora.ticketId) : "",
-            trabajoId: bitacora.trabajoId ? String(bitacora.trabajoId) : "",
-            visitaId: bitacora.visitaId ? String(bitacora.visitaId) : "",
-            mantencionId: bitacora.mantencionId ? String(bitacora.mantencionId) : "",
-            equipoId: bitacora.equipoId ? String(bitacora.equipoId) : "",
-            cotizacionId: bitacora.cotizacionId ? String(bitacora.cotizacionId) : "",
-            // Convertir la fecha almacenada en un string ISO para el DatePicker.
-            recordatorioAt:
-                bitacora.recordatorioAt ?? "",
-        });
-
-        setFormErrors({});
-        setOpcionesPorRelacion({});
-        setLoadingPorRelacion({});
-
-        if (bitacora.empresaId) {
-            const empresaId = String(bitacora.empresaId);
-
-            const relacionesConValor = RELACIONES_CONFIG.filter((config) => {
-                const valor = bitacora[config.formKey as keyof BitacoraTecnico];
-                return Boolean(valor);
-            });
-
-            relacionesConValor.forEach((config) => {
-                cargarOpcionesRelacion(config.tipo, empresaId);
-            });
-        }
-    }
-
-    function abrirModalEditar(bitacora: BitacoraTecnico) {
-        cargarFormularioEditar(bitacora);
-        setModalBitacoraOpen(true);
-    }
-
-    async function handleDelete(id: number) {
-        try {
-            await eliminarBitacoraTecnico(id);
-            showMessage("success", "Bitácora eliminada correctamente.");
-            await cargarBitacoras();
-        } catch (error) {
-            console.error("Error al eliminar bitácora:", error);
-            showMessage("error", getAxiosErrorMessage(error));
-        }
-    }
-
-    function renderRelacionesResumen(bitacora: BitacoraTecnico) {
-        const relaciones: string[] = [];
-
-        if (bitacora.solicitante) {
-            relaciones.push(`Solicitante: ${bitacora.solicitante.nombre}  ${bitacora.solicitante.email ? `- ${bitacora.solicitante.email}` : ""}`.trim());
-        }
-
-        if (bitacora.ticket) {
-            relaciones.push(
-                `Ticket #${bitacora.ticket.id} - ${traducirEstadoTicket(bitacora.ticket.status)} - ${bitacora.ticket.subject}`.trim()
-            );
-        }
-
-        if (bitacora.trabajo) {
-            relaciones.push(
-                `Orden: ${bitacora.trabajo.numeroOrden ?? `#${bitacora.trabajo.id}`}`
-            );
-        }
-
-        if (bitacora.visita) {
-            relaciones.push(`Visita: #${bitacora.visita.id_visita}`);
-        }
-
-        if (bitacora.mantencion) {
-            relaciones.push(`Mantención: #${bitacora.mantencion.id_mantencion}`);
-        }
-
-        if (bitacora.equipo) {
-            relaciones.push(
-                `Equipo: ${bitacora.equipo.serial ?? ""} ${bitacora.equipo.marca ?? ""} ${bitacora.equipo.modelo ?? ""}`.trim()
-            );
-        }
-
-        if (bitacora.cotizacion) {
-            relaciones.push(`Cotización: #${bitacora.cotizacion.id}`);
-        }
-
-        return relaciones;
-    }
-
-    function renderRelacionResumen(bitacora: BitacoraTecnico) {
-        const relaciones = renderRelacionesResumen(bitacora);
-
-        if (relaciones.length === 0) return "-";
-
-        return relaciones.join(" · ");
-    }
-
-    useEffect(() => {
-        cargarTecnicos();
-        cargarEmpresas();
-        cargarBitacoras();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-        cargarBitacoras();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        filtros.fecha,
-        filtros.search,
-        filtros.tecnicoId,
-        filtros.empresaId,
-        filtros.tipoActividad,
-        filtros.estado,
-    ]);
-
-    useEffect(() => {
-        /*
-         * La campana emite este evento cuando completa
-         * o cancela un recordatorio de bitácora.
-         */
-        function actualizarDesdeCampana() {
-            void cargarBitacoras();
-        }
-
-        window.addEventListener(
-            "bitacora:actualizar",
-            actualizarDesdeCampana
+    function cargarFormularioEditar(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        setEditId(
+            bitacora.id
         );
 
-        return () => {
-            window.removeEventListener(
+        setForm({
+            fecha:
+                bitacora.fecha.slice(
+                    0,
+                    10
+                ),
+
+            titulo:
+                bitacora.titulo ??
+                "",
+
+            descripcion:
+                bitacora.descripcion,
+
+            tipoActividad:
+                bitacora.tipoActividad,
+
+            estado:
+                bitacora.estado,
+
+            tecnicoId:
+                String(
+                    bitacora.tecnicoId
+                ),
+
+            empresaId:
+                bitacora.empresaId
+                    ? String(
+                        bitacora.empresaId
+                    )
+                    : "",
+
+            solicitanteId:
+                bitacora.solicitanteId
+                    ? String(
+                        bitacora.solicitanteId
+                    )
+                    : "",
+
+            ticketId:
+                bitacora.ticketId
+                    ? String(
+                        bitacora.ticketId
+                    )
+                    : "",
+
+            trabajoId:
+                bitacora.trabajoId
+                    ? String(
+                        bitacora.trabajoId
+                    )
+                    : "",
+
+            visitaId:
+                bitacora.visitaId
+                    ? String(
+                        bitacora.visitaId
+                    )
+                    : "",
+
+            mantencionId:
+                bitacora.mantencionId
+                    ? String(
+                        bitacora.mantencionId
+                    )
+                    : "",
+
+            equipoId:
+                bitacora.equipoId
+                    ? String(
+                        bitacora.equipoId
+                    )
+                    : "",
+
+            cotizacionId:
+                bitacora.cotizacionId
+                    ? String(
+                        bitacora.cotizacionId
+                    )
+                    : "",
+
+            recordatorioAt:
+                bitacora.recordatorioAt ??
+                "",
+        });
+
+        setFormErrors(
+            {}
+        );
+
+        setOpcionesPorRelacion(
+            {}
+        );
+
+        setLoadingPorRelacion(
+            {}
+        );
+
+        if (
+            bitacora.empresaId
+        ) {
+            const empresaId =
+                String(
+                    bitacora.empresaId
+                );
+
+            const relacionesConValor =
+                RELACIONES_CONFIG.filter(
+                    (
+                        config
+                    ) => {
+                        const valor =
+                            bitacora[
+                            config.formKey as keyof BitacoraTecnico
+                            ];
+
+                        return Boolean(
+                            valor
+                        );
+                    }
+                );
+
+            relacionesConValor.forEach(
+                (
+                    config
+                ) => {
+                    void cargarOpcionesRelacion(
+                        config.tipo,
+                        empresaId
+                    );
+                }
+            );
+        }
+    }
+
+    function abrirModalEditar(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        /*
+         * Limpiar cualquier formulario anterior.
+         */
+        resetEvidenciasFormulario();
+
+        /*
+         * Cargar datos principales.
+         */
+        cargarFormularioEditar(
+            bitacora
+        );
+
+        /*
+         * Abrir modal inmediatamente.
+         */
+        setModalBitacoraOpen(
+            true
+        );
+
+        /*
+         * Traer evidencia existente desde backend.
+         */
+        void cargarEvidenciasBitacora(
+            bitacora.id
+        );
+    }
+
+    function editarDesdeDetalle(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        cerrarModalVisualizar();
+
+        abrirModalEditar(
+            bitacora
+        );
+    }
+
+    /* =====================================================
+       DELETE
+    ===================================================== */
+
+    async function handleDelete(
+        id:
+            number
+    ) {
+        try {
+            await eliminarBitacoraTecnico(
+                id
+            );
+
+            showMessage(
+                "success",
+                "Bitácora eliminada correctamente."
+            );
+
+            await cargarBitacoras();
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error al eliminar bitácora:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        }
+    }
+
+    /* =====================================================
+       EFFECTS
+    ===================================================== */
+
+    useEffect(
+        () => {
+            void cargarTecnicos();
+            void cargarEmpresas();
+            void cargarBitacoras();
+
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        },
+        []
+    );
+
+    useEffect(
+        () => {
+            void cargarBitacoras();
+
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        },
+        [
+            filtros.fecha,
+            filtros.search,
+            filtros.tecnicoId,
+            filtros.empresaId,
+            filtros.tipoActividad,
+            filtros.estado,
+        ]
+    );
+
+    useEffect(
+        () => {
+            function actualizarDesdeCampana() {
+                void cargarBitacoras();
+            }
+
+            window.addEventListener(
                 "bitacora:actualizar",
                 actualizarDesdeCampana
             );
-        };
-    }, []);
 
-    useEffect(() => {
-        const registroId =
-            Number(
-                searchParams.get("registro")
-            );
+            return () => {
+                window.removeEventListener(
+                    "bitacora:actualizar",
+                    actualizarDesdeCampana
+                );
+            };
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        []
+    );
 
-        if (
-            !Number.isInteger(registroId) ||
-            registroId <= 0
-        ) {
-            return;
-        }
+    /* =====================================================
+       ABRIR DESDE RECORDATORIO
+    ===================================================== */
 
-        /*
-         * Evitar que el efecto vuelva a abrir el mismo
-         * modal mientras el parámetro permanece activo.
-         */
-        let cancelado = false;
+    useEffect(
+        () => {
+            const registroId =
+                Number(
+                    searchParams.get(
+                        "registro"
+                    )
+                );
 
-        async function abrirRegistroDesdeRecordatorio() {
-            try {
-                /*
-                 * Primero revisar el listado cargado.
-                 */
-                const encontrada =
-                    bitacoras.find(
-                        (item) =>
-                            item.id === registroId
-                    );
+            if (
+                !Number.isInteger(
+                    registroId
+                ) ||
+                registroId <=
+                0
+            ) {
+                return;
+            }
 
-                if (encontrada) {
-                    abrirModalVisualizar(
+            let cancelado =
+                false;
+
+            async function abrirRegistroDesdeRecordatorio() {
+                try {
+                    const encontrada =
+                        bitacoras.find(
+                            (
+                                item
+                            ) =>
+                                item.id ===
+                                registroId
+                        );
+
+                    if (
                         encontrada
-                    );
-                    return;
-                }
+                    ) {
+                        abrirModalVisualizar(
+                            encontrada
+                        );
 
-                /*
-                 * El registro puede no estar en el día filtrado,
-                 * por lo que se consulta directamente por ID.
-                 */
-                const response =
-                    await obtenerBitacoraTecnicoPorId(
-                        registroId
-                    );
+                        return;
+                    }
 
-                if (
-                    !cancelado &&
-                    response.data
-                ) {
-                    abrirModalVisualizar(
+                    const response =
+                        await obtenerBitacoraTecnicoPorId(
+                            registroId
+                        );
+
+                    if (
+                        !cancelado &&
                         response.data
+                    ) {
+                        abrirModalVisualizar(
+                            response.data
+                        );
+                    }
+                } catch (
+                error
+                ) {
+                    console.error(
+                        "Error abriendo bitácora desde recordatorio:",
+                        error
                     );
-                }
-            } catch (error) {
-                console.error(
-                    "Error abriendo bitácora desde recordatorio:",
-                    error
-                );
 
-                showMessage(
-                    "error",
-                    getAxiosErrorMessage(error)
-                );
-            } finally {
-                /*
-                 * Limpiar el parámetro para que el modal
-                 * no se vuelva a abrir en cada render.
-                 */
-                if (!cancelado) {
-                    setSearchParams(
-                        {},
-                        {
-                            replace: true,
-                        }
+                    showMessage(
+                        "error",
+                        getAxiosErrorMessage(
+                            error
+                        )
                     );
+                } finally {
+                    if (
+                        !cancelado
+                    ) {
+                        setSearchParams(
+                            {},
+                            {
+                                replace:
+                                    true,
+                            }
+                        );
+                    }
                 }
             }
-        }
 
-        void abrirRegistroDesdeRecordatorio();
+            void abrirRegistroDesdeRecordatorio();
 
-        return () => {
-            cancelado = true;
-        };
-    }, [
-        bitacoras,
-        searchParams,
-        setSearchParams,
-    ]);
+            return () => {
+                cancelado =
+                    true;
+            };
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            bitacoras,
+            searchParams,
+            setSearchParams,
+        ]
+    );
 
-    function renderRelacionSelect(config: RelacionConfig) {
-        const opciones = opcionesPorRelacion[config.tipo] ?? [];
-        const loading = Boolean(loadingPorRelacion[config.tipo]);
-        const value = form[config.formKey] || undefined;
-        const empresaSeleccionada = Boolean(form.empresaId);
-
-        return (
-            <div key={config.tipo}>
-                <label className={labelBase}>{config.label}</label>
-
-                <Select
-                    value={value}
-                    disabled={!empresaSeleccionada}
-                    loading={loading}
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
-                    placeholder={
-                        !empresaSeleccionada
-                            ? "Selecciona empresa primero"
-                            : loading
-                                ? "Cargando..."
-                                : `Seleccionar ${config.label.toLowerCase()}`
-                    }
-                    className="w-full"
-                    options={opciones.map((opcion) => ({
-                        value: String(opcion.id),
-                        label: opcion.label,
-                    }))}
-                    onDropdownVisibleChange={(open) => {
-                        if (
-                            open &&
-                            empresaSeleccionada &&
-                            !loading &&
-                            opciones.length === 0
-                        ) {
-                            cargarOpcionesRelacion(config.tipo, form.empresaId);
-                        }
-                    }}
-                    onFocus={() => {
-                        if (
-                            empresaSeleccionada &&
-                            !loading &&
-                            opciones.length === 0
-                        ) {
-                            cargarOpcionesRelacion(config.tipo, form.empresaId);
-                        }
-                    }}
-                    onChange={(selectedValue) => {
-                        setForm((prev) => ({
-                            ...prev,
-                            [config.formKey]: selectedValue ? String(selectedValue) : "",
-                        }));
-
-                        setFormErrors((prev) => ({
-                            ...prev,
-                            relacion: undefined,
-                        }));
-                    }}
-                />
-            </div>
-        );
-    }
+    /* =====================================================
+       JSX
+    ===================================================== */
 
     return (
         <div className="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 lg:px-8">
             <div className="mx-auto max-w-7xl space-y-6">
+                {/* =====================================================
+                    HEADER
+                ===================================================== */}
+
                 <header className="overflow-hidden rounded-3xl border border-cyan-200 bg-cyan-50/60 shadow-sm">
                     <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1">
@@ -1745,8 +2540,18 @@ export default function BitacoraTecnicoPage() {
                             </h1>
 
                             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                                Registro diario de actividades realizadas por los técnicos, con relación
-                                opcional a empresas, tickets, equipos, cotizaciones, visitas y trabajos.
+                                Registro diario
+                                de actividades
+                                realizadas por
+                                los técnicos,
+                                con relación
+                                opcional a
+                                empresas,
+                                tickets,
+                                equipos,
+                                cotizaciones,
+                                visitas y
+                                trabajos.
                             </p>
                         </div>
 
@@ -1754,21 +2559,34 @@ export default function BitacoraTecnicoPage() {
                             <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 shadow-sm">
                                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-700">
                                     <FileTextOutlined />
+
                                     Registros
                                 </div>
+
                                 <div className="mt-1 text-lg font-black text-slate-950">
-                                    {bitacoras.length}
+                                    {
+                                        bitacoras.length
+                                    }
                                 </div>
                             </div>
 
                             <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 shadow-sm">
                                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-cyan-700">
                                     <CalendarOutlined />
+
                                     Periodo
                                 </div>
+
                                 <div className="mt-1 text-sm font-black text-slate-950">
                                     {filtros.fecha
-                                        ? dayjs.tz(filtros.fecha, CHILE_TZ).format("DD MMM YYYY")
+                                        ? dayjs
+                                            .tz(
+                                                filtros.fecha,
+                                                CHILE_TZ
+                                            )
+                                            .format(
+                                                "DD MMM YYYY"
+                                            )
                                         : "Todos"}
                                 </div>
                             </div>
@@ -1779,29 +2597,40 @@ export default function BitacoraTecnicoPage() {
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
-                                onClick={abrirModalCrear}
-                                className={tabInactivo}
+                                onClick={
+                                    abrirModalCrear
+                                }
+                                className={
+                                    tabInactivo
+                                }
                             >
                                 <PlusOutlined className="mr-1" />
+
                                 Bitácora avanzada
                             </button>
 
                             <button
                                 type="button"
-                                onClick={abrirModalNotaRapida}
+                                onClick={
+                                    abrirModalNotaRapida
+                                }
                                 className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
                             >
                                 <FormOutlined className="mr-1" />
+
                                 Nota rápida
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setVistaActiva("resumen-diario")
+                                    setVistaActiva(
+                                        "resumen-diario"
+                                    )
                                 }
                                 className={
-                                    vistaActiva === "resumen-diario"
+                                    vistaActiva ===
+                                        "resumen-diario"
                                         ? tabActivo
                                         : tabInactivo
                                 }
@@ -1812,1446 +2641,1151 @@ export default function BitacoraTecnicoPage() {
                     </div>
                 </header>
 
+                {/* =====================================================
+                    MENSAJE
+                ===================================================== */}
+
                 {uiMessage && (
                     <div
                         className={[
                             "rounded-2xl border px-4 py-3 text-sm font-medium shadow-sm",
-                            uiMessage.type === "success"
+
+                            uiMessage.type ===
+                                "success"
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                : uiMessage.type === "error"
+                                : uiMessage.type ===
+                                    "error"
                                     ? "border-red-200 bg-red-50 text-red-800"
-                                    : uiMessage.type === "warning"
+                                    : uiMessage.type ===
+                                        "warning"
                                         ? "border-amber-200 bg-amber-50 text-amber-800"
                                         : "border-blue-200 bg-blue-50 text-blue-800",
-                        ].join(" ")}
+                        ].join(
+                            " "
+                        )}
                     >
-                        {uiMessage.text}
+                        {
+                            uiMessage.text
+                        }
                     </div>
                 )}
 
-                <Modal
-                    open={modalBitacoraOpen}
-                    onCancel={cerrarModalBitacora}
-                    footer={null}
-                    width={980}
-                    destroyOnClose
-                    title={
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-900">
-                                {tituloFormulario}
-                            </h2>
-                            <p className="mt-1 text-sm font-normal text-slate-500">
-                                Completa los datos principales y, si aplica, relaciona la actividad
-                                con una empresa, ticket, equipo u orden.
-                            </p>
-                        </div>
+                {/* =====================================================
+                    MODALES EXTERNOS
+                ===================================================== */}
+
+                <BitacoraFormModal
+                    open={
+                        modalBitacoraOpen
                     }
-                >
-                    <form onSubmit={handleSubmit} className="mt-4 space-y-5">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <div>
-                                <label className={labelBase}>Fecha</label>
-                                <DatePicker
-                                    value={form.fecha ? dayjs.tz(form.fecha, CHILE_TZ) : null}
-                                    onChange={(date) => {
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            fecha: date ? date.tz(CHILE_TZ).format("YYYY-MM-DD") : "",
-                                        }));
-                                    }}
-                                    format="DD/MM/YYYY"
-                                    placeholder="Selecciona fecha"
-                                    className="w-full rounded-xl"
-                                />
-                            </div>
 
-                            <div>
-                                <label className={labelBase}>Técnico</label>
-                                <Select
-                                    value={form.tecnicoId || undefined}
-                                    disabled
-                                    placeholder="Técnico autenticado"
-                                    showSearch
-                                    optionFilterProp="label"
-                                    className="w-full"
-                                    status={
-                                        formErrors.tecnicoId
-                                            ? "error"
-                                            : undefined
-                                    }
-                                    options={tecnicos.map((tecnico) => ({
-                                        value: String(tecnico.id_tecnico),
-                                        label: tecnico.nombre,
-                                    }))}
-                                />
+                    editId={
+                        editId
+                    }
 
-                                <FieldError message={formErrors.tecnicoId} />
+                    saving={
+                        saving
+                    }
 
-                                {!form.tecnicoId && (
-                                    <p className="mt-1 text-xs font-medium text-amber-600">
-                                        No fue posible relacionar el usuario autenticado con un técnico.
-                                    </p>
-                                )}
-                            </div>
+                    form={
+                        form
+                    }
 
-                            <div>
-                                <label className={labelBase}>Empresa</label>
-                                <Select
-                                    value={form.empresaId || undefined}
-                                    onChange={(value) => {
-                                        const empresaId = value ? String(value) : "";
+                    setForm={
+                        setForm
+                    }
 
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            empresaId,
-                                            solicitanteId: "",
-                                            ticketId: "",
-                                            trabajoId: "",
-                                            visitaId: "",
-                                            mantencionId: "",
-                                            equipoId: "",
-                                            cotizacionId: "",
-                                        }));
+                    tecnicos={
+                        tecnicos
+                    }
 
-                                        setOpcionesPorRelacion({});
-                                        setLoadingPorRelacion({});
+                    empresas={
+                        empresas
+                    }
 
-                                        setFormErrors((prev) => ({
-                                            ...prev,
-                                            empresaId: undefined,
-                                            relacion: undefined,
-                                        }));
-                                    }}
-                                    allowClear
-                                    placeholder="Sin empresa"
-                                    showSearch
-                                    optionFilterProp="label"
-                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
-                                    className="w-full"
-                                    status={formErrors.empresaId ? "error" : undefined}
-                                    options={empresas.map((empresa) => ({
-                                        value: String(empresa.id_empresa),
-                                        label: empresa.nombre,
-                                    }))}
-                                />
-                                <FieldError message={formErrors.empresaId} />
-                            </div>
+                    formErrors={
+                        formErrors
+                    }
 
-                            <div>
-                                <label className={labelBase}>Tipo actividad</label>
-                                <Select
-                                    value={form.tipoActividad}
-                                    onChange={(value) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            tipoActividad: value as TipoBitacoraTecnico,
-                                        }))
-                                    }
-                                    className="w-full"
-                                    options={tiposActividad.map((tipo) => ({
-                                        value: tipo,
-                                        label: tipo,
-                                    }))}
-                                />
-                            </div>
-                        </div>
+                    setFormErrors={
+                        setFormErrors
+                    }
 
-                        {editId && (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    opcionesPorRelacion={
+                        opcionesPorRelacion
+                    }
+
+                    setOpcionesPorRelacion={
+                        setOpcionesPorRelacion
+                    }
+
+                    loadingPorRelacion={
+                        loadingPorRelacion
+                    }
+
+                    setLoadingPorRelacion={
+                        setLoadingPorRelacion
+                    }
+
+                    onLoadRelacion={
+                        cargarOpcionesRelacion
+                    }
+
+                    onSubmit={
+                        handleSubmit
+                    }
+
+                    onCancel={
+                        cerrarModalBitacora
+                    }
+
+                    evidencias={
+                        evidenciasBitacora
+                    }
+
+                    evidenciasPendientes={
+                        evidenciasPendientes
+                    }
+
+                    evidenciasAEliminar={
+                        evidenciasAEliminar
+                    }
+
+                    loadingEvidencias={
+                        loadingEvidencias
+                    }
+
+                    onAgregarEvidencia={
+                        abrirModalEvidencia
+                    }
+
+                    onMarcarEliminarEvidencia={
+                        handleMarcarEliminarEvidencia
+                    }
+
+                    onRestaurarEvidencia={
+                        handleRestaurarEvidencia
+                    }
+
+                    onEliminarEvidenciaPendiente={
+                        handleEliminarEvidenciaPendiente
+                    }
+                />
+
+                <BitacoraDetailModal
+                    open={
+                        modalVisualizarOpen
+                    }
+
+                    bitacora={
+                        bitacoraSeleccionada
+                    }
+
+                    evidencias={
+                        evidenciasBitacora
+                    }
+
+                    loadingEvidencias={
+                        loadingEvidencias
+                    }
+
+                    onClose={
+                        cerrarModalVisualizar
+                    }
+
+                    onEdit={
+                        editarDesdeDetalle
+                    }
+
+                    onToggleRecordatorio={(
+                        bitacora
+                    ) =>
+                        void handleCambiarEstadoRecordatorio(
+                            bitacora
+                        )
+                    }
+                />
+
+                <BitacoraNotaRapidaModal
+                    open={
+                        modalNotaRapidaOpen
+                    }
+                    saving={
+                        savingNotaRapida
+                    }
+                    nota={
+                        notaRapida
+                    }
+                    setNota={
+                        setNotaRapida
+                    }
+                    tecnicos={
+                        tecnicos
+                    }
+                    onAplicarRecordatorio={
+                        aplicarRecordatorioRapidoNota
+                    }
+                    onSave={() =>
+                        void handleGuardarNotaRapida()
+                    }
+                    onClose={
+                        cerrarModalNotaRapida
+                    }
+                />
+
+                <BitacoraEvidenciaUploadModal
+                    open={
+                        modalEvidenciaOpen
+                    }
+
+                    etapa={
+                        etapaEvidenciaSeleccionada
+                    }
+
+                    saving={
+                        false
+                    }
+
+                    archivo={
+                        archivoEvidencia
+                    }
+
+                    fileList={
+                        archivosUpload
+                    }
+
+                    descripcion={
+                        descripcionEvidencia
+                    }
+
+                    onArchivoChange={
+                        setArchivoEvidencia
+                    }
+
+                    onFileListChange={
+                        setArchivosUpload
+                    }
+
+                    onDescripcionChange={
+                        setDescripcionEvidencia
+                    }
+
+                    onSave={
+                        handleAgregarEvidenciaPendiente
+                    }
+
+                    onClose={
+                        cerrarModalEvidencia
+                    }
+
+                    onMessage={
+                        showMessage
+                    }
+                />
+
+                {/* =====================================================
+                    LISTADO DIARIO
+                ===================================================== */}
+
+                {vistaActiva ===
+                    "resumen-diario" && (
+                        <section
+                            className={`${cardBase} p-4 sm:p-6`}
+                        >
+                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <label className={labelBase}>Estado</label>
-                                    <Select
-                                        value={form.estado}
-                                        onChange={(value) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                estado: value as EstadoBitacoraTecnico,
-                                            }))
+                                    <h2 className="text-lg font-semibold text-slate-900">
+                                        Listado
+                                        diario
+                                    </h2>
+
+                                    <p className="text-sm text-slate-500">
+                                        Filtra por
+                                        fecha,
+                                        técnico,
+                                        tipo de
+                                        actividad o
+                                        texto.
+                                    </p>
+                                </div>
+
+                                <Button
+                                    onClick={() =>
+                                        void cargarBitacoras()
+                                    }
+                                    loading={
+                                        loading
+                                    }
+                                >
+                                    Actualizar
+                                </Button>
+                            </div>
+
+                            {/* =====================================================
+                            KPI
+                        ===================================================== */}
+
+                            <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Total
+                                        actividades
+                                    </p>
+
+                                    <p className="mt-2 text-2xl font-black text-slate-900">
+                                        {
+                                            bitacoras.length
                                         }
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Técnicos con
+                                        actividad
+                                    </p>
+
+                                    <p className="mt-2 text-2xl font-black text-slate-900">
+                                        {
+                                            Object.keys(
+                                                resumenPorTecnico
+                                            ).length
+                                        }
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Tipo más
+                                        frecuente
+                                    </p>
+
+                                    <p className="mt-2 text-lg font-black text-slate-900">
+                                        {
+                                            tipoMasFrecuente
+                                        }
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Fecha
+                                        consultada
+                                    </p>
+
+                                    <p className="mt-2 text-lg font-black text-slate-900">
+                                        {filtros.fecha
+                                            ? dayjs
+                                                .tz(
+                                                    filtros.fecha,
+                                                    CHILE_TZ
+                                                )
+                                                .format(
+                                                    "DD/MM/YYYY"
+                                                )
+                                            : "Todas"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* =====================================================
+                            FILTROS
+                        ===================================================== */}
+
+                            <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                                <div>
+                                    <label
+                                        className={
+                                            LABEL_BASE
+                                        }
+                                    >
+                                        Fecha
+                                    </label>
+
+                                    <DatePicker
+                                        value={
+                                            filtros.fecha
+                                                ? dayjs.tz(
+                                                    filtros.fecha,
+                                                    CHILE_TZ
+                                                )
+                                                : null
+                                        }
+                                        onChange={(
+                                            date
+                                        ) =>
+                                            setFiltros(
+                                                (
+                                                    prev
+                                                ) => ({
+                                                    ...prev,
+
+                                                    fecha:
+                                                        date
+                                                            ? date
+                                                                .tz(
+                                                                    CHILE_TZ
+                                                                )
+                                                                .format(
+                                                                    "YYYY-MM-DD"
+                                                                )
+                                                            : "",
+                                                })
+                                            )
+                                        }
+                                        format="DD/MM/YYYY"
+                                        placeholder="Filtrar por fecha"
+                                        className="w-full rounded-xl"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label
+                                        className={
+                                            LABEL_BASE
+                                        }
+                                    >
+                                        Buscar
+                                    </label>
+
+                                    <Input
+                                        value={
+                                            filtros.search
+                                        }
+                                        onChange={(
+                                            event
+                                        ) =>
+                                            setFiltros(
+                                                (
+                                                    prev
+                                                ) => ({
+                                                    ...prev,
+
+                                                    search:
+                                                        event
+                                                            .target
+                                                            .value,
+                                                })
+                                            )
+                                        }
+                                        allowClear
+                                        placeholder="Buscar por descripción, técnico, empresa, equipo..."
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        className={
+                                            LABEL_BASE
+                                        }
+                                    >
+                                        Técnico
+                                    </label>
+
+                                    <Select
+                                        value={
+                                            filtros.tecnicoId ||
+                                            undefined
+                                        }
+                                        onChange={(
+                                            value
+                                        ) =>
+                                            setFiltros(
+                                                (
+                                                    prev
+                                                ) => ({
+                                                    ...prev,
+
+                                                    tecnicoId:
+                                                        value
+                                                            ? String(
+                                                                value
+                                                            )
+                                                            : "",
+                                                })
+                                            )
+                                        }
+                                        allowClear
+                                        showSearch
+                                        optionFilterProp="label"
+                                        filterOption={(
+                                            input,
+                                            option
+                                        ) =>
+                                            incluyeBusqueda(
+                                                option?.label,
+                                                input
+                                            )
+                                        }
+                                        placeholder="Todos"
                                         className="w-full"
-                                        options={estados.map((estado) => ({
-                                            value: estado,
-                                            label: estado,
-                                        }))}
+                                        options={
+                                            tecnicos.map(
+                                                (
+                                                    tecnico
+                                                ) => ({
+                                                    value:
+                                                        String(
+                                                            tecnico.id_tecnico
+                                                        ),
+
+                                                    label:
+                                                        tecnico.nombre,
+                                                })
+                                            )
+                                        }
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        className={
+                                            LABEL_BASE
+                                        }
+                                    >
+                                        Tipo
+                                    </label>
+
+                                    <Select
+                                        value={
+                                            filtros.tipoActividad ||
+                                            undefined
+                                        }
+                                        onChange={(
+                                            value
+                                        ) =>
+                                            setFiltros(
+                                                (
+                                                    prev
+                                                ) => ({
+                                                    ...prev,
+
+                                                    tipoActividad:
+                                                        value
+                                                            ? String(
+                                                                value
+                                                            )
+                                                            : "",
+                                                })
+                                            )
+                                        }
+                                        allowClear
+                                        placeholder="Todos"
+                                        className="w-full"
+                                        options={
+                                            TIPOS_ACTIVIDAD.map(
+                                                (
+                                                    tipo
+                                                ) => ({
+                                                    value:
+                                                        tipo,
+
+                                                    label:
+                                                        tipo,
+                                                })
+                                            )
+                                        }
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        className={
+                                            LABEL_BASE
+                                        }
+                                    >
+                                        Estado
+                                    </label>
+
+                                    <Select
+                                        value={
+                                            filtros.estado ||
+                                            undefined
+                                        }
+                                        onChange={(
+                                            value
+                                        ) =>
+                                            setFiltros(
+                                                (
+                                                    prev
+                                                ) => ({
+                                                    ...prev,
+
+                                                    estado:
+                                                        value
+                                                            ? String(
+                                                                value
+                                                            )
+                                                            : "",
+                                                })
+                                            )
+                                        }
+                                        allowClear
+                                        placeholder="Todos"
+                                        className="w-full"
+                                        options={
+                                            ESTADOS.map(
+                                                (
+                                                    estado
+                                                ) => ({
+                                                    value:
+                                                        estado,
+
+                                                    label:
+                                                        estado,
+                                                })
+                                            )
+                                        }
                                     />
                                 </div>
                             </div>
-                        )}
-
-                        <div>
-                            <label className={labelBase}>Título</label>
-                            <Input
-                                value={form.titulo}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        titulo: e.target.value,
-                                    }))
-                                }
-                                placeholder="Ej: Soporte remoto cliente RIDS"
-                            />
-                        </div>
-
-                        <div>
-                            <label className={labelBase}>
-                                Descripción de lo realizado
-                            </label>
-                            <Input.TextArea
-                                value={form.descripcion}
-                                onChange={(e) => {
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        descripcion: e.target.value,
-                                    }));
-
-                                    setFormErrors((prev) => ({
-                                        ...prev,
-                                        descripcion: undefined,
-                                    }));
-                                }}
-                                rows={5}
-                                placeholder="Describe lo realizado por el técnico durante el día..."
-                                status={formErrors.descripcion ? "error" : undefined}
-                            />
-                            <div className="mt-1 flex items-center justify-between">
-                                <FieldError message={formErrors.descripcion} />
-                                <span className="ml-auto text-xs text-slate-400">
-                                    {form.descripcion.length} caracteres
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* =====================================================
-                            RECORDATORIO OPCIONAL
-                            ===================================================== */}
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                            <div className="mb-3">
-                                <div className="flex items-center gap-2">
-                                    <BellOutlined className="text-amber-600" />
-
-                                    <h3 className="text-sm font-semibold text-slate-800">
-                                        Recordatorio opcional
-                                    </h3>
-                                </div>
-
-                                <p className="mt-1 text-xs leading-5 text-slate-500">
-                                    Selecciona una fecha y hora para recordar esta actividad.
-                                </p>
-                            </div>
-
-                            <DatePicker
-                                showTime={{
-                                    format: "HH:mm",
-
-                                    /*
-                                     * Permitir minutos exactos para que
-                                     * los accesos rápidos no sean redondeados.
-                                     */
-                                    minuteStep: 1,
-                                }}
-                                format="DD/MM/YYYY HH:mm"
-                                value={
-                                    form.recordatorioAt
-                                        ? dayjs(form.recordatorioAt)
-                                        : null
-                                }
-                                onChange={(value) => {
-                                    setForm((prev) => ({
-                                        ...prev,
-
-                                        // toISOString conserva correctamente fecha,
-                                        // hora y zona para enviarla al backend.
-                                        recordatorioAt: value
-                                            ? value.toISOString()
-                                            : "",
-                                    }));
-                                }}
-                                disabledDate={(current) => {
-                                    // Bloquear días anteriores al día actual.
-                                    return Boolean(
-                                        current &&
-                                        current
-                                            .endOf("day")
-                                            .isBefore(dayjs().startOf("day"))
-                                    );
-                                }}
-                                disabledTime={(current) => {
-                                    // Cuando se selecciona hoy, bloquea horas ya pasadas.
-                                    if (
-                                        !current ||
-                                        !current.isSame(dayjs(), "day")
-                                    ) {
-                                        return {};
-                                    }
-
-                                    const ahora = dayjs();
-
-                                    return {
-                                        disabledHours: () =>
-                                            Array.from(
-                                                { length: ahora.hour() },
-                                                (_, index) => index
-                                            ),
-
-                                        disabledMinutes: (
-                                            selectedHour: number
-                                        ) =>
-                                            selectedHour === ahora.hour()
-                                                ? Array.from(
-                                                    { length: ahora.minute() + 1 },
-                                                    (_, index) => index
-                                                )
-                                                : [],
-                                    };
-                                }}
-                                placeholder="Sin recordatorio"
-                                allowClear
-                                className="w-full sm:max-w-sm"
-                            />
-
-                            {form.recordatorioAt && (
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700">
-                                        <BellOutlined className="mr-1" />
-
-                                        {formatRecordatorioChile(
-                                            form.recordatorioAt
-                                        )}
-                                    </span>
-
-                                    <Button
-                                        size="small"
-                                        danger
-                                        type="text"
-                                        onClick={() =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                recordatorioAt: "",
-                                            }))
-                                        }
-                                    >
-                                        Quitar
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="mb-4">
-                                <h3 className="text-sm font-semibold text-slate-800">
-                                    Relaciones opcionales
-                                </h3>
-                                <p className="mt-1 text-xs leading-5 text-slate-500">
-                                    Puedes asociar una o más relaciones a esta bitácora. Primero selecciona
-                                    una empresa y luego elige los registros relacionados que correspondan.
-                                </p>
-                            </div>
-
-                            {!form.empresaId && (
-                                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                                    Para cargar solicitantes, tickets, órdenes, visitas, mantenciones,
-                                    equipos o cotizaciones, primero selecciona una empresa.
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                {RELACIONES_CONFIG.map((config) => renderRelacionSelect(config))}
-                            </div>
-
-                            {formErrors.relacion && (
-                                <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                                    {formErrors.relacion}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <Button onClick={cerrarModalBitacora}>
-                                Cancelar
-                            </Button>
-
-                            <Button
-                                type="primary"
-                                htmlType="submit"
-                                loading={saving}
-                            >
-                                {editId ? "Actualizar bitácora" : "Guardar bitácora"}
-                            </Button>
-                        </div>
-                    </form>
-                </Modal>
-
-                <Modal
-                    open={modalVisualizarOpen}
-                    onCancel={cerrarModalVisualizar}
-                    footer={[
-                        <Button key="cerrar" onClick={cerrarModalVisualizar}>
-                            Cerrar
-                        </Button>,
-                        bitacoraSeleccionada ? (
-                            <Button
-                                key="editar"
-                                type="primary"
-                                icon={<EditOutlined />}
-                                onClick={() => {
-                                    cerrarModalVisualizar();
-                                    abrirModalEditar(bitacoraSeleccionada);
-                                }}
-                            >
-                                Editar
-                            </Button>
-                        ) : null,
-                    ]}
-                    width={780}
-                    title={
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-900">
-                                Detalle de bitácora
-                            </h2>
-                            <p className="mt-1 text-sm font-normal text-slate-500">
-                                Visualización completa del registro técnico seleccionado.
-                            </p>
-                        </div>
-                    }
-                >
-                    {bitacoraSeleccionada && (
-                        <div className="space-y-5">
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Fecha de actividad
-                                    </p>
-                                    <p className="mt-1 font-semibold text-slate-900">
-                                        {formatFechaChile(bitacoraSeleccionada.fecha)}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Creada
-                                    </p>
-                                    <p className="mt-1 font-semibold text-slate-900">
-                                        {formatFechaHoraChile(bitacoraSeleccionada.createdAt)}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Técnico
-                                    </p>
-                                    <p className="mt-1 font-semibold text-slate-900">
-                                        {bitacoraSeleccionada.tecnico?.nombre ?? "-"}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Empresa
-                                    </p>
-                                    <p className="mt-1 font-semibold text-slate-900">
-                                        {bitacoraSeleccionada.empresa?.nombre ?? "-"}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Tipo
-                                    </p>
-                                    <p className="mt-1 font-semibold text-blue-700">
-                                        {bitacoraSeleccionada.tipoActividad}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Estado
-                                    </p>
-                                    <p className="mt-1 font-semibold text-slate-900">
-                                        {bitacoraSeleccionada.estado}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Título
-                                </p>
-
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    <p className="font-semibold text-slate-900">
-                                        {formatTituloBitacora(
-                                            bitacoraSeleccionada.titulo
-                                        )}
-                                    </p>
-
-                                    {esNotaRapida(bitacoraSeleccionada) && (
-                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                                            Rápida
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Descripción
-                                </p>
-                                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                    {bitacoraSeleccionada.descripcion}
-                                </p>
-                            </div>
 
                             {/* =====================================================
-    DETALLE DEL RECORDATORIO
-===================================================== */}
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                                            Recordatorio
-                                        </p>
+                            RESULTADOS
+                        ===================================================== */}
 
-                                        {bitacoraSeleccionada.recordatorioAt ? (
-                                            <p className="mt-2 font-semibold text-slate-900">
-                                                {formatRecordatorioChile(
-                                                    bitacoraSeleccionada.recordatorioAt
-                                                )}
-                                            </p>
-                                        ) : (
-                                            <p className="mt-2 text-sm text-slate-500">
-                                                Sin recordatorio configurado
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {bitacoraSeleccionada.recordatorioAt && (
-                                        <BellOutlined className="text-2xl text-amber-600" />
-                                    )}
+                            {loading ? (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                                    Cargando
+                                    bitácoras...
                                 </div>
-
-                                {bitacoraSeleccionada.recordatorioAt && (
-                                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                                        <span
-                                            className={[
-                                                "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                getRecordatorioBadgeClass(
-                                                    obtenerEstadoRecordatorio(
-                                                        bitacoraSeleccionada
-                                                    )
-                                                ),
-                                            ].join(" ")}
-                                        >
-                                            {getRecordatorioLabel(
-                                                obtenerEstadoRecordatorio(
-                                                    bitacoraSeleccionada
-                                                )
-                                            )}
-                                        </span>
-
-                                        <Button
-                                            size="small"
-                                            type={
-                                                bitacoraSeleccionada.recordatorioCompletado
-                                                    ? "default"
-                                                    : "primary"
-                                            }
-                                            icon={
-                                                bitacoraSeleccionada.recordatorioCompletado
-                                                    ? <UndoOutlined />
-                                                    : <CheckOutlined />
-                                            }
-                                            onClick={() =>
-                                                void handleCambiarEstadoRecordatorio(
-                                                    bitacoraSeleccionada
-                                                )
-                                            }
-                                        >
-                                            {bitacoraSeleccionada.recordatorioCompletado
-                                                ? "Reactivar"
-                                                : "Completar"}
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Relaciones asociadas
-                                </p>
-
-                                {renderRelacionesResumen(bitacoraSeleccionada).length > 0 ? (
-                                    <div className="mt-3 flex flex-col gap-2">
-                                        {renderRelacionesResumen(bitacoraSeleccionada).map((relacion, index) => (
-                                            <div
-                                                key={`${relacion}-${index}`}
-                                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800"
-                                            >
-                                                {relacion}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="mt-2 text-sm font-semibold text-slate-800">
-                                        Sin relaciones asociadas
+                            ) : bitacoras.length ===
+                                0 ? (
+                                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                                    <p className="font-semibold text-slate-700">
+                                        No hay
+                                        bitácoras
+                                        registradas
                                     </p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </Modal>
 
-                <Modal
-                    open={modalNotaRapidaOpen}
-                    onCancel={cerrarModalNotaRapida}
-                    footer={null}
-                    width={620}
-                    rootClassName="nota-rapida-modal"
-                    centered
-                    destroyOnClose
-                    maskClosable={!savingNotaRapida}
-                    closable={!savingNotaRapida}
-                    styles={{
-                        body: {
-                            maxHeight: "calc(100vh - 180px)",
-                            overflowY: "auto",
-                        },
-                    }}
-                    title={
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-900">
-                                Nota rápida
-                            </h2>
-
-                            <p className="mt-1 text-sm font-normal text-slate-500">
-                                Registra una actividad breve sin relaciones avanzadas.
-                            </p>
-                        </div>
-                    }
-                >
-                    <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className={labelBase}>
-                                    Técnico <span className="text-red-500">*</span>
-                                </label>
-
-                                <Select
-                                    value={
-                                        notaRapida.tecnicoId ||
-                                        undefined
-                                    }
-                                    disabled
-                                    placeholder="Técnico autenticado"
-                                    className="w-full"
-                                    options={tecnicos.map(
-                                        (tecnico) => ({
-                                            value: String(
-                                                tecnico.id_tecnico
-                                            ),
-                                            label: tecnico.nombre,
-                                        })
-                                    )}
-                                />
-                                {!notaRapida.tecnicoId && (
-                                    <p className="mt-1 text-xs font-medium text-amber-600">
-                                        No fue posible identificar al técnico autenticado.
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        Cambia los
+                                        filtros o
+                                        registra una
+                                        nueva
+                                        actividad
+                                        técnica.
                                     </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className={labelBase}>
-                                    Tipo
-                                </label>
-
-                                <Select
-                                    value={
-                                        notaRapida.tipoActividad
-                                    }
-                                    onChange={(value) =>
-                                        setNotaRapida((prev) => ({
-                                            ...prev,
-                                            tipoActividad:
-                                                value as TipoBitacoraTecnico,
-                                        }))
-                                    }
-                                    className="w-full"
-                                    options={[
-                                        {
-                                            value: "INTERNO",
-                                            label: "Interno",
-                                        },
-                                        {
-                                            value: "SOPORTE",
-                                            label: "Soporte",
-                                        },
-                                        {
-                                            value: "REMOTO",
-                                            label: "Remoto",
-                                        },
-                                        {
-                                            value: "ADMINISTRATIVO",
-                                            label: "Administrativo",
-                                        },
-                                        {
-                                            value: "REUNION",
-                                            label: "Reunión",
-                                        },
-                                        {
-                                            value: "OTRO",
-                                            label: "Otro",
-                                        },
-                                    ]}
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className={labelBase}>
-                                Título
-                            </label>
-
-                            <Input
-                                value={notaRapida.titulo}
-                                onChange={(event) =>
-                                    setNotaRapida((prev) => ({
-                                        ...prev,
-                                        titulo: event.target.value,
-                                    }))
-                                }
-                                maxLength={120}
-                                placeholder="Opcional. Ej: Revisión de correo"
-                            />
-                        </div>
-
-                        {/* =====================================================
-            RECORDATORIO OPCIONAL
-        ===================================================== */}
-                        <div>
-                            <label className={labelBase}>
-                                Recordatorio
-                            </label>
-
-                            <DatePicker
-                                showTime={{
-                                    format: "HH:mm",
-                                    minuteStep: 5,
-                                }}
-                                format="DD/MM/YYYY HH:mm"
-                                value={
-                                    notaRapida.recordatorioAt
-                                        ? dayjs(notaRapida.recordatorioAt)
-                                        : null
-                                }
-                                onChange={(value) => {
-                                    setNotaRapida((prev) => ({
-                                        ...prev,
-
-                                        // Guardar como ISO para enviarlo al backend.
-                                        recordatorioAt: value
-                                            ? value.toISOString()
-                                            : "",
-                                    }));
-                                }}
-                                disabledDate={(current) =>
-                                    Boolean(
-                                        current &&
-                                        current
-                                            .endOf("day")
-                                            .isBefore(dayjs().startOf("day"))
-                                    )
-                                }
-                                disabledTime={(current) => {
-                                    // Para el día actual se bloquean horas pasadas.
-                                    if (
-                                        !current ||
-                                        !current.isSame(dayjs(), "day")
-                                    ) {
-                                        return {};
-                                    }
-
-                                    const ahora = dayjs();
-
-                                    return {
-                                        disabledHours: () =>
-                                            Array.from(
-                                                { length: ahora.hour() },
-                                                (_, index) => index
-                                            ),
-
-                                        disabledMinutes: (
-                                            selectedHour: number
-                                        ) =>
-                                            selectedHour === ahora.hour()
-                                                ? Array.from(
-                                                    {
-                                                        length:
-                                                            ahora.minute() + 1,
-                                                    },
-                                                    (_, index) => index
-                                                )
-                                                : [],
-                                    };
-                                }}
-                                placeholder="Sin recordatorio"
-                                allowClear
-                                className="w-full"
-                            />
-
-                            {/* =====================================================
-    HORAS PREDEFINIDAS
-===================================================== */}
-                            <div className="mt-2">
-                                <p className="mb-2 text-xs font-medium text-slate-500">
-                                    Programar desde ahora
-                                </p>
-
-                                <div className="flex flex-wrap gap-2">
-                                    {OPCIONES_RAPIDAS_RECORDATORIO.map(
-                                        (opcion) => (
-                                            <Button
-                                                key={opcion.minutos}
-                                                size="small"
-                                                onClick={() =>
-                                                    aplicarRecordatorioRapidoNota(
-                                                        opcion.minutos
-                                                    )
-                                                }
-                                                className="
-                        !rounded-full
-                        !border-amber-200
-                        !bg-amber-50
-                        !text-amber-700
-                        hover:!border-amber-400
-                        hover:!bg-amber-100
-                    "
-                                            >
-                                                + {opcion.label}
-                                            </Button>
-                                        )
-                                    )}
                                 </div>
-                            </div>
+                            ) : (
+                                <>
+                                    {/* =====================================================
+                                    MOBILE
+                                ===================================================== */}
 
-                            {notaRapida.recordatorioAt && (
-                                <p className="mt-2 text-xs font-medium text-amber-700">
-                                    <BellOutlined className="mr-1" />
-
-                                    Se recordará el{" "}
-                                    {formatRecordatorioChile(
-                                        notaRapida.recordatorioAt
-                                    )}
-                                </p>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className={labelBase}>
-                                Nota <span className="text-red-500">*</span>
-                            </label>
-
-                            <Input.TextArea
-                                value={notaRapida.descripcion}
-                                onChange={(event) =>
-                                    setNotaRapida((prev) => ({
-                                        ...prev,
-                                        descripcion: event.target.value,
-                                    }))
-                                }
-                                rows={4}
-                                maxLength={1000}
-                                autoFocus
-                                placeholder="Escribe brevemente lo realizado, pendiente o acordado..."
-                                className="w-full"
-                            />
-
-                            <div className="mt-1 flex justify-end">
-                                <span className="text-xs text-slate-400">
-                                    {notaRapida.descripcion.length} / 1000
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                            Se guardará con la fecha actual, estado REGISTRADA
-                            y sin relaciones asociadas.
-                        </div>
-
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <Button
-                                onClick={cerrarModalNotaRapida}
-                                disabled={savingNotaRapida}
-                            >
-                                Cancelar
-                            </Button>
-
-                            <Button
-                                type="primary"
-                                icon={<FormOutlined />}
-                                loading={savingNotaRapida}
-                                disabled={
-                                    savingNotaRapida ||
-                                    !notaRapida.tecnicoId ||
-                                    !notaRapida.descripcion.trim()
-                                }
-                                onClick={() =>
-                                    void handleGuardarNotaRapida()
-                                }
-                            >
-                                Guardar nota
-                            </Button>
-                        </div>
-                    </div>
-                </Modal>
-
-                {vistaActiva === "resumen-diario" && (
-                    <section className={`${cardBase} p-4 sm:p-6`}>
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">
-                                    Listado diario
-                                </h2>
-                                <p className="text-sm text-slate-500">
-                                    Filtra por fecha, técnico, tipo de actividad o texto.
-                                </p>
-                            </div>
-
-                            <Button
-                                onClick={cargarBitacoras}
-                                loading={loading}
-                            >
-                                Actualizar
-                            </Button>
-                        </div>
-
-                        <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Total actividades
-                                </p>
-                                <p className="mt-2 text-2xl font-black text-slate-900">
-                                    {bitacoras.length}
-                                </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Técnicos con actividad
-                                </p>
-                                <p className="mt-2 text-2xl font-black text-slate-900">
-                                    {Object.keys(resumenPorTecnico).length}
-                                </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Tipo más frecuente
-                                </p>
-                                <p className="mt-2 text-lg font-black text-slate-900">
-                                    {tipoMasFrecuente}
-                                </p>
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Fecha consultada
-                                </p>
-                                <p className="mt-2 text-lg font-black text-slate-900">
-                                    {filtros.fecha
-                                        ? dayjs.tz(filtros.fecha, CHILE_TZ).format("DD/MM/YYYY")
-                                        : "Todas"}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-                            <div>
-                                <label className={labelBase}>Fecha</label>
-                                <DatePicker
-                                    value={filtros.fecha ? dayjs.tz(filtros.fecha, CHILE_TZ) : null}
-                                    onChange={(date) => {
-                                        setFiltros((prev) => ({
-                                            ...prev,
-                                            fecha: date ? date.tz(CHILE_TZ).format("YYYY-MM-DD") : "",
-                                        }));
-                                    }}
-                                    format="DD/MM/YYYY"
-                                    placeholder="Filtrar por fecha"
-                                    className="w-full rounded-xl"
-                                />
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label className={labelBase}>Buscar</label>
-                                <Input
-                                    value={filtros.search}
-                                    onChange={(e) =>
-                                        setFiltros((prev) => ({
-                                            ...prev,
-                                            search: e.target.value,
-                                        }))
-                                    }
-                                    allowClear
-                                    placeholder="Buscar por descripción, técnico, empresa, equipo..."
-                                />
-                            </div>
-
-                            <div>
-                                <label className={labelBase}>Técnico</label>
-                                <Select
-                                    value={filtros.tecnicoId || undefined}
-                                    onChange={(value) =>
-                                        setFiltros((prev) => ({
-                                            ...prev,
-                                            tecnicoId: value ? String(value) : "",
-                                        }))
-                                    }
-                                    allowClear
-                                    showSearch
-                                    optionFilterProp="label"
-                                    filterOption={(input, option) => incluyeBusqueda(option?.label, input)}
-                                    placeholder="Todos"
-                                    className="w-full"
-                                    options={tecnicos.map((tecnico) => ({
-                                        value: String(tecnico.id_tecnico),
-                                        label: tecnico.nombre,
-                                    }))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className={labelBase}>Tipo</label>
-                                <Select
-                                    value={filtros.tipoActividad || undefined}
-                                    onChange={(value) =>
-                                        setFiltros((prev) => ({
-                                            ...prev,
-                                            tipoActividad: value ? String(value) : "",
-                                        }))
-                                    }
-                                    allowClear
-                                    placeholder="Todos"
-                                    className="w-full"
-                                    options={tiposActividad.map((tipo) => ({
-                                        value: tipo,
-                                        label: tipo,
-                                    }))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className={labelBase}>Estado</label>
-                                <Select
-                                    value={filtros.estado || undefined}
-                                    onChange={(value) =>
-                                        setFiltros((prev) => ({
-                                            ...prev,
-                                            estado: value ? String(value) : "",
-                                        }))
-                                    }
-                                    allowClear
-                                    placeholder="Todos"
-                                    className="w-full"
-                                    options={estados.map((estado) => ({
-                                        value: estado,
-                                        label: estado,
-                                    }))}
-                                />
-                            </div>
-                        </div>
-
-                        {loading ? (
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                                Cargando bitácoras...
-                            </div>
-                        ) : bitacoras.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                                <p className="font-semibold text-slate-700">
-                                    No hay bitácoras registradas
-                                </p>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Cambia los filtros o registra una nueva actividad técnica.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="space-y-3 lg:hidden">
-                                    {bitacoras.map((bitacora) => (
-                                        <article
-                                            key={bitacora.id}
-                                            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                                        >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <p className="text-xs font-semibold text-blue-600">
-                                                        {bitacora.tipoActividad}
-                                                    </p>
-                                                    <h3 className="mt-1 flex flex-wrap items-center gap-2 font-semibold text-slate-900">
-                                                        <span>
-                                                            {formatTituloBitacora(bitacora.titulo)}
-                                                        </span>
-
-                                                        {esNotaRapida(bitacora) && (
-                                                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                                                                Rápida
-                                                            </span>
-                                                        )}
-                                                        {bitacora.recordatorioAt && (
-                                                            <Tooltip
-                                                                title={
-                                                                    `${getRecordatorioLabel(
-                                                                        obtenerEstadoRecordatorio(bitacora)
-                                                                    )}: ${formatRecordatorioChile(
-                                                                        bitacora.recordatorioAt
-                                                                    )}`
+                                    <div className="space-y-3 lg:hidden">
+                                        {bitacoras.map(
+                                            (
+                                                bitacora
+                                            ) => (
+                                                <article
+                                                    key={
+                                                        bitacora.id
+                                                    }
+                                                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-xs font-semibold text-blue-600">
+                                                                {
+                                                                    bitacora.tipoActividad
                                                                 }
-                                                            >
-                                                                <span
-                                                                    className={[
-                                                                        "inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs",
-                                                                        getRecordatorioBadgeClass(
+                                                            </p>
+
+                                                            <h3 className="mt-1 flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+                                                                <span>
+                                                                    {formatTituloBitacora(
+                                                                        bitacora.titulo
+                                                                    )}
+                                                                </span>
+
+                                                                {esNotaRapida(
+                                                                    bitacora
+                                                                ) && (
+                                                                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                                            Rápida
+                                                                        </span>
+                                                                    )}
+
+                                                                {bitacora.recordatorioAt && (
+                                                                    <Tooltip
+                                                                        title={`${getRecordatorioLabel(
                                                                             obtenerEstadoRecordatorio(
                                                                                 bitacora
                                                                             )
-                                                                        ),
-                                                                    ].join(" ")}
-                                                                >
-                                                                    <BellOutlined />
-                                                                </span>
-                                                            </Tooltip>
-                                                        )}
-                                                    </h3>
-
-                                                    <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                                                        <p>
-                                                            Actividad: {formatFechaChile(bitacora.fecha)}
-                                                        </p>
-                                                        <p>
-                                                            Creada: {formatHoraChile(bitacora.createdAt)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                                    {bitacora.estado}
-                                                </span>
-                                            </div>
-
-                                            <p className="mt-3 text-sm leading-6 text-slate-700">
-                                                {bitacora.descripcion}
-                                            </p>
-
-                                            <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600">
-                                                <div>
-                                                    <span className="font-semibold">Técnico:</span>{" "}
-                                                    {bitacora.tecnico?.nombre ?? "-"}
-                                                </div>
-
-                                                <div>
-                                                    <span className="font-semibold">Empresa:</span>{" "}
-                                                    {bitacora.empresa?.nombre ?? "-"}
-                                                </div>
-
-                                                <div>
-                                                    <span className="font-semibold">Relación:</span>{" "}
-                                                    {renderRelacionResumen(bitacora)}
-                                                </div>
-
-                                                <div>
-                                                    <span className="font-semibold">Creación completa:</span>{" "}
-                                                    {formatFechaHoraChile(bitacora.createdAt)}
-                                                </div>
-                                            </div>
-
-                                            {/* =====================================================
-    RECORDATORIO EN VISTA MÓVIL
-===================================================== */}
-                                            {bitacora.recordatorioAt && (
-                                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                    <span
-                                                        className={[
-                                                            "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                            getRecordatorioBadgeClass(
-                                                                obtenerEstadoRecordatorio(bitacora)
-                                                            ),
-                                                        ].join(" ")}
-                                                    >
-                                                        <BellOutlined className="mr-1" />
-
-                                                        {formatRecordatorioChile(
-                                                            bitacora.recordatorioAt
-                                                        )}
-                                                    </span>
-
-                                                    <Button
-                                                        size="small"
-                                                        icon={
-                                                            bitacora.recordatorioCompletado
-                                                                ? <UndoOutlined />
-                                                                : <CheckOutlined />
-                                                        }
-                                                        onClick={() =>
-                                                            void handleCambiarEstadoRecordatorio(
-                                                                bitacora
-                                                            )
-                                                        }
-                                                    >
-                                                        {bitacora.recordatorioCompletado
-                                                            ? "Reactivar"
-                                                            : "Completar"}
-                                                    </Button>
-                                                </div>
-                                            )}
-
-                                            <div className="flex justify-end gap-1">
-                                                <Tooltip title="Visualizar">
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EyeOutlined />}
-                                                        onClick={() => abrirModalVisualizar(bitacora)}
-                                                        aria-label="Visualizar bitácora"
-                                                    />
-                                                </Tooltip>
-
-                                                <Tooltip title="Editar">
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EditOutlined />}
-                                                        onClick={() => abrirModalEditar(bitacora)}
-                                                        aria-label="Editar bitácora"
-                                                    />
-                                                </Tooltip>
-
-                                                <Popconfirm
-                                                    title="Eliminar bitácora"
-                                                    description="¿Seguro que deseas eliminar esta bitácora?"
-                                                    okText="Sí"
-                                                    cancelText="No"
-                                                    onConfirm={() => handleDelete(bitacora.id)}
-                                                >
-                                                    <Tooltip title="Eliminar">
-                                                        <Button
-                                                            type="text"
-                                                            danger
-                                                            icon={<DeleteOutlined />}
-                                                            aria-label="Eliminar bitácora"
-                                                        />
-                                                    </Tooltip>
-                                                </Popconfirm>
-                                            </div>
-                                        </article>
-                                    ))}
-                                </div>
-
-                                <div className="hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-slate-200 text-sm">
-                                            <thead className="bg-slate-50">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Actividad
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Creada
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Técnico
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Tipo
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Detalle
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Empresa
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Relación
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Recordatorio
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-left font-semibold text-slate-600">
-                                                        Estado
-                                                    </th>
-
-                                                    <th className="px-4 py-3 text-right font-semibold text-slate-600">
-                                                        Acciones
-                                                    </th>
-                                                </tr>
-                                            </thead>
-
-                                            <tbody className="divide-y divide-slate-100 bg-white">
-                                                {bitacoras.map((bitacora) => (
-                                                    <tr
-                                                        key={bitacora.id}
-                                                        className="hover:bg-slate-50"
-                                                    >
-                                                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                                                            {formatFechaChile(bitacora.fecha)}
-                                                        </td>
-
-                                                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                                                            <Tooltip title={formatFechaHoraChile(bitacora.createdAt)}>
-                                                                <span>{formatHoraChile(bitacora.createdAt)}</span>
-                                                            </Tooltip>
-                                                        </td>
-
-                                                        <td className="px-4 py-3 text-slate-700">
-                                                            {bitacora.tecnico?.nombre ?? "-"}
-                                                        </td>
-
-                                                        <td className="px-4 py-3">
-                                                            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                                                                {bitacora.tipoActividad}
-                                                            </span>
-                                                        </td>
-
-                                                        <td className="max-w-md px-4 py-3">
-                                                            <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
-                                                                <span>
-                                                                    {formatTituloBitacora(bitacora.titulo)}
-                                                                </span>
-
-                                                                {esNotaRapida(bitacora) && (
-                                                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                                                                        Rápida
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="line-clamp-2 text-slate-500">
-                                                                {bitacora.descripcion}
-                                                            </div>
-                                                        </td>
-
-                                                        <td className="px-4 py-3 text-slate-700">
-                                                            {bitacora.empresa?.nombre ?? "-"}
-                                                        </td>
-
-                                                        <td className="px-4 py-3 text-slate-600">
-                                                            {renderRelacionResumen(bitacora)}
-                                                        </td>
-
-                                                        {/* =====================================================
-    RECORDATORIO
-===================================================== */}
-                                                        <td className="whitespace-nowrap px-4 py-3">
-                                                            {bitacora.recordatorioAt ? (
-                                                                <div className="space-y-1">
-                                                                    <span
-                                                                        className={[
-                                                                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                                                            getRecordatorioBadgeClass(
-                                                                                obtenerEstadoRecordatorio(bitacora)
-                                                                            ),
-                                                                        ].join(" ")}
-                                                                    >
-                                                                        <BellOutlined className="mr-1" />
-
-                                                                        {getRecordatorioLabel(
-                                                                            obtenerEstadoRecordatorio(bitacora)
-                                                                        )}
-                                                                    </span>
-
-                                                                    <p className="text-xs text-slate-500">
-                                                                        {formatRecordatorioChile(
+                                                                        )}: ${formatRecordatorioChile(
                                                                             bitacora.recordatorioAt
-                                                                        )}
-                                                                    </p>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-xs text-slate-400">
-                                                                    Sin recordatorio
-                                                                </span>
-                                                            )}
-                                                        </td>
-
-                                                        {/* =====================================================
-    ESTADO DE LA BITÁCORA
-===================================================== */}
-                                                        <td className="px-4 py-3">
-                                                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                                                {bitacora.estado}
-                                                            </span>
-                                                        </td>
-
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex justify-end gap-2">
-                                                                {bitacora.recordatorioAt && (
-                                                                    <Tooltip
-                                                                        title={
-                                                                            bitacora.recordatorioCompletado
-                                                                                ? "Reactivar recordatorio"
-                                                                                : "Marcar recordatorio como completado"
-                                                                        }
+                                                                        )}`}
                                                                     >
-                                                                        <Button
-                                                                            icon={
-                                                                                bitacora.recordatorioCompletado
-                                                                                    ? <UndoOutlined />
-                                                                                    : <CheckOutlined />
-                                                                            }
-                                                                            onClick={() =>
-                                                                                void handleCambiarEstadoRecordatorio(
-                                                                                    bitacora
+                                                                        <span
+                                                                            className={[
+                                                                                "inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs",
+
+                                                                                getRecordatorioBadgeClass(
+                                                                                    obtenerEstadoRecordatorio(
+                                                                                        bitacora
+                                                                                    )
+                                                                                ),
+                                                                            ].join(
+                                                                                " "
+                                                                            )}
+                                                                        >
+                                                                            <BellOutlined />
+                                                                        </span>
+                                                                    </Tooltip>
+                                                                )}
+                                                            </h3>
+
+                                                            <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                                                                <p>
+                                                                    Actividad:{" "}
+                                                                    {formatFechaChile(
+                                                                        bitacora.fecha
+                                                                    )}
+                                                                </p>
+
+                                                                <p>
+                                                                    Creada:{" "}
+                                                                    {formatHoraChile(
+                                                                        bitacora.createdAt
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                                            {
+                                                                bitacora.estado
+                                                            }
+                                                        </span>
+                                                    </div>
+
+                                                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                                                        {
+                                                            bitacora.descripcion
+                                                        }
+                                                    </p>
+
+                                                    <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-slate-600">
+                                                        <div>
+                                                            <span className="font-semibold">
+                                                                Técnico:
+                                                            </span>{" "}
+                                                            {
+                                                                bitacora
+                                                                    .tecnico
+                                                                    ?.nombre ??
+                                                                "-"
+                                                            }
+                                                        </div>
+
+                                                        <div>
+                                                            <span className="font-semibold">
+                                                                Empresa:
+                                                            </span>{" "}
+                                                            {
+                                                                bitacora
+                                                                    .empresa
+                                                                    ?.nombre ??
+                                                                "-"
+                                                            }
+                                                        </div>
+
+                                                        <div>
+                                                            <span className="font-semibold">
+                                                                Relación:
+                                                            </span>{" "}
+                                                            {renderRelacionResumen(
+                                                                bitacora
+                                                            )}
+                                                        </div>
+
+                                                        <div>
+                                                            <span className="font-semibold">
+                                                                Creación
+                                                                completa:
+                                                            </span>{" "}
+                                                            {formatFechaHoraChile(
+                                                                bitacora.createdAt
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {bitacora.recordatorioAt && (
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                            <span
+                                                                className={[
+                                                                    "rounded-full border px-2.5 py-1 text-xs font-semibold",
+
+                                                                    getRecordatorioBadgeClass(
+                                                                        obtenerEstadoRecordatorio(
+                                                                            bitacora
+                                                                        )
+                                                                    ),
+                                                                ].join(
+                                                                    " "
+                                                                )}
+                                                            >
+                                                                <BellOutlined className="mr-1" />
+
+                                                                {formatRecordatorioChile(
+                                                                    bitacora.recordatorioAt
+                                                                )}
+                                                            </span>
+
+                                                            <Button
+                                                                size="small"
+                                                                icon={
+                                                                    bitacora.recordatorioCompletado
+                                                                        ? (
+                                                                            <UndoOutlined />
+                                                                        )
+                                                                        : (
+                                                                            <CheckOutlined />
+                                                                        )
+                                                                }
+                                                                onClick={() =>
+                                                                    void handleCambiarEstadoRecordatorio(
+                                                                        bitacora
+                                                                    )
+                                                                }
+                                                            >
+                                                                {bitacora.recordatorioCompletado
+                                                                    ? "Reactivar"
+                                                                    : "Completar"}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex justify-end gap-1">
+                                                        <Tooltip title="Visualizar">
+                                                            <Button
+                                                                type="text"
+                                                                icon={
+                                                                    <EyeOutlined />
+                                                                }
+                                                                onClick={() =>
+                                                                    abrirModalVisualizar(
+                                                                        bitacora
+                                                                    )
+                                                                }
+                                                            />
+                                                        </Tooltip>
+
+                                                        <Tooltip title="Editar">
+                                                            <Button
+                                                                type="text"
+                                                                icon={
+                                                                    <EditOutlined />
+                                                                }
+                                                                onClick={() =>
+                                                                    abrirModalEditar(
+                                                                        bitacora
+                                                                    )
+                                                                }
+                                                            />
+                                                        </Tooltip>
+
+                                                        <Popconfirm
+                                                            title="Eliminar bitácora"
+                                                            description="¿Seguro que deseas eliminar esta bitácora?"
+                                                            okText="Sí"
+                                                            cancelText="No"
+                                                            onConfirm={() =>
+                                                                void handleDelete(
+                                                                    bitacora.id
+                                                                )
+                                                            }
+                                                        >
+                                                            <Tooltip title="Eliminar">
+                                                                <Button
+                                                                    type="text"
+                                                                    danger
+                                                                    icon={
+                                                                        <DeleteOutlined />
+                                                                    }
+                                                                />
+                                                            </Tooltip>
+                                                        </Popconfirm>
+                                                    </div>
+                                                </article>
+                                            )
+                                        )}
+                                    </div>
+
+                                    {/* =====================================================
+                                    DESKTOP
+                                ===================================================== */}
+
+                                    <div className="hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-slate-200 text-sm">
+                                                <thead className="bg-slate-50">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Actividad
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Creada
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Técnico
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Tipo
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Detalle
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Empresa
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Relación
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Recordatorio
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                                                            Estado
+                                                        </th>
+
+                                                        <th className="px-4 py-3 text-right font-semibold text-slate-600">
+                                                            Acciones
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody className="divide-y divide-slate-100 bg-white">
+                                                    {bitacoras.map(
+                                                        (
+                                                            bitacora
+                                                        ) => (
+                                                            <tr
+                                                                key={
+                                                                    bitacora.id
+                                                                }
+                                                                className="hover:bg-slate-50"
+                                                            >
+                                                                <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                                                                    {formatFechaChile(
+                                                                        bitacora.fecha
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                                                                    <Tooltip
+                                                                        title={formatFechaHoraChile(
+                                                                            bitacora.createdAt
+                                                                        )}
+                                                                    >
+                                                                        <span>
+                                                                            {formatHoraChile(
+                                                                                bitacora.createdAt
+                                                                            )}
+                                                                        </span>
+                                                                    </Tooltip>
+                                                                </td>
+
+                                                                <td className="px-4 py-3 text-slate-700">
+                                                                    {
+                                                                        bitacora
+                                                                            .tecnico
+                                                                            ?.nombre ??
+                                                                        "-"
+                                                                    }
+                                                                </td>
+
+                                                                <td className="px-4 py-3">
+                                                                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                                                        {
+                                                                            bitacora.tipoActividad
+                                                                        }
+                                                                    </span>
+                                                                </td>
+
+                                                                <td className="max-w-md px-4 py-3">
+                                                                    <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+                                                                        <span>
+                                                                            {formatTituloBitacora(
+                                                                                bitacora.titulo
+                                                                            )}
+                                                                        </span>
+
+                                                                        {esNotaRapida(
+                                                                            bitacora
+                                                                        ) && (
+                                                                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                                                                    Rápida
+                                                                                </span>
+                                                                            )}
+                                                                    </div>
+
+                                                                    <div className="line-clamp-2 text-slate-500">
+                                                                        {
+                                                                            bitacora.descripcion
+                                                                        }
+                                                                    </div>
+                                                                </td>
+
+                                                                <td className="px-4 py-3 text-slate-700">
+                                                                    {
+                                                                        bitacora
+                                                                            .empresa
+                                                                            ?.nombre ??
+                                                                        "-"
+                                                                    }
+                                                                </td>
+
+                                                                <td className="px-4 py-3 text-slate-600">
+                                                                    {renderRelacionResumen(
+                                                                        bitacora
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="whitespace-nowrap px-4 py-3">
+                                                                    {bitacora.recordatorioAt ? (
+                                                                        <div className="space-y-1">
+                                                                            <span
+                                                                                className={[
+                                                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+
+                                                                                    getRecordatorioBadgeClass(
+                                                                                        obtenerEstadoRecordatorio(
+                                                                                            bitacora
+                                                                                        )
+                                                                                    ),
+                                                                                ].join(
+                                                                                    " "
+                                                                                )}
+                                                                            >
+                                                                                <BellOutlined className="mr-1" />
+
+                                                                                {getRecordatorioLabel(
+                                                                                    obtenerEstadoRecordatorio(
+                                                                                        bitacora
+                                                                                    )
+                                                                                )}
+                                                                            </span>
+
+                                                                            <p className="text-xs text-slate-500">
+                                                                                {formatRecordatorioChile(
+                                                                                    bitacora.recordatorioAt
+                                                                                )}
+                                                                            </p>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-xs text-slate-400">
+                                                                            Sin
+                                                                            recordatorio
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="px-4 py-3">
+                                                                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                                                        {
+                                                                            bitacora.estado
+                                                                        }
+                                                                    </span>
+                                                                </td>
+
+                                                                <td className="px-4 py-3">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        {bitacora.recordatorioAt && (
+                                                                            <Tooltip
+                                                                                title={
+                                                                                    bitacora.recordatorioCompletado
+                                                                                        ? "Reactivar recordatorio"
+                                                                                        : "Marcar recordatorio como completado"
+                                                                                }
+                                                                            >
+                                                                                <Button
+                                                                                    icon={
+                                                                                        bitacora.recordatorioCompletado
+                                                                                            ? (
+                                                                                                <UndoOutlined />
+                                                                                            )
+                                                                                            : (
+                                                                                                <CheckOutlined />
+                                                                                            )
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        void handleCambiarEstadoRecordatorio(
+                                                                                            bitacora
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </Tooltip>
+                                                                        )}
+
+                                                                        <Tooltip title="Visualizar">
+                                                                            <Button
+                                                                                icon={
+                                                                                    <EyeOutlined />
+                                                                                }
+                                                                                onClick={() =>
+                                                                                    abrirModalVisualizar(
+                                                                                        bitacora
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </Tooltip>
+
+                                                                        <Tooltip title="Editar">
+                                                                            <Button
+                                                                                icon={
+                                                                                    <EditOutlined />
+                                                                                }
+                                                                                onClick={() =>
+                                                                                    abrirModalEditar(
+                                                                                        bitacora
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                        </Tooltip>
+
+                                                                        <Popconfirm
+                                                                            title="Eliminar bitácora"
+                                                                            description="¿Seguro que deseas eliminar esta bitácora?"
+                                                                            okText="Sí"
+                                                                            cancelText="No"
+                                                                            onConfirm={() =>
+                                                                                void handleDelete(
+                                                                                    bitacora.id
                                                                                 )
                                                                             }
-                                                                        />
-                                                                    </Tooltip>
-                                                                )}
-                                                                <Tooltip title="Visualizar">
-                                                                    <Button
-                                                                        icon={<EyeOutlined />}
-                                                                        onClick={() => abrirModalVisualizar(bitacora)}
-                                                                        aria-label="Visualizar bitácora"
-                                                                    />
-                                                                </Tooltip>
-
-                                                                <Tooltip title="Editar">
-                                                                    <Button
-                                                                        icon={<EditOutlined />}
-                                                                        onClick={() => abrirModalEditar(bitacora)}
-                                                                        aria-label="Editar bitácora"
-                                                                    />
-                                                                </Tooltip>
-
-                                                                <Popconfirm
-                                                                    title="Eliminar bitácora"
-                                                                    description="¿Seguro que deseas eliminar esta bitácora?"
-                                                                    okText="Sí"
-                                                                    cancelText="No"
-                                                                    onConfirm={() => handleDelete(bitacora.id)}
-                                                                >
-                                                                    <Tooltip title="Eliminar">
-                                                                        <Button
-                                                                            danger
-                                                                            icon={<DeleteOutlined />}
-                                                                            aria-label="Eliminar bitácora"
-                                                                        />
-                                                                    </Tooltip>
-                                                                </Popconfirm>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                                        >
+                                                                            <Tooltip title="Eliminar">
+                                                                                <Button
+                                                                                    danger
+                                                                                    icon={
+                                                                                        <DeleteOutlined />
+                                                                                    }
+                                                                                />
+                                                                            </Tooltip>
+                                                                        </Popconfirm>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                </div>
-                            </>
-                        )}
-                    </section>
-                )}
+                                </>
+                            )}
+                        </section>
+                    )}
             </div>
         </div>
     );

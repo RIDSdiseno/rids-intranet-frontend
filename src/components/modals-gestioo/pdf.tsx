@@ -174,29 +174,114 @@ export const handlePrint = async (
     </div>
 </div>
 
-<!-- SEGUIMIENTO -->
-<div style="background: #e0f2fe; border: 1px solid #93c5fd; padding: 12px; text-align: center; border-radius: 10px; margin-top: 25px; font-size: 14px;" class="pdf-section">
-    Consulte el estado de la orden en:<br>
-    <b>https://rids-intranet.netlify.app/home</b><br>
-    Código: <b>${codigo}</b>
-</div>
-
 <!-- FIRMAS -->
-<div style="margin-top: 60px; display: flex; justify-content: space-between;">
+<div style="
+    margin-top: 50px;
+    display: flex;
+    justify-content: space-between;
+    gap: 50px;
+">
 
-    <div style="width: 45%; text-align: center;">
-        <br><br><br><br><br><br><br>
-        <div style="border-top: 1px dashed #555; padding-top: 6px;">
-            Firma Cliente<br>
-            <span style="font-size: 20px;">Nombre y RUT</span>
+    <!-- FIRMA CLIENTE -->
+    <div style="
+        width: 45%;
+        text-align: center;
+    ">
+        <div style="
+            height: 180px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            margin-bottom: 8px;
+        ">
+            ${orden.firmaEntradaUrl
+                ? `
+                        <img
+                            src="${orden.firmaEntradaUrl}"
+                            crossorigin="anonymous"
+                            class="pdf-firma-cliente"
+                            style="
+                                max-width: 90%;
+                                max-height: 160px;
+                                object-fit: contain;
+                            "
+                        />
+                    `
+                : `
+                        <span style="
+                            font-size: 20px;
+                            color: #6b7280;
+                        ">
+                            Sin firma registrada
+                        </span>
+                    `
+            }
+        </div>
+
+        <div style="
+            border-top: 1px solid #333;
+            padding-top: 8px;
+        ">
+            <strong>Firma Cliente</strong>
+
+            <br>
+
+            <span style="font-size: 20px;">
+                ${orden.nombreFirmanteEntrada
+            ?? "Nombre no registrado"
+            }
+            </span>
+
+            ${orden.firmaEntradaAt
+                ? `
+                        <br>
+                        <span style="
+                            font-size: 17px;
+                            color: #555;
+                        ">
+                            Confirmado:
+                            ${new Date(
+                    orden.firmaEntradaAt
+                ).toLocaleString(
+                    "es-CL",
+                    {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                    }
+                )}
+                        </span>
+                    `
+                : ""
+            }
         </div>
     </div>
 
-    <div style="width: 45%; text-align: center;">
-        <br><br><br><br><br><br><br>
-        <div style="border-top: 1px solid #333; padding-top: 6px;">
-            Firma Empresa<br>
-            <span style="font-size: 20px;">Representante autorizado</span>
+    <!-- FIRMA EMPRESA -->
+    <div style="
+        width: 45%;
+        text-align: center;
+    ">
+        <div style="
+            height: 180px;
+            margin-bottom: 8px;
+        ">
+        </div>
+
+        <div style="
+            border-top: 1px solid #333;
+            padding-top: 8px;
+        ">
+            <strong>Firma Empresa</strong>
+
+            <br>
+
+            <span style="font-size: 20px;">
+                Representante autorizado
+            </span>
         </div>
     </div>
 </div>
@@ -217,6 +302,8 @@ export const handlePrint = async (
         container.innerHTML = html;
         prepararContenedorPdf(container, "1700px");
         document.body.appendChild(container);
+
+        await esperarImagenesPdf(container);
 
         // ✅ OPTIMIZAR SECCIONES
         const sections = container.querySelectorAll('.pdf-section');
@@ -281,7 +368,7 @@ export const handlePrint = async (
         if (container.parentNode) {
             container.parentNode.removeChild(container);
         }
-        
+
     } catch (err) {
         console.error(err);
         alert("Error al generar PDF");
@@ -291,3 +378,50 @@ export const handlePrint = async (
 export const generarOrdenPDF = async (orden: DetalleTrabajoGestioo) => {
     return await handlePrint(orden);
 };
+
+async function esperarImagenesPdf(
+    container: HTMLElement,
+) {
+    const images =
+        Array.from(
+            container.querySelectorAll(
+                "img",
+            ),
+        );
+
+    await Promise.all(
+        images.map(
+            (img) => {
+                if (
+                    img.complete &&
+                    img.naturalWidth > 0
+                ) {
+                    return Promise.resolve();
+                }
+
+                return new Promise<void>(
+                    (resolve) => {
+                        const finish =
+                            () => resolve();
+
+                        img.addEventListener(
+                            "load",
+                            finish,
+                            {
+                                once: true,
+                            },
+                        );
+
+                        img.addEventListener(
+                            "error",
+                            finish,
+                            {
+                                once: true,
+                            },
+                        );
+                    },
+                );
+            },
+        ),
+    );
+}

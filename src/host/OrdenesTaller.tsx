@@ -177,7 +177,7 @@ const OrdenesTaller: React.FC = () => {
     };
 
     // Función para duplicar orden a SALIDA
-    const duplicarOrdenSalida = async (
+    const duplicarOrdenSalida = (
         orden: DetalleTrabajoGestioo
     ) => {
         const grupoId =
@@ -201,23 +201,85 @@ const OrdenesTaller: React.FC = () => {
             return;
         }
 
+        // Guardamos la orden que se quiere sacar
+        setOrdenPendienteSalida(orden);
+
+        // Importante: obligamos a confirmar nuevamente el destino.
+        // No heredamos silenciosamente el destino de la entrada.
+        setDestinoSalida("SIN_DEFINIR");
+
+        // La nota anterior puede servir como referencia.
+        setDestinoSalidaNota(
+            orden.destinoEquipoNota ?? ""
+        );
+
+        setSalidaOpen(true);
+    };
+
+    const confirmarOrdenSalida = async () => {
+        if (!ordenPendienteSalida) return;
+
         if (
-            !confirm(
-                "Se creará una nueva orden de SALIDA para mantener el historial del equipo.\n\n¿Desea continuar?"
-            )
+            !destinoSalida ||
+            destinoSalida === "SIN_DEFINIR"
         ) {
+            setToast({
+                type: "error",
+                message:
+                    "Debe confirmar el destino del equipo antes de generar la salida.",
+            });
+
+            return;
+        }
+
+        const orden = ordenPendienteSalida;
+
+        const grupoId =
+            orden.ordenGrupoId ??
+            orden.id;
+
+        // Volvemos a comprobar en frontend por seguridad/UX.
+        const salidaExistente =
+            ordenes.find(
+                (item) =>
+                    (item.ordenGrupoId ?? item.id) === grupoId &&
+                    item.area === "SALIDA"
+            );
+
+        if (salidaExistente) {
+            setSalidaOpen(false);
+            setOrdenPendienteSalida(null);
+
+            setToast({
+                type: "error",
+                message:
+                    `La orden #${grupoId} ya tiene una salida registrada.`,
+            });
+
             return;
         }
 
         try {
-            const payload = {
-                tipoTrabajo: orden.tipoTrabajo,
-                descripcion: orden.descripcion,
-                prioridad: orden.prioridad,
-                estado: "PENDIENTE",
-                notas: orden.notas,
+            setCreandoSalida(true);
 
-                area: "SALIDA",
+            const payload = {
+                tipoTrabajo:
+                    orden.tipoTrabajo,
+
+                descripcion:
+                    orden.descripcion,
+
+                prioridad:
+                    orden.prioridad,
+
+                estado:
+                    "COMPLETADA",
+
+                notas:
+                    orden.notas,
+
+                area:
+                    "SALIDA",
 
                 ordenGrupoId:
                     grupoId,
@@ -245,12 +307,16 @@ const OrdenesTaller: React.FC = () => {
                     orden.incluyeCargador ??
                     false,
 
+                // Al salir normalmente vuelve a estar operativo.
+                estadoEquipo:
+                    "ACTIVO",
+
+                // Destino confirmado AHORA.
                 destinoEquipo:
-                    orden.destinoEquipo ??
-                    "SIN_DEFINIR",
+                    destinoSalida,
 
                 destinoEquipoNota:
-                    orden.destinoEquipoNota ??
+                    destinoSalidaNota.trim() ||
                     null,
             };
 
@@ -262,8 +328,13 @@ const OrdenesTaller: React.FC = () => {
             setToast({
                 type: "success",
                 message:
-                    `Salida de la orden #${grupoId} creada correctamente`,
+                    `Salida de la orden #${grupoId} registrada correctamente.`,
             });
+
+            setSalidaOpen(false);
+            setOrdenPendienteSalida(null);
+            setDestinoSalida("SIN_DEFINIR");
+            setDestinoSalidaNota("");
 
             await fetchOrdenes();
         } catch (err: any) {
@@ -279,6 +350,8 @@ const OrdenesTaller: React.FC = () => {
                     err?.message ??
                     "No se pudo crear la orden de salida",
             });
+        } finally {
+            setCreandoSalida(false);
         }
     };
 
@@ -764,6 +837,20 @@ const OrdenesTaller: React.FC = () => {
     const [showEditEquipoModal, setShowEditEquipoModal] = useState(false);
 
     const [equipoEditando, setEquipoEditando] = useState<EquipoGestioo | null>(null);
+
+    const [salidaOpen, setSalidaOpen] = useState(false);
+
+    const [ordenPendienteSalida, setOrdenPendienteSalida] =
+        useState<DetalleTrabajoGestioo | null>(null);
+
+    const [destinoSalida, setDestinoSalida] =
+        useState<DestinoEquipoTaller>("SIN_DEFINIR");
+
+    const [destinoSalidaNota, setDestinoSalidaNota] =
+        useState("");
+
+    const [creandoSalida, setCreandoSalida] =
+        useState(false);
 
     const conteoPorEstado = useMemo(() => {
         const base = {
@@ -1491,6 +1578,189 @@ const OrdenesTaller: React.FC = () => {
                     onClose={() => { setShowSendModal(false); setSendOrdenSelected(null); }}
                     orden={sendOrdenSelected}
                 />
+            )}
+
+            {salidaOpen && ordenPendienteSalida && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900">
+                                    Confirmar salida del equipo
+                                </h2>
+
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Confirma el destino del equipo antes de registrar
+                                    su salida del taller.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                disabled={creandoSalida}
+                                onClick={() => {
+                                    setSalidaOpen(false);
+                                    setOrdenPendienteSalida(null);
+                                    setDestinoSalida("SIN_DEFINIR");
+                                    setDestinoSalidaNota("");
+                                }}
+                                className="text-slate-400 hover:text-slate-700 disabled:opacity-50"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {/* Resumen */}
+                        <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50 p-4">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+
+                                <div>
+                                    <span className="block text-xs text-slate-500">
+                                        Orden
+                                    </span>
+
+                                    <span className="font-semibold text-slate-800">
+                                        #
+                                        {ordenPendienteSalida.ordenGrupoId ??
+                                            ordenPendienteSalida.id}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <span className="block text-xs text-slate-500">
+                                        Empresa
+                                    </span>
+
+                                    <span className="font-semibold text-slate-800">
+                                        {ordenPendienteSalida.entidad?.nombre ?? "—"}
+                                    </span>
+                                </div>
+
+                                <div className="col-span-2">
+                                    <span className="block text-xs text-slate-500">
+                                        Equipo
+                                    </span>
+
+                                    <span className="font-semibold text-slate-800">
+                                        {ordenPendienteSalida.equipo
+                                            ? `${ordenPendienteSalida.equipo.marca} ${ordenPendienteSalida.equipo.modelo}`
+                                            : "—"}
+                                    </span>
+
+                                    {ordenPendienteSalida.equipo?.serial && (
+                                        <span className="block text-xs text-slate-500 mt-0.5">
+                                            S/N: {ordenPendienteSalida.equipo.serial}
+                                        </span>
+                                    )}
+                                </div>
+
+                            </div>
+                        </div>
+
+                        {/* Destino */}
+                        <div className="mt-5">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Destino del equipo
+                                <span className="text-rose-500"> *</span>
+                            </label>
+
+                            <Select
+                                value={
+                                    destinoSalida === "SIN_DEFINIR"
+                                        ? undefined
+                                        : destinoSalida
+                                }
+                                onChange={(value) =>
+                                    setDestinoSalida(
+                                        value as DestinoEquipoTaller
+                                    )
+                                }
+                                style={{
+                                    width: "100%",
+                                }}
+                                placeholder="Seleccionar destino..."
+                                getPopupContainer={(triggerNode) => triggerNode.parentElement!}
+                                options={DestinoEquipoTallerOptions.filter(
+                                    (option) =>
+                                        option.value !== "SIN_DEFINIR"
+                                )}
+                            />
+
+                            <p className="mt-2 text-xs text-slate-500">
+                                Este destino quedará registrado en el historial
+                                de salida del equipo.
+                            </p>
+                        </div>
+
+                        {/* Nota */}
+                        <div className="mt-4">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Observación del destino
+                            </label>
+
+                            <textarea
+                                value={destinoSalidaNota}
+                                onChange={(e) =>
+                                    setDestinoSalidaNota(
+                                        e.target.value
+                                    )
+                                }
+                                rows={3}
+                                placeholder="Ej: Equipo entregado al cliente Juan Pérez..."
+                                className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                            />
+                        </div>
+
+                        {/* Advertencia */}
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                            <p className="text-xs text-amber-800">
+                                Al confirmar, se registrará la salida del equipo y
+                                la orden de ingreso quedará cerrada.
+                            </p>
+                        </div>
+
+                        {/* Acciones */}
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={creandoSalida}
+                                onClick={() => {
+                                    setSalidaOpen(false);
+                                    setOrdenPendienteSalida(null);
+                                    setDestinoSalida("SIN_DEFINIR");
+                                    setDestinoSalidaNota("");
+                                }}
+                                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={
+                                    creandoSalida ||
+                                    destinoSalida === "SIN_DEFINIR"
+                                }
+                                onClick={confirmarOrdenSalida}
+                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {creandoSalida ? (
+                                    <>
+                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        Registrando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <SwapOutlined />
+                                        Confirmar salida
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {printOrigenOpen && ordenPendientePrint && (

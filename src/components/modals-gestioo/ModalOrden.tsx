@@ -268,6 +268,19 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
             return;
         }
 
+        if (
+            formData.area === "salida" &&
+            (
+                !formData.destinoEquipo ||
+                formData.destinoEquipo === "SIN_DEFINIR"
+            )
+        ) {
+            setErrorMsg(
+                "Debe confirmar el destino del equipo para registrar la salida."
+            );
+            return;
+        }
+
         // ✅ OK
         setErrorMsg(null);
         onSubmit();
@@ -345,7 +358,13 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                 <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                                        Destino del equipo <span className="text-rose-500">*</span>
+                                        {formData.area === "salida"
+                                            ? "Destino confirmado del equipo"
+                                            : "Destino previsto del equipo"}
+
+                                        {formData.area === "salida" && (
+                                            <span className="text-rose-500"> *</span>
+                                        )}
                                     </label>
 
                                     <Select
@@ -846,10 +865,17 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                     loading ||
                                     !formData.tipoTrabajo.trim() ||
                                     !formData.equipoId ||
-                                    !formData.estadoEquipo ||   // ← solo bloquea si hay equipo pero no estado
+                                    !formData.estadoEquipo ||
                                     !formData.tecnicoId ||
                                     !formData.entidadId ||
-                                    !formData.descripcion
+                                    !formData.descripcion.trim() ||
+                                    (
+                                        formData.area === "salida" &&
+                                        (
+                                            !formData.destinoEquipo ||
+                                            formData.destinoEquipo === "SIN_DEFINIR"
+                                        )
+                                    )
                                 }
                                 className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-white font-medium transition-all duration-200 ${loading
                                     ? "bg-cyan-400 cursor-not-allowed"
