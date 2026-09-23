@@ -54,6 +54,7 @@ const OPCIONES_RAPIDAS_RECORDATORIO = [
 
 type TipoBitacoraTecnico =
     | "SOPORTE"
+    | "INSTALACIÓN"
     | "TERRENO"
     | "REMOTO"
     | "TALLER"

@@ -69,12 +69,17 @@ import BitacoraEvidenciaUploadModal from "../components/modals-bitacora/Bitacora
 import {
     actualizarBitacoraTecnico,
     actualizarEstadoRecordatorio,
+    actualizarEtapaBitacora,
+    completarEtapaBitacora,
     crearBitacoraTecnico,
     eliminarBitacoraTecnico,
     eliminarEvidenciaBitacora,
     obtenerBitacoraTecnicoPorId,
     obtenerBitacorasTecnico,
     obtenerEvidenciasBitacora,
+    obtenerEtapasBitacora,
+    responderRevisionEtapa,
+    solicitarRevisionEtapa,
     subirEvidenciaBitacora,
 } from "../components/modals-bitacora/bitacora.api";
 
@@ -124,7 +129,6 @@ import type {
     CrearBitacoraTecnicoPayload,
     EmpresaOption,
     EstadoBitacoraTecnico,
-    EtapaEvidenciaBitacora,
     EvidenciaPendiente,
     FormErrors,
     NotaRapidaState,
@@ -132,6 +136,10 @@ import type {
     RelacionKey,
     TecnicoOption,
     TipoBitacoraTecnico,
+    BitacoraAprobacion,
+    BitacoraEtapa,
+    BitacoraEtapasFormState,
+    EtapaBitacora,
 } from "../components/modals-bitacora/bitacora.types";
 
 /* =====================================================
@@ -569,9 +577,87 @@ export default function BitacoraTecnicoPage() {
         setEtapaEvidenciaSeleccionada,
     ] =
         useState<
-            EtapaEvidenciaBitacora |
-            null
+            EtapaBitacora | null
         >(null);
+
+    const ETAPAS_FORM_INICIAL:
+        BitacoraEtapasFormState = {
+        ANTES: {
+            descripcion:
+                "",
+
+            requiereRevision:
+                false,
+
+            aprobadorId:
+                "",
+
+            comentarioSolicitud:
+                "",
+        },
+
+        EN_PROCESO: {
+            descripcion:
+                "",
+
+            requiereRevision:
+                false,
+
+            aprobadorId:
+                "",
+
+            comentarioSolicitud:
+                "",
+        },
+
+        DESPUES: {
+            descripcion:
+                "",
+
+            requiereRevision:
+                false,
+
+            aprobadorId:
+                "",
+
+            comentarioSolicitud:
+                "",
+        },
+    };
+
+    const [
+        etapasBitacora,
+        setEtapasBitacora,
+    ] =
+        useState<
+            BitacoraEtapa[]
+        >([]);
+
+    const [
+        etapasForm,
+        setEtapasForm,
+    ] =
+        useState<
+            BitacoraEtapasFormState
+        >(
+            ETAPAS_FORM_INICIAL
+        );
+
+    const [
+        processingEtapaId,
+        setProcessingEtapaId,
+    ] =
+        useState<
+            number | null
+        >(
+            null
+        );
+
+    const [
+        comentarioRespuesta,
+        setComentarioRespuesta,
+    ] =
+        useState("");
 
     const [
         archivoEvidencia,
@@ -961,6 +1047,8 @@ export default function BitacoraTecnicoPage() {
 
         resetEvidenciasFormulario();
 
+        resetEtapasFormulario();
+
         setVistaActiva(
             "resumen-diario"
         );
@@ -984,6 +1072,8 @@ export default function BitacoraTecnicoPage() {
         resetForm();
 
         resetEvidenciasFormulario();
+
+        resetEtapasFormulario();
     }
 
     /* =====================================================
@@ -1091,9 +1181,200 @@ export default function BitacoraTecnicoPage() {
         }
     }
 
+    async function cargarEtapasBitacora(
+        bitacoraId:
+            number
+    ) {
+        try {
+            setLoadingEvidencias(
+                true
+            );
+
+            const response =
+                await obtenerEtapasBitacora(
+                    bitacoraId
+                );
+
+            const etapas =
+                response.data ??
+                [];
+
+            setEtapasBitacora(
+                etapas
+            );
+
+            /*
+             * Mantener una lista plana también permite
+             * reutilizar componentes antiguos si fuera necesario.
+             */
+            setEvidenciasBitacora(
+                etapas.flatMap(
+                    etapa =>
+                        etapa.evidencias ??
+                        []
+                )
+            );
+
+            const obtener =
+                (
+                    tipo:
+                        EtapaBitacora
+                ) =>
+                    etapas.find(
+                        etapa =>
+                            etapa.etapa ===
+                            tipo
+                    );
+
+            const antes =
+                obtener(
+                    "ANTES"
+                );
+
+            const enProceso =
+                obtener(
+                    "EN_PROCESO"
+                );
+
+            const despues =
+                obtener(
+                    "DESPUES"
+                );
+
+            setEtapasForm({
+                ANTES: {
+                    descripcion:
+                        antes
+                            ?.descripcion ??
+                        "",
+
+                    requiereRevision:
+                        antes
+                            ?.requiereRevision ??
+                        false,
+
+                    aprobadorId:
+                        antes
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.aprobadorId
+                            ?.toString() ??
+                        "",
+
+                    comentarioSolicitud:
+                        antes
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.comentarioSolicitud ??
+                        "",
+                },
+
+                EN_PROCESO: {
+                    descripcion:
+                        enProceso
+                            ?.descripcion ??
+                        "",
+
+                    requiereRevision:
+                        enProceso
+                            ?.requiereRevision ??
+                        false,
+
+                    aprobadorId:
+                        enProceso
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.aprobadorId
+                            ?.toString() ??
+                        "",
+
+                    comentarioSolicitud:
+                        enProceso
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.comentarioSolicitud ??
+                        "",
+                },
+
+                DESPUES: {
+                    descripcion:
+                        despues
+                            ?.descripcion ??
+                        "",
+
+                    requiereRevision:
+                        despues
+                            ?.requiereRevision ??
+                        false,
+
+                    aprobadorId:
+                        despues
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.aprobadorId
+                            ?.toString() ??
+                        "",
+
+                    comentarioSolicitud:
+                        despues
+                            ?.aprobaciones
+                            ?.find(
+                                item =>
+                                    item.estado ===
+                                    "PENDIENTE"
+                            )
+                            ?.comentarioSolicitud ??
+                        "",
+                },
+            });
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error cargando etapas:",
+                error
+            );
+
+            setEtapasBitacora(
+                []
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setLoadingEvidencias(
+                false
+            );
+        }
+    }
+
     function abrirModalEvidencia(
         etapa:
-            EtapaEvidenciaBitacora
+            EtapaBitacora
     ) {
         setEtapaEvidenciaSeleccionada(
             etapa
@@ -1134,6 +1415,24 @@ export default function BitacoraTecnicoPage() {
         );
 
         setDescripcionEvidencia(
+            ""
+        );
+    }
+
+    function resetEtapasFormulario() {
+        setEtapasBitacora(
+            []
+        );
+
+        setEtapasForm(
+            ETAPAS_FORM_INICIAL
+        );
+
+        setProcessingEtapaId(
+            null
+        );
+
+        setComentarioRespuesta(
             ""
         );
     }
@@ -1295,17 +1594,52 @@ export default function BitacoraTecnicoPage() {
 
     async function guardarCambiosEvidencias(
         bitacoraId:
-            number
+            number,
+        etapaFiltro?:
+            EtapaBitacora
     ) {
         let errores =
             0;
 
-        /*
-         * 1. Eliminar existentes marcadas.
-         */
+        const evidenciasExistentesEtapa =
+            etapaFiltro
+                ? evidenciasBitacora.filter(
+                    item =>
+                        item.etapa ===
+                        etapaFiltro
+                )
+                : evidenciasBitacora;
+
+        const idsPermitidos =
+            new Set(
+                evidenciasExistentesEtapa.map(
+                    item =>
+                        item.id
+                )
+            );
+
+        const eliminar =
+            etapaFiltro
+                ? evidenciasAEliminar.filter(
+                    id =>
+                        idsPermitidos.has(
+                            id
+                        )
+                )
+                : evidenciasAEliminar;
+
+        const subir =
+            etapaFiltro
+                ? evidenciasPendientes.filter(
+                    evidencia =>
+                        evidencia.etapa ===
+                        etapaFiltro
+                )
+                : evidenciasPendientes;
+
         for (
             const evidenciaId
-            of evidenciasAEliminar
+            of eliminar
         ) {
             try {
                 await eliminarEvidenciaBitacora(
@@ -1324,12 +1658,9 @@ export default function BitacoraTecnicoPage() {
             }
         }
 
-        /*
-         * 2. Subir nuevas evidencias.
-         */
         for (
             const evidencia
-            of evidenciasPendientes
+            of subir
         ) {
             try {
                 await subirEvidenciaBitacora(
@@ -1355,6 +1686,452 @@ export default function BitacoraTecnicoPage() {
         };
     }
 
+    function limpiarCambiosEvidenciaEtapa(
+        etapa:
+            EtapaBitacora
+    ) {
+        setEvidenciasPendientes(
+            prev => {
+                prev
+                    .filter(
+                        item =>
+                            item.etapa ===
+                            etapa
+                    )
+                    .forEach(
+                        item =>
+                            URL.revokeObjectURL(
+                                item.previewUrl
+                            )
+                    );
+
+                return prev.filter(
+                    item =>
+                        item.etapa !==
+                        etapa
+                );
+            }
+        );
+
+        const idsEtapa =
+            new Set(
+                evidenciasBitacora
+                    .filter(
+                        item =>
+                            item.etapa ===
+                            etapa
+                    )
+                    .map(
+                        item =>
+                            item.id
+                    )
+            );
+
+        setEvidenciasAEliminar(
+            prev =>
+                prev.filter(
+                    id =>
+                        !idsEtapa.has(
+                            id
+                        )
+                )
+        );
+    }
+
+    async function handleGuardarEtapa(
+        etapa:
+            BitacoraEtapa
+    ) {
+        if (
+            !editId
+        ) {
+            return;
+        }
+
+        const formEtapa =
+            etapasForm[
+            etapa.etapa
+            ];
+
+        if (
+            !formEtapa
+                .descripcion
+                .trim()
+        ) {
+            showMessage(
+                "warning",
+                "Debes ingresar una descripción para esta etapa."
+            );
+
+            return;
+        }
+
+        try {
+            setProcessingEtapaId(
+                etapa.id
+            );
+
+            await actualizarEtapaBitacora(
+                editId,
+                etapa.id,
+                {
+                    descripcion:
+                        formEtapa
+                            .descripcion
+                            .trim(),
+
+                    requiereRevision:
+                        formEtapa
+                            .requiereRevision,
+                }
+            );
+
+            const resultado =
+                await guardarCambiosEvidencias(
+                    editId,
+                    etapa.etapa
+                );
+
+            await cargarEtapasBitacora(
+                editId
+            );
+
+            if (
+                resultado.errores >
+                0
+            ) {
+                showMessage(
+                    "warning",
+                    `La etapa fue guardada, pero ${resultado.errores} operación(es) de evidencia fallaron.`
+                );
+
+                return;
+            }
+
+            limpiarCambiosEvidenciaEtapa(
+                etapa.etapa
+            );
+
+            showMessage(
+                "success",
+                "Etapa guardada correctamente."
+            );
+
+        } catch (
+        error
+        ) {
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setProcessingEtapaId(
+                null
+            );
+        }
+    }
+
+    async function handleCompletarEtapa(
+        etapa:
+            BitacoraEtapa
+    ) {
+        if (
+            !editId
+        ) {
+            return;
+        }
+
+        const formEtapa =
+            etapasForm[
+            etapa.etapa
+            ];
+
+        if (
+            !formEtapa
+                .descripcion
+                .trim()
+        ) {
+            showMessage(
+                "warning",
+                "Debes ingresar una descripción antes de completar la etapa."
+            );
+
+            return;
+        }
+
+        try {
+            setProcessingEtapaId(
+                etapa.id
+            );
+
+            await actualizarEtapaBitacora(
+                editId,
+                etapa.id,
+                {
+                    descripcion:
+                        formEtapa
+                            .descripcion
+                            .trim(),
+
+                    requiereRevision:
+                        false,
+                }
+            );
+
+            const resultadoEvidencias =
+                await guardarCambiosEvidencias(
+                    editId,
+                    etapa.etapa
+                );
+
+            if (
+                resultadoEvidencias.errores >
+                0
+            ) {
+                showMessage(
+                    "error",
+                    "No se completó la etapa porque algunas evidencias no pudieron guardarse."
+                );
+
+                await cargarEtapasBitacora(
+                    editId
+                );
+
+                return;
+            }
+
+            await completarEtapaBitacora(
+                editId,
+                etapa.id
+            );
+
+            limpiarCambiosEvidenciaEtapa(
+                etapa.etapa
+            );
+
+            await cargarEtapasBitacora(
+                editId
+            );
+
+            await cargarBitacoras();
+
+            showMessage(
+                "success",
+                "Etapa completada correctamente."
+            );
+        } catch (
+        error
+        ) {
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setProcessingEtapaId(
+                null
+            );
+        }
+    }
+
+    async function handleSolicitarRevision(
+        etapa:
+            BitacoraEtapa
+    ) {
+        if (
+            !editId
+        ) {
+            return;
+        }
+
+        const formEtapa =
+            etapasForm[
+            etapa.etapa
+            ];
+
+        if (
+            !formEtapa
+                .descripcion
+                .trim()
+        ) {
+            showMessage(
+                "warning",
+                "Debes ingresar una descripción antes de solicitar revisión."
+            );
+
+            return;
+        }
+
+        const aprobadorId =
+            Number(
+                formEtapa.aprobadorId
+            );
+
+        if (
+            !Number.isInteger(
+                aprobadorId
+            ) ||
+            aprobadorId <= 0
+        ) {
+            showMessage(
+                "warning",
+                "Debes seleccionar un usuario revisor."
+            );
+
+            return;
+        }
+
+        try {
+            setProcessingEtapaId(
+                etapa.id
+            );
+
+            await actualizarEtapaBitacora(
+                editId,
+                etapa.id,
+                {
+                    descripcion:
+                        formEtapa
+                            .descripcion
+                            .trim(),
+
+                    requiereRevision:
+                        true,
+                }
+            );
+
+            const resultadoEvidencias =
+                await guardarCambiosEvidencias(
+                    editId,
+                    etapa.etapa
+                );
+
+            if (
+                resultadoEvidencias.errores >
+                0
+            ) {
+                showMessage(
+                    "error",
+                    "No se solicitó la revisión porque algunas evidencias no pudieron guardarse."
+                );
+
+                await cargarEtapasBitacora(
+                    editId
+                );
+
+                return;
+            }
+
+            await solicitarRevisionEtapa(
+                editId,
+                etapa.id,
+                {
+                    aprobadorId,
+
+                    comentarioSolicitud:
+                        formEtapa
+                            .comentarioSolicitud
+                            .trim() ||
+                        undefined,
+                }
+            );
+
+            limpiarCambiosEvidenciaEtapa(
+                etapa.etapa
+            );
+
+            await cargarEtapasBitacora(
+                editId
+            );
+
+            showMessage(
+                "success",
+                "Revisión solicitada correctamente."
+            );
+        } catch (
+        error
+        ) {
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setProcessingEtapaId(
+                null
+            );
+        }
+    }
+
+    async function handleResponderRevision(
+        etapa:
+            BitacoraEtapa,
+        aprobacion:
+            BitacoraAprobacion,
+        aprobar:
+            boolean
+    ) {
+        if (
+            !editId
+        ) {
+            return;
+        }
+
+        try {
+            setProcessingEtapaId(
+                etapa.id
+            );
+
+            await responderRevisionEtapa(
+                editId,
+                etapa.id,
+                aprobacion.id,
+                {
+                    aprobar,
+
+                    comentarioRespuesta:
+                        comentarioRespuesta
+                            .trim() ||
+                        undefined,
+                }
+            );
+
+            setComentarioRespuesta(
+                ""
+            );
+
+            await cargarEtapasBitacora(
+                editId
+            );
+
+            await cargarBitacoras();
+
+            showMessage(
+                "success",
+                aprobar
+                    ? "Revisión aprobada correctamente."
+                    : "Revisión rechazada correctamente."
+            );
+        } catch (
+        error
+        ) {
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setProcessingEtapaId(
+                null
+            );
+        }
+    }
+
     /* =====================================================
        MODAL DETALLE
     ===================================================== */
@@ -1367,6 +2144,14 @@ export default function BitacoraTecnicoPage() {
             bitacora
         );
 
+        /*
+         * Limpiar datos del registro anterior
+         * antes de cargar el nuevo detalle.
+         */
+        setEtapasBitacora(
+            []
+        );
+
         setEvidenciasBitacora(
             []
         );
@@ -1375,7 +2160,14 @@ export default function BitacoraTecnicoPage() {
             true
         );
 
-        void cargarEvidenciasBitacora(
+        /*
+         * Las etapas ya incluyen:
+         * - evidencias
+         * - aprobaciones
+         * - estado
+         * - revisión
+         */
+        void cargarEtapasBitacora(
             bitacora.id
         );
     }
@@ -1387,6 +2179,10 @@ export default function BitacoraTecnicoPage() {
 
         setBitacoraSeleccionada(
             null
+        );
+
+        setEtapasBitacora(
+            []
         );
 
         setEvidenciasBitacora(
@@ -1857,9 +2653,6 @@ export default function BitacoraTecnicoPage() {
                 const updatePayload:
                     ActualizarBitacoraTecnicoPayload = {
                     ...payload,
-
-                    estado:
-                        form.estado,
                 };
 
                 const response =
@@ -1878,33 +2671,115 @@ export default function BitacoraTecnicoPage() {
 
                 bitacoraIdGuardada =
                     response.data.id;
+
+                const responseEtapas =
+                    await obtenerEtapasBitacora(
+                        bitacoraIdGuardada
+                    );
+
+                const etapaAntes =
+                    responseEtapas
+                        .data
+                        ?.find(
+                            etapa =>
+                                etapa.etapa ===
+                                "ANTES"
+                        );
+
+                if (
+                    !etapaAntes
+                ) {
+                    throw new Error(
+                        "No fue posible obtener la etapa inicial de la bitácora."
+                    );
+                }
+
+                const antesForm =
+                    etapasForm.ANTES;
+
+                if (
+                    !antesForm
+                        .descripcion
+                        .trim()
+                ) {
+                    throw new Error(
+                        "Debes registrar el diagnóstico o situación inicial."
+                    );
+                }
+
+                await actualizarEtapaBitacora(
+                    bitacoraIdGuardada,
+                    etapaAntes.id,
+                    {
+                        descripcion:
+                            antesForm
+                                .descripcion
+                                .trim(),
+
+                        requiereRevision:
+                            antesForm
+                                .requiereRevision,
+                    }
+                );
+
+                const resultadoEvidencias =
+                    await guardarCambiosEvidencias(
+                        bitacoraIdGuardada,
+                        "ANTES"
+                    );
+
+                if (
+                    resultadoEvidencias.errores >
+                    0
+                ) {
+                    throw new Error(
+                        "La bitácora fue creada, pero una o más evidencias iniciales no pudieron guardarse."
+                    );
+                }
+
+                if (
+                    antesForm
+                        .requiereRevision
+                ) {
+                    const aprobadorId =
+                        Number(
+                            antesForm
+                                .aprobadorId
+                        );
+
+                    if (
+                        !Number.isInteger(
+                            aprobadorId
+                        ) ||
+                        aprobadorId <= 0
+                    ) {
+                        throw new Error(
+                            "Debes seleccionar un revisor para la etapa Antes."
+                        );
+                    }
+
+                    await solicitarRevisionEtapa(
+                        bitacoraIdGuardada,
+                        etapaAntes.id,
+                        {
+                            aprobadorId,
+
+                            comentarioSolicitud:
+                                antesForm
+                                    .comentarioSolicitud
+                                    .trim() ||
+                                undefined,
+                        }
+                    );
+                }
             }
 
-            /*
-             * Después de crear/actualizar la bitácora,
-             * aplicar cambios multimedia.
-             */
-            const resultadoEvidencias =
-                await guardarCambiosEvidencias(
-                    bitacoraIdGuardada
-                );
-
-            if (
-                resultadoEvidencias.errores >
-                0
-            ) {
-                showMessage(
-                    "warning",
-                    `La bitácora fue guardada, pero ${resultadoEvidencias.errores} operación(es) de evidencia no pudieron completarse.`
-                );
-            } else {
-                showMessage(
-                    "success",
-                    editId
-                        ? "Bitácora actualizada correctamente."
-                        : "Bitácora registrada correctamente."
-                );
-            }
+            showMessage(
+                "success",
+                editId
+                    ? "Bitácora actualizada correctamente."
+                    : "Bitácora registrada correctamente."
+            );
 
             window.dispatchEvent(
                 new Event(
@@ -1917,6 +2792,10 @@ export default function BitacoraTecnicoPage() {
             );
 
             resetForm();
+
+            resetEvidenciasFormulario();
+
+            resetEtapasFormulario();
 
             await cargarBitacoras();
         } catch (
@@ -2285,6 +3164,8 @@ export default function BitacoraTecnicoPage() {
          */
         resetEvidenciasFormulario();
 
+        resetEtapasFormulario();
+
         /*
          * Cargar datos principales.
          */
@@ -2302,7 +3183,7 @@ export default function BitacoraTecnicoPage() {
         /*
          * Traer evidencia existente desde backend.
          */
-        void cargarEvidenciasBitacora(
+        void cargarEtapasBitacora(
             bitacora.id
         );
     }
@@ -2770,6 +3651,53 @@ export default function BitacoraTecnicoPage() {
                     onEliminarEvidenciaPendiente={
                         handleEliminarEvidenciaPendiente
                     }
+
+                    etapas={
+                        etapasBitacora
+                    }
+
+                    etapasForm={
+                        etapasForm
+                    }
+
+                    setEtapasForm={
+                        setEtapasForm
+                    }
+
+                    usuarioActualTecnicoId={
+                        Number(
+                            obtenerTecnicoAutenticadoId()
+                        ) ||
+                        null
+                    }
+
+                    processingEtapaId={
+                        processingEtapaId
+                    }
+
+                    comentarioRespuesta={
+                        comentarioRespuesta
+                    }
+
+                    setComentarioRespuesta={
+                        setComentarioRespuesta
+                    }
+
+                    onGuardarEtapa={
+                        handleGuardarEtapa
+                    }
+
+                    onCompletarEtapa={
+                        handleCompletarEtapa
+                    }
+
+                    onSolicitarRevision={
+                        handleSolicitarRevision
+                    }
+
+                    onResponderRevision={
+                        handleResponderRevision
+                    }
                 />
 
                 <BitacoraDetailModal
@@ -2781,8 +3709,16 @@ export default function BitacoraTecnicoPage() {
                         bitacoraSeleccionada
                     }
 
+                    etapas={
+                        etapasBitacora
+                    }
+
                     evidencias={
                         evidenciasBitacora
+                    }
+
+                    loadingEtapas={
+                        loadingEvidencias
                     }
 
                     loadingEvidencias={

@@ -3,12 +3,13 @@ import {
 } from "../../api/api";
 
 import type {
+    ActualizarBitacoraTecnicoPayload,
+    BitacoraEtapa,
     BitacoraEvidencia,
     BitacoraTecnico,
     CrearBitacoraTecnicoPayload,
-    ActualizarBitacoraTecnicoPayload,
+    EtapaBitacora,
     FiltrosBitacoraTecnico,
-    EtapaEvidenciaBitacora,
 } from "./bitacora.types";
 
 function buildQuery(
@@ -151,7 +152,7 @@ export async function obtenerEvidenciasBitacora(
 export async function subirEvidenciaBitacora(
     bitacoraId: number,
     etapa:
-        EtapaEvidenciaBitacora,
+        EtapaBitacora,
     archivo: File,
     descripcion?: string
 ) {
@@ -193,6 +194,107 @@ export async function eliminarEvidenciaBitacora(
     const res =
         await api.delete(
             `/bitacora-tecnico/${bitacoraId}/evidencias/${evidenciaId}`
+        );
+
+    return res.data;
+}
+
+export async function obtenerEtapasBitacora(
+    bitacoraId:
+        number
+): Promise<{
+    data:
+        BitacoraEtapa[];
+}> {
+    const res =
+        await api.get(
+            `/bitacora-tecnico/${bitacoraId}/etapas`
+        );
+
+    return res.data;
+}
+
+export async function actualizarEtapaBitacora(
+    bitacoraId:
+        number,
+
+    etapaId:
+        number,
+
+    payload: {
+        titulo?: string | null;
+
+        descripcion?: string | null;
+
+        requiereRevision?: boolean;
+    }
+) {
+    const res =
+        await api.patch(
+            `/bitacora-tecnico/${bitacoraId}/etapas/${etapaId}`,
+            payload
+        );
+
+    return res.data;
+}
+
+export async function completarEtapaBitacora(
+    bitacoraId:
+        number,
+
+    etapaId:
+        number
+) {
+    const res =
+        await api.post(
+            `/bitacora-tecnico/${bitacoraId}/etapas/${etapaId}/completar`
+        );
+
+    return res.data;
+}
+
+export async function solicitarRevisionEtapa(
+    bitacoraId:
+        number,
+
+    etapaId:
+        number,
+
+    payload: {
+        aprobadorId: number;
+
+        comentarioSolicitud?: string;
+    }
+) {
+    const res =
+        await api.post(
+            `/bitacora-tecnico/${bitacoraId}/etapas/${etapaId}/solicitar-revision`,
+            payload
+        );
+
+    return res.data;
+}
+
+export async function responderRevisionEtapa(
+    bitacoraId:
+        number,
+
+    etapaId:
+        number,
+
+    aprobacionId:
+        number,
+
+    payload: {
+        aprobar: boolean;
+
+        comentarioRespuesta?: string;
+    }
+) {
+    const res =
+        await api.post(
+            `/bitacora-tecnico/${bitacoraId}/etapas/${etapaId}/aprobaciones/${aprobacionId}/responder`,
+            payload
         );
 
     return res.data;

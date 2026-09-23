@@ -1,5 +1,6 @@
 export type TipoBitacoraTecnico =
     | "SOPORTE"
+    | "INSTALACIÓN"
     | "TERRENO"
     | "REMOTO"
     | "TALLER"
@@ -10,6 +11,7 @@ export type TipoBitacoraTecnico =
 
 export type EstadoBitacoraTecnico =
     | "REGISTRADA"
+    | "REVISADA"
     | "PENDIENTE_APROBACION"
     | "APROBADA"
     | "EN_PROCESO"
@@ -161,12 +163,14 @@ export interface BitacoraTecnico {
     } | null;
 
     evidencias?: BitacoraEvidencia[];
+
+    etapas?: BitacoraEtapa[];
+
+    eventos?: BitacoraEvento[];
 }
 
 export type EtapaEvidenciaBitacora =
-    | "ANTES"
-    | "EN_PROCESO"
-    | "DESPUES";
+    EtapaBitacora;
 
 export type TipoEvidenciaBitacora =
     | "IMAGEN"
@@ -178,6 +182,8 @@ export interface BitacoraEvidencia {
 
     etapa:
     EtapaEvidenciaBitacora;
+
+    etapaId?: number | null;
 
     tipo:
     TipoEvidenciaBitacora;
@@ -227,10 +233,7 @@ export interface CrearBitacoraTecnicoPayload {
     recordatorioAt?: string | null;
 }
 
-export interface ActualizarBitacoraTecnicoPayload
-    extends CrearBitacoraTecnicoPayload {
-    estado?: EstadoBitacoraTecnico;
-}
+export type ActualizarBitacoraTecnicoPayload = CrearBitacoraTecnicoPayload;
 
 export interface FiltrosBitacoraTecnico {
     fecha?: string;
@@ -345,3 +348,143 @@ export interface EvidenciaPendiente {
     previewUrl:
     string;
 }
+
+/* =====================================================
+   ETAPAS DE BITÁCORA
+===================================================== */
+
+export type EtapaBitacora =
+    | "ANTES"
+    | "EN_PROCESO"
+    | "DESPUES";
+
+export type EstadoEtapaBitacora =
+    | "PENDIENTE"
+    | "EN_PROCESO"
+    | "PENDIENTE_REVISION"
+    | "APROBADA"
+    | "RECHAZADA"
+    | "COMPLETADA";
+
+export type EstadoAprobacionBitacora =
+    | "PENDIENTE"
+    | "APROBADA"
+    | "RECHAZADA"
+    | "CANCELADA";
+
+export type TipoEventoBitacora =
+    | "CREADA"
+    | "ETAPA_INICIADA"
+    | "ETAPA_ACTUALIZADA"
+    | "ETAPA_COMPLETADA"
+    | "EVIDENCIA_AGREGADA"
+    | "EVIDENCIA_ELIMINADA"
+    | "REVISION_SOLICITADA"
+    | "REVISION_APROBADA"
+    | "REVISION_RECHAZADA"
+    | "REVISION_CANCELADA"
+    | "BITACORA_CERRADA"
+    | "BITACORA_ANULADA";
+
+export interface BitacoraAprobacion {
+    id: number;
+
+    bitacoraId: number;
+    etapaId: number;
+
+    estado:
+    EstadoAprobacionBitacora;
+
+    solicitadoPorId: number;
+    aprobadorId: number;
+
+    comentarioSolicitud?: string | null;
+    comentarioRespuesta?: string | null;
+
+    solicitadoAt: string;
+    respondidoAt?: string | null;
+
+    solicitadoPor?: {
+        id_tecnico: number;
+        nombre: string;
+        email?: string | null;
+    } | null;
+
+    aprobador?: {
+        id_tecnico: number;
+        nombre: string;
+        email?: string | null;
+    } | null;
+}
+
+export interface BitacoraEtapa {
+    id: number;
+
+    bitacoraId: number;
+
+    etapa:
+    EtapaBitacora;
+
+    estado:
+    EstadoEtapaBitacora;
+
+    titulo?: string | null;
+
+    descripcion?: string | null;
+
+    requiereRevision: boolean;
+
+    iniciadoAt?: string | null;
+    completadoAt?: string | null;
+
+    createdAt: string;
+    updatedAt: string;
+
+    evidencias:
+    BitacoraEvidencia[];
+
+    aprobaciones:
+    BitacoraAprobacion[];
+}
+
+export interface BitacoraEvento {
+    id: number;
+
+    bitacoraId: number;
+    etapaId?: number | null;
+
+    tipo:
+    TipoEventoBitacora;
+
+    actorId?: number | null;
+
+    descripcion?: string | null;
+
+    metadata?: unknown;
+
+    createdAt: string;
+
+    actor?: {
+        id_tecnico: number;
+        nombre: string;
+        email?: string | null;
+    } | null;
+
+    etapa?: BitacoraEtapa | null;
+}
+
+export interface BitacoraEtapaFormState {
+    descripcion: string;
+
+    requiereRevision: boolean;
+
+    aprobadorId: string;
+
+    comentarioSolicitud: string;
+}
+
+export type BitacoraEtapasFormState =
+    Record<
+        EtapaBitacora,
+        BitacoraEtapaFormState
+    >;

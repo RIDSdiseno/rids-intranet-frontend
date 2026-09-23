@@ -34,12 +34,14 @@ import {
 } from "./bitacora.helpers";
 
 import type {
+    BitacoraAprobacion,
+    BitacoraEtapa,
+    BitacoraEtapasFormState,
     BitacoraEvidencia,
     BitacoraFormState,
     EmpresaOption,
-    EtapaEvidenciaBitacora,
+    EtapaBitacora,
     EvidenciaPendiente,
-    EstadoBitacoraTecnico,
     FormErrors,
     OpcionRelacion,
     RelacionConfig,
@@ -49,6 +51,9 @@ import type {
 } from "./bitacora.types";
 
 import BitacoraEvidenciasTab from "./BitacoraEvidenciasTab";
+
+import BitacoraTimelineEtapas
+    from "./BitacoraTimelineEtapas";
 
 type Props = {
     open: boolean;
@@ -157,7 +162,7 @@ type Props = {
     onAgregarEvidencia:
     (
         etapa:
-            EtapaEvidenciaBitacora
+            EtapaBitacora
     ) => void;
 
     onMarcarEliminarEvidencia:
@@ -177,6 +182,62 @@ type Props = {
         idTemporal:
             string
     ) => void;
+
+    etapas:
+    BitacoraEtapa[];
+
+    etapasForm:
+    BitacoraEtapasFormState;
+
+    setEtapasForm:
+    Dispatch<
+        SetStateAction<
+            BitacoraEtapasFormState
+        >
+    >;
+
+    usuarioActualTecnicoId:
+    number | null;
+
+    processingEtapaId:
+    number | null;
+
+    comentarioRespuesta:
+    string;
+
+    setComentarioRespuesta:
+    (
+        value:
+            string
+    ) => void;
+
+    onGuardarEtapa:
+    (
+        etapa:
+            BitacoraEtapa
+    ) => Promise<void>;
+
+    onCompletarEtapa:
+    (
+        etapa:
+            BitacoraEtapa
+    ) => Promise<void>;
+
+    onSolicitarRevision:
+    (
+        etapa:
+            BitacoraEtapa
+    ) => Promise<void>;
+
+    onResponderRevision:
+    (
+        etapa:
+            BitacoraEtapa,
+        aprobacion:
+            BitacoraAprobacion,
+        aprobar:
+            boolean
+    ) => Promise<void>;
 };
 
 function FieldError({
@@ -221,6 +282,21 @@ export default function BitacoraFormModal({
     onMarcarEliminarEvidencia,
     onRestaurarEvidencia,
     onEliminarEvidenciaPendiente,
+    etapas,
+    etapasForm,
+    setEtapasForm,
+
+    usuarioActualTecnicoId,
+
+    processingEtapaId,
+
+    comentarioRespuesta,
+    setComentarioRespuesta,
+
+    onGuardarEtapa,
+    onCompletarEtapa,
+    onSolicitarRevision,
+    onResponderRevision,
 }: Props) {
     const titulo =
         editId
@@ -693,54 +769,6 @@ export default function BitacoraFormModal({
                     </div>
                 </div>
 
-                {editId && (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <div>
-                            <label
-                                className={
-                                    LABEL_BASE
-                                }
-                            >
-                                Estado
-                            </label>
-
-                            <Select
-                                value={
-                                    form.estado
-                                }
-                                onChange={(
-                                    value
-                                ) =>
-                                    setForm(
-                                        (
-                                            prev
-                                        ) => ({
-                                            ...prev,
-
-                                            estado:
-                                                value as EstadoBitacoraTecnico,
-                                        })
-                                    )
-                                }
-                                className="w-full"
-                                options={
-                                    ESTADOS.map(
-                                        (
-                                            estado
-                                        ) => ({
-                                            value:
-                                                estado,
-
-                                            label:
-                                                estado,
-                                        })
-                                    )
-                                }
-                            />
-                        </div>
-                    </div>
-                )}
-
                 <div>
                     <label
                         className={
@@ -780,8 +808,7 @@ export default function BitacoraFormModal({
                             LABEL_BASE
                         }
                     >
-                        Descripción de
-                        lo realizado
+                        Resumen General
                     </label>
 
                     <Input.TextArea
@@ -818,7 +845,7 @@ export default function BitacoraFormModal({
                         rows={
                             5
                         }
-                        placeholder="Describe lo realizado por el técnico durante el día..."
+                        placeholder="Describe brevemente el objetivo o contexto general de esta actividad..."
                         status={
                             formErrors.descripcion
                                 ? "error"
@@ -1058,61 +1085,91 @@ export default function BitacoraFormModal({
                     )}
                 </div>
 
-                {/* =====================================================
-    EVIDENCIAS
-===================================================== */}
+                <BitacoraTimelineEtapas
+                    bitacoraId={
+                        editId
+                    }
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-slate-900">
-                            Evidencias
-                        </h3>
+                    etapas={
+                        etapas
+                    }
 
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                            Adjunta fotografías o videos relacionados con la actividad.
-                            Los cambios se aplicarán cuando guardes la bitácora.
-                        </p>
-                    </div>
+                    etapasForm={
+                        etapasForm
+                    }
 
-                    <BitacoraEvidenciasTab
-                        evidencias={
-                            evidencias
-                        }
-                        pendientes={
-                            evidenciasPendientes
-                        }
-                        eliminadasIds={
-                            evidenciasAEliminar
-                        }
-                        loading={
-                            loadingEvidencias
-                        }
-                        editable
-                        etapasVisibles={
-                            editId
-                                ? [
-                                    "ANTES",
-                                    "EN_PROCESO",
-                                    "DESPUES",
-                                ]
-                                : [
-                                    "ANTES",
-                                ]
-                        }
-                        onAgregar={
-                            onAgregarEvidencia
-                        }
-                        onMarcarEliminar={
-                            onMarcarEliminarEvidencia
-                        }
-                        onRestaurar={
-                            onRestaurarEvidencia
-                        }
-                        onEliminarPendiente={
-                            onEliminarEvidenciaPendiente
-                        }
-                    />
-                </div>
+                    setEtapasForm={
+                        setEtapasForm
+                    }
+
+                    tecnicos={
+                        tecnicos
+                    }
+
+                    tecnicoResponsableId={
+                        form.tecnicoId
+                    }
+
+                    usuarioActualTecnicoId={
+                        usuarioActualTecnicoId
+                    }
+
+                    evidenciasPendientes={
+                        evidenciasPendientes
+                    }
+
+                    evidenciasAEliminar={
+                        evidenciasAEliminar
+                    }
+
+                    loadingEvidencias={
+                        loadingEvidencias
+                    }
+
+                    processingEtapaId={
+                        processingEtapaId
+                    }
+
+                    comentarioRespuesta={
+                        comentarioRespuesta
+                    }
+
+                    setComentarioRespuesta={
+                        setComentarioRespuesta
+                    }
+
+                    onAgregarEvidencia={
+                        onAgregarEvidencia
+                    }
+
+                    onMarcarEliminarEvidencia={
+                        onMarcarEliminarEvidencia
+                    }
+
+                    onRestaurarEvidencia={
+                        onRestaurarEvidencia
+                    }
+
+                    onEliminarEvidenciaPendiente={
+                        onEliminarEvidenciaPendiente
+                    }
+
+                    onGuardarEtapa={
+                        onGuardarEtapa
+                    }
+
+                    onCompletarEtapa={
+                        onCompletarEtapa
+                    }
+
+                    onSolicitarRevision={
+                        onSolicitarRevision
+                    }
+
+                    onResponderRevision={
+                        onResponderRevision
+                    }
+                />
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button
