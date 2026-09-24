@@ -51,6 +51,9 @@ type Props = {
         >
     >;
 
+    puedeEditar:
+    boolean;
+
     tecnicos:
     TecnicoOption[];
 
@@ -267,6 +270,7 @@ export default function BitacoraTimelineEtapas({
     tecnicos,
     tecnicoResponsableId,
     usuarioActualTecnicoId,
+    puedeEditar,
 
     evidenciasPendientes,
     evidenciasAEliminar,
@@ -340,18 +344,21 @@ export default function BitacoraTimelineEtapas({
                             bloqueadaBackend;
 
                         const editable =
-                            esCreacion
-                                ? etapaTipo ===
-                                "ANTES"
-                                : Boolean(
-                                    etapa &&
-                                    (
-                                        etapa.estado ===
-                                        "EN_PROCESO" ||
-                                        etapa.estado ===
-                                        "RECHAZADA"
+                            puedeEditar &&
+                            (
+                                esCreacion
+                                    ? etapaTipo ===
+                                    "ANTES"
+                                    : Boolean(
+                                        etapa &&
+                                        (
+                                            etapa.estado ===
+                                            "EN_PROCESO" ||
+                                            etapa.estado ===
+                                            "RECHAZADA"
+                                        )
                                     )
-                                );
+                            );
 
                         const formEtapa =
                             etapasForm[
@@ -476,8 +483,8 @@ export default function BitacoraTimelineEtapas({
                                             message={
                                                 etapaTipo ===
                                                     "EN_PROCESO"
-                                                    ? "Se habilitará cuando la etapa Antes sea completada o aprobada."
-                                                    : "Se habilitará cuando la etapa En proceso sea completada o aprobada."
+                                                    ? "Se habilitará cuando la etapa Antes sea completada."
+                                                    : "Se habilitará cuando la etapa En proceso sea completada."
                                             }
                                         />
                                     ) : (
@@ -651,24 +658,41 @@ export default function BitacoraTimelineEtapas({
                                                                     options={
                                                                         tecnicos
                                                                             .filter(
-                                                                                tecnico =>
-                                                                                    String(
-                                                                                        tecnico
-                                                                                            .id_tecnico
-                                                                                    ) !==
-                                                                                    tecnicoResponsableId
+                                                                                tecnico => {
+                                                                                    const tecnicoId =
+                                                                                        String(
+                                                                                            tecnico.id_tecnico
+                                                                                        );
+
+                                                                                    const responsableId =
+                                                                                        String(
+                                                                                            tecnicoResponsableId ??
+                                                                                            ""
+                                                                                        );
+
+                                                                                    const usuarioActualId =
+                                                                                        String(
+                                                                                            usuarioActualTecnicoId ??
+                                                                                            ""
+                                                                                        );
+
+                                                                                    return (
+                                                                                        tecnicoId !==
+                                                                                        responsableId &&
+                                                                                        tecnicoId !==
+                                                                                        usuarioActualId
+                                                                                    );
+                                                                                }
                                                                             )
                                                                             .map(
                                                                                 tecnico => ({
                                                                                     value:
                                                                                         String(
-                                                                                            tecnico
-                                                                                                .id_tecnico
+                                                                                            tecnico.id_tecnico
                                                                                         ),
 
                                                                                     label:
-                                                                                        tecnico
-                                                                                            .nombre,
+                                                                                        tecnico.nombre,
                                                                                 })
                                                                             )
                                                                     }
@@ -781,7 +805,7 @@ export default function BitacoraTimelineEtapas({
                                                                     }
                                                                 />
 
-                                                                <div className="flex flex-wrap justify-end gap-2">
+                                                                <div className="flex flex-wrap justify-end gap-2 pt-6">
                                                                     <Button
                                                                         danger
                                                                         loading={
@@ -840,58 +864,104 @@ export default function BitacoraTimelineEtapas({
                                                 )}
 
                                             {bitacoraId &&
-                                                etapa &&
-                                                editable && (
+                                                etapa && (
                                                     <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-                                                        <Button
-                                                            loading={
-                                                                processingEtapaId ===
-                                                                etapa.id
-                                                            }
-                                                            onClick={() =>
-                                                                void onGuardarEtapa(
-                                                                    etapa
-                                                                )
-                                                            }
-                                                        >
-                                                            Guardar etapa
-                                                        </Button>
+                                                        {/* ==========================================
+                ETAPA EDITABLE
+            ========================================== */}
 
-                                                        {formEtapa
-                                                            .requiereRevision ? (
+                                                        {editable && (
                                                             <Button
-                                                                type="primary"
-                                                                icon={
-                                                                    <SafetyCertificateOutlined />
-                                                                }
                                                                 loading={
                                                                     processingEtapaId ===
                                                                     etapa.id
                                                                 }
                                                                 onClick={() =>
-                                                                    void onSolicitarRevision(
+                                                                    void onGuardarEtapa(
                                                                         etapa
                                                                     )
                                                                 }
                                                             >
-                                                                Solicitar revisión
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                type="primary"
-                                                                loading={
-                                                                    processingEtapaId ===
-                                                                    etapa.id
-                                                                }
-                                                                onClick={() =>
-                                                                    void onCompletarEtapa(
-                                                                        etapa
-                                                                    )
-                                                                }
-                                                            >
-                                                                Completar etapa
+                                                                Guardar etapa
                                                             </Button>
                                                         )}
+
+                                                        {/* ==========================================
+                SOLICITAR REVISIÓN
+            ========================================== */}
+
+                                                        {editable &&
+                                                            formEtapa
+                                                                .requiereRevision && (
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={
+                                                                        <SafetyCertificateOutlined />
+                                                                    }
+                                                                    loading={
+                                                                        processingEtapaId ===
+                                                                        etapa.id
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void onSolicitarRevision(
+                                                                            etapa
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Solicitar revisión
+                                                                </Button>
+                                                            )}
+
+                                                        {/* ==========================================
+                COMPLETAR SIN REVISIÓN
+            ========================================== */}
+
+                                                        {puedeEditar &&
+                                                            etapa.estado ===
+                                                            "EN_PROCESO" &&
+                                                            !formEtapa
+                                                                .requiereRevision && (
+                                                                <Button
+                                                                    type="primary"
+                                                                    loading={
+                                                                        processingEtapaId ===
+                                                                        etapa.id
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void onCompletarEtapa(
+                                                                            etapa
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Completar etapa
+                                                                </Button>
+                                                            )}
+
+                                                        {/* ==========================================
+                COMPLETAR DESPUÉS DE APROBACIÓN
+            ========================================== */}
+
+                                                        {puedeEditar &&
+                                                            etapa.estado ===
+                                                            "APROBADA" && (
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={
+                                                                        <CheckCircleOutlined />
+                                                                    }
+                                                                    loading={
+                                                                        processingEtapaId ===
+                                                                        etapa.id
+                                                                    }
+                                                                    onClick={() =>
+                                                                        void onCompletarEtapa(
+                                                                            etapa
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Completar etapa
+                                                                </Button>
+                                                            )}
                                                     </div>
                                                 )}
                                         </div>

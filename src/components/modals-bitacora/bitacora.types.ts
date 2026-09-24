@@ -1,6 +1,6 @@
 export type TipoBitacoraTecnico =
     | "SOPORTE"
-    | "INSTALACIÓN"
+    | "INSTALACION"
     | "TERRENO"
     | "REMOTO"
     | "TALLER"

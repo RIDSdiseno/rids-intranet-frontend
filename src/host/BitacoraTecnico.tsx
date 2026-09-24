@@ -76,7 +76,6 @@ import {
     eliminarEvidenciaBitacora,
     obtenerBitacoraTecnicoPorId,
     obtenerBitacorasTecnico,
-    obtenerEvidenciasBitacora,
     obtenerEtapasBitacora,
     responderRevisionEtapa,
     solicitarRevisionEtapa,
@@ -170,6 +169,11 @@ type UiMessageType =
 
 type VistaBitacora =
     "resumen-diario";
+
+type ModoFormularioBitacora =
+    | "CREAR"
+    | "EDITAR"
+    | "REVISAR";
 
 interface UiMessage {
     type:
@@ -380,6 +384,14 @@ export default function BitacoraTecnicoPage() {
         setModalBitacoraOpen,
     ] =
         useState(false);
+
+    const [
+        modoFormulario,
+        setModoFormulario,
+    ] =
+        useState<ModoFormularioBitacora>(
+            "CREAR"
+        );
 
     const [
         saving,
@@ -660,12 +672,12 @@ export default function BitacoraTecnicoPage() {
         useState("");
 
     const [
-        archivoEvidencia,
-        setArchivoEvidencia,
+        archivosEvidencia,
+        setArchivosEvidencia,
     ] =
         useState<
-            File | null
-        >(null);
+            File[]
+        >([]);
 
     const [
         archivosUpload,
@@ -869,6 +881,75 @@ export default function BitacoraTecnicoPage() {
             : "";
     }
 
+    function getTecnicoActualId():
+        number | null {
+        const value =
+            Number(
+                obtenerTecnicoAutenticadoId()
+            );
+
+        return (
+            Number.isInteger(
+                value
+            ) &&
+            value > 0
+        )
+            ? value
+            : null;
+    }
+
+    function esUsuarioAdmin() {
+        return (
+            usuarioAutenticado?.rol ===
+            "ADMIN"
+        );
+    }
+
+    function puedeModificarBitacoraFront(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        const tecnicoActualId =
+            getTecnicoActualId();
+
+        return (
+            esUsuarioAdmin() ||
+            (
+                tecnicoActualId !==
+                null &&
+                tecnicoActualId ===
+                bitacora.tecnicoId
+            )
+        );
+    }
+
+    function tieneRevisionPendienteAsignada(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        const tecnicoActualId =
+            getTecnicoActualId();
+
+        if (
+            !tecnicoActualId
+        ) {
+            return false;
+        }
+
+        return Boolean(
+            bitacora.etapas?.some(
+                etapa =>
+                    etapa.aprobaciones?.some(
+                        aprobacion =>
+                            aprobacion.estado ===
+                            "PENDIENTE" &&
+                            aprobacion.aprobadorId ===
+                            tecnicoActualId
+                    )
+            )
+        );
+    }
+
     /* =====================================================
        RESET FORM
     ===================================================== */
@@ -983,8 +1064,8 @@ export default function BitacoraTecnicoPage() {
             []
         );
 
-        setArchivoEvidencia(
-            null
+        setArchivosEvidencia(
+            []
         );
 
         setArchivosUpload(
@@ -1043,6 +1124,14 @@ export default function BitacoraTecnicoPage() {
     ===================================================== */
 
     function abrirModalCrear() {
+        setUiMessage(
+            null
+        );
+
+        setModoFormulario(
+            "CREAR"
+        );
+
         resetForm();
 
         resetEvidenciasFormulario();
@@ -1067,6 +1156,10 @@ export default function BitacoraTecnicoPage() {
 
         setModalBitacoraOpen(
             false
+        );
+
+        setUiMessage(
+            null
         );
 
         resetForm();
@@ -1135,51 +1228,8 @@ export default function BitacoraTecnicoPage() {
     }
 
     /* =====================================================
-       EVIDENCIAS
+       ETAPAS
     ===================================================== */
-
-    async function cargarEvidenciasBitacora(
-        bitacoraId:
-            number
-    ) {
-        try {
-            setLoadingEvidencias(
-                true
-            );
-
-            const response =
-                await obtenerEvidenciasBitacora(
-                    bitacoraId
-                );
-
-            setEvidenciasBitacora(
-                response.data ??
-                []
-            );
-        } catch (
-        error
-        ) {
-            console.error(
-                "Error cargando evidencias:",
-                error
-            );
-
-            setEvidenciasBitacora(
-                []
-            );
-
-            showMessage(
-                "error",
-                getAxiosErrorMessage(
-                    error
-                )
-            );
-        } finally {
-            setLoadingEvidencias(
-                false
-            );
-        }
-    }
 
     async function cargarEtapasBitacora(
         bitacoraId:
@@ -1380,8 +1430,8 @@ export default function BitacoraTecnicoPage() {
             etapa
         );
 
-        setArchivoEvidencia(
-            null
+        setArchivosEvidencia(
+            []
         );
 
         setArchivosUpload(
@@ -1406,8 +1456,8 @@ export default function BitacoraTecnicoPage() {
             null
         );
 
-        setArchivoEvidencia(
-            null
+        setArchivosEvidencia(
+            []
         );
 
         setArchivosUpload(
@@ -1439,6 +1489,18 @@ export default function BitacoraTecnicoPage() {
 
     function handleAgregarEvidenciaPendiente() {
         if (
+            modoFormulario ===
+            "REVISAR"
+        ) {
+            showMessage(
+                "warning",
+                "El modo revisión no permite modificar evidencias."
+            );
+
+            return;
+        }
+
+        if (
             !etapaEvidenciaSeleccionada
         ) {
             showMessage(
@@ -1450,47 +1512,101 @@ export default function BitacoraTecnicoPage() {
         }
 
         if (
-            !archivoEvidencia
+            archivosEvidencia.length ===
+            0
         ) {
             showMessage(
                 "warning",
-                "Debes seleccionar una imagen o video."
+                "Debes seleccionar al menos una imagen o video."
             );
 
             return;
         }
 
-        const previewUrl =
-            URL.createObjectURL(
-                archivoEvidencia
+        const etapa =
+            etapaEvidenciaSeleccionada;
+
+        /*
+         * Evidencias ya existentes de la etapa,
+         * descontando las marcadas para eliminar.
+         */
+        const existentesActivas =
+            evidenciasBitacora.filter(
+                evidencia =>
+                    evidencia.etapa ===
+                    etapa &&
+                    !evidenciasAEliminar.includes(
+                        evidencia.id
+                    )
+            ).length;
+
+        /*
+         * Evidencias pendientes ya agregadas
+         * previamente a esta etapa.
+         */
+        const pendientesActuales =
+            evidenciasPendientes.filter(
+                evidencia =>
+                    evidencia.etapa ===
+                    etapa
+            ).length;
+
+        const totalFinal =
+            existentesActivas +
+            pendientesActuales +
+            archivosEvidencia.length;
+
+        if (
+            totalFinal >
+            10
+        ) {
+            const disponibles =
+                Math.max(
+                    0,
+                    10 -
+                    existentesActivas -
+                    pendientesActuales
+                );
+
+            showMessage(
+                "warning",
+                `Esta etapa admite un máximo de 10 evidencias. Puedes agregar ${disponibles} más.`
             );
 
-        const nuevaEvidencia:
-            EvidenciaPendiente = {
-            idTemporal:
-                `${Date.now()}-${Math.random()
-                    .toString(36)
-                    .slice(2, 10)}`,
+            return;
+        }
 
-            etapa:
-                etapaEvidenciaSeleccionada,
+        const nuevas:
+            EvidenciaPendiente[] =
+            archivosEvidencia.map(
+                (
+                    archivo,
+                    index
+                ) => ({
+                    idTemporal:
+                        `${Date.now()}-${index}-${Math.random()
+                            .toString(36)
+                            .slice(2, 10)}`,
 
-            archivo:
-                archivoEvidencia,
+                    etapa,
 
-            descripcion:
-                descripcionEvidencia.trim(),
+                    archivo,
 
-            previewUrl,
-        };
+                    descripcion:
+                        descripcionEvidencia.trim(),
+
+                    previewUrl:
+                        URL.createObjectURL(
+                            archivo
+                        ),
+                })
+            );
 
         setEvidenciasPendientes(
-            (
-                prev
-            ) => [
-                    ...prev,
-                    nuevaEvidencia,
-                ]
+            prev => [
+                ...prev,
+                ...nuevas,
+            ]
         );
 
         setModalEvidenciaOpen(
@@ -1501,8 +1617,8 @@ export default function BitacoraTecnicoPage() {
             null
         );
 
-        setArchivoEvidencia(
-            null
+        setArchivosEvidencia(
+            []
         );
 
         setArchivosUpload(
@@ -1861,54 +1977,97 @@ export default function BitacoraTecnicoPage() {
             return;
         }
 
+        /*
+         * Una etapa aprobada ya es inmutable.
+         * No debemos volver a hacer PATCH ni cambiar
+         * requiereRevision antes de completarla.
+         */
+        const esEtapaAprobada =
+            etapa.estado ===
+            "APROBADA";
+
+        /*
+         * La finalización directa solo es válida
+         * para EN_PROCESO sin revisión.
+         */
+        const esEtapaSinRevision =
+            etapa.estado ===
+            "EN_PROCESO" &&
+            !formEtapa.requiereRevision;
+
+        if (
+            !esEtapaAprobada &&
+            !esEtapaSinRevision
+        ) {
+            showMessage(
+                "warning",
+                "La etapa no se encuentra disponible para ser completada."
+            );
+
+            return;
+        }
+
         try {
             setProcessingEtapaId(
                 etapa.id
             );
 
-            await actualizarEtapaBitacora(
-                editId,
-                etapa.id,
-                {
-                    descripcion:
-                        formEtapa
-                            .descripcion
-                            .trim(),
-
-                    requiereRevision:
-                        false,
-                }
-            );
-
-            const resultadoEvidencias =
-                await guardarCambiosEvidencias(
+            /*
+             * Si está EN_PROCESO y no requiere revisión,
+             * todavía permitimos guardar descripción
+             * y evidencias antes de completar.
+             */
+            if (
+                esEtapaSinRevision
+            ) {
+                await actualizarEtapaBitacora(
                     editId,
+                    etapa.id,
+                    {
+                        descripcion:
+                            formEtapa
+                                .descripcion
+                                .trim(),
+
+                        requiereRevision:
+                            false,
+                    }
+                );
+
+                const resultadoEvidencias =
+                    await guardarCambiosEvidencias(
+                        editId,
+                        etapa.etapa
+                    );
+
+                if (
+                    resultadoEvidencias.errores >
+                    0
+                ) {
+                    showMessage(
+                        "error",
+                        "No se completó la etapa porque algunas evidencias no pudieron guardarse."
+                    );
+
+                    await cargarEtapasBitacora(
+                        editId
+                    );
+
+                    return;
+                }
+
+                limpiarCambiosEvidenciaEtapa(
                     etapa.etapa
                 );
-
-            if (
-                resultadoEvidencias.errores >
-                0
-            ) {
-                showMessage(
-                    "error",
-                    "No se completó la etapa porque algunas evidencias no pudieron guardarse."
-                );
-
-                await cargarEtapasBitacora(
-                    editId
-                );
-
-                return;
             }
 
+            /*
+             * Si está APROBADA, llegamos directamente aquí.
+             * La etapa no se vuelve a modificar.
+             */
             await completarEtapaBitacora(
                 editId,
                 etapa.id
-            );
-
-            limpiarCambiosEvidenciaEtapa(
-                etapa.etapa
             );
 
             await cargarEtapasBitacora(
@@ -2136,40 +2295,50 @@ export default function BitacoraTecnicoPage() {
        MODAL DETALLE
     ===================================================== */
 
-    function abrirModalVisualizar(
+    async function abrirModalVisualizar(
         bitacora:
             BitacoraTecnico
     ) {
-        setBitacoraSeleccionada(
-            bitacora
-        );
+        try {
+            setBitacoraSeleccionada(
+                bitacora
+            );
 
-        /*
-         * Limpiar datos del registro anterior
-         * antes de cargar el nuevo detalle.
-         */
-        setEtapasBitacora(
-            []
-        );
+            setModalVisualizarOpen(
+                true
+            );
 
-        setEvidenciasBitacora(
-            []
-        );
+            setLoadingEvidencias(
+                true
+            );
 
-        setModalVisualizarOpen(
-            true
-        );
+            const response =
+                await obtenerBitacoraTecnicoPorId(
+                    bitacora.id
+                );
 
-        /*
-         * Las etapas ya incluyen:
-         * - evidencias
-         * - aprobaciones
-         * - estado
-         * - revisión
-         */
-        void cargarEtapasBitacora(
-            bitacora.id
-        );
+            setBitacoraSeleccionada(
+                response.data
+            );
+        } catch (
+        error
+        ) {
+            console.error(
+                "Error cargando detalle de bitácora:",
+                error
+            );
+
+            showMessage(
+                "error",
+                getAxiosErrorMessage(
+                    error
+                )
+            );
+        } finally {
+            setLoadingEvidencias(
+                false
+            );
+        }
     }
 
     function cerrarModalVisualizar() {
@@ -2179,14 +2348,6 @@ export default function BitacoraTecnicoPage() {
 
         setBitacoraSeleccionada(
             null
-        );
-
-        setEtapasBitacora(
-            []
-        );
-
-        setEvidenciasBitacora(
-            []
         );
     }
 
@@ -2532,6 +2693,18 @@ export default function BitacoraTecnicoPage() {
         event.preventDefault();
 
         if (
+            modoFormulario ===
+            "REVISAR"
+        ) {
+            showMessage(
+                "warning",
+                "El modo revisión no permite modificar la bitácora."
+            );
+
+            return;
+        }
+
+        if (
             !validateForm()
         ) {
             showMessage(
@@ -2572,6 +2745,55 @@ export default function BitacoraTecnicoPage() {
             );
 
             return;
+        }
+
+        /*
+     * Validar workflow inicial ANTES
+     * de crear el registro en BD.
+     */
+        if (
+            !editId
+        ) {
+            const antesForm =
+                etapasForm.ANTES;
+
+            if (
+                !antesForm
+                    .descripcion
+                    .trim()
+            ) {
+                showMessage(
+                    "warning",
+                    "Debes registrar el diagnóstico o situación inicial."
+                );
+
+                return;
+            }
+
+            if (
+                antesForm
+                    .requiereRevision
+            ) {
+                const aprobadorId =
+                    Number(
+                        antesForm
+                            .aprobadorId
+                    );
+
+                if (
+                    !Number.isInteger(
+                        aprobadorId
+                    ) ||
+                    aprobadorId <= 0
+                ) {
+                    showMessage(
+                        "warning",
+                        "Debes seleccionar un revisor para la etapa Antes."
+                    );
+
+                    return;
+                }
+            }
         }
 
         try {
@@ -2697,15 +2919,6 @@ export default function BitacoraTecnicoPage() {
                 const antesForm =
                     etapasForm.ANTES;
 
-                if (
-                    !antesForm
-                        .descripcion
-                        .trim()
-                ) {
-                    throw new Error(
-                        "Debes registrar el diagnóstico o situación inicial."
-                    );
-                }
 
                 await actualizarEtapaBitacora(
                     bitacoraIdGuardada,
@@ -2746,17 +2959,6 @@ export default function BitacoraTecnicoPage() {
                             antesForm
                                 .aprobadorId
                         );
-
-                    if (
-                        !Number.isInteger(
-                            aprobadorId
-                        ) ||
-                        aprobadorId <= 0
-                    ) {
-                        throw new Error(
-                            "Debes seleccionar un revisor para la etapa Antes."
-                        );
-                    }
 
                     await solicitarRevisionEtapa(
                         bitacoraIdGuardada,
@@ -3159,30 +3361,81 @@ export default function BitacoraTecnicoPage() {
         bitacora:
             BitacoraTecnico
     ) {
-        /*
-         * Limpiar cualquier formulario anterior.
-         */
+        if (
+            !puedeModificarBitacoraFront(
+                bitacora
+            )
+        ) {
+            showMessage(
+                "warning",
+                "No tienes permisos para modificar esta bitácora."
+            );
+
+            return;
+        }
+
+        setUiMessage(
+            null
+        );
+
+        setModoFormulario(
+            "EDITAR"
+        );
+
         resetEvidenciasFormulario();
 
         resetEtapasFormulario();
 
-        /*
-         * Cargar datos principales.
-         */
         cargarFormularioEditar(
             bitacora
         );
 
-        /*
-         * Abrir modal inmediatamente.
-         */
         setModalBitacoraOpen(
             true
         );
 
-        /*
-         * Traer evidencia existente desde backend.
-         */
+        void cargarEtapasBitacora(
+            bitacora.id
+        );
+    }
+
+    function abrirModalRevisar(
+        bitacora:
+            BitacoraTecnico
+    ) {
+        if (
+            !tieneRevisionPendienteAsignada(
+                bitacora
+            )
+        ) {
+            showMessage(
+                "warning",
+                "No tienes una revisión pendiente asignada en esta bitácora."
+            );
+
+            return;
+        }
+
+        setUiMessage(
+            null
+        );
+
+        setModoFormulario(
+            "REVISAR"
+        );
+
+        resetEvidenciasFormulario();
+
+        resetEtapasFormulario();
+
+        cargarFormularioEditar(
+            bitacora
+        );
+
+        setModalBitacoraOpen(
+            true
+        );
+
         void cargarEtapasBitacora(
             bitacora.id
         );
@@ -3328,7 +3581,7 @@ export default function BitacoraTecnicoPage() {
                     if (
                         encontrada
                     ) {
-                        abrirModalVisualizar(
+                        await abrirModalVisualizar(
                             encontrada
                         );
 
@@ -3344,8 +3597,12 @@ export default function BitacoraTecnicoPage() {
                         !cancelado &&
                         response.data
                     ) {
-                        abrirModalVisualizar(
+                        setBitacoraSeleccionada(
                             response.data
+                        );
+
+                        setModalVisualizarOpen(
+                            true
                         );
                     }
                 } catch (
@@ -3526,30 +3783,29 @@ export default function BitacoraTecnicoPage() {
                     MENSAJE
                 ===================================================== */}
 
-                {uiMessage && (
-                    <div
-                        className={[
-                            "rounded-2xl border px-4 py-3 text-sm font-medium shadow-sm",
+                {uiMessage &&
+                    !modalBitacoraOpen && (
+                        <div
+                            className={[
+                                "rounded-2xl border px-4 py-3 text-sm font-medium shadow-sm",
 
-                            uiMessage.type ===
-                                "success"
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                : uiMessage.type ===
-                                    "error"
-                                    ? "border-red-200 bg-red-50 text-red-800"
+                                uiMessage.type ===
+                                    "success"
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                                     : uiMessage.type ===
-                                        "warning"
-                                        ? "border-amber-200 bg-amber-50 text-amber-800"
-                                        : "border-blue-200 bg-blue-50 text-blue-800",
-                        ].join(
-                            " "
-                        )}
-                    >
-                        {
-                            uiMessage.text
-                        }
-                    </div>
-                )}
+                                        "error"
+                                        ? "border-red-200 bg-red-50 text-red-800"
+                                        : uiMessage.type ===
+                                            "warning"
+                                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                                            : "border-blue-200 bg-blue-50 text-blue-800",
+                            ].join(
+                                " "
+                            )}
+                        >
+                            {uiMessage.text}
+                        </div>
+                    )}
 
                 {/* =====================================================
                     MODALES EXTERNOS
@@ -3564,8 +3820,25 @@ export default function BitacoraTecnicoPage() {
                         editId
                     }
 
+                    modo={
+                        modoFormulario
+                    }
+
+                    esAdmin={
+                        esUsuarioAdmin()
+                    }
+
+                    puedeEditar={
+                        modoFormulario !==
+                        "REVISAR"
+                    }
+
                     saving={
                         saving
+                    }
+
+                    uiMessage={
+                        uiMessage
                     }
 
                     form={
@@ -3618,10 +3891,6 @@ export default function BitacoraTecnicoPage() {
 
                     onCancel={
                         cerrarModalBitacora
-                    }
-
-                    evidencias={
-                        evidenciasBitacora
                     }
 
                     evidenciasPendientes={
@@ -3709,20 +3978,28 @@ export default function BitacoraTecnicoPage() {
                         bitacoraSeleccionada
                     }
 
-                    etapas={
-                        etapasBitacora
+                    puedeEditar={
+                        bitacoraSeleccionada
+                            ? puedeModificarBitacoraFront(
+                                bitacoraSeleccionada
+                            )
+                            : false
                     }
 
-                    evidencias={
-                        evidenciasBitacora
+                    puedeRevisar={
+                        bitacoraSeleccionada
+                            ? tieneRevisionPendienteAsignada(
+                                bitacoraSeleccionada
+                            )
+                            : false
                     }
 
-                    loadingEtapas={
-                        loadingEvidencias
-                    }
-
-                    loadingEvidencias={
-                        loadingEvidencias
+                    puedeModificarRecordatorio={
+                        bitacoraSeleccionada
+                            ? puedeModificarBitacoraFront(
+                                bitacoraSeleccionada
+                            )
+                            : false
                     }
 
                     onClose={
@@ -3732,6 +4009,16 @@ export default function BitacoraTecnicoPage() {
                     onEdit={
                         editarDesdeDetalle
                     }
+
+                    onReview={(
+                        bitacora
+                    ) => {
+                        cerrarModalVisualizar();
+
+                        abrirModalRevisar(
+                            bitacora
+                        );
+                    }}
 
                     onToggleRecordatorio={(
                         bitacora
@@ -3782,8 +4069,8 @@ export default function BitacoraTecnicoPage() {
                         false
                     }
 
-                    archivo={
-                        archivoEvidencia
+                    archivos={
+                        archivosEvidencia
                     }
 
                     fileList={
@@ -3794,8 +4081,8 @@ export default function BitacoraTecnicoPage() {
                         descripcionEvidencia
                     }
 
-                    onArchivoChange={
-                        setArchivoEvidencia
+                    onArchivosChange={
+                        setArchivosEvidencia
                     }
 
                     onFileListChange={
@@ -4369,27 +4656,31 @@ export default function BitacoraTecnicoPage() {
                                                                 )}
                                                             </span>
 
-                                                            <Button
-                                                                size="small"
-                                                                icon={
-                                                                    bitacora.recordatorioCompletado
-                                                                        ? (
-                                                                            <UndoOutlined />
-                                                                        )
-                                                                        : (
-                                                                            <CheckOutlined />
-                                                                        )
-                                                                }
-                                                                onClick={() =>
-                                                                    void handleCambiarEstadoRecordatorio(
-                                                                        bitacora
-                                                                    )
-                                                                }
-                                                            >
-                                                                {bitacora.recordatorioCompletado
-                                                                    ? "Reactivar"
-                                                                    : "Completar"}
-                                                            </Button>
+                                                            {puedeModificarBitacoraFront(
+                                                                bitacora
+                                                            ) && (
+                                                                    <Button
+                                                                        size="small"
+                                                                        icon={
+                                                                            bitacora.recordatorioCompletado
+                                                                                ? (
+                                                                                    <UndoOutlined />
+                                                                                )
+                                                                                : (
+                                                                                    <CheckOutlined />
+                                                                                )
+                                                                        }
+                                                                        onClick={() =>
+                                                                            void handleCambiarEstadoRecordatorio(
+                                                                                bitacora
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {bitacora.recordatorioCompletado
+                                                                            ? "Reactivar"
+                                                                            : "Completar"}
+                                                                    </Button>
+                                                                )}
                                                         </div>
                                                     )}
 
@@ -4401,48 +4692,54 @@ export default function BitacoraTecnicoPage() {
                                                                     <EyeOutlined />
                                                                 }
                                                                 onClick={() =>
-                                                                    abrirModalVisualizar(
+                                                                    void abrirModalVisualizar(
                                                                         bitacora
                                                                     )
                                                                 }
                                                             />
                                                         </Tooltip>
 
-                                                        <Tooltip title="Editar">
-                                                            <Button
-                                                                type="text"
-                                                                icon={
-                                                                    <EditOutlined />
-                                                                }
-                                                                onClick={() =>
-                                                                    abrirModalEditar(
-                                                                        bitacora
-                                                                    )
-                                                                }
-                                                            />
-                                                        </Tooltip>
+                                                        {puedeModificarBitacoraFront(
+                                                            bitacora
+                                                        ) && (
+                                                                <>
+                                                                    <Tooltip title="Editar">
+                                                                        <Button
+                                                                            type="text"
+                                                                            icon={
+                                                                                <EditOutlined />
+                                                                            }
+                                                                            onClick={() =>
+                                                                                abrirModalEditar(
+                                                                                    bitacora
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </Tooltip>
 
-                                                        <Popconfirm
-                                                            title="Eliminar bitácora"
-                                                            description="¿Seguro que deseas eliminar esta bitácora?"
-                                                            okText="Sí"
-                                                            cancelText="No"
-                                                            onConfirm={() =>
-                                                                void handleDelete(
-                                                                    bitacora.id
-                                                                )
-                                                            }
-                                                        >
-                                                            <Tooltip title="Eliminar">
-                                                                <Button
-                                                                    type="text"
-                                                                    danger
-                                                                    icon={
-                                                                        <DeleteOutlined />
-                                                                    }
-                                                                />
-                                                            </Tooltip>
-                                                        </Popconfirm>
+                                                                    <Popconfirm
+                                                                        title="Eliminar bitácora"
+                                                                        description="¿Seguro que deseas eliminar esta bitácora?"
+                                                                        okText="Sí"
+                                                                        cancelText="No"
+                                                                        onConfirm={() =>
+                                                                            void handleDelete(
+                                                                                bitacora.id
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Tooltip title="Eliminar">
+                                                                            <Button
+                                                                                type="text"
+                                                                                danger
+                                                                                icon={
+                                                                                    <DeleteOutlined />
+                                                                                }
+                                                                            />
+                                                                        </Tooltip>
+                                                                    </Popconfirm>
+                                                                </>
+                                                            )}
                                                     </div>
                                                 </article>
                                             )
@@ -4636,79 +4933,91 @@ export default function BitacoraTecnicoPage() {
 
                                                                 <td className="px-4 py-3">
                                                                     <div className="flex justify-end gap-2">
-                                                                        {bitacora.recordatorioAt && (
-                                                                            <Tooltip
-                                                                                title={
-                                                                                    bitacora.recordatorioCompletado
-                                                                                        ? "Reactivar recordatorio"
-                                                                                        : "Marcar recordatorio como completado"
-                                                                                }
-                                                                            >
-                                                                                <Button
-                                                                                    icon={
+                                                                        {bitacora.recordatorioAt &&
+                                                                            puedeModificarBitacoraFront(
+                                                                                bitacora
+                                                                            ) && (
+                                                                                <Tooltip
+                                                                                    title={
                                                                                         bitacora.recordatorioCompletado
-                                                                                            ? (
-                                                                                                <UndoOutlined />
-                                                                                            )
-                                                                                            : (
-                                                                                                <CheckOutlined />
-                                                                                            )
+                                                                                            ? "Reactivar recordatorio"
+                                                                                            : "Marcar recordatorio como completado"
                                                                                     }
-                                                                                    onClick={() =>
-                                                                                        void handleCambiarEstadoRecordatorio(
-                                                                                            bitacora
-                                                                                        )
-                                                                                    }
-                                                                                />
-                                                                            </Tooltip>
-                                                                        )}
+                                                                                >
+                                                                                    <Button
+                                                                                        icon={
+                                                                                            bitacora.recordatorioCompletado
+                                                                                                ? (
+                                                                                                    <UndoOutlined />
+                                                                                                )
+                                                                                                : (
+                                                                                                    <CheckOutlined />
+                                                                                                )
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            void handleCambiarEstadoRecordatorio(
+                                                                                                bitacora
+                                                                                            )
+                                                                                        }
+                                                                                    />
+                                                                                </Tooltip>
+                                                                            )}
 
                                                                         <Tooltip title="Visualizar">
                                                                             <Button
+                                                                                type="text"
                                                                                 icon={
                                                                                     <EyeOutlined />
                                                                                 }
                                                                                 onClick={() =>
-                                                                                    abrirModalVisualizar(
+                                                                                    void abrirModalVisualizar(
                                                                                         bitacora
                                                                                     )
                                                                                 }
                                                                             />
                                                                         </Tooltip>
 
-                                                                        <Tooltip title="Editar">
-                                                                            <Button
-                                                                                icon={
-                                                                                    <EditOutlined />
-                                                                                }
-                                                                                onClick={() =>
-                                                                                    abrirModalEditar(
-                                                                                        bitacora
-                                                                                    )
-                                                                                }
-                                                                            />
-                                                                        </Tooltip>
+                                                                        {puedeModificarBitacoraFront(
+                                                                            bitacora
+                                                                        ) && (
+                                                                                <>
+                                                                                    <Tooltip title="Editar">
+                                                                                        <Button
+                                                                                            type="text"
+                                                                                            icon={
+                                                                                                <EditOutlined />
+                                                                                            }
+                                                                                            onClick={() =>
+                                                                                                abrirModalEditar(
+                                                                                                    bitacora
+                                                                                                )
+                                                                                            }
+                                                                                        />
+                                                                                    </Tooltip>
 
-                                                                        <Popconfirm
-                                                                            title="Eliminar bitácora"
-                                                                            description="¿Seguro que deseas eliminar esta bitácora?"
-                                                                            okText="Sí"
-                                                                            cancelText="No"
-                                                                            onConfirm={() =>
-                                                                                void handleDelete(
-                                                                                    bitacora.id
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Tooltip title="Eliminar">
-                                                                                <Button
-                                                                                    danger
-                                                                                    icon={
-                                                                                        <DeleteOutlined />
-                                                                                    }
-                                                                                />
-                                                                            </Tooltip>
-                                                                        </Popconfirm>
+                                                                                    <Popconfirm
+                                                                                        title="Eliminar bitácora"
+                                                                                        description="¿Seguro que deseas eliminar esta bitácora?"
+                                                                                        okText="Sí"
+                                                                                        cancelText="No"
+                                                                                        onConfirm={() =>
+                                                                                            void handleDelete(
+                                                                                                bitacora.id
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        <Tooltip title="Eliminar">
+                                                                                            <Button
+                                                                                                type="text"
+                                                                                                danger
+                                                                                                icon={
+                                                                                                    <DeleteOutlined />
+                                                                                                }
+                                                                                            />
+                                                                                        </Tooltip>
+                                                                                    </Popconfirm>
+                                                                                </>
+                                                                            )}
                                                                     </div>
                                                                 </td>
                                                             </tr>

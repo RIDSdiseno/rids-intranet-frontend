@@ -201,28 +201,20 @@ export default function BitacoraEvidenciasTab({
                             }
                             className="rounded-2xl border border-slate-200 bg-white p-4"
                         >
-                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-semibold text-slate-900">
-                                            {
-                                                etapa.label
-                                            }
-                                        </h3>
+                            <div className="flex items-center gap-2 pb-4">
+                                <span
+                                    className={[
+                                        "rounded-full px-2.5 py-1 text-xs font-semibold",
 
-                                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                                            {
-                                                total
-                                            }
-                                        </span>
-                                    </div>
-
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        {
-                                            etapa.descripcion
-                                        }
-                                    </p>
-                                </div>
+                                        total >= 10
+                                            ? "bg-amber-100 text-amber-700"
+                                            : "bg-slate-100 text-slate-600",
+                                    ].join(
+                                        " "
+                                    )}
+                                >
+                                    {total} / 10
+                                </span>
 
                                 {editable &&
                                     onAgregar && (
@@ -231,13 +223,19 @@ export default function BitacoraEvidenciasTab({
                                             icon={
                                                 <UploadOutlined />
                                             }
+                                            disabled={
+                                                total >=
+                                                10
+                                            }
                                             onClick={() =>
                                                 onAgregar(
                                                     etapa.value
                                                 )
                                             }
                                         >
-                                            Agregar evidencia
+                                            {total >= 10
+                                                ? "Máximo alcanzado"
+                                                : "Agregar evidencias"}
                                         </Button>
                                     )}
                             </div>

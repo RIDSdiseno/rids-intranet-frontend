@@ -34,8 +34,8 @@ type Props = {
     saving:
     boolean;
 
-    archivo:
-    File | null;
+    archivos:
+    File[];
 
     fileList:
     UploadFile[];
@@ -43,10 +43,10 @@ type Props = {
     descripcion:
     string;
 
-    onArchivoChange:
+    onArchivosChange:
     (
-        file:
-            File | null
+        files:
+            File[]
     ) => void;
 
     onFileListChange:
@@ -103,10 +103,10 @@ export default function BitacoraEvidenciaUploadModal({
     open,
     etapa,
     saving,
-    archivo,
+    archivos,
     fileList,
     descripcion,
-    onArchivoChange,
+    onArchivosChange,
     onFileListChange,
     onDescripcionChange,
     onSave,
@@ -164,11 +164,9 @@ export default function BitacoraEvidenciaUploadModal({
                     <Upload.Dragger
                         accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
                         maxCount={
-                            1
+                            10
                         }
-                        multiple={
-                            false
-                        }
+                        multiple
                         fileList={
                             fileList
                         }
@@ -212,7 +210,6 @@ export default function BitacoraEvidenciaUploadModal({
                             ) {
                                 onMessage(
                                     "warning",
-
                                     imagen
                                         ? "La imagen no puede superar los 15 MB."
                                         : "El video no puede superar los 150 MB."
@@ -221,23 +218,83 @@ export default function BitacoraEvidenciaUploadModal({
                                 return Upload.LIST_IGNORE;
                             }
 
-                            onArchivoChange(
-                                file as File
-                            );
-
-                            onFileListChange([
-                                file,
-                            ]);
-
                             return false;
                         }}
-                        onRemove={() => {
-                            onArchivoChange(
-                                null
-                            );
+                        onChange={(
+                            info
+                        ) => {
+                            const nuevaLista =
+                                info.fileList.slice(
+                                    0,
+                                    10
+                                );
 
                             onFileListChange(
-                                []
+                                nuevaLista
+                            );
+
+                            const nuevosArchivos =
+                                nuevaLista
+                                    .map(
+                                        item =>
+                                            item.originFileObj
+                                    )
+                                    .filter(
+                                        (
+                                            file
+                                        ): file is NonNullable<
+                                            typeof file
+                                        > =>
+                                            Boolean(
+                                                file
+                                            )
+                                    )
+                                    .map(
+                                        file =>
+                                            file as File
+                                    );
+
+                            onArchivosChange(
+                                nuevosArchivos
+                            );
+                        }}
+                        onRemove={(
+                            file
+                        ) => {
+                            const nuevaLista =
+                                fileList.filter(
+                                    item =>
+                                        item.uid !==
+                                        file.uid
+                                );
+
+                            onFileListChange(
+                                nuevaLista
+                            );
+
+                            const nuevosArchivos =
+                                nuevaLista
+                                    .map(
+                                        item =>
+                                            item.originFileObj
+                                    )
+                                    .filter(
+                                        (
+                                            archivo
+                                        ): archivo is NonNullable<
+                                            typeof archivo
+                                        > =>
+                                            Boolean(
+                                                archivo
+                                            )
+                                    )
+                                    .map(
+                                        archivo =>
+                                            archivo as File
+                                    );
+
+                            onArchivosChange(
+                                nuevosArchivos
                             );
 
                             return true;
@@ -248,15 +305,13 @@ export default function BitacoraEvidenciaUploadModal({
                         </p>
 
                         <p className="ant-upload-text">
-                            Selecciona o
-                            arrastra una
-                            imagen o video
+                            Selecciona o arrastra
+                            hasta 10 imágenes o videos
                         </p>
 
                         <p className="ant-upload-hint">
-                            JPG, PNG,
-                            WEBP, MP4,
-                            WEBM o MOV.
+                            JPG, PNG, WEBP, MP4,
+                            WEBM o MOV. Máximo 10 archivos.
                         </p>
                     </Upload.Dragger>
                 </div>
@@ -333,7 +388,8 @@ export default function BitacoraEvidenciaUploadModal({
                             saving
                         }
                         disabled={
-                            !archivo ||
+                            archivos.length ===
+                            0 ||
                             !etapa ||
                             saving
                         }
@@ -341,7 +397,7 @@ export default function BitacoraEvidenciaUploadModal({
                             onSave
                         }
                     >
-                        Agregar al formulario
+                        Agregar Evidencias
                     </Button>
                 </div>
             </div>

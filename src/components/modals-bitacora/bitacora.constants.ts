@@ -10,7 +10,7 @@ export const CHILE_TZ =
 export const TIPOS_ACTIVIDAD:
     TipoBitacoraTecnico[] = [
         "SOPORTE",
-        "INSTALACIÓN",
+        "INSTALACION",
         "TERRENO",
         "REMOTO",
         "TALLER",

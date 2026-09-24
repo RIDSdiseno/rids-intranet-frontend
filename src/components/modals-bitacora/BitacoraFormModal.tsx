@@ -16,13 +16,13 @@ import {
     Input,
     Modal,
     Select,
+    Alert
 } from "antd";
 
 import dayjs from "dayjs";
 
 import {
     CHILE_TZ,
-    ESTADOS,
     LABEL_BASE,
     RELACIONES_CONFIG,
     TIPOS_ACTIVIDAD,
@@ -50,10 +50,20 @@ import type {
     TipoBitacoraTecnico,
 } from "./bitacora.types";
 
-import BitacoraEvidenciasTab from "./BitacoraEvidenciasTab";
 
 import BitacoraTimelineEtapas
     from "./BitacoraTimelineEtapas";
+
+type UiMessage = {
+    type:
+    | "success"
+    | "error"
+    | "warning"
+    | "info";
+
+    text:
+    string;
+};
 
 type Props = {
     open: boolean;
@@ -61,8 +71,22 @@ type Props = {
     editId:
     number | null;
 
+    modo:
+    | "CREAR"
+    | "EDITAR"
+    | "REVISAR";
+
+    esAdmin:
+    boolean;
+
+    puedeEditar:
+    boolean;
+
     saving:
     boolean;
+
+    uiMessage:
+    UiMessage | null;
 
     form:
     BitacoraFormState;
@@ -146,9 +170,6 @@ type Props = {
 
     onCancel:
     () => void;
-
-    evidencias:
-    BitacoraEvidencia[];
 
     evidenciasPendientes:
     EvidenciaPendiente[];
@@ -259,7 +280,11 @@ function FieldError({
 export default function BitacoraFormModal({
     open,
     editId,
+    modo,
+    esAdmin,
+    puedeEditar,
     saving,
+    uiMessage,
     form,
     setForm,
     tecnicos,
@@ -274,7 +299,6 @@ export default function BitacoraFormModal({
     onSubmit,
     onCancel,
 
-    evidencias,
     evidenciasPendientes,
     evidenciasAEliminar,
     loadingEvidencias,
@@ -299,9 +323,13 @@ export default function BitacoraFormModal({
     onResponderRevision,
 }: Props) {
     const titulo =
-        editId
-            ? "Editar bitácora"
-            : "Nueva bitácora";
+        modo ===
+            "REVISAR"
+            ? "Revisar bitácora"
+            : modo ===
+                "EDITAR"
+                ? "Editar bitácora"
+                : "Nueva bitácora";
 
     function renderRelacionSelect(
         config:
@@ -349,6 +377,7 @@ export default function BitacoraFormModal({
                         value
                     }
                     disabled={
+                        !puedeEditar ||
                         !empresaSeleccionada
                     }
                     loading={
@@ -497,6 +526,28 @@ export default function BitacoraFormModal({
                 }
                 className="mt-4 space-y-5"
             >
+                {uiMessage && (
+                    <Alert
+                        type={
+                            uiMessage.type
+                        }
+                        showIcon
+                        message={
+                            uiMessage.text
+                        }
+                        className="rounded-xl"
+                    />
+                )}
+                {modo ===
+                    "REVISAR" && (
+                        <Alert
+                            type="info"
+                            showIcon
+                            message="Modo revisión"
+                            description="Puedes revisar la información y responder la solicitud asignada. El contenido de la bitácora no puede modificarse."
+                            className="rounded-xl"
+                        />
+                    )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <div>
                         <label
@@ -515,6 +566,9 @@ export default function BitacoraFormModal({
                                         CHILE_TZ
                                     )
                                     : null
+                            }
+                            disabled={
+                                !puedeEditar
                             }
                             onChange={(
                                 date
@@ -558,11 +612,46 @@ export default function BitacoraFormModal({
                                 form.tecnicoId ||
                                 undefined
                             }
-                            disabled
-                            placeholder="Técnico autenticado"
+
+                            disabled={
+                                !puedeEditar ||
+                                !esAdmin
+                            }
+
+                            onChange={(
+                                value
+                            ) => {
+                                setForm(
+                                    prev => ({
+                                        ...prev,
+
+                                        tecnicoId:
+                                            String(
+                                                value
+                                            ),
+                                    })
+                                );
+
+                                setFormErrors(
+                                    prev => ({
+                                        ...prev,
+
+                                        tecnicoId:
+                                            undefined,
+                                    })
+                                );
+                            }}
+
+                            placeholder={
+                                esAdmin
+                                    ? "Seleccionar técnico"
+                                    : "Técnico autenticado"
+                            }
+
                             showSearch
                             optionFilterProp="label"
                             className="w-full"
+
                             status={
                                 formErrors.tecnicoId
                                     ? "error"
@@ -617,6 +706,9 @@ export default function BitacoraFormModal({
                             value={
                                 form.empresaId ||
                                 undefined
+                            }
+                            disabled={
+                                !puedeEditar
                             }
                             onChange={(
                                 value
@@ -737,6 +829,9 @@ export default function BitacoraFormModal({
                             value={
                                 form.tipoActividad
                             }
+                            disabled={
+                                !puedeEditar
+                            }
                             onChange={(
                                 value
                             ) =>
@@ -782,6 +877,9 @@ export default function BitacoraFormModal({
                         value={
                             form.titulo
                         }
+                        disabled={
+                            !puedeEditar
+                        }
                         onChange={(
                             event
                         ) =>
@@ -814,6 +912,9 @@ export default function BitacoraFormModal({
                     <Input.TextArea
                         value={
                             form.descripcion
+                        }
+                        disabled={
+                            !puedeEditar
                         }
                         onChange={(
                             event
@@ -905,6 +1006,9 @@ export default function BitacoraFormModal({
                                     form.recordatorioAt
                                 )
                                 : null
+                        }
+                        disabled={
+                            !puedeEditar
                         }
                         onChange={(
                             value
@@ -1090,6 +1194,10 @@ export default function BitacoraFormModal({
                         editId
                     }
 
+                    puedeEditar={
+                        puedeEditar
+                    }
+
                     etapas={
                         etapas
                     }
@@ -1180,20 +1288,26 @@ export default function BitacoraFormModal({
                             saving
                         }
                     >
-                        Cancelar
+                        {modo ===
+                            "REVISAR"
+                            ? "Cerrar"
+                            : "Cancelar"}
                     </Button>
 
-                    <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={
-                            saving
-                        }
-                    >
-                        {editId
-                            ? "Actualizar bitácora"
-                            : "Guardar bitácora"}
-                    </Button>
+                    {puedeEditar && (
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={
+                                saving
+                            }
+                        >
+                            {modo ===
+                                "EDITAR"
+                                ? "Actualizar bitácora"
+                                : "Guardar bitácora"}
+                        </Button>
+                    )}
                 </div>
             </form>
         </Modal>
