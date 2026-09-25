@@ -601,8 +601,8 @@ export default function BitacoraTecnicoPage() {
             requiereRevision:
                 false,
 
-            aprobadorId:
-                "",
+            aprobadoresIds:
+                [],
 
             comentarioSolicitud:
                 "",
@@ -615,8 +615,8 @@ export default function BitacoraTecnicoPage() {
             requiereRevision:
                 false,
 
-            aprobadorId:
-                "",
+            aprobadoresIds:
+                [],
 
             comentarioSolicitud:
                 "",
@@ -629,8 +629,8 @@ export default function BitacoraTecnicoPage() {
             requiereRevision:
                 false,
 
-            aprobadorId:
-                "",
+            aprobadoresIds:
+                [],
 
             comentarioSolicitud:
                 "",
@@ -1303,17 +1303,21 @@ export default function BitacoraTecnicoPage() {
                             ?.requiereRevision ??
                         false,
 
-                    aprobadorId:
+                    aprobadoresIds:
                         antes
                             ?.aprobaciones
-                            ?.find(
+                            ?.filter(
                                 item =>
                                     item.estado ===
                                     "PENDIENTE"
                             )
-                            ?.aprobadorId
-                            ?.toString() ??
-                        "",
+                            .map(
+                                item =>
+                                    String(
+                                        item.aprobadorId
+                                    )
+                            ) ??
+                        [],
 
                     comentarioSolicitud:
                         antes
@@ -1338,17 +1342,21 @@ export default function BitacoraTecnicoPage() {
                             ?.requiereRevision ??
                         false,
 
-                    aprobadorId:
+                    aprobadoresIds:
                         enProceso
                             ?.aprobaciones
-                            ?.find(
+                            ?.filter(
                                 item =>
                                     item.estado ===
                                     "PENDIENTE"
                             )
-                            ?.aprobadorId
-                            ?.toString() ??
-                        "",
+                            .map(
+                                item =>
+                                    String(
+                                        item.aprobadorId
+                                    )
+                            ) ??
+                        [],
 
                     comentarioSolicitud:
                         enProceso
@@ -1373,17 +1381,21 @@ export default function BitacoraTecnicoPage() {
                             ?.requiereRevision ??
                         false,
 
-                    aprobadorId:
+                    aprobadoresIds:
                         despues
                             ?.aprobaciones
-                            ?.find(
+                            ?.filter(
                                 item =>
                                     item.estado ===
                                     "PENDIENTE"
                             )
-                            ?.aprobadorId
-                            ?.toString() ??
-                        "",
+                            .map(
+                                item =>
+                                    String(
+                                        item.aprobadorId
+                                    )
+                            ) ??
+                        [],
 
                     comentarioSolicitud:
                         despues
@@ -2124,20 +2136,46 @@ export default function BitacoraTecnicoPage() {
             return;
         }
 
-        const aprobadorId =
-            Number(
-                formEtapa.aprobadorId
-            );
+        const aprobadoresIds =
+            [
+                ...new Set(
+                    formEtapa
+                        .aprobadoresIds
+                        .map(
+                            value =>
+                                Number(
+                                    value
+                                )
+                        )
+                        .filter(
+                            value =>
+                                Number.isInteger(
+                                    value
+                                ) &&
+                                value > 0
+                        )
+                ),
+            ];
 
         if (
-            !Number.isInteger(
-                aprobadorId
-            ) ||
-            aprobadorId <= 0
+            aprobadoresIds.length <
+            1
         ) {
             showMessage(
                 "warning",
-                "Debes seleccionar un usuario revisor."
+                "Debes seleccionar al menos un usuario revisor."
+            );
+
+            return;
+        }
+
+        if (
+            aprobadoresIds.length >
+            4
+        ) {
+            showMessage(
+                "warning",
+                "Puedes seleccionar un máximo de 4 revisores."
             );
 
             return;
@@ -2188,7 +2226,7 @@ export default function BitacoraTecnicoPage() {
                 editId,
                 etapa.id,
                 {
-                    aprobadorId,
+                    aprobadoresIds,
 
                     comentarioSolicitud:
                         formEtapa
@@ -2208,7 +2246,10 @@ export default function BitacoraTecnicoPage() {
 
             showMessage(
                 "success",
-                "Revisión solicitada correctamente."
+                aprobadoresIds.length ===
+                    1
+                    ? "Revisión solicitada correctamente."
+                    : `Revisión solicitada correctamente a ${aprobadoresIds.length} revisores.`
             );
         } catch (
         error
@@ -2774,21 +2815,49 @@ export default function BitacoraTecnicoPage() {
                 antesForm
                     .requiereRevision
             ) {
-                const aprobadorId =
-                    Number(
-                        antesForm
-                            .aprobadorId
-                    );
+                const aprobadoresIds =
+                    antesForm
+                        .aprobadoresIds
+                        .map(
+                            value =>
+                                Number(
+                                    value
+                                )
+                        )
+                        .filter(
+                            value =>
+                                Number.isInteger(
+                                    value
+                                ) &&
+                                value > 0
+                        );
+
+                const aprobadoresUnicos =
+                    [
+                        ...new Set(
+                            aprobadoresIds
+                        ),
+                    ];
 
                 if (
-                    !Number.isInteger(
-                        aprobadorId
-                    ) ||
-                    aprobadorId <= 0
+                    aprobadoresUnicos.length <
+                    1
                 ) {
                     showMessage(
                         "warning",
-                        "Debes seleccionar un revisor para la etapa Antes."
+                        "Debes seleccionar al menos un revisor para la etapa Antes."
+                    );
+
+                    return;
+                }
+
+                if (
+                    aprobadoresUnicos.length >
+                    4
+                ) {
+                    showMessage(
+                        "warning",
+                        "Puedes seleccionar un máximo de 4 revisores."
                     );
 
                     return;
@@ -2954,17 +3023,32 @@ export default function BitacoraTecnicoPage() {
                     antesForm
                         .requiereRevision
                 ) {
-                    const aprobadorId =
-                        Number(
-                            antesForm
-                                .aprobadorId
-                        );
+                    const aprobadoresIds =
+                        [
+                            ...new Set(
+                                antesForm
+                                    .aprobadoresIds
+                                    .map(
+                                        value =>
+                                            Number(
+                                                value
+                                            )
+                                    )
+                                    .filter(
+                                        value =>
+                                            Number.isInteger(
+                                                value
+                                            ) &&
+                                            value > 0
+                                    )
+                            ),
+                        ];
 
                     await solicitarRevisionEtapa(
                         bitacoraIdGuardada,
                         etapaAntes.id,
                         {
-                            aprobadorId,
+                            aprobadoresIds,
 
                             comentarioSolicitud:
                                 antesForm

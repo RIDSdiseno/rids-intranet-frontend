@@ -204,7 +204,7 @@ export async function obtenerEtapasBitacora(
         number
 ): Promise<{
     data:
-        BitacoraEtapa[];
+    BitacoraEtapa[];
 }> {
     const res =
         await api.get(
@@ -261,9 +261,11 @@ export async function solicitarRevisionEtapa(
         number,
 
     payload: {
-        aprobadorId: number;
+        aprobadoresIds:
+        number[];
 
-        comentarioSolicitud?: string;
+        comentarioSolicitud?:
+        string;
     }
 ) {
     const res =

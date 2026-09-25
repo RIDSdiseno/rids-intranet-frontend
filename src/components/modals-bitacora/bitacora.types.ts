@@ -392,6 +392,9 @@ export interface BitacoraAprobacion {
     bitacoraId: number;
     etapaId: number;
 
+    solicitudRevisionId?:
+    string | null;
+
     estado:
     EstadoAprobacionBitacora;
 
@@ -478,7 +481,8 @@ export interface BitacoraEtapaFormState {
 
     requiereRevision: boolean;
 
-    aprobadorId: string;
+    aprobadoresIds:
+    string[];
 
     comentarioSolicitud: string;
 }
