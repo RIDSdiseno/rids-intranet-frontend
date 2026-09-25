@@ -1,15 +1,22 @@
 // src/components/modals-bitacora/BitacoraDetailModal.tsx
 
 import {
+    useEffect,
+    useState,
+} from "react";
+
+import {
     BellOutlined,
     CheckCircleOutlined,
     CheckOutlined,
     ClockCircleOutlined,
     CloseCircleOutlined,
+    DownOutlined,
     EditOutlined,
     FileImageOutlined,
     HistoryOutlined,
     LockOutlined,
+    RightOutlined,
     SafetyCertificateOutlined,
     UndoOutlined,
 } from "@ant-design/icons";
@@ -465,6 +472,20 @@ export default function BitacoraDetailModal({
                                                 bitacora.estado
                                             }
                                         />
+
+                                        <InfoBox
+                                            label="Seguimiento"
+                                            value={
+                                                bitacora.usaEtapas
+                                                    ? "Por etapas"
+                                                    : "Registro simple"
+                                            }
+                                            valueClassName={
+                                                bitacora.usaEtapas
+                                                    ? "text-cyan-700"
+                                                    : "text-slate-700"
+                                            }
+                                        />
                                     </div>
 
                                     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -624,33 +645,37 @@ export default function BitacoraDetailModal({
                            DESARROLLO
                         ===================================================== */
 
-                        {
-                            key:
-                                "desarrollo",
+                        ...(bitacora.usaEtapas
+                            ? [
+                                {
+                                    key:
+                                        "desarrollo",
 
-                            label: (
-                                <span>
-                                    Desarrollo
+                                    label: (
+                                        <span>
+                                            Desarrollo
 
-                                    {totalEvidencias >
-                                        0 && (
-                                            <span className="ml-2 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-700">
-                                                {
-                                                    totalEvidencias
-                                                }
-                                            </span>
-                                        )}
-                                </span>
-                            ),
+                                            {totalEvidencias >
+                                                0 && (
+                                                    <span className="ml-2 rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-700">
+                                                        {
+                                                            totalEvidencias
+                                                        }
+                                                    </span>
+                                                )}
+                                        </span>
+                                    ),
 
-                            children: (
-                                <DesarrolloBitacora
-                                    etapas={
-                                        etapas
-                                    }
-                                />
-                            ),
-                        },
+                                    children: (
+                                        <DesarrolloBitacora
+                                            etapas={
+                                                etapas
+                                            }
+                                        />
+                                    ),
+                                },
+                            ]
+                            : []),
 
                         /* =====================================================
                            HISTORIAL
@@ -702,6 +727,96 @@ function DesarrolloBitacora({
     etapas:
     BitacoraEtapa[];
 }) {
+    const [
+        etapasAbiertas,
+        setEtapasAbiertas,
+    ] =
+        useState<
+            EtapaBitacora[]
+        >([]);
+
+    function toggleEtapa(
+        etapa:
+            EtapaBitacora
+    ) {
+        setEtapasAbiertas(
+            prev =>
+                prev.includes(
+                    etapa
+                )
+                    ? prev.filter(
+                        item =>
+                            item !==
+                            etapa
+                    )
+                    : [
+                        ...prev,
+                        etapa,
+                    ]
+        );
+    }
+
+    useEffect(
+        () => {
+            if (
+                etapas.length ===
+                0
+            ) {
+                setEtapasAbiertas(
+                    []
+                );
+
+                return;
+            }
+
+            const etapaPrincipal =
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "RECHAZADA"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "PENDIENTE_REVISION"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "EN_PROCESO"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "APROBADA"
+                );
+
+            if (
+                etapaPrincipal
+            ) {
+                setEtapasAbiertas(
+                    [
+                        etapaPrincipal
+                            .etapa,
+                    ]
+                );
+
+                return;
+            }
+
+            /*
+             * Si todas las etapas están completadas,
+             * se muestran inicialmente cerradas.
+             */
+            setEtapasAbiertas(
+                []
+            );
+        },
+        [
+            etapas,
+        ]
+    );
+
     if (
         etapas.length ===
         0
@@ -726,6 +841,17 @@ function DesarrolloBitacora({
                                 item.etapa ===
                                 etapaTipo
                         );
+
+                    const estaAbierta =
+                        etapasAbiertas.includes(
+                            etapaTipo
+                        );
+
+                    const totalEvidenciasEtapa =
+                        etapa
+                            ?.evidencias
+                            ?.length ??
+                        0;
 
                     return (
                         <div
@@ -762,13 +888,39 @@ function DesarrolloBitacora({
                             </div>
 
                             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                        <h3 className="font-semibold text-slate-900">
-                                            {getEtapaLabel(
-                                                etapaTipo
-                                            )}
-                                        </h3>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        toggleEtapa(
+                                            etapaTipo
+                                        )
+                                    }
+                                    className="flex w-full items-start justify-between gap-3 text-left"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="font-semibold text-slate-900">
+                                                {getEtapaLabel(
+                                                    etapaTipo
+                                                )}
+                                            </h3>
+
+                                            {etapa &&
+                                                getEstadoEtapaTag(
+                                                    etapa.estado
+                                                )}
+
+                                            {totalEvidenciasEtapa >
+                                                0 && (
+                                                    <Tag>
+                                                        {totalEvidenciasEtapa} evidencia
+                                                        {totalEvidenciasEtapa !==
+                                                            1
+                                                            ? "s"
+                                                            : ""}
+                                                    </Tag>
+                                                )}
+                                        </div>
 
                                         <p className="mt-1 text-xs leading-5 text-slate-500">
                                             {getEtapaDescripcion(
@@ -777,103 +929,110 @@ function DesarrolloBitacora({
                                         </p>
                                     </div>
 
-                                    {etapa &&
-                                        getEstadoEtapaTag(
-                                            etapa.estado
+                                    <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100">
+                                        {estaAbierta ? (
+                                            <DownOutlined />
+                                        ) : (
+                                            <RightOutlined />
                                         )}
-                                </div>
+                                    </span>
+                                </button>
 
-                                {!etapa ? (
-                                    <p className="mt-4 text-sm text-slate-500">
-                                        Sin información registrada.
-                                    </p>
-                                ) : (
-                                    <div className="mt-5 space-y-5">
-                                        {/* DESCRIPCIÓN */}
-
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                {etapaTipo ===
-                                                    "ANTES"
-                                                    ? "Diagnóstico / situación inicial"
-                                                    : etapaTipo ===
-                                                        "EN_PROCESO"
-                                                        ? "Acciones realizadas"
-                                                        : "Resultado final"}
+                                {estaAbierta && (
+                                    <div className="mt-4 border-t border-slate-100 pt-4">
+                                        {!etapa ? (
+                                            <p className="text-sm text-slate-500">
+                                                Sin información registrada.
                                             </p>
+                                        ) : (
+                                            <div className="space-y-5">
+                                                {/* DESCRIPCIÓN */}
 
-                                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                                {
-                                                    etapa.descripcion?.trim() ||
-                                                    "Sin descripción registrada."
-                                                }
-                                            </p>
-                                        </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                        {etapaTipo ===
+                                                            "ANTES"
+                                                            ? "Diagnóstico / situación inicial"
+                                                            : etapaTipo ===
+                                                                "EN_PROCESO"
+                                                                ? "Acciones realizadas"
+                                                                : "Resultado final"}
+                                                    </p>
 
-                                        {/* EVIDENCIAS */}
+                                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                                        {
+                                                            etapa.descripcion?.trim() ||
+                                                            "Sin descripción registrada."
+                                                        }
+                                                    </p>
+                                                </div>
 
-                                        <div>
-                                            <div className="mb-2 flex items-center gap-2">
-                                                <FileImageOutlined className="text-slate-500" />
+                                                {/* EVIDENCIAS */}
 
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                    Evidencias
-                                                </p>
-                                            </div>
+                                                <div>
+                                                    <div className="mb-2 flex items-center gap-2">
+                                                        <FileImageOutlined className="text-slate-500" />
 
-                                            <BitacoraEvidenciasTab
-                                                evidencias={
-                                                    etapa.evidencias ??
-                                                    []
-                                                }
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                            Evidencias
+                                                        </p>
+                                                    </div>
 
-                                                loading={
-                                                    false
-                                                }
+                                                    <BitacoraEvidenciasTab
+                                                        evidencias={
+                                                            etapa.evidencias ??
+                                                            []
+                                                        }
 
-                                                editable={
-                                                    false
-                                                }
+                                                        loading={
+                                                            false
+                                                        }
 
-                                                etapasVisibles={[
-                                                    etapaTipo,
-                                                ]}
-                                            />
-                                        </div>
+                                                        editable={
+                                                            false
+                                                        }
 
-                                        {/* REVISIONES */}
+                                                        etapasVisibles={[
+                                                            etapaTipo,
+                                                        ]}
+                                                    />
+                                                </div>
 
-                                        <RevisionesEtapa
-                                            etapa={
-                                                etapa
-                                            }
-                                        />
+                                                {/* REVISIONES */}
 
-                                        {/* FECHAS */}
+                                                <RevisionesEtapa
+                                                    etapa={
+                                                        etapa
+                                                    }
+                                                />
 
-                                        <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
-                                            <InfoMini
-                                                label="Iniciada"
-                                                value={
-                                                    etapa.iniciadoAt
-                                                        ? formatFechaHoraChile(
+                                                {/* FECHAS */}
+
+                                                <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
+                                                    <InfoMini
+                                                        label="Iniciada"
+                                                        value={
                                                             etapa.iniciadoAt
-                                                        )
-                                                        : "-"
-                                                }
-                                            />
+                                                                ? formatFechaHoraChile(
+                                                                    etapa.iniciadoAt
+                                                                )
+                                                                : "-"
+                                                        }
+                                                    />
 
-                                            <InfoMini
-                                                label="Completada"
-                                                value={
-                                                    etapa.completadoAt
-                                                        ? formatFechaHoraChile(
+                                                    <InfoMini
+                                                        label="Completada"
+                                                        value={
                                                             etapa.completadoAt
-                                                        )
-                                                        : "-"
-                                                }
-                                            />
-                                        </div>
+                                                                ? formatFechaHoraChile(
+                                                                    etapa.completadoAt
+                                                                )
+                                                                : "-"
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </section>

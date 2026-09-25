@@ -5,11 +5,18 @@ import type {
 } from "react";
 
 import {
+    useEffect,
+    useState,
+} from "react";
+
+import {
     CheckCircleOutlined,
     ClockCircleOutlined,
     CloseCircleOutlined,
     LockOutlined,
     SafetyCertificateOutlined,
+    DownOutlined,
+    RightOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -295,6 +302,109 @@ export default function BitacoraTimelineEtapas({
         bitacoraId ===
         null;
 
+    const [
+        etapasAbiertas,
+        setEtapasAbiertas,
+    ] =
+        useState<
+            EtapaBitacora[]
+        >(
+            esCreacion
+                ? [
+                    "ANTES",
+                ]
+                : []
+        );
+
+    function toggleEtapa(
+        etapa:
+            EtapaBitacora
+    ) {
+        setEtapasAbiertas(
+            prev =>
+                prev.includes(
+                    etapa
+                )
+                    ? prev.filter(
+                        item =>
+                            item !==
+                            etapa
+                    )
+                    : [
+                        ...prev,
+                        etapa,
+                    ]
+        );
+    }
+
+    useEffect(
+        () => {
+            /*
+             * Durante creación solamente se trabaja
+             * con ANTES.
+             */
+            if (
+                esCreacion
+            ) {
+                setEtapasAbiertas(
+                    [
+                        "ANTES",
+                    ]
+                );
+
+                return;
+            }
+
+            if (
+                etapas.length ===
+                0
+            ) {
+                return;
+            }
+
+            /*
+             * Priorizar una etapa que requiera
+             * intervención del usuario.
+             */
+            const etapaPrincipal =
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "RECHAZADA"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "PENDIENTE_REVISION"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "EN_PROCESO"
+                ) ??
+                etapas.find(
+                    etapa =>
+                        etapa.estado ===
+                        "APROBADA"
+                );
+
+            if (
+                etapaPrincipal
+            ) {
+                setEtapasAbiertas(
+                    [
+                        etapaPrincipal
+                            .etapa,
+                    ]
+                );
+            }
+        },
+        [
+            esCreacion,
+            etapas,
+        ]
+    );
+
     return (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
             <div className="mb-6">
@@ -365,6 +475,11 @@ export default function BitacoraTimelineEtapas({
                             etapaTipo
                             ];
 
+                        const estaAbierta =
+                            etapasAbiertas.includes(
+                                etapaTipo
+                            );
+
                         const evidenciasEtapa =
                             etapa
                                 ?.evidencias ??
@@ -376,6 +491,15 @@ export default function BitacoraTimelineEtapas({
                                     item.etapa ===
                                     etapaTipo
                             );
+
+                        const totalEvidenciasVisibles =
+                            evidenciasEtapa.filter(
+                                evidencia =>
+                                    !evidenciasAEliminar.includes(
+                                        evidencia.id
+                                    )
+                            ).length +
+                            pendientesEtapa.length;
 
                         const revisionesPendientes =
                             etapa
@@ -444,13 +568,56 @@ export default function BitacoraTimelineEtapas({
                                         " "
                                     )}
                                 >
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <h4 className="text-sm font-semibold text-slate-900">
-                                                {getLabelEtapa(
-                                                    etapaTipo
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            toggleEtapa(
+                                                etapaTipo
+                                            )
+                                        }
+                                        className="flex w-full items-start justify-between gap-3 text-left"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h4 className="text-sm font-semibold text-slate-900">
+                                                    {getLabelEtapa(
+                                                        etapaTipo
+                                                    )}
+                                                </h4>
+
+                                                {etapa ? (
+                                                    <EstadoTag
+                                                        estado={
+                                                            etapa.estado
+                                                        }
+                                                    />
+                                                ) : bloqueadaCreacion ? (
+                                                    <Tag
+                                                        icon={
+                                                            <LockOutlined />
+                                                        }
+                                                    >
+                                                        Bloqueada
+                                                    </Tag>
+                                                ) : (
+                                                    <Tag
+                                                        color="processing"
+                                                    >
+                                                        En preparación
+                                                    </Tag>
                                                 )}
-                                            </h4>
+
+                                                {totalEvidenciasVisibles >
+                                                    0 && (
+                                                        <Tag>
+                                                            {totalEvidenciasVisibles} evidencia
+                                                            {totalEvidenciasVisibles !==
+                                                                1
+                                                                ? "s"
+                                                                : ""}
+                                                        </Tag>
+                                                    )}
+                                            </div>
 
                                             <p className="mt-1 text-xs leading-5 text-slate-500">
                                                 {getDescripcionEtapa(
@@ -459,188 +626,74 @@ export default function BitacoraTimelineEtapas({
                                             </p>
                                         </div>
 
-                                        {etapa ? (
-                                            <EstadoTag
-                                                estado={
-                                                    etapa.estado
-                                                }
-                                            />
-                                        ) : bloqueadaCreacion ? (
-                                            <Tag
-                                                icon={
-                                                    <LockOutlined />
-                                                }
-                                            >
-                                                Bloqueada
-                                            </Tag>
-                                        ) : (
-                                            <Tag
-                                                color="processing"
-                                            >
-                                                En preparación
-                                            </Tag>
-                                        )}
-                                    </div>
+                                        <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100">
+                                            {estaAbierta ? (
+                                                <DownOutlined />
+                                            ) : (
+                                                <RightOutlined />
+                                            )}
+                                        </span>
+                                    </button>
 
-                                    {bloqueada ? (
-                                        <Alert
-                                            className="mt-4"
-                                            type="info"
-                                            showIcon
-                                            message={
-                                                etapaTipo ===
-                                                    "EN_PROCESO"
-                                                    ? "Se habilitará cuando la etapa Antes sea completada."
-                                                    : "Se habilitará cuando la etapa En proceso sea completada."
-                                            }
-                                        />
-                                    ) : (
-                                        <div className="mt-5 space-y-5">
-                                            <div>
-                                                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                                                    {etapaTipo ===
-                                                        "ANTES"
-                                                        ? "Diagnóstico / situación inicial"
-                                                        : etapaTipo ===
+                                    {estaAbierta && (
+                                        <div className="mt-4 border-t border-slate-100 pt-4">
+
+                                            {bloqueada ? (
+                                                <Alert
+                                                    type="info"
+                                                    showIcon
+                                                    message={
+                                                        etapaTipo ===
                                                             "EN_PROCESO"
-                                                            ? "Acciones realizadas"
-                                                            : "Resultado final"}
-                                                </label>
+                                                            ? "Se habilitará cuando la etapa Antes sea completada."
+                                                            : "Se habilitará cuando la etapa En proceso sea completada."
+                                                    }
+                                                />
+                                            ) : (
+                                                <div className="mt-5 space-y-5">
+                                                    <div>
+                                                        <label className="mb-1 block text-xs font-semibold text-slate-700">
+                                                            {etapaTipo ===
+                                                                "ANTES"
+                                                                ? "Diagnóstico / situación inicial"
+                                                                : etapaTipo ===
+                                                                    "EN_PROCESO"
+                                                                    ? "Acciones realizadas"
+                                                                    : "Resultado final"}
+                                                        </label>
 
-                                                <Input.TextArea
-                                                    value={
-                                                        formEtapa.descripcion
-                                                    }
-                                                    disabled={
-                                                        !editable
-                                                    }
-                                                    rows={
-                                                        4
-                                                    }
-                                                    placeholder={
-                                                        getDescripcionEtapa(
-                                                            etapaTipo
-                                                        )
-                                                    }
-                                                    onChange={(
-                                                        event
-                                                    ) =>
-                                                        setEtapasForm(
-                                                            prev => ({
-                                                                ...prev,
-
-                                                                [etapaTipo]:
-                                                                {
-                                                                    ...prev[
+                                                        <Input.TextArea
+                                                            value={
+                                                                formEtapa.descripcion
+                                                            }
+                                                            disabled={
+                                                                !editable
+                                                            }
+                                                            rows={
+                                                                4
+                                                            }
+                                                            placeholder={
+                                                                getDescripcionEtapa(
                                                                     etapaTipo
-                                                                    ],
-
-                                                                    descripcion:
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                },
-                                                            })
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <p className="mb-2 text-xs font-semibold text-slate-700">
-                                                    Evidencias de la etapa
-                                                </p>
-
-                                                <BitacoraEvidenciasTab
-                                                    evidencias={
-                                                        evidenciasEtapa
-                                                    }
-                                                    pendientes={
-                                                        pendientesEtapa
-                                                    }
-                                                    eliminadasIds={
-                                                        evidenciasAEliminar
-                                                    }
-                                                    loading={
-                                                        loadingEvidencias
-                                                    }
-                                                    editable={
-                                                        editable
-                                                    }
-                                                    etapasVisibles={[
-                                                        etapaTipo,
-                                                    ]}
-                                                    onAgregar={
-                                                        editable
-                                                            ? onAgregarEvidencia
-                                                            : undefined
-                                                    }
-                                                    onMarcarEliminar={
-                                                        editable
-                                                            ? onMarcarEliminarEvidencia
-                                                            : undefined
-                                                    }
-                                                    onRestaurar={
-                                                        editable
-                                                            ? onRestaurarEvidencia
-                                                            : undefined
-                                                    }
-                                                    onEliminarPendiente={
-                                                        editable
-                                                            ? onEliminarEvidenciaPendiente
-                                                            : undefined
-                                                    }
-                                                />
-                                            </div>
-
-                                            {editable && (
-                                                <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-slate-800">
-                                                                Revisión por otro usuario
-                                                            </p>
-
-                                                            <p className="mt-1 text-xs leading-5 text-slate-500">
-                                                                Actívala si esta etapa debe ser validada antes de continuar.
-                                                            </p>
-                                                        </div>
-
-                                                        <Switch
-                                                            checked={
-                                                                formEtapa
-                                                                    .requiereRevision
+                                                                )
                                                             }
                                                             onChange={(
-                                                                checked
+                                                                event
                                                             ) =>
                                                                 setEtapasForm(
                                                                     prev => ({
                                                                         ...prev,
 
-                                                                        [etapaTipo]: {
+                                                                        [etapaTipo]:
+                                                                        {
                                                                             ...prev[
                                                                             etapaTipo
                                                                             ],
 
-                                                                            requiereRevision:
-                                                                                checked,
-
-                                                                            aprobadoresIds:
-                                                                                checked
-                                                                                    ? prev[
-                                                                                        etapaTipo
-                                                                                    ]
-                                                                                        .aprobadoresIds
-                                                                                    : [],
-
-                                                                            comentarioSolicitud:
-                                                                                checked
-                                                                                    ? prev[
-                                                                                        etapaTipo
-                                                                                    ]
-                                                                                        .comentarioSolicitud
-                                                                                    : "",
+                                                                            descripcion:
+                                                                                event
+                                                                                    .target
+                                                                                    .value,
                                                                         },
                                                                     })
                                                                 )
@@ -648,320 +701,520 @@ export default function BitacoraTimelineEtapas({
                                                         />
                                                     </div>
 
-                                                    {formEtapa
-                                                        .requiereRevision && (
-                                                            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                    <div>
+                                                        <p className="mb-2 text-xs font-semibold text-slate-700">
+                                                            Evidencias de la etapa
+                                                        </p>
+
+                                                        <BitacoraEvidenciasTab
+                                                            evidencias={
+                                                                evidenciasEtapa
+                                                            }
+                                                            pendientes={
+                                                                pendientesEtapa
+                                                            }
+                                                            eliminadasIds={
+                                                                evidenciasAEliminar
+                                                            }
+                                                            loading={
+                                                                loadingEvidencias
+                                                            }
+                                                            editable={
+                                                                editable
+                                                            }
+                                                            etapasVisibles={[
+                                                                etapaTipo,
+                                                            ]}
+                                                            onAgregar={
+                                                                editable
+                                                                    ? onAgregarEvidencia
+                                                                    : undefined
+                                                            }
+                                                            onMarcarEliminar={
+                                                                editable
+                                                                    ? onMarcarEliminarEvidencia
+                                                                    : undefined
+                                                            }
+                                                            onRestaurar={
+                                                                editable
+                                                                    ? onRestaurarEvidencia
+                                                                    : undefined
+                                                            }
+                                                            onEliminarPendiente={
+                                                                editable
+                                                                    ? onEliminarEvidenciaPendiente
+                                                                    : undefined
+                                                            }
+                                                        />
+                                                    </div>
+
+                                                    {editable && (
+                                                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                                                            <div className="flex items-start justify-between gap-4">
                                                                 <div>
-                                                                    <Select
-                                                                        mode="multiple"
-                                                                        value={
-                                                                            formEtapa
-                                                                                .aprobadoresIds
-                                                                        }
-                                                                        placeholder="Seleccionar hasta 4 revisores"
-                                                                        className="w-full"
-                                                                        showSearch
-                                                                        allowClear
-                                                                        optionFilterProp="label"
-                                                                        maxTagCount={
-                                                                            4
-                                                                        }
-                                                                        options={
-                                                                            tecnicos
-                                                                                .filter(
-                                                                                    tecnico => {
-                                                                                        const tecnicoId =
-                                                                                            String(
-                                                                                                tecnico.id_tecnico
-                                                                                            );
+                                                                    <p className="text-sm font-semibold text-slate-800">
+                                                                        Revisión por otro usuario
+                                                                    </p>
 
-                                                                                        const responsableId =
-                                                                                            String(
-                                                                                                tecnicoResponsableId ??
-                                                                                                ""
-                                                                                            );
-
-                                                                                        const usuarioActualId =
-                                                                                            String(
-                                                                                                usuarioActualTecnicoId ??
-                                                                                                ""
-                                                                                            );
-
-                                                                                        return (
-                                                                                            tecnicoId !==
-                                                                                            responsableId &&
-                                                                                            tecnicoId !==
-                                                                                            usuarioActualId
-                                                                                        );
-                                                                                    }
-                                                                                )
-                                                                                .map(
-                                                                                    tecnico => ({
-                                                                                        value:
-                                                                                            String(
-                                                                                                tecnico.id_tecnico
-                                                                                            ),
-
-                                                                                        label:
-                                                                                            tecnico.nombre,
-
-                                                                                        disabled:
-                                                                                            formEtapa
-                                                                                                .aprobadoresIds
-                                                                                                .length >=
-                                                                                            4 &&
-                                                                                            !formEtapa
-                                                                                                .aprobadoresIds
-                                                                                                .includes(
-                                                                                                    String(
-                                                                                                        tecnico.id_tecnico
-                                                                                                    )
-                                                                                                ),
-                                                                                    })
-                                                                                )
-                                                                        }
-                                                                        onChange={(
-                                                                            values:
-                                                                                string[]
-                                                                        ) => {
-                                                                            if (
-                                                                                values.length >
-                                                                                4
-                                                                            ) {
-                                                                                return;
-                                                                            }
-
-                                                                            setEtapasForm(
-                                                                                prev => ({
-                                                                                    ...prev,
-
-                                                                                    [etapaTipo]: {
-                                                                                        ...prev[
-                                                                                        etapaTipo
-                                                                                        ],
-
-                                                                                        aprobadoresIds:
-                                                                                            values,
-                                                                                    },
-                                                                                })
-                                                                            );
-                                                                        }}
-                                                                    />
-
-                                                                    <p className="mt-1 text-xs text-slate-500">
-                                                                        {
-                                                                            formEtapa
-                                                                                .aprobadoresIds
-                                                                                .length
-                                                                        }{" "}
-                                                                        / 4 revisores seleccionados
+                                                                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                                                                        Actívala si esta etapa debe ser validada antes de continuar.
                                                                     </p>
                                                                 </div>
 
-                                                                <Input
-                                                                    value={
+                                                                <Switch
+                                                                    checked={
                                                                         formEtapa
-                                                                            .comentarioSolicitud
+                                                                            .requiereRevision
                                                                     }
-                                                                    placeholder="Comentario para el revisor"
                                                                     onChange={(
-                                                                        event
+                                                                        checked
                                                                     ) =>
                                                                         setEtapasForm(
                                                                             prev => ({
                                                                                 ...prev,
 
-                                                                                [etapaTipo]:
-                                                                                {
+                                                                                [etapaTipo]: {
                                                                                     ...prev[
                                                                                     etapaTipo
                                                                                     ],
 
+                                                                                    requiereRevision:
+                                                                                        checked,
+
+                                                                                    aprobadoresIds:
+                                                                                        checked
+                                                                                            ? prev[
+                                                                                                etapaTipo
+                                                                                            ]
+                                                                                                .aprobadoresIds
+                                                                                            : [],
+
                                                                                     comentarioSolicitud:
-                                                                                        event
-                                                                                            .target
-                                                                                            .value,
+                                                                                        checked
+                                                                                            ? prev[
+                                                                                                etapaTipo
+                                                                                            ]
+                                                                                                .comentarioSolicitud
+                                                                                            : "",
                                                                                 },
                                                                             })
                                                                         )
                                                                     }
                                                                 />
                                                             </div>
-                                                        )}
-                                                </div>
-                                            )}
 
-                                            {etapa?.estado ===
-                                                "PENDIENTE_REVISION" &&
-                                                revisionesPendientes.length >
-                                                0 && (
-                                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                                                        <div>
-                                                            <p className="text-sm font-semibold text-amber-900">
-                                                                Revisión pendiente
-                                                            </p>
+                                                            {formEtapa
+                                                                .requiereRevision && (
+                                                                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                                        <div>
+                                                                            <Select
+                                                                                mode="multiple"
+                                                                                value={
+                                                                                    formEtapa
+                                                                                        .aprobadoresIds
+                                                                                }
+                                                                                placeholder="Seleccionar hasta 4 revisores"
+                                                                                className="w-full"
+                                                                                showSearch
+                                                                                allowClear
+                                                                                optionFilterProp="label"
+                                                                                maxTagCount={
+                                                                                    4
+                                                                                }
+                                                                                options={
+                                                                                    tecnicos
+                                                                                        .filter(
+                                                                                            tecnico => {
+                                                                                                const tecnicoId =
+                                                                                                    String(
+                                                                                                        tecnico.id_tecnico
+                                                                                                    );
 
-                                                            <p className="mt-1 text-xs text-amber-800">
-                                                                {
-                                                                    revisionesPendientes.length
-                                                                }{" "}
-                                                                revisor
-                                                                {
-                                                                    revisionesPendientes.length ===
-                                                                        1
-                                                                        ? ""
-                                                                        : "es"
-                                                                }{" "}
-                                                                pendiente
-                                                                {
-                                                                    revisionesPendientes.length ===
-                                                                        1
-                                                                        ? ""
-                                                                        : "s"
-                                                                }
-                                                            </p>
+                                                                                                const responsableId =
+                                                                                                    String(
+                                                                                                        tecnicoResponsableId ??
+                                                                                                        ""
+                                                                                                    );
+
+                                                                                                const usuarioActualId =
+                                                                                                    String(
+                                                                                                        usuarioActualTecnicoId ??
+                                                                                                        ""
+                                                                                                    );
+
+                                                                                                return (
+                                                                                                    tecnicoId !==
+                                                                                                    responsableId &&
+                                                                                                    tecnicoId !==
+                                                                                                    usuarioActualId
+                                                                                                );
+                                                                                            }
+                                                                                        )
+                                                                                        .map(
+                                                                                            tecnico => ({
+                                                                                                value:
+                                                                                                    String(
+                                                                                                        tecnico.id_tecnico
+                                                                                                    ),
+
+                                                                                                label:
+                                                                                                    tecnico.nombre,
+
+                                                                                                disabled:
+                                                                                                    formEtapa
+                                                                                                        .aprobadoresIds
+                                                                                                        .length >=
+                                                                                                    4 &&
+                                                                                                    !formEtapa
+                                                                                                        .aprobadoresIds
+                                                                                                        .includes(
+                                                                                                            String(
+                                                                                                                tecnico.id_tecnico
+                                                                                                            )
+                                                                                                        ),
+                                                                                            })
+                                                                                        )
+                                                                                }
+                                                                                onChange={(
+                                                                                    values:
+                                                                                        string[]
+                                                                                ) => {
+                                                                                    if (
+                                                                                        values.length >
+                                                                                        4
+                                                                                    ) {
+                                                                                        return;
+                                                                                    }
+
+                                                                                    setEtapasForm(
+                                                                                        prev => ({
+                                                                                            ...prev,
+
+                                                                                            [etapaTipo]: {
+                                                                                                ...prev[
+                                                                                                etapaTipo
+                                                                                                ],
+
+                                                                                                aprobadoresIds:
+                                                                                                    values,
+                                                                                            },
+                                                                                        })
+                                                                                    );
+                                                                                }}
+                                                                            />
+
+                                                                            <p className="mt-1 text-xs text-slate-500">
+                                                                                {
+                                                                                    formEtapa
+                                                                                        .aprobadoresIds
+                                                                                        .length
+                                                                                }{" "}
+                                                                                / 4 revisores seleccionados
+                                                                            </p>
+                                                                        </div>
+
+                                                                        <Input
+                                                                            value={
+                                                                                formEtapa
+                                                                                    .comentarioSolicitud
+                                                                            }
+                                                                            placeholder="Comentario para el revisor"
+                                                                            onChange={(
+                                                                                event
+                                                                            ) =>
+                                                                                setEtapasForm(
+                                                                                    prev => ({
+                                                                                        ...prev,
+
+                                                                                        [etapaTipo]:
+                                                                                        {
+                                                                                            ...prev[
+                                                                                            etapaTipo
+                                                                                            ],
+
+                                                                                            comentarioSolicitud:
+                                                                                                event
+                                                                                                    .target
+                                                                                                    .value,
+                                                                                        },
+                                                                                    })
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                )}
                                                         </div>
+                                                    )}
 
-                                                        <div className="mt-3 space-y-2">
-                                                            {
-                                                                etapa.aprobaciones
-                                                                    ?.filter(
-                                                                        aprobacion => {
-                                                                            const solicitudActual =
+                                                    {etapa?.estado ===
+                                                        "PENDIENTE_REVISION" &&
+                                                        revisionesPendientes.length >
+                                                        0 && (
+                                                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                                                <div>
+                                                                    <p className="text-sm font-semibold text-amber-900">
+                                                                        Revisión pendiente
+                                                                    </p>
+
+                                                                    <p className="mt-1 text-xs text-amber-800">
+                                                                        {
+                                                                            revisionesPendientes.length
+                                                                        }{" "}
+                                                                        revisor
+                                                                        {
+                                                                            revisionesPendientes.length ===
+                                                                                1
+                                                                                ? ""
+                                                                                : "es"
+                                                                        }{" "}
+                                                                        pendiente
+                                                                        {
+                                                                            revisionesPendientes.length ===
+                                                                                1
+                                                                                ? ""
+                                                                                : "s"
+                                                                        }
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="mt-3 space-y-2">
+                                                                    {
+                                                                        etapa.aprobaciones
+                                                                            ?.filter(
+                                                                                aprobacion => {
+                                                                                    const solicitudActual =
+                                                                                        revisionesPendientes[
+                                                                                            0
+                                                                                        ]
+                                                                                            ?.solicitudRevisionId;
+
+                                                                                    if (
+                                                                                        solicitudActual
+                                                                                    ) {
+                                                                                        return (
+                                                                                            aprobacion
+                                                                                                .solicitudRevisionId ===
+                                                                                            solicitudActual
+                                                                                        );
+                                                                                    }
+
+                                                                                    /*
+                                                                                     * Compatibilidad con revisiones
+                                                                                     * antiguas sin solicitudRevisionId.
+                                                                                     */
+                                                                                    return (
+                                                                                        aprobacion.estado ===
+                                                                                        "PENDIENTE"
+                                                                                    );
+                                                                                }
+                                                                            )
+                                                                            .map(
+                                                                                aprobacion => (
+                                                                                    <div
+                                                                                        key={
+                                                                                            aprobacion.id
+                                                                                        }
+                                                                                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-100 bg-white/70 px-3 py-2"
+                                                                                    >
+                                                                                        <span className="text-sm font-medium text-slate-700">
+                                                                                            {
+                                                                                                aprobacion
+                                                                                                    .aprobador
+                                                                                                    ?.nombre ??
+                                                                                                `#${aprobacion.aprobadorId}`
+                                                                                            }
+                                                                                        </span>
+
+                                                                                        <Tag
+                                                                                            color={
+                                                                                                aprobacion.estado ===
+                                                                                                    "APROBADA"
+                                                                                                    ? "success"
+                                                                                                    : aprobacion.estado ===
+                                                                                                        "RECHAZADA"
+                                                                                                        ? "error"
+                                                                                                        : aprobacion.estado ===
+                                                                                                            "CANCELADA"
+                                                                                                            ? "default"
+                                                                                                            : "warning"
+                                                                                            }
+                                                                                        >
+                                                                                            {
+                                                                                                aprobacion.estado ===
+                                                                                                    "APROBADA"
+                                                                                                    ? "Aprobada"
+                                                                                                    : aprobacion.estado ===
+                                                                                                        "RECHAZADA"
+                                                                                                        ? "Rechazada"
+                                                                                                        : aprobacion.estado ===
+                                                                                                            "CANCELADA"
+                                                                                                            ? "Cancelada"
+                                                                                                            : "Pendiente"
+                                                                                            }
+                                                                                        </Tag>
+                                                                                    </div>
+                                                                                )
+                                                                            )
+                                                                    }
+                                                                </div>
+
+                                                                {
+                                                                    revisionesPendientes[
+                                                                        0
+                                                                    ]?.comentarioSolicitud && (
+                                                                        <p className="mt-3 rounded-lg bg-white/60 px-3 py-2 text-sm text-slate-700">
+                                                                            {
                                                                                 revisionesPendientes[
                                                                                     0
                                                                                 ]
-                                                                                    ?.solicitudRevisionId;
-
-                                                                            if (
-                                                                                solicitudActual
-                                                                            ) {
-                                                                                return (
-                                                                                    aprobacion
-                                                                                        .solicitudRevisionId ===
-                                                                                    solicitudActual
-                                                                                );
+                                                                                    .comentarioSolicitud
                                                                             }
-
-                                                                            /*
-                                                                             * Compatibilidad con revisiones
-                                                                             * antiguas sin solicitudRevisionId.
-                                                                             */
-                                                                            return (
-                                                                                aprobacion.estado ===
-                                                                                "PENDIENTE"
-                                                                            );
-                                                                        }
+                                                                        </p>
                                                                     )
-                                                                    .map(
-                                                                        aprobacion => (
-                                                                            <div
-                                                                                key={
-                                                                                    aprobacion.id
-                                                                                }
-                                                                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-100 bg-white/70 px-3 py-2"
-                                                                            >
-                                                                                <span className="text-sm font-medium text-slate-700">
-                                                                                    {
-                                                                                        aprobacion
-                                                                                            .aprobador
-                                                                                            ?.nombre ??
-                                                                                        `#${aprobacion.aprobadorId}`
-                                                                                    }
-                                                                                </span>
+                                                                }
 
-                                                                                <Tag
-                                                                                    color={
-                                                                                        aprobacion.estado ===
-                                                                                            "APROBADA"
-                                                                                            ? "success"
-                                                                                            : aprobacion.estado ===
-                                                                                                "RECHAZADA"
-                                                                                                ? "error"
-                                                                                                : aprobacion.estado ===
-                                                                                                    "CANCELADA"
-                                                                                                    ? "default"
-                                                                                                    : "warning"
+                                                                {esRevisorActual &&
+                                                                    revisionPendienteUsuario && (
+                                                                        <div className="mt-4 space-y-3 border-t border-amber-200 pt-4">
+                                                                            <p className="text-xs font-semibold text-amber-900">
+                                                                                Tienes una revisión pendiente
+                                                                            </p>
+
+                                                                            <Input.TextArea
+                                                                                value={
+                                                                                    comentarioRespuesta
+                                                                                }
+                                                                                rows={
+                                                                                    3
+                                                                                }
+                                                                                placeholder="Comentario de la revisión..."
+                                                                                onChange={(
+                                                                                    event
+                                                                                ) =>
+                                                                                    setComentarioRespuesta(
+                                                                                        event
+                                                                                            .target
+                                                                                            .value
+                                                                                    )
+                                                                                }
+                                                                            />
+
+                                                                            <div className="flex flex-wrap justify-end gap-2 pt-2">
+                                                                                <Button
+                                                                                    danger
+                                                                                    loading={
+                                                                                        processingEtapaId ===
+                                                                                        etapa.id
+                                                                                    }
+                                                                                    onClick={() =>
+                                                                                        void onResponderRevision(
+                                                                                            etapa,
+                                                                                            revisionPendienteUsuario,
+                                                                                            false
+                                                                                        )
                                                                                     }
                                                                                 >
-                                                                                    {
-                                                                                        aprobacion.estado ===
-                                                                                            "APROBADA"
-                                                                                            ? "Aprobada"
-                                                                                            : aprobacion.estado ===
-                                                                                                "RECHAZADA"
-                                                                                                ? "Rechazada"
-                                                                                                : aprobacion.estado ===
-                                                                                                    "CANCELADA"
-                                                                                                    ? "Cancelada"
-                                                                                                    : "Pendiente"
+                                                                                    Rechazar
+                                                                                </Button>
+
+                                                                                <Button
+                                                                                    type="primary"
+                                                                                    loading={
+                                                                                        processingEtapaId ===
+                                                                                        etapa.id
                                                                                     }
-                                                                                </Tag>
+                                                                                    onClick={() =>
+                                                                                        void onResponderRevision(
+                                                                                            etapa,
+                                                                                            revisionPendienteUsuario,
+                                                                                            true
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    Aprobar
+                                                                                </Button>
                                                                             </div>
-                                                                        )
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+
+                                                    {etapa?.estado ===
+                                                        "RECHAZADA" && (
+                                                            <Alert
+                                                                type="error"
+                                                                showIcon
+                                                                message="La revisión fue rechazada"
+                                                                description={
+                                                                    etapa.aprobaciones?.find(
+                                                                        item =>
+                                                                            item.estado ===
+                                                                            "RECHAZADA"
                                                                     )
-                                                            }
-                                                        </div>
+                                                                        ?.comentarioRespuesta ??
+                                                                    "Debes corregir la información y volver a solicitar revisión."
+                                                                }
+                                                            />
+                                                        )}
 
-                                                        {
-                                                            revisionesPendientes[
-                                                                0
-                                                            ]?.comentarioSolicitud && (
-                                                                <p className="mt-3 rounded-lg bg-white/60 px-3 py-2 text-sm text-slate-700">
-                                                                    {
-                                                                        revisionesPendientes[
-                                                                            0
-                                                                        ]
-                                                                            .comentarioSolicitud
-                                                                    }
-                                                                </p>
-                                                            )
-                                                        }
+                                                    {bitacoraId &&
+                                                        etapa && (
+                                                            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+                                                                {/* ==========================================
+                                                            ETAPA EDITABLE
+                                                           ========================================== */}
 
-                                                        {esRevisorActual &&
-                                                            revisionPendienteUsuario && (
-                                                                <div className="mt-4 space-y-3 border-t border-amber-200 pt-4">
-                                                                    <p className="text-xs font-semibold text-amber-900">
-                                                                        Tienes una revisión pendiente
-                                                                    </p>
-
-                                                                    <Input.TextArea
-                                                                        value={
-                                                                            comentarioRespuesta
+                                                                {editable && (
+                                                                    <Button
+                                                                        loading={
+                                                                            processingEtapaId ===
+                                                                            etapa.id
                                                                         }
-                                                                        rows={
-                                                                            3
-                                                                        }
-                                                                        placeholder="Comentario de la revisión..."
-                                                                        onChange={(
-                                                                            event
-                                                                        ) =>
-                                                                            setComentarioRespuesta(
-                                                                                event
-                                                                                    .target
-                                                                                    .value
+                                                                        onClick={() =>
+                                                                            void onGuardarEtapa(
+                                                                                etapa
                                                                             )
                                                                         }
-                                                                    />
+                                                                    >
+                                                                        Guardar etapa
+                                                                    </Button>
+                                                                )}
 
-                                                                    <div className="flex flex-wrap justify-end gap-2 pt-2">
+                                                                {/* ==========================================
+                                                               SOLICITAR REVISIÓN
+                                                            ========================================== */}
+
+                                                                {editable &&
+                                                                    formEtapa
+                                                                        .requiereRevision && (
                                                                         <Button
-                                                                            danger
+                                                                            type="primary"
+                                                                            icon={
+                                                                                <SafetyCertificateOutlined />
+                                                                            }
                                                                             loading={
                                                                                 processingEtapaId ===
                                                                                 etapa.id
                                                                             }
                                                                             onClick={() =>
-                                                                                void onResponderRevision(
-                                                                                    etapa,
-                                                                                    revisionPendienteUsuario,
-                                                                                    false
+                                                                                void onSolicitarRevision(
+                                                                                    etapa
                                                                                 )
                                                                             }
                                                                         >
-                                                                            Rechazar
+                                                                            Solicitar revisión
                                                                         </Button>
+                                                                    )}
 
+                                                                {/* ==========================================
+                                                           COMPLETAR SIN REVISIÓN
+                                                              ========================================== */}
+
+                                                                {puedeEditar &&
+                                                                    etapa.estado ===
+                                                                    "EN_PROCESO" &&
+                                                                    !formEtapa
+                                                                        .requiereRevision && (
                                                                         <Button
                                                                             type="primary"
                                                                             loading={
@@ -969,142 +1222,47 @@ export default function BitacoraTimelineEtapas({
                                                                                 etapa.id
                                                                             }
                                                                             onClick={() =>
-                                                                                void onResponderRevision(
-                                                                                    etapa,
-                                                                                    revisionPendienteUsuario,
-                                                                                    true
+                                                                                void onCompletarEtapa(
+                                                                                    etapa
                                                                                 )
                                                                             }
                                                                         >
-                                                                            Aprobar
+                                                                            Completar etapa
                                                                         </Button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                    </div>
-                                                )}
+                                                                    )}
 
-                                            {etapa?.estado ===
-                                                "RECHAZADA" && (
-                                                    <Alert
-                                                        type="error"
-                                                        showIcon
-                                                        message="La revisión fue rechazada"
-                                                        description={
-                                                            etapa.aprobaciones?.find(
-                                                                item =>
-                                                                    item.estado ===
-                                                                    "RECHAZADA"
-                                                            )
-                                                                ?.comentarioRespuesta ??
-                                                            "Debes corregir la información y volver a solicitar revisión."
-                                                        }
-                                                    />
-                                                )}
+                                                                {/* ==========================================
+                                                         COMPLETAR DESPUÉS DE APROBACIÓN
+                                                             ========================================== */}
 
-                                            {bitacoraId &&
-                                                etapa && (
-                                                    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-                                                        {/* ==========================================
-                ETAPA EDITABLE
-            ========================================== */}
-
-                                                        {editable && (
-                                                            <Button
-                                                                loading={
-                                                                    processingEtapaId ===
-                                                                    etapa.id
-                                                                }
-                                                                onClick={() =>
-                                                                    void onGuardarEtapa(
-                                                                        etapa
-                                                                    )
-                                                                }
-                                                            >
-                                                                Guardar etapa
-                                                            </Button>
+                                                                {puedeEditar &&
+                                                                    etapa.estado ===
+                                                                    "APROBADA" && (
+                                                                        <Button
+                                                                            type="primary"
+                                                                            icon={
+                                                                                <CheckCircleOutlined />
+                                                                            }
+                                                                            loading={
+                                                                                processingEtapaId ===
+                                                                                etapa.id
+                                                                            }
+                                                                            onClick={() =>
+                                                                                void onCompletarEtapa(
+                                                                                    etapa
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            Completar etapa
+                                                                        </Button>
+                                                                    )}
+                                                            </div>
                                                         )}
-
-                                                        {/* ==========================================
-                SOLICITAR REVISIÓN
-            ========================================== */}
-
-                                                        {editable &&
-                                                            formEtapa
-                                                                .requiereRevision && (
-                                                                <Button
-                                                                    type="primary"
-                                                                    icon={
-                                                                        <SafetyCertificateOutlined />
-                                                                    }
-                                                                    loading={
-                                                                        processingEtapaId ===
-                                                                        etapa.id
-                                                                    }
-                                                                    onClick={() =>
-                                                                        void onSolicitarRevision(
-                                                                            etapa
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Solicitar revisión
-                                                                </Button>
-                                                            )}
-
-                                                        {/* ==========================================
-                COMPLETAR SIN REVISIÓN
-            ========================================== */}
-
-                                                        {puedeEditar &&
-                                                            etapa.estado ===
-                                                            "EN_PROCESO" &&
-                                                            !formEtapa
-                                                                .requiereRevision && (
-                                                                <Button
-                                                                    type="primary"
-                                                                    loading={
-                                                                        processingEtapaId ===
-                                                                        etapa.id
-                                                                    }
-                                                                    onClick={() =>
-                                                                        void onCompletarEtapa(
-                                                                            etapa
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Completar etapa
-                                                                </Button>
-                                                            )}
-
-                                                        {/* ==========================================
-                COMPLETAR DESPUÉS DE APROBACIÓN
-            ========================================== */}
-
-                                                        {puedeEditar &&
-                                                            etapa.estado ===
-                                                            "APROBADA" && (
-                                                                <Button
-                                                                    type="primary"
-                                                                    icon={
-                                                                        <CheckCircleOutlined />
-                                                                    }
-                                                                    loading={
-                                                                        processingEtapaId ===
-                                                                        etapa.id
-                                                                    }
-                                                                    onClick={() =>
-                                                                        void onCompletarEtapa(
-                                                                            etapa
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    Completar etapa
-                                                                </Button>
-                                                            )}
-                                                    </div>
-                                                )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
+
                                 </section>
                             </div>
                         );

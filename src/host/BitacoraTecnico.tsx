@@ -427,6 +427,9 @@ export default function BitacoraTecnicoPage() {
             estado:
                 "REGISTRADA",
 
+            usaEtapas:
+                false,
+
             tecnicoId:
                 "",
 
@@ -992,6 +995,9 @@ export default function BitacoraTecnicoPage() {
 
             empresaId:
                 "",
+
+            usaEtapas:
+                false,
 
             solicitanteId:
                 "",
@@ -2793,7 +2799,8 @@ export default function BitacoraTecnicoPage() {
      * de crear el registro en BD.
      */
         if (
-            !editId
+            !editId &&
+            form.usaEtapas
         ) {
             const antesForm =
                 etapasForm.ANTES;
@@ -2923,6 +2930,9 @@ export default function BitacoraTecnicoPage() {
                         form.cotizacionId
                     ),
 
+                usaEtapas:
+                    form.usaEtapas,
+
                 recordatorioAt:
                     form.recordatorioAt ||
                     null,
@@ -2963,100 +2973,107 @@ export default function BitacoraTecnicoPage() {
                 bitacoraIdGuardada =
                     response.data.id;
 
-                const responseEtapas =
-                    await obtenerEtapasBitacora(
-                        bitacoraIdGuardada
-                    );
-
-                const etapaAntes =
-                    responseEtapas
-                        .data
-                        ?.find(
-                            etapa =>
-                                etapa.etapa ===
-                                "ANTES"
+                /*
+                 * Solo inicializar el workflow
+                 * si el usuario activó etapas.
+                 */
+                if (
+                    form.usaEtapas
+                ) {
+                    const responseEtapas =
+                        await obtenerEtapasBitacora(
+                            bitacoraIdGuardada
                         );
 
-                if (
-                    !etapaAntes
-                ) {
-                    throw new Error(
-                        "No fue posible obtener la etapa inicial de la bitácora."
-                    );
-                }
+                    const etapaAntes =
+                        responseEtapas
+                            .data
+                            ?.find(
+                                etapa =>
+                                    etapa.etapa ===
+                                    "ANTES"
+                            );
 
-                const antesForm =
-                    etapasForm.ANTES;
-
-
-                await actualizarEtapaBitacora(
-                    bitacoraIdGuardada,
-                    etapaAntes.id,
-                    {
-                        descripcion:
-                            antesForm
-                                .descripcion
-                                .trim(),
-
-                        requiereRevision:
-                            antesForm
-                                .requiereRevision,
+                    if (
+                        !etapaAntes
+                    ) {
+                        throw new Error(
+                            "No fue posible obtener la etapa inicial de la bitácora."
+                        );
                     }
-                );
 
-                const resultadoEvidencias =
-                    await guardarCambiosEvidencias(
-                        bitacoraIdGuardada,
-                        "ANTES"
-                    );
+                    const antesForm =
+                        etapasForm.ANTES;
 
-                if (
-                    resultadoEvidencias.errores >
-                    0
-                ) {
-                    throw new Error(
-                        "La bitácora fue creada, pero una o más evidencias iniciales no pudieron guardarse."
-                    );
-                }
-
-                if (
-                    antesForm
-                        .requiereRevision
-                ) {
-                    const aprobadoresIds =
-                        [
-                            ...new Set(
-                                antesForm
-                                    .aprobadoresIds
-                                    .map(
-                                        value =>
-                                            Number(
-                                                value
-                                            )
-                                    )
-                                    .filter(
-                                        value =>
-                                            Number.isInteger(
-                                                value
-                                            ) &&
-                                            value > 0
-                                    )
-                            ),
-                        ];
-
-                    await solicitarRevisionEtapa(
+                    await actualizarEtapaBitacora(
                         bitacoraIdGuardada,
                         etapaAntes.id,
                         {
-                            aprobadoresIds,
-
-                            comentarioSolicitud:
+                            descripcion:
                                 antesForm
-                                    .comentarioSolicitud
-                                    .trim() ||
-                                undefined,
+                                    .descripcion
+                                    .trim(),
+
+                            requiereRevision:
+                                antesForm
+                                    .requiereRevision,
                         }
                     );
+
+                    const resultadoEvidencias =
+                        await guardarCambiosEvidencias(
+                            bitacoraIdGuardada,
+                            "ANTES"
+                        );
+
+                    if (
+                        resultadoEvidencias.errores >
+                        0
+                    ) {
+                        throw new Error(
+                            "La bitácora fue creada, pero una o más evidencias iniciales no pudieron guardarse."
+                        );
+                    }
+
+                    if (
+                        antesForm
+                            .requiereRevision
+                    ) {
+                        const aprobadoresIds =
+                            [
+                                ...new Set(
+                                    antesForm
+                                        .aprobadoresIds
+                                        .map(
+                                            value =>
+                                                Number(
+                                                    value
+                                                )
+                                        )
+                                        .filter(
+                                            value =>
+                                                Number.isInteger(
+                                                    value
+                                                ) &&
+                                                value > 0
+                                        )
+                                ),
+                            ];
+
+                        await solicitarRevisionEtapa(
+                            bitacoraIdGuardada,
+                            etapaAntes.id,
+                            {
+                                aprobadoresIds,
+
+                                comentarioSolicitud:
+                                    antesForm
+                                        .comentarioSolicitud
+                                        .trim() ||
+                                    undefined,
+                            }
+                        );
+                    }
                 }
             }
 
@@ -3176,6 +3193,9 @@ export default function BitacoraTecnicoPage() {
 
                 tipoActividad:
                     notaRapida.tipoActividad,
+
+                usaEtapas:
+                    false,
 
                 recordatorioAt:
                     notaRapida.recordatorioAt ||
@@ -3325,6 +3345,9 @@ export default function BitacoraTecnicoPage() {
 
             estado:
                 bitacora.estado,
+
+            usaEtapas:
+                bitacora.usaEtapas,
 
             tecnicoId:
                 String(
@@ -3478,9 +3501,13 @@ export default function BitacoraTecnicoPage() {
             true
         );
 
-        void cargarEtapasBitacora(
-            bitacora.id
-        );
+        if (
+            bitacora.usaEtapas
+        ) {
+            void cargarEtapasBitacora(
+                bitacora.id
+            );
+        }
     }
 
     function abrirModalRevisar(
@@ -3520,9 +3547,13 @@ export default function BitacoraTecnicoPage() {
             true
         );
 
-        void cargarEtapasBitacora(
-            bitacora.id
-        );
+        if (
+            bitacora.usaEtapas
+        ) {
+            void cargarEtapasBitacora(
+                bitacora.id
+            );
+        }
     }
 
     function editarDesdeDetalle(

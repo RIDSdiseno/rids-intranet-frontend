@@ -81,6 +81,9 @@ export interface BitacoraTecnico {
     estado:
     EstadoBitacoraTecnico;
 
+    usaEtapas:
+    boolean;
+
     tecnicoId: number;
     empresaId?: number | null;
     solicitanteId?: number | null;
@@ -220,6 +223,9 @@ export interface CrearBitacoraTecnicoPayload {
     tipoActividad?:
     TipoBitacoraTecnico;
 
+    usaEtapas?:
+    boolean;
+
     tecnicoId: number;
     empresaId?: number | null;
     solicitanteId?: number | null;
@@ -271,6 +277,9 @@ export interface BitacoraFormState {
 
     tipoActividad:
     TipoBitacoraTecnico;
+
+    usaEtapas:
+    boolean;
 
     estado:
     EstadoBitacoraTecnico;

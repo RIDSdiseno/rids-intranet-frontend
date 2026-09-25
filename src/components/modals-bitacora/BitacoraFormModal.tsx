@@ -16,7 +16,8 @@ import {
     Input,
     Modal,
     Select,
-    Alert
+    Alert,
+    Switch
 } from "antd";
 
 import dayjs from "dayjs";
@@ -1189,95 +1190,145 @@ export default function BitacoraFormModal({
                     )}
                 </div>
 
-                <BitacoraTimelineEtapas
-                    bitacoraId={
-                        editId
-                    }
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-slate-800">
+                                    Seguimiento por etapas
+                                </h3>
 
-                    puedeEditar={
-                        puedeEditar
-                    }
+                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                    Opcional
+                                </span>
+                            </div>
 
-                    etapas={
-                        etapas
-                    }
+                            <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                                Actívalo cuando necesites registrar
+                                diagnóstico, proceso y resultado con
+                                evidencias y revisiones.
+                            </p>
+                        </div>
 
-                    etapasForm={
-                        etapasForm
-                    }
+                        <Switch
+                            checked={
+                                form.usaEtapas
+                            }
 
-                    setEtapasForm={
-                        setEtapasForm
-                    }
+                            disabled={
+                                !puedeEditar
+                            }
 
-                    tecnicos={
-                        tecnicos
-                    }
+                            checkedChildren="Activado"
+                            unCheckedChildren="Desactivado"
 
-                    tecnicoResponsableId={
-                        form.tecnicoId
-                    }
+                            onChange={(
+                                checked
+                            ) => {
+                                setForm(
+                                    prev => ({
+                                        ...prev,
 
-                    usuarioActualTecnicoId={
-                        usuarioActualTecnicoId
-                    }
+                                        usaEtapas:
+                                            checked,
+                                    })
+                                );
+                            }}
+                        />
+                    </div>
+                </div>
 
-                    evidenciasPendientes={
-                        evidenciasPendientes
-                    }
+                {form.usaEtapas && (
+                    <BitacoraTimelineEtapas
+                        bitacoraId={
+                            editId
+                        }
 
-                    evidenciasAEliminar={
-                        evidenciasAEliminar
-                    }
+                        puedeEditar={
+                            puedeEditar
+                        }
 
-                    loadingEvidencias={
-                        loadingEvidencias
-                    }
+                        etapas={
+                            etapas
+                        }
 
-                    processingEtapaId={
-                        processingEtapaId
-                    }
+                        etapasForm={
+                            etapasForm
+                        }
 
-                    comentarioRespuesta={
-                        comentarioRespuesta
-                    }
+                        setEtapasForm={
+                            setEtapasForm
+                        }
 
-                    setComentarioRespuesta={
-                        setComentarioRespuesta
-                    }
+                        tecnicos={
+                            tecnicos
+                        }
 
-                    onAgregarEvidencia={
-                        onAgregarEvidencia
-                    }
+                        tecnicoResponsableId={
+                            form.tecnicoId
+                        }
 
-                    onMarcarEliminarEvidencia={
-                        onMarcarEliminarEvidencia
-                    }
+                        usuarioActualTecnicoId={
+                            usuarioActualTecnicoId
+                        }
 
-                    onRestaurarEvidencia={
-                        onRestaurarEvidencia
-                    }
+                        evidenciasPendientes={
+                            evidenciasPendientes
+                        }
 
-                    onEliminarEvidenciaPendiente={
-                        onEliminarEvidenciaPendiente
-                    }
+                        evidenciasAEliminar={
+                            evidenciasAEliminar
+                        }
 
-                    onGuardarEtapa={
-                        onGuardarEtapa
-                    }
+                        loadingEvidencias={
+                            loadingEvidencias
+                        }
 
-                    onCompletarEtapa={
-                        onCompletarEtapa
-                    }
+                        processingEtapaId={
+                            processingEtapaId
+                        }
 
-                    onSolicitarRevision={
-                        onSolicitarRevision
-                    }
+                        comentarioRespuesta={
+                            comentarioRespuesta
+                        }
 
-                    onResponderRevision={
-                        onResponderRevision
-                    }
-                />
+                        setComentarioRespuesta={
+                            setComentarioRespuesta
+                        }
+
+                        onAgregarEvidencia={
+                            onAgregarEvidencia
+                        }
+
+                        onMarcarEliminarEvidencia={
+                            onMarcarEliminarEvidencia
+                        }
+
+                        onRestaurarEvidencia={
+                            onRestaurarEvidencia
+                        }
+
+                        onEliminarEvidenciaPendiente={
+                            onEliminarEvidenciaPendiente
+                        }
+
+                        onGuardarEtapa={
+                            onGuardarEtapa
+                        }
+
+                        onCompletarEtapa={
+                            onCompletarEtapa
+                        }
+
+                        onSolicitarRevision={
+                            onSolicitarRevision
+                        }
+
+                        onResponderRevision={
+                            onResponderRevision
+                        }
+                    />
+                )}
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button
