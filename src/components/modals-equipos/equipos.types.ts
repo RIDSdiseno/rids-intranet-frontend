@@ -92,6 +92,24 @@ export type EquipoRow = {
   solicitanteRut?: string | null;
   solicitanteEmail?: string | null;
 
+  /*
+ * =====================================================
+ * DETECCIÓN DE SOLICITANTE POR AGENTE
+ * =====================================================
+ */
+
+  solicitanteDetectadoEmail?:
+  string | null;
+
+  solicitanteDetectadoId?:
+  number | null;
+
+  requiereRevisionSolicitante?:
+  boolean | null;
+
+  motivoRevisionSolicitante?:
+  string | null;
+
   /**
    * Empresa directa asignada al equipo.
    */
@@ -279,27 +297,88 @@ export type EquipoAgenteEvento = {
 
 export type EquipoDetalleAgent = {
   so?: string | null;
+
   macWifi?: string | null;
   redEthernet?: string | null;
+
   tipoDd?: string | null;
   estadoAlm?: string | null;
+
   office?: string | null;
   teamViewer?: string | null;
 
+  /*
+   * =====================================================
+   * ONEDRIVE
+   * =====================================================
+   */
+
   oneDrive?: string | null;
+
   oneDriveEstado?: string | null;
+
   oneDriveInstalado?: boolean | null;
+
   oneDriveEnEjecucion?: boolean | null;
+
   oneDriveOperativo?: boolean | null;
+
   oneDriveVersion?: string | null;
+
   oneDriveUsuario?: string | null;
+
   oneDriveDetalle?: unknown;
 
+  /*
+   * =====================================================
+   * BATERÍA
+   * =====================================================
+   */
+
+  bateriaPresente?: boolean | null;
+
+  bateriaCantidad?: number | null;
+
+  bateriaCargaPorcentaje?: number | null;
+
+  bateriaCapacidadDisenoMWh?: number | null;
+
+  bateriaCapacidadCompletaMWh?: number | null;
+
+  bateriaSaludPorcentaje?: number | null;
+
+  bateriaDesgastePorcentaje?: number | null;
+
+  bateriaCiclos?: number | null;
+
+  bateriaEstado?: string | null;
+
+  bateriaNombre?: string | null;
+
+  bateriaFabricante?: string | null;
+
+  bateriaSerial?: string | null;
+
+  bateriaQuimica?: string | null;
+
+  bateriaAdvertencia?: string | null;
+
+  /*
+   * =====================================================
+   * SEGURIDAD
+   * =====================================================
+   */
+
   antivirusNombre?: string | null;
+
   antivirusActivo?: boolean | null;
+
   firewallActivo?: boolean | null;
+
   bitlockerEstado?: string | null;
+
   windowsUpdate?: string | null;
+
   observacionAgente?: string | null;
 };
 

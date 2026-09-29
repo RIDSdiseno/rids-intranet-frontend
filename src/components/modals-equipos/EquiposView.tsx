@@ -7,6 +7,7 @@ import {
     actorName,
     clsx,
     fieldLabels,
+    HIDDEN_HISTORY_FIELDS,
     formatRut,
     getChanges,
     getEstadoEquipoClass,
@@ -18,6 +19,10 @@ import {
     getTecnicoInstaladorLabel,
     getPropiedadEquipoLabel,
     getPropiedadEquipoClass,
+    getBatteryStatusLabel,
+    getBatteryStatusClass,
+    getBatteryBarClass,
+    formatBatteryMWh,
 } from "./equipos.helpers";
 
 import type {
@@ -93,35 +98,75 @@ function formatTimeCL(value?: string | null) {
     }).format(new Date(value));
 }
 
-function getAgentEventLabel(tipo?: string | null) {
+function getAgentEventLabel(
+    tipo?: string | null
+) {
     const labels: Record<string, string> = {
-        INVENTORY_SYNC: "Inventario sincronizado",
-        AGENT_INSTALLED: "Agente instalado",
-        AGENT_UNINSTALLED: "Agente desinstalado",
-        AGENT_ERROR: "Error del agente",
-        AGENT_STARTED: "Agente iniciado",
-        AGENT_STOPPED: "Agente detenido",
+        INVENTORY_SYNC:
+            "Inventario sincronizado",
+
+        REVISION_SOLICITANTE:
+            "Revisión de solicitante",
+
+        AGENT_INSTALLED:
+            "Agente instalado",
+
+        AGENT_UNINSTALLED:
+            "Agente desinstalado",
+
+        AGENT_ERROR:
+            "Error del agente",
+
+        AGENT_STARTED:
+            "Agente iniciado",
+
+        AGENT_STOPPED:
+            "Agente detenido",
     };
 
-    return labels[String(tipo ?? "")] ?? tipo ?? "Evento";
+    return (
+        labels[String(tipo ?? "")] ??
+        tipo ??
+        "Evento"
+    );
 }
 
-function getAgentEventClass(tipo?: string | null) {
-    const value = String(tipo ?? "");
+function getAgentEventClass(
+    tipo?: string | null
+) {
+    const value =
+        String(tipo ?? "");
 
-    if (value.includes("ERROR")) {
+    if (
+        value.includes("ERROR")
+    ) {
         return "border-rose-200 bg-rose-50 text-rose-700";
     }
 
-    if (value.includes("INSTALLED") || value.includes("STARTED")) {
-        return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    }
-
-    if (value.includes("UNINSTALLED") || value.includes("STOPPED")) {
+    if (
+        value ===
+        "REVISION_SOLICITANTE"
+    ) {
         return "border-amber-200 bg-amber-50 text-amber-700";
     }
 
-    if (value.includes("INVENTORY")) {
+    if (
+        value.includes("INSTALLED") ||
+        value.includes("STARTED")
+    ) {
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    }
+
+    if (
+        value.includes("UNINSTALLED") ||
+        value.includes("STOPPED")
+    ) {
+        return "border-amber-200 bg-amber-50 text-amber-700";
+    }
+
+    if (
+        value.includes("INVENTORY")
+    ) {
         return "border-cyan-200 bg-cyan-50 text-cyan-700";
     }
 
@@ -291,11 +336,89 @@ function getHistoryActorLabel(action?: string | null) {
     return "Actualizado por:";
 }
 
-function formatHistoryValue(value: unknown) {
-    if (value === null || value === undefined || value === "") return "—";
+function formatHistoryValue(
+    value: unknown,
+    field?: string
+) {
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+        return "—";
+    }
 
-    if (typeof value === "boolean") {
-        return value ? "Sí" : "No";
+    if (
+        typeof value ===
+        "boolean"
+    ) {
+        return value
+            ? "Sí"
+            : "No";
+    }
+
+    if (
+        field === "lastBootAt"
+    ) {
+        const date =
+            new Date(
+                String(value)
+            );
+
+        if (
+            !Number.isNaN(
+                date.getTime()
+            )
+        ) {
+            return new Intl.DateTimeFormat(
+                "es-CL",
+                {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: false,
+                }
+            ).format(date);
+        }
+    }
+
+    if (
+        field ===
+        "bateriaSaludPorcentaje" ||
+        field ===
+        "bateriaDesgastePorcentaje"
+    ) {
+        return `${value}%`;
+    }
+
+    if (
+        field ===
+        "bateriaCapacidadCompletaMWh"
+    ) {
+        const numero =
+            Number(value);
+
+        if (
+            Number.isFinite(
+                numero
+            )
+        ) {
+            return formatBatteryMWh(
+                numero
+            );
+        }
+    }
+
+    if (
+        field ===
+        "bateriaEstado"
+    ) {
+        return getBatteryStatusLabel(
+            String(value)
+        );
     }
 
     return String(value);
@@ -618,15 +741,148 @@ export default function EquipoViewModal({
     const agenteUsuario = viewAgent?.usuarioActual || row.usuarioActual;
     const agenteUltimoArranque = viewAgent?.lastBootAt || row.lastBootAt;
 
-    const oneDriveDetalle = viewAgent?.detalle;
+    const detalleAgent =
+        viewAgent?.detalle;
 
-    const oneDriveEstado = oneDriveDetalle?.oneDriveEstado;
-    const oneDriveResumen = oneDriveDetalle?.oneDrive;
-    const oneDriveInstalado = oneDriveDetalle?.oneDriveInstalado;
-    const oneDriveEnEjecucion = oneDriveDetalle?.oneDriveEnEjecucion;
-    const oneDriveOperativo = oneDriveDetalle?.oneDriveOperativo;
-    const oneDriveVersion = oneDriveDetalle?.oneDriveVersion;
-    const oneDriveUsuario = oneDriveDetalle?.oneDriveUsuario;
+    /*
+ * =====================================================
+ * SOLICITANTE / IDENTIDAD DETECTADA POR AGENTE
+ * =====================================================
+ */
+
+    const requiereRevisionSolicitante =
+        Boolean(
+            viewAgent?.requiereRevisionSolicitante ??
+            row.requiereRevisionSolicitante
+        );
+
+    const motivoRevisionSolicitante =
+        viewAgent?.motivoRevisionSolicitante ??
+        row.motivoRevisionSolicitante ??
+        null;
+
+    const solicitanteDetectadoEmail =
+        viewAgent?.solicitanteDetectadoEmail ??
+        row.solicitanteDetectadoEmail ??
+        null;
+
+    const solicitanteDetectadoId =
+        viewAgent?.solicitanteDetectadoId ??
+        row.solicitanteDetectadoId ??
+        null;
+
+
+    /*
+     * Un cambio automático queda registrado en el
+     * metadata del último evento:
+     *
+     * solicitanteActualId != solicitanteIdFinal
+     * y no existe revisión pendiente.
+     */
+
+    const huboCambioSolicitante =
+        !requiereRevisionSolicitante &&
+        Boolean(
+            latestAgentMetadata.solicitanteActualId &&
+            latestAgentMetadata.solicitanteIdFinal &&
+            latestAgentMetadata.solicitanteActualId !==
+            latestAgentMetadata.solicitanteIdFinal
+        );
+
+    const cambioSolicitanteManual =
+        huboCambioSolicitante &&
+        Boolean(
+            latestAgentMetadata
+                .correoSeleccionadoPorTecnico
+        );
+
+    const cambioSolicitanteAutomatico =
+        huboCambioSolicitante &&
+        !cambioSolicitanteManual;
+
+    const identidadConfirmadaManualmente =
+        !requiereRevisionSolicitante &&
+        Boolean(
+            latestAgentMetadata
+                .seleccionManualPersistida
+        );
+
+
+    /*
+     * =====================================================
+     * ONEDRIVE
+     * =====================================================
+     */
+
+    const oneDriveEstado =
+        detalleAgent?.oneDriveEstado;
+
+    const oneDriveResumen =
+        detalleAgent?.oneDrive;
+
+    const oneDriveInstalado =
+        detalleAgent?.oneDriveInstalado;
+
+    const oneDriveEnEjecucion =
+        detalleAgent?.oneDriveEnEjecucion;
+
+    const oneDriveOperativo =
+        detalleAgent?.oneDriveOperativo;
+
+    const oneDriveVersion =
+        detalleAgent?.oneDriveVersion;
+
+    const oneDriveUsuario =
+        detalleAgent?.oneDriveUsuario;
+
+
+    /*
+     * =====================================================
+     * BATERÍA
+     * =====================================================
+     */
+
+    const bateriaPresente =
+        detalleAgent?.bateriaPresente;
+
+    const bateriaCantidad =
+        detalleAgent?.bateriaCantidad;
+
+    const bateriaCargaPorcentaje =
+        detalleAgent?.bateriaCargaPorcentaje;
+
+    const bateriaCapacidadDisenoMWh =
+        detalleAgent?.bateriaCapacidadDisenoMWh;
+
+    const bateriaCapacidadCompletaMWh =
+        detalleAgent?.bateriaCapacidadCompletaMWh;
+
+    const bateriaSaludPorcentaje =
+        detalleAgent?.bateriaSaludPorcentaje;
+
+    const bateriaDesgastePorcentaje =
+        detalleAgent?.bateriaDesgastePorcentaje;
+
+    const bateriaCiclos =
+        detalleAgent?.bateriaCiclos;
+
+    const bateriaEstado =
+        detalleAgent?.bateriaEstado;
+
+    const bateriaNombre =
+        detalleAgent?.bateriaNombre;
+
+    const bateriaFabricante =
+        detalleAgent?.bateriaFabricante;
+
+    const bateriaSerial =
+        detalleAgent?.bateriaSerial;
+
+    const bateriaQuimica =
+        detalleAgent?.bateriaQuimica;
+
+    const bateriaAdvertencia =
+        detalleAgent?.bateriaAdvertencia;
 
     const adicionalesEquipo = viewAgent?.adicionales ?? row.adicionales ?? [];
 
@@ -697,6 +953,257 @@ export default function EquipoViewModal({
                     <div className="mx-auto flex min-h-full w-full max-w-[1380px] flex-col space-y-5">
                         {activeTab === "principal" ? (
                             <>
+                                {/* =====================================================
+    ESTADO DE IDENTIDAD / SOLICITANTE
+===================================================== */}
+
+                                {requiereRevisionSolicitante ? (
+
+                                    <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:p-5">
+
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+
+                                            <div className="min-w-0">
+
+                                                <div className="flex flex-wrap items-center gap-2">
+
+                                                    <span className="inline-flex rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800">
+                                                        Requiere revisión
+                                                    </span>
+
+                                                    <h4 className="text-sm font-semibold text-amber-950">
+                                                        Posible cambio de solicitante
+                                                    </h4>
+
+                                                </div>
+
+                                                <p className="mt-2 text-sm text-amber-900">
+                                                    El agente detectó información de identidad
+                                                    que no permite realizar un cambio automático
+                                                    con suficiente certeza.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+
+                                            {/* SOLICITANTE ACTUAL */}
+
+                                            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                    Solicitante actualmente asignado
+                                                </div>
+
+                                                <div className="mt-1 font-semibold text-slate-900">
+                                                    {row.solicitante || "Sin solicitante"}
+                                                </div>
+
+                                                {row.solicitanteEmail ? (
+
+                                                    <div className="mt-1 break-all text-xs text-slate-500">
+                                                        {row.solicitanteEmail}
+                                                    </div>
+
+                                                ) : null}
+
+                                            </div>
+
+
+                                            {/* IDENTIDAD DETECTADA */}
+
+                                            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                                                    Identidad detectada por el agente
+                                                </div>
+
+                                                <div className="mt-1 break-all font-semibold text-slate-900">
+                                                    {solicitanteDetectadoEmail || "No identificada"}
+                                                </div>
+
+                                                {solicitanteDetectadoId ? (
+
+                                                    <div className="mt-1 text-xs text-slate-500">
+                                                        Solicitante encontrado #{solicitanteDetectadoId}
+                                                    </div>
+
+                                                ) : null}
+
+                                            </div>
+
+                                        </div>
+
+
+                                        {motivoRevisionSolicitante ? (
+
+                                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-100/60 px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                                                    Motivo
+                                                </div>
+
+                                                <div className="mt-1 text-sm text-amber-950">
+                                                    {motivoRevisionSolicitante}
+                                                </div>
+
+                                            </div>
+
+                                        ) : null}
+
+                                    </section>
+
+                                ) : cambioSolicitanteManual ? (
+
+                                    <section className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm sm:p-5">
+
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+
+                                            <div className="min-w-0">
+
+                                                <div className="flex flex-wrap items-center gap-2">
+
+                                                    <span className="inline-flex rounded-full border border-cyan-300 bg-white px-3 py-1 text-xs font-semibold text-cyan-700">
+                                                        Selección manual
+                                                    </span>
+
+                                                    <h4 className="text-sm font-semibold text-cyan-950">
+                                                        Solicitante actualizado por técnico
+                                                    </h4>
+
+                                                </div>
+
+                                                <p className="mt-2 text-sm text-cyan-800">
+                                                    El técnico seleccionó manualmente una de las
+                                                    identidades detectadas por el agente.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        {solicitanteDetectadoEmail ? (
+
+                                            <div className="mt-3 rounded-xl border border-cyan-200 bg-white px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                    Identidad seleccionada
+                                                </div>
+
+                                                <div className="mt-1 break-all font-semibold text-slate-900">
+                                                    {solicitanteDetectadoEmail}
+                                                </div>
+
+                                            </div>
+
+                                        ) : null}
+
+                                    </section>
+
+
+
+                                ) : identidadConfirmadaManualmente ? (
+                                    <section className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm sm:p-5">
+
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+
+                                            <div className="min-w-0">
+
+                                                <div className="flex flex-wrap items-center gap-2">
+
+                                                    <span className="inline-flex rounded-full border border-cyan-300 bg-white px-3 py-1 text-xs font-semibold text-cyan-700">
+                                                        Identidad confirmada
+                                                    </span>
+
+                                                    <h4 className="text-sm font-semibold text-cyan-950">
+                                                        Solicitante confirmado manualmente
+                                                    </h4>
+
+                                                </div>
+
+                                                <p className="mt-2 text-sm text-cyan-800">
+                                                    La identidad actual fue seleccionada previamente
+                                                    por un técnico y se mantiene protegida frente
+                                                    a cambios automáticos.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        {solicitanteDetectadoEmail ? (
+
+                                            <div className="mt-3 rounded-xl border border-cyan-200 bg-white px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                    Identidad vigente
+                                                </div>
+
+                                                <div className="mt-1 break-all font-semibold text-slate-900">
+                                                    {solicitanteDetectadoEmail}
+                                                </div>
+
+                                            </div>
+
+                                        ) : null}
+
+                                    </section>
+
+                                ) : cambioSolicitanteAutomatico ? (
+
+                                    <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm sm:p-5">
+
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+
+                                            <div className="min-w-0">
+
+                                                <div className="flex flex-wrap items-center gap-2">
+
+                                                    <span className="inline-flex rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                        Actualizado automáticamente
+                                                    </span>
+
+                                                    <h4 className="text-sm font-semibold text-emerald-950">
+                                                        Solicitante actualizado por el agente
+                                                    </h4>
+
+                                                </div>
+
+                                                <p className="mt-2 text-sm text-emerald-800">
+                                                    El agente detectó una identidad confiable
+                                                    diferente a la anterior y actualizó
+                                                    automáticamente la relación del equipo.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+
+                                        {solicitanteDetectadoEmail ? (
+
+                                            <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-4 py-3">
+
+                                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                                    Nueva identidad detectada
+                                                </div>
+
+                                                <div className="mt-1 break-all font-semibold text-slate-900">
+                                                    {solicitanteDetectadoEmail}
+                                                </div>
+
+                                            </div>
+
+                                        ) : null}
+
+                                    </section>
+
+                                ) : null}
                                 <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                                     <h4 className="mb-3 text-sm font-semibold text-slate-800">
                                         Información General
@@ -746,16 +1253,66 @@ export default function EquipoViewModal({
 
                                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                                     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                                        <div className="mb-4">
-                                            <h4 className="text-sm font-semibold text-slate-800">
-                                                Relación
-                                            </h4>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                Empresa y solicitante asociados al equipo.
-                                            </p>
+                                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+
+                                            <div>
+
+                                                <h4 className="text-sm font-semibold text-slate-800">
+                                                    Relación
+                                                </h4>
+
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Empresa y solicitante asociados al equipo.
+                                                </p>
+
+                                            </div>
+
+
+                                            {agenteInstalado ? (
+
+                                                requiereRevisionSolicitante ? (
+
+                                                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                        Revisión pendiente
+                                                    </span>
+
+                                                ) : cambioSolicitanteManual ? (
+
+                                                    <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                                                        Actualizado manualmente
+                                                    </span>
+
+                                                ) : identidadConfirmadaManualmente ? (
+
+                                                    <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                                                        Identidad confirmada manualmente
+                                                    </span>
+
+                                                ) : cambioSolicitanteAutomatico ? (
+
+                                                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                        Actualizado automáticamente
+                                                    </span>
+
+                                                ) : (
+
+                                                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                        Sin revisión pendiente
+                                                    </span>
+
+                                                )
+
+                                            ) : (
+
+                                                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+                                                    Sin validación del agente
+                                                </span>
+
+                                            )}
+
                                         </div>
 
-                                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                                             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
                                                 <div className="text-xs font-medium text-slate-500">Empresa</div>
                                                 <div className="mt-1 font-semibold text-slate-800">
@@ -783,6 +1340,41 @@ export default function EquipoViewModal({
                                                     {row.solicitanteEmail || "—"}
                                                 </div>
                                             </div>
+                                            {solicitanteDetectadoEmail &&
+                                                solicitanteDetectadoEmail.toLowerCase() !==
+                                                String(
+                                                    row.solicitanteEmail ?? ""
+                                                ).toLowerCase() ? (
+
+                                                <div
+                                                    className={clsx(
+                                                        "rounded-xl border px-3 py-2",
+
+                                                        requiereRevisionSolicitante
+                                                            ? "border-amber-200 bg-amber-50"
+                                                            : "border-cyan-200 bg-cyan-50"
+                                                    )}
+                                                >
+
+                                                    <div
+                                                        className={clsx(
+                                                            "text-xs font-medium",
+
+                                                            requiereRevisionSolicitante
+                                                                ? "text-amber-700"
+                                                                : "text-cyan-700"
+                                                        )}
+                                                    >
+                                                        Email detectado por agente
+                                                    </div>
+
+                                                    <div className="mt-1 break-all font-semibold text-slate-900">
+                                                        {solicitanteDetectadoEmail}
+                                                    </div>
+
+                                                </div>
+
+                                            ) : null}
                                         </div>
                                     </section>
 
@@ -1416,6 +2008,332 @@ export default function EquipoViewModal({
                                     </div>
                                 ) : null}
 
+                                {/* Batería agente */}
+                                {viewAgent ? (
+                                    <section className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
+
+                                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-800">
+                                                    Estado de batería
+                                                </h4>
+
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Salud, desgaste y capacidad detectados automáticamente por el agente.
+                                                </p>
+                                            </div>
+
+                                            <span
+                                                className={clsx(
+                                                    "inline-flex rounded-full border px-3 py-1 text-xs font-semibold",
+                                                    getBatteryStatusClass(
+                                                        bateriaEstado
+                                                    )
+                                                )}
+                                            >
+                                                {getBatteryStatusLabel(
+                                                    bateriaEstado
+                                                )}
+                                            </span>
+
+                                        </div>
+
+
+                                        {/* ============================================
+            SIN BATERÍA
+        ============================================ */}
+
+                                        {bateriaPresente === false ? (
+
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+
+                                                <div className="flex items-center gap-2">
+
+                                                    <span className="text-lg">
+                                                        🔋
+                                                    </span>
+
+                                                    <div>
+                                                        <div className="text-sm font-semibold text-slate-700">
+                                                            Equipo sin batería
+                                                        </div>
+
+                                                        <p className="mt-0.5 text-xs text-slate-500">
+                                                            Windows no detectó una batería física instalada en este equipo.
+                                                        </p>
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        ) : bateriaPresente === true ? (
+
+                                            <div className="space-y-4">
+
+
+                                                {/* ============================================
+                    SALUD PRINCIPAL
+                ============================================ */}
+
+                                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+
+                                                    <div className="flex flex-wrap items-end justify-between gap-3">
+
+                                                        <div>
+
+                                                            <div className="text-xs font-medium text-slate-500">
+                                                                Salud de batería
+                                                            </div>
+
+                                                            <div className="mt-1 text-2xl font-bold text-slate-900">
+
+                                                                {bateriaSaludPorcentaje !== null &&
+                                                                    bateriaSaludPorcentaje !== undefined
+                                                                    ? `${bateriaSaludPorcentaje}%`
+                                                                    : "—"}
+
+                                                            </div>
+
+                                                        </div>
+
+
+                                                        <div className="text-right">
+
+                                                            <div className="text-xs text-slate-500">
+                                                                Desgaste
+                                                            </div>
+
+                                                            <div className="mt-1 text-sm font-semibold text-slate-700">
+
+                                                                {bateriaDesgastePorcentaje !== null &&
+                                                                    bateriaDesgastePorcentaje !== undefined
+                                                                    ? `${bateriaDesgastePorcentaje}%`
+                                                                    : "—"}
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    </div>
+
+
+                                                    {bateriaSaludPorcentaje !== null &&
+                                                        bateriaSaludPorcentaje !== undefined ? (
+
+                                                        <div className="mt-4">
+
+                                                            <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+
+                                                                <div
+                                                                    className={clsx(
+                                                                        "h-full rounded-full transition-all",
+                                                                        getBatteryBarClass(
+                                                                            bateriaSaludPorcentaje
+                                                                        )
+                                                                    )}
+                                                                    style={{
+                                                                        width: `${Math.min(
+                                                                            100,
+                                                                            Math.max(
+                                                                                0,
+                                                                                bateriaSaludPorcentaje
+                                                                            )
+                                                                        )}%`,
+                                                                    }}
+                                                                />
+
+                                                            </div>
+
+
+                                                            <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+
+                                                                <span>
+                                                                    0%
+                                                                </span>
+
+                                                                <span>
+                                                                    100%
+                                                                </span>
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    ) : null}
+
+                                                </div>
+
+
+                                                {/* ============================================
+                    DATOS DE SALUD
+                ============================================ */}
+
+                                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+                                                    <InfoLine
+                                                        label="Carga actual"
+                                                        value={
+                                                            bateriaCargaPorcentaje !== null &&
+                                                                bateriaCargaPorcentaje !== undefined
+                                                                ? `${bateriaCargaPorcentaje}%`
+                                                                : "—"
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Ciclos"
+                                                        value={
+                                                            bateriaCiclos ??
+                                                            "—"
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Capacidad de diseño"
+                                                        value={
+                                                            formatBatteryMWh(
+                                                                bateriaCapacidadDisenoMWh
+                                                            )
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Capacidad carga completa"
+                                                        value={
+                                                            formatBatteryMWh(
+                                                                bateriaCapacidadCompletaMWh
+                                                            )
+                                                        }
+                                                    />
+
+                                                </div>
+
+
+                                                {/* ============================================
+                    IDENTIFICACIÓN
+                ============================================ */}
+
+                                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+                                                    <InfoLine
+                                                        label="Fabricante"
+                                                        value={
+                                                            bateriaFabricante ??
+                                                            "—"
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Batería"
+                                                        value={
+                                                            bateriaNombre ??
+                                                            "—"
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Química"
+                                                        value={
+                                                            bateriaQuimica ??
+                                                            "—"
+                                                        }
+                                                    />
+
+                                                    <InfoLine
+                                                        label="Serial batería"
+                                                        value={
+                                                            bateriaSerial ??
+                                                            "—"
+                                                        }
+                                                    />
+
+                                                </div>
+
+
+                                                {bateriaCantidad !== null &&
+                                                    bateriaCantidad !== undefined &&
+                                                    bateriaCantidad > 1 ? (
+
+                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+
+                                                        Baterías detectadas:{" "}
+
+                                                        <span className="font-semibold text-slate-800">
+                                                            {bateriaCantidad}
+                                                        </span>
+
+                                                    </div>
+
+                                                ) : null}
+
+
+                                                {/* ============================================
+                    ADVERTENCIA
+                ============================================ */}
+
+                                                {bateriaAdvertencia ? (
+
+                                                    <div
+                                                        className={clsx(
+                                                            "rounded-xl border px-4 py-3 text-sm",
+
+                                                            bateriaEstado ===
+                                                                "CRITICA"
+                                                                ? "border-rose-200 bg-rose-50 text-rose-800"
+                                                                : bateriaEstado ===
+                                                                    "DESGASTADA"
+                                                                    ? "border-amber-200 bg-amber-50 text-amber-800"
+                                                                    : "border-slate-200 bg-slate-50 text-slate-700"
+                                                        )}
+                                                    >
+
+                                                        <div className="font-semibold">
+
+                                                            {bateriaEstado ===
+                                                                "CRITICA"
+                                                                ? "Revisión recomendada"
+                                                                : "Advertencia de batería"}
+
+                                                        </div>
+
+                                                        <div className="mt-1">
+                                                            {bateriaAdvertencia}
+                                                        </div>
+
+                                                    </div>
+
+                                                ) : null}
+
+                                            </div>
+
+                                        ) : (
+
+                                            /*
+                                             * El equipo tiene agente, pero todavía
+                                             * no ha sido sincronizado con una versión
+                                             * que reporte batería.
+                                             */
+
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+
+
+                                                <div className="text-sm font-semibold text-slate-700">
+                                                    Sin información de batería
+                                                </div>
+
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    El agente todavía no ha reportado información sobre la batería de este equipo.
+                                                </p>
+
+                                            </div>
+
+                                        )}
+
+                                    </section>
+                                ) : null}
+
                                 {/* Software instalado */}
                                 {viewAgent?.softwares?.length ? (
                                     <section className="rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
@@ -1549,10 +2467,54 @@ export default function EquipoViewModal({
                                                                 const metadataSummary = getAgentEventMetadataSummary(ev.metadata);
                                                                 const meta = getAgentEventMetadata(ev.metadata);
                                                                 const tecnicoInstalador = getTecnicoInstaladorLabel(ev.metadata);
+                                                                const requiereRevisionEvento =
+                                                                    Boolean(
+                                                                        meta.requiereRevisionSolicitante
+                                                                    );
+
+                                                                const correoDetectadoEvento =
+                                                                    meta.solicitanteDetectadoEmail ??
+                                                                    meta.solicitanteEmail ??
+                                                                    null;
+
+                                                                const identidadManualPersistidaEvento =
+                                                                    Boolean(
+                                                                        meta.seleccionManualPersistida
+                                                                    );
+
+                                                                const cambioManualEvento =
+                                                                    Boolean(
+                                                                        meta.correoSeleccionadoPorTecnico
+                                                                    ) &&
+                                                                    Boolean(
+                                                                        meta.solicitanteActualId &&
+                                                                        meta.solicitanteIdFinal &&
+                                                                        meta.solicitanteActualId !==
+                                                                        meta.solicitanteIdFinal
+                                                                    );
+
+                                                                const cambioAutomaticoEvento =
+                                                                    !cambioManualEvento &&
+                                                                    !requiereRevisionEvento &&
+                                                                    Boolean(
+                                                                        meta.solicitanteActualId &&
+                                                                        meta.solicitanteIdFinal &&
+                                                                        meta.solicitanteActualId !==
+                                                                        meta.solicitanteIdFinal
+                                                                    );
 
                                                                 return (
                                                                     <div key={ev.id} className="relative">
-                                                                        <div className="absolute -left-[27px] top-3 h-3 w-3 rounded-full border-2 border-white bg-cyan-500 shadow-sm" />
+                                                                        <div
+                                                                            className={clsx(
+                                                                                "absolute -left-[27px] top-3 h-3 w-3 rounded-full border-2 border-white shadow-sm",
+
+                                                                                ev.tipo ===
+                                                                                    "REVISION_SOLICITANTE"
+                                                                                    ? "bg-amber-500"
+                                                                                    : "bg-cyan-500"
+                                                                            )}
+                                                                        />
 
                                                                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm transition hover:border-cyan-200 hover:bg-cyan-50/40">
                                                                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1575,6 +2537,114 @@ export default function EquipoViewModal({
                                                                                     <p className="mt-2 text-sm text-slate-700">
                                                                                         {ev.mensaje || "Sin mensaje asociado."}
                                                                                     </p>
+
+                                                                                    {cambioManualEvento ? (
+
+                                                                                        <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-3">
+
+                                                                                            <div className="flex flex-wrap items-center gap-2">
+
+                                                                                                <span className="inline-flex rounded-full border border-cyan-300 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
+                                                                                                    Selección manual
+                                                                                                </span>
+
+                                                                                                <span className="text-xs font-semibold text-cyan-900">
+                                                                                                    Cambio de solicitante
+                                                                                                </span>
+
+                                                                                            </div>
+
+
+                                                                                            {correoDetectadoEvento ? (
+
+                                                                                                <div className="mt-2 text-xs text-cyan-900">
+
+                                                                                                    Identidad seleccionada:{" "}
+
+                                                                                                    <span className="font-semibold">
+                                                                                                        {correoDetectadoEvento}
+                                                                                                    </span>
+
+                                                                                                </div>
+
+                                                                                            ) : null}
+
+                                                                                        </div>
+
+                                                                                    ) : identidadManualPersistidaEvento ? (
+
+                                                                                        <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-3">
+
+                                                                                            <div className="flex flex-wrap items-center gap-2">
+
+                                                                                                <span className="inline-flex rounded-full border border-cyan-300 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700">
+                                                                                                    Identidad protegida
+                                                                                                </span>
+
+                                                                                                <span className="text-xs font-semibold text-cyan-900">
+                                                                                                    Confirmada manualmente
+                                                                                                </span>
+
+                                                                                            </div>
+
+
+                                                                                            {correoDetectadoEvento ? (
+
+                                                                                                <div className="mt-2 text-xs text-cyan-900">
+
+                                                                                                    Identidad vigente:{" "}
+
+                                                                                                    <span className="font-semibold">
+                                                                                                        {correoDetectadoEvento}
+                                                                                                    </span>
+
+                                                                                                </div>
+
+                                                                                            ) : null}
+
+
+                                                                                            <div className="mt-1 text-xs text-cyan-700">
+                                                                                                Esta identidad fue seleccionada previamente
+                                                                                                por un técnico y fue conservada durante esta
+                                                                                                sincronización.
+                                                                                            </div>
+
+                                                                                        </div>
+
+                                                                                    ) : cambioAutomaticoEvento ? (
+
+                                                                                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+
+                                                                                            <div className="flex flex-wrap items-center gap-2">
+
+                                                                                                <span className="inline-flex rounded-full border border-emerald-300 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                                                                                    Cambio automático
+                                                                                                </span>
+
+                                                                                                <span className="text-xs font-semibold text-emerald-900">
+                                                                                                    Solicitante actualizado por agente
+                                                                                                </span>
+
+                                                                                            </div>
+
+
+                                                                                            {correoDetectadoEvento ? (
+
+                                                                                                <div className="mt-2 text-xs text-emerald-900">
+
+                                                                                                    Nueva identidad:{" "}
+
+                                                                                                    <span className="font-semibold">
+                                                                                                        {correoDetectadoEvento}
+                                                                                                    </span>
+
+                                                                                                </div>
+
+                                                                                            ) : null}
+
+                                                                                        </div>
+
+                                                                                    ) : null}
 
                                                                                     {tecnicoInstalador ||
                                                                                         meta.platform ||
@@ -2102,13 +3172,58 @@ export default function EquipoViewModal({
                                                             {items.map((h, idx) => {
                                                                 const changes = getChanges(h);
 
-                                                                const realChanges = changes
-                                                                    ? Object.entries(changes).filter(([_, v]) => {
-                                                                        const before = v?.before ?? "";
-                                                                        const after = v?.after ?? "";
-                                                                        return String(before) !== String(after);
-                                                                    })
-                                                                    : [];
+                                                                const realChanges =
+                                                                    changes
+                                                                        ? Object.entries(
+                                                                            changes
+                                                                        ).filter(
+                                                                            ([
+                                                                                field,
+                                                                                value,
+                                                                            ]) => {
+
+                                                                                /*
+                                                                                 * Ocultar metadatos técnicos
+                                                                                 * del agente.
+                                                                                 */
+                                                                                if (
+                                                                                    HIDDEN_HISTORY_FIELDS.has(
+                                                                                        field
+                                                                                    )
+                                                                                ) {
+                                                                                    return false;
+                                                                                }
+
+                                                                                /*
+                                                                                 * Si ya existe el resumen "disco",
+                                                                                 * evitamos repetir diskFreeGb.
+                                                                                 */
+                                                                                if (
+                                                                                    field ===
+                                                                                    "diskFreeGb" &&
+                                                                                    Object.prototype.hasOwnProperty.call(
+                                                                                        changes,
+                                                                                        "disco"
+                                                                                    )
+                                                                                ) {
+                                                                                    return false;
+                                                                                }
+
+                                                                                const before =
+                                                                                    value?.before ??
+                                                                                    "";
+
+                                                                                const after =
+                                                                                    value?.after ??
+                                                                                    "";
+
+                                                                                return (
+                                                                                    String(before) !==
+                                                                                    String(after)
+                                                                                );
+                                                                            }
+                                                                        )
+                                                                        : [];
 
                                                                 const actionLabel = getHistoryActionLabel(h.action);
 
@@ -2164,7 +3279,7 @@ export default function EquipoViewModal({
 
                                                                                             <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                                                                                                 <div className="rounded-lg bg-slate-50 px-2 py-1.5 font-mono text-slate-500">
-                                                                                                    {formatHistoryValue(v?.before)}
+                                                                                                    {formatHistoryValue(v?.before, k)}
                                                                                                 </div>
 
                                                                                                 <div className="hidden text-center text-slate-400 sm:block">
@@ -2172,7 +3287,7 @@ export default function EquipoViewModal({
                                                                                                 </div>
 
                                                                                                 <div className="rounded-lg bg-indigo-50 px-2 py-1.5 font-mono font-semibold text-slate-900">
-                                                                                                    {formatHistoryValue(v?.after)}
+                                                                                                    {formatHistoryValue(v?.after, k)}
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>

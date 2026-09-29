@@ -27,6 +27,10 @@ import "dayjs/locale/es";
 import locale from "antd/es/date-picker/locale/es_ES";
 dayjs.locale("es");
 
+import {
+    buscarContactosCobranzaPorRut,
+} from "../modals-cobranza/buscarCorreoCliente";
+
 type Props = {
     empresa: EmpresaKey;
     activeTab: TipoRcv;
@@ -93,6 +97,14 @@ const RcvConciliacionPanel: React.FC<Props> = ({
     const [conciliacionEnviarCorreo, setConciliacionEnviarCorreo] = useState(false);
     const [conciliacionCorreoInput, setConciliacionCorreoInput] = useState("");
     const [conciliacionCorreosDestino, setConciliacionCorreosDestino] = useState<string[]>([]);
+
+    const [
+        cargandoCorreosConciliacion,
+        setCargandoCorreosConciliacion,
+    ] =
+        useState(
+            false
+        );
 
     const [uiMessage, setUiMessage] = useState<{
         type: "success" | "error" | "warning";
@@ -185,18 +197,138 @@ const RcvConciliacionPanel: React.FC<Props> = ({
         );
     };
 
-    const handleConciliar = (row: RcvConciliacionRow) => {
-        setConciliacionRow(row);
-        setConciliacionFormaPago(row.formaPago ?? "TRANSFERENCIA");
-        setConciliacionFecha(dayjs());
-        setConciliacionObservacion(row.observacion ?? "");
+    const handleConciliar =
+        async (
+            row:
+                RcvConciliacionRow
+        ) => {
+            setConciliacionRow(
+                row
+            );
 
-        setConciliacionEnviarCorreo(false);
-        setConciliacionCorreoInput("");
-        setConciliacionCorreosDestino([]);
+            setConciliacionFormaPago(
+                row.formaPago ??
+                "TRANSFERENCIA"
+            );
 
-        setConciliacionModalOpen(true);
-    };
+            setConciliacionFecha(
+                dayjs()
+            );
+
+            setConciliacionObservacion(
+                row.observacion ??
+                ""
+            );
+
+            setConciliacionCorreoInput(
+                ""
+            );
+
+            setConciliacionCorreosDestino(
+                []
+            );
+
+            setConciliacionEnviarCorreo(
+                false
+            );
+
+            setCargandoCorreosConciliacion(
+                true
+            );
+
+            /*
+             * Abrimos inmediatamente el modal.
+             * Los destinatarios se cargan en segundo plano.
+             */
+            setConciliacionModalOpen(
+                true
+            );
+
+            try {
+                const contactos =
+                    await buscarContactosCobranzaPorRut(
+                        row.rutContraparte
+                    );
+
+                const correos =
+                    Array.from(
+                        new Set(
+                            contactos
+                                .map(
+                                    contacto =>
+                                        contacto.email
+                                            ?.trim()
+                                            .toLowerCase()
+                                )
+                                .filter(
+                                    (
+                                        email
+                                    ): email is string =>
+                                        Boolean(
+                                            email
+                                        )
+                                )
+                        )
+                    );
+
+                setConciliacionCorreosDestino(
+                    correos
+                );
+
+                /*
+                 * Si existen contactos habilitados
+                 * para cobranza, activamos automáticamente
+                 * el envío.
+                 */
+                setConciliacionEnviarCorreo(
+                    correos.length >
+                    0
+                );
+
+                console.log(
+                    "[CONCILIACION] Destinatarios automáticos",
+                    {
+                        rut:
+                            row.rutContraparte,
+
+                        folio:
+                            row.folio,
+
+                        total:
+                            correos.length,
+
+                        correos,
+                    }
+                );
+            } catch (
+            error
+            ) {
+                console.error(
+                    "[CONCILIACION] Error cargando destinatarios automáticos",
+                    {
+                        rut:
+                            row.rutContraparte,
+
+                        folio:
+                            row.folio,
+
+                        error,
+                    }
+                );
+
+                setConciliacionEnviarCorreo(
+                    false
+                );
+
+                setConciliacionCorreosDestino(
+                    []
+                );
+            } finally {
+                setCargandoCorreosConciliacion(
+                    false
+                );
+            }
+        };
 
     const isValidEmail = (value: string) => {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -239,6 +371,7 @@ const RcvConciliacionPanel: React.FC<Props> = ({
         setConciliacionEnviarCorreo(false);
         setConciliacionCorreoInput("");
         setConciliacionCorreosDestino([]);
+        setCargandoCorreosConciliacion(false);
     };
 
     const handleGuardarConciliacion = async () => {
@@ -597,14 +730,22 @@ const RcvConciliacionPanel: React.FC<Props> = ({
                                     <input
                                         type="checkbox"
                                         checked={conciliacionEnviarCorreo}
-                                        onChange={(e) => {
-                                            const checked = e.target.checked;
+                                        onChange={(
+                                            e
+                                        ) => {
+                                            const checked =
+                                                e.target.checked;
 
-                                            setConciliacionEnviarCorreo(checked);
+                                            setConciliacionEnviarCorreo(
+                                                checked
+                                            );
 
-                                            if (!checked) {
-                                                setConciliacionCorreoInput("");
-                                                setConciliacionCorreosDestino([]);
+                                            if (
+                                                !checked
+                                            ) {
+                                                setConciliacionCorreoInput(
+                                                    ""
+                                                );
                                             }
                                         }}
                                         disabled={conciliacionSaving}
@@ -616,10 +757,20 @@ const RcvConciliacionPanel: React.FC<Props> = ({
                                             Enviar documento conciliado por correo
                                         </p>
                                         <p className="mt-0.5 text-xs text-slate-400">
-                                            Puedes agregar uno o más destinatarios de forma manual.
+                                            Los destinatarios configurados para cobranza
+                                            se cargan automáticamente. También puedes
+                                            agregar destinatarios manualmente.
                                         </p>
                                     </div>
                                 </label>
+
+                                {cargandoCorreosConciliacion && (
+                                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
+                                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+
+                                        Buscando destinatarios configurados para este cliente...
+                                    </div>
+                                )}
 
                                 {conciliacionEnviarCorreo && (
                                     <div className="mt-4 space-y-3">

@@ -8,6 +8,107 @@ import type {
     EquipoAgentFull,
 } from "./equipos.types";
 
+export type AgentEventMetadata = {
+
+    source?: string | null;
+    platform?: string | null;
+    ejecutadoPor?: string | null;
+
+
+    tecnicoInstaladorId?:
+    number | null;
+
+    tecnicoInstaladorNombre?:
+    string | null;
+
+    tecnicoInstaladorEmail?:
+    string | null;
+
+
+    usuarioSistemaEjecutor?:
+    string | null;
+
+    usuarioWindowsEjecutor?:
+    string | null;
+
+    taskUserConfigurado?:
+    string | null;
+
+
+    usuarioMacEjecutor?:
+    string | null;
+
+    launchdLabel?:
+    string | null;
+
+    fileVaultEstado?:
+    string | null;
+
+
+    agenteVersion?:
+    string | null;
+
+    lastBootAt?:
+    string | null;
+
+    uptimeText?:
+    string | null;
+
+    uptimeSeconds?:
+    number | string | null;
+
+
+    /*
+     * =====================================================
+     * IDENTIDAD / SOLICITANTE
+     * =====================================================
+     */
+
+    solicitanteEmail?:
+    string | null;
+
+    solicitanteEmailFuente?:
+    string | null;
+
+    solicitanteDetectadoEmail?:
+    string | null;
+
+    solicitanteDetectadoId?:
+    number | null;
+
+    solicitanteActualId?:
+    number | null;
+
+    solicitanteIdFinal?:
+    number | null;
+
+    dominioEmpresa?:
+    string | null;  
+
+
+    conflictoCorreos?:
+    boolean | null;
+
+    correoSeleccionadoPorTecnico?:
+    boolean | null;
+
+    seleccionManualPersistida?:
+    boolean | null;
+
+    fuenteConfiableParaAsignar?:
+    boolean | null;
+
+
+    requiereRevisionSolicitanteAgente?:
+    boolean | null;
+
+    requiereRevisionSolicitante?:
+    boolean | null;
+
+    motivoRevisionSolicitante?:
+    string | null;
+};
+
 export const ESTADO_EQUIPO_OPTIONS: Array<{
     value: EstadoEquipo;
     label: string;
@@ -96,15 +197,80 @@ export const fieldLabels: Record<string, string> = {
     claveTv: "Clave TeamViewer",
     revisado: "Revisado",
 
-    oneDriveEstado: "Estado OneDrive",
-    oneDriveUsuario: "Usuario OneDrive",
-    oneDriveOperativo: "OneDrive operativo",
-    oneDriveInstalado: "OneDrive instalado",
-    oneDriveEnEjecucion: "OneDrive en ejecución",
-    oneDriveVersion: "Versión OneDrive",
+    // Agente
+    hostname: "Hostname",
+    usuarioActual: "Usuario actual",
+    localIp: "IP local",
+    publicIp: "IP pública",
+    macAddress: "MAC principal",
+    lastBootAt: "Último arranque",
+    estadoAgente: "Estado del agente",
+    agenteVersion: "Versión del agente",
 
-    adicionalesResumen: "Adicionales",
+    solicitanteDetectadoEmail:
+        "Correo detectado",
+
+    solicitanteDetectadoId:
+        "Solicitante detectado",
+
+    requiereRevisionSolicitante:
+        "Requiere revisión de solicitante",
+
+    motivoRevisionSolicitante:
+        "Motivo de revisión",
+
+    // Disco
+    diskTotalGb:
+        "Capacidad de disco",
+
+    diskFreeGb:
+        "Espacio libre en disco",
+
+    // OneDrive
+    oneDriveEstado:
+        "Estado OneDrive",
+
+    oneDriveUsuario:
+        "Usuario OneDrive",
+
+    oneDriveOperativo:
+        "OneDrive operativo",
+
+    oneDriveInstalado:
+        "OneDrive instalado",
+
+    oneDriveEnEjecucion:
+        "OneDrive en ejecución",
+
+    oneDriveVersion:
+        "Versión OneDrive",
+
+    // Batería
+
+    bateriaEstado:
+        "Estado de batería",
+
+    bateriaSaludPorcentaje:
+        "Salud de batería",
+
+    bateriaDesgastePorcentaje:
+        "Desgaste de batería",
+
+    bateriaCapacidadCompletaMWh:
+        "Capacidad carga completa",
+
+    bateriaCiclos:
+        "Ciclos de batería",
+
+    adicionalesResumen:
+        "Adicionales",
 };
+
+export const HIDDEN_HISTORY_FIELDS =
+    new Set([
+        "origen",
+        "accionAgente",
+    ]);
 
 export const actionLabels: Record<string, string> = {
     CREATE: "Equipo creado",
@@ -184,70 +350,66 @@ export function getChanges(h: EquipoHistorialItem) {
     return h.changes ?? h.diff ?? null;
 }
 
-export function getAgentEventMetadata(metadata: unknown) {
-    if (!metadata) return {};
+export function getAgentEventMetadata(
+    metadata: unknown
+): AgentEventMetadata {
 
-    if (typeof metadata === "string") {
+    if (
+        !metadata
+    ) {
+        return {};
+    }
+
+
+    if (
+        typeof metadata ===
+        "string"
+    ) {
+
         try {
-            const parsed = JSON.parse(metadata);
 
-            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                return parsed as {
-                    source?: string | null;
-                    platform?: string | null;
-                    ejecutadoPor?: string | null;
+            const parsed =
+                JSON.parse(
+                    metadata
+                );
 
-                    tecnicoInstaladorId?: number | null;
-                    tecnicoInstaladorNombre?: string | null;
-                    tecnicoInstaladorEmail?: string | null;
+            if (
+                parsed &&
+                typeof parsed ===
+                "object" &&
+                !Array.isArray(
+                    parsed
+                )
+            ) {
 
-                    usuarioSistemaEjecutor?: string | null;
-                    usuarioWindowsEjecutor?: string | null;
-                    taskUserConfigurado?: string | null;
-
-                    usuarioMacEjecutor?: string | null;
-                    launchdLabel?: string | null;
-                    fileVaultEstado?: string | null;
-
-                    agenteVersion?: string | null;
-                    lastBootAt?: string | null;
-                    uptimeText?: string | null;
-                    uptimeSeconds?: number | string | null;
-                };
+                return parsed as
+                    AgentEventMetadata;
             }
 
             return {};
-        } catch {
+
+        }
+        catch {
+
             return {};
         }
     }
 
-    if (typeof metadata !== "object" || Array.isArray(metadata)) {
+
+    if (
+        typeof metadata !==
+        "object" ||
+        Array.isArray(
+            metadata
+        )
+    ) {
+
         return {};
     }
 
-    return metadata as {
-        source?: string | null;
-        platform?: string | null;
-        ejecutadoPor?: string | null;
 
-        tecnicoInstaladorId?: number | null;
-        tecnicoInstaladorNombre?: string | null;
-        tecnicoInstaladorEmail?: string | null;
-
-        usuarioSistemaEjecutor?: string | null;
-        usuarioWindowsEjecutor?: string | null;
-        taskUserConfigurado?: string | null;
-
-        usuarioMacEjecutor?: string | null;
-        launchdLabel?: string | null;
-        fileVaultEstado?: string | null;
-
-        agenteVersion?: string | null;
-        lastBootAt?: string | null;
-        uptimeText?: string | null;
-        uptimeSeconds?: number | string | null;
-    };
+    return metadata as
+        AgentEventMetadata;
 }
 
 export function getTecnicoInstaladorLabel(metadata: unknown) {
@@ -292,6 +454,120 @@ export function diskUsedPercent(equipo?: EquipoAgentFull | null) {
     }
 
     return Math.round(((total - free) / total) * 100);
+}
+
+export function getBatteryStatusLabel(
+    estado?: string | null
+) {
+    switch (
+    String(
+        estado ?? ""
+    ).toUpperCase()
+    ) {
+        case "BUENA":
+            return "Buena";
+
+        case "DESGASTADA":
+            return "Desgastada";
+
+        case "CRITICA":
+            return "Crítica";
+
+        case "SIN_DATOS":
+            return "Sin datos";
+
+        case "SIN_BATERIA":
+            return "Sin batería";
+
+        default:
+            return "Sin información";
+    }
+}
+
+export function getBatteryStatusClass(
+    estado?: string | null
+) {
+    switch (
+    String(
+        estado ?? ""
+    ).toUpperCase()
+    ) {
+        case "BUENA":
+            return (
+                "border-emerald-200 " +
+                "bg-emerald-50 " +
+                "text-emerald-700"
+            );
+
+        case "DESGASTADA":
+            return (
+                "border-amber-200 " +
+                "bg-amber-50 " +
+                "text-amber-700"
+            );
+
+        case "CRITICA":
+            return (
+                "border-rose-200 " +
+                "bg-rose-50 " +
+                "text-rose-700"
+            );
+
+        case "SIN_DATOS":
+        case "SIN_BATERIA":
+            return (
+                "border-slate-200 " +
+                "bg-slate-50 " +
+                "text-slate-600"
+            );
+
+        default:
+            return (
+                "border-slate-200 " +
+                "bg-slate-50 " +
+                "text-slate-600"
+            );
+    }
+}
+
+export function getBatteryBarClass(
+    health?: number | null
+) {
+    if (
+        health === null ||
+        health === undefined
+    ) {
+        return "bg-slate-300";
+    }
+
+    if (
+        health < 60
+    ) {
+        return "bg-rose-500";
+    }
+
+    if (
+        health < 80
+    ) {
+        return "bg-amber-500";
+    }
+
+    return "bg-emerald-500";
+}
+
+export function formatBatteryMWh(
+    value?: number | null
+) {
+    if (
+        value === null ||
+        value === undefined
+    ) {
+        return "—";
+    }
+
+    return `${new Intl.NumberFormat(
+        "es-CL"
+    ).format(value)} mWh`;
 }
 
 export const PROPIEDAD_EQUIPO_OPTIONS = [

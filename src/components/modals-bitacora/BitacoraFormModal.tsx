@@ -541,13 +541,15 @@ export default function BitacoraFormModal({
                 )}
                 {modo ===
                     "REVISAR" && (
-                        <Alert
-                            type="info"
-                            showIcon
-                            message="Modo revisión"
-                            description="Puedes revisar la información y responder la solicitud asignada. El contenido de la bitácora no puede modificarse."
-                            className="rounded-xl"
-                        />
+                        <div className="pb-2">
+                            <Alert
+                                type="info"
+                                showIcon
+                                message="Modo revisión"
+                                description="Puedes revisar la información y responder la solicitud asignada. El contenido de la bitácora no puede modificarse."
+                                className="rounded-xl"
+                            />
+                        </div>
                     )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <div>
