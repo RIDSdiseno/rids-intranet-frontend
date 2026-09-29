@@ -289,13 +289,24 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
     // Renderizar el modal completo
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-3">
             <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 20 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl relative max-h-[90vh] flex flex-col overflow-y-auto"
+                className="
+            bg-white
+            rounded-2xl
+            shadow-2xl
+            w-[90vw]
+            max-w-[1500px]
+            h-[92vh]
+            relative
+            flex
+            flex-col
+            overflow-hidden
+        "
             >
                 {/* HEADER */}
                 <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white px-8 py-6 border-b border-slate-200">
@@ -341,7 +352,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                 {/* CONTENIDO PRINCIPAL */}
                 <div className="flex-1 overflow-y-auto">
-                    <div className="p-8">
+                    <div className="p-4 lg:p-6 xl:p-8">
                         {/* GRID PRINCIPAL */}
                         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
                             {/* DATOS DEL CLIENTE */}

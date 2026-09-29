@@ -1,5 +1,6 @@
 // src/components/modals/facturasBaseapi/RcvConcilacionTable.tsx
-import React from "react";
+import React, {
+} from "react";
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -106,7 +107,7 @@ const RcvConciliacionTable: React.FC<Props> = ({
 }) => {
     return (
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
-            <div className="border-b border-cyan-100 bg-white p-4 sm:p-5">
+            <div className="border-b border-cyan-100 bg-white px-4 py-3 sm:px-5">
                 <h2 className="text-base font-black text-slate-900 sm:text-lg">
                     Documentos
                 </h2>

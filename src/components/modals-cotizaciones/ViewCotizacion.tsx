@@ -58,9 +58,20 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[99999] p-4">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative"
+                className="
+        bg-slate-50
+        rounded-2xl
+        shadow-2xl
+        w-full
+        max-w-6xl
+        h-[90vh]
+        relative
+        flex
+        flex-col
+        overflow-hidden
+    "
             >
                 {/* Header */}
                 <div className="bg-white rounded-t-2xl px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 z-10">
@@ -86,14 +97,14 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                     </div>
                 </div>
 
-                <div className="p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
                     {/* Datos del cliente */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4">
                         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
                             Datos del cliente
                         </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-4 text-sm">
                             <div>
                                 <span className="text-slate-400">Cliente</span>
                                 <div className="font-medium text-slate-800">{cotizacion.entidad?.nombre || "—"}</div>
