@@ -14,6 +14,7 @@ import {
   CheckCircleFilled,
   ExclamationCircleFilled,
   InfoCircleFilled,
+  DownloadOutlined
 } from "@ant-design/icons";
 import { AnimatePresence, motion } from "framer-motion";
 import SyncGoogleModal from "../components/modals-solicitantes/SyncGoogleModal";
@@ -22,6 +23,9 @@ import { useAuth } from "../components/hooks/useAuth";
 import { http as api } from "../service/http";
 
 import SolicitantesDashboardTab from "../components/modals-solicitantes/SolicitantesDashboardTab";
+
+import XlsxPopulate
+  from "xlsx-populate/browser/xlsx-populate";
 
 // ========= Tipos locales =========
 export type Empresa = { id_empresa: number; nombre: string, dominios?: string[]; };
@@ -80,14 +84,36 @@ type SyncResponse = {
 
 type EstadoSolicitanteFiltro = "activos" | "inactivos" | "todos";
 
+type LicenciaFiltro =
+  "todos" |
+  "con" |
+  "sin";
+
 type ListParams = {
   page?: number;
+
   pageSize?: number;
+
   q?: string;
-  empresaId?: number | null;
-  orderBy?: "empresa" | "nombre" | "id";
-  orderDir?: "asc" | "desc";
-  estado?: EstadoSolicitanteFiltro;
+
+  empresaId?:
+  number |
+  null;
+
+  orderBy?:
+  "empresa" |
+  "nombre" |
+  "id";
+
+  orderDir?:
+  "asc" |
+  "desc";
+
+  estado?:
+  EstadoSolicitanteFiltro;
+
+  licencia?:
+  LicenciaFiltro;
 };
 
 type ListResponse = {
@@ -96,6 +122,66 @@ type ListResponse = {
   total: number;
   totalPages: number;
   items: SolicitanteRow[];
+};
+
+type ExportSolicitanteRow = {
+  id_solicitante:
+  number;
+
+  nombre:
+  string;
+
+  rut:
+  string |
+  null;
+
+  email:
+  string |
+  null;
+
+  telefono:
+  string |
+  null;
+
+  empresa:
+  string |
+  null;
+
+  empresaId:
+  number |
+  null;
+
+  accountType:
+  AccountType;
+
+  equiposCount:
+  number;
+
+  msLicensesCount:
+  number;
+
+  msLicenses: Array<{
+    skuId:
+    string;
+
+    skuPartNumber:
+    string;
+
+    displayName:
+    string |
+    null;
+  }>;
+};
+
+type ExportSolicitantesResponse = {
+  ok:
+  boolean;
+
+  total:
+  number;
+
+  items:
+  ExportSolicitanteRow[];
 };
 
 type CheckEmailResponse = {
@@ -149,20 +235,49 @@ async function apiListSolicitantes(params: ListParams, signal?: AbortSignal): Pr
 
 type MetricsResponse = {
   solicitantes: number;
+
   empresas: number;
+
   equipos: number;
+
   inactivos?: number;
+
+  conLicencia?: number;
 };
 
-async function apiMetrics(params: {
-  q?: string;
-  empresaId?: number | null;
-  estado?: EstadoSolicitanteFiltro;
-}) {
-  const { data } = await api.get<MetricsResponse>(
-    "/solicitantes/metrics",
-    { params: { ...params, empresaId: params.empresaId ?? undefined } }
-  );
+async function apiMetrics(
+  params: {
+    q?: string;
+
+    empresaId?:
+    number |
+    null;
+
+    estado?:
+    EstadoSolicitanteFiltro;
+
+    licencia?:
+    LicenciaFiltro;
+  }
+) {
+  const {
+    data,
+  } =
+    await api.get<
+      MetricsResponse
+    >(
+      "/solicitantes/metrics",
+      {
+        params: {
+          ...params,
+
+          empresaId:
+            params.empresaId ??
+            undefined,
+        },
+      }
+    );
+
   return data;
 }
 
@@ -508,6 +623,24 @@ export default function SolicitantesPage() {
   const [syncGoogleOpen, setSyncGoogleOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  const [
+    licenciaFiltro,
+    setLicenciaFiltro,
+  ] =
+    useState<
+      LicenciaFiltro
+    >(
+      "todos"
+    );
+
+  const [
+    exporting,
+    setExporting,
+  ] =
+    useState(
+      false
+    );
+
   // ===================== Sync Microsoft (nuevo) =====================
   const [syncMsOpen, setSyncMsOpen] = useState(false);
   const [syncingMs, setSyncingMs] = useState(false);
@@ -634,6 +767,11 @@ export default function SolicitantesPage() {
           orderBy,
           orderDir,
           estado: estadoListado,
+          licencia:
+            activeTab ===
+              "listado"
+              ? licenciaFiltro
+              : "todos",
         },
         controller.signal
       );
@@ -645,7 +783,7 @@ export default function SolicitantesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedQ, empresaId, orderBy, orderDir, estadoListado, push]);
+  }, [page, pageSize, debouncedQ, empresaId, orderBy, orderDir, estadoListado, push, licenciaFiltro]);
 
   const fetchMetrics = useCallback(async () => {
     try {
@@ -653,6 +791,11 @@ export default function SolicitantesPage() {
         q: debouncedQ || undefined,
         empresaId,
         estado: estadoListado,
+        licencia:
+          activeTab ===
+            "listado"
+            ? licenciaFiltro
+            : "todos",
       });
       setMetrics(m);
     } catch (e: any) {
@@ -665,7 +808,7 @@ export default function SolicitantesPage() {
         detail: prettyError(e),
       });
     }
-  }, [debouncedQ, empresaId, estadoListado, push]);
+  }, [debouncedQ, empresaId, estadoListado, licenciaFiltro, push]);
 
   useEffect(() => {
     void fetchList();
@@ -688,6 +831,565 @@ export default function SolicitantesPage() {
     r.msLicenses && r.msLicenses.length
       ? r.msLicenses.map((l) => l.displayName || l.skuPartNumber).join("\n")
       : undefined;
+
+  const obtenerSolicitantesExport =
+    async (): Promise<
+      ExportSolicitanteRow[]
+    > => {
+      const {
+        data,
+      } =
+        await api.get<
+          ExportSolicitantesResponse
+        >(
+          "/solicitantes/export",
+          {
+            params: {
+              q:
+                debouncedQ ||
+                undefined,
+
+              empresaId:
+                empresaId ??
+                undefined,
+
+              estado:
+                estadoListado,
+
+              licencia:
+                activeTab ===
+                  "listado"
+                  ? licenciaFiltro
+                  : "todos",
+
+              orderBy,
+
+              orderDir,
+            },
+          }
+        );
+
+      return data.items ??
+        [];
+    };
+
+  const exportarSolicitantesExcel =
+    async () => {
+      try {
+        setExporting(
+          true
+        );
+
+        const items =
+          await obtenerSolicitantesExport();
+
+        if (
+          items.length ===
+          0
+        ) {
+          push({
+            kind:
+              "info",
+
+            message:
+              "No hay datos para exportar",
+
+            detail:
+              "Los filtros actuales no tienen solicitantes asociados.",
+          });
+
+          return;
+        }
+
+        /* =========================================
+           CREAR WORKBOOK
+        ========================================= */
+
+        const wb =
+          await XlsxPopulate
+            .fromBlankAsync();
+
+        const ws =
+          wb.sheet(
+            0
+          );
+
+        if (
+          !ws
+        ) {
+          throw new Error(
+            "No se pudo crear la hoja de Excel."
+          );
+        }
+
+        /*
+         * Si tu .d.ts de XlsxPopulate permite name():
+         */
+        (
+          ws as any
+        ).name(
+          "Solicitantes"
+        );
+
+        /* =========================================
+           TÍTULO
+        ========================================= */
+
+        ws.cell(
+          "A1"
+        ).value(
+          "LISTADO DE SOLICITANTES"
+        );
+
+        (
+          ws as any
+        )
+          .range(
+            "A1:J1"
+          )
+          .merged(
+            true
+          )
+          .style({
+            bold:
+              true,
+
+            fontSize:
+              16,
+
+            horizontalAlignment:
+              "center",
+
+            verticalAlignment:
+              "center",
+
+            fill:
+              "0891B2",
+
+            fontColor:
+              "FFFFFF",
+          });
+
+        (
+          ws as any
+        )
+          .row(
+            1
+          )
+          .height(
+            28
+          );
+
+        /* =========================================
+           DESCRIPCIÓN DE FILTROS
+        ========================================= */
+
+        const empresaNombre =
+          empresaId
+            ? empresas.find(
+              e =>
+                e.id_empresa ===
+                empresaId
+            )
+              ?.nombre ??
+            `Empresa ${empresaId}`
+            : "Todas las empresas";
+
+        const licenciaTexto =
+          licenciaFiltro ===
+            "con"
+            ? "Con licencia Microsoft"
+            : licenciaFiltro ===
+              "sin"
+              ? "Sin licencia Microsoft"
+              : "Todas";
+
+        const estadoTexto =
+          estadoListado ===
+            "inactivos"
+            ? "Inactivos"
+            : "Activos";
+
+        ws.cell(
+          "A2"
+        ).value(
+          `Estado: ${estadoTexto}`
+        );
+
+        ws.cell(
+          "C2"
+        ).value(
+          `Empresa: ${empresaNombre}`
+        );
+
+        ws.cell(
+          "F2"
+        ).value(
+          `Licencia: ${licenciaTexto}`
+        );
+
+        ws.cell(
+          "I2"
+        ).value(
+          `Total: ${items.length}`
+        );
+
+        (
+          ws as any
+        )
+          .range(
+            "A2:J2"
+          )
+          .style({
+            fontColor:
+              "475569",
+
+            fontSize:
+              10,
+
+            fill:
+              "F8FAFC",
+          });
+
+        /* =========================================
+   HEADERS
+========================================= */
+
+        const headers = [
+          "ID",
+          "Nombre",
+          "RUT",
+          "Email",
+          "Teléfono",
+          "Empresa",
+          "Cuenta",
+          "Equipos",
+          "N° Licencias MS",
+          "Licencias Microsoft",
+        ];
+
+        headers.forEach(
+          (
+            header,
+            index
+          ) => {
+            ws
+              .cell(
+                4,
+                index + 1
+              )
+              .value(
+                header
+              );
+          }
+        );
+
+        ws
+          .range(
+            4,
+            1,
+            4,
+            headers.length
+          )
+          .style({
+            bold:
+              true,
+
+            fill:
+              "E0F2FE",
+
+            fontColor:
+              "0F172A",
+
+            horizontalAlignment:
+              "center",
+
+            verticalAlignment:
+              "center",
+
+            border:
+              true,
+          });
+
+        /* =========================================
+           FILAS
+        ========================================= */
+
+        items.forEach(
+          (
+            item,
+            index
+          ) => {
+            const row =
+              index + 5;
+
+            const licencias =
+              item
+                .msLicenses
+                .map(
+                  licencia =>
+                    licencia.displayName?.trim() ||
+                    licencia.skuPartNumber.replaceAll(
+                      "_",
+                      " "
+                    )
+                )
+                .join(
+                  " · "
+                );
+
+            const cuenta =
+              item.accountType ===
+                "microsoft"
+                ? "Microsoft"
+                : item.accountType ===
+                  "google"
+                  ? "Google"
+                  : item.accountType ===
+                    "local"
+                    ? "Local"
+                    : "—";
+
+            const values = [
+              item.id_solicitante,
+              item.nombre,
+              item.rut ?? "",
+              item.email ?? "",
+              item.telefono ?? "",
+              item.empresa ?? "",
+              cuenta,
+              item.equiposCount,
+              item.msLicensesCount,
+              licencias,
+            ];
+
+            values.forEach(
+              (
+                value,
+                column
+              ) => {
+                ws
+                  .cell(
+                    row,
+                    column + 1
+                  )
+                  .value(
+                    value
+                  );
+              }
+            );
+
+            ws
+              .range(
+                row,
+                1,
+                row,
+                headers.length
+              )
+              .style({
+                verticalAlignment:
+                  "center",
+
+                border:
+                  true,
+              });
+          }
+        );
+
+        /* =========================================
+           ANCHOS
+        ========================================= */
+
+        const widths = [
+          10,
+          28,
+          16,
+          32,
+          18,
+          28,
+          15,
+          12,
+          16,
+          45,
+        ];
+
+        widths.forEach(
+          (
+            width,
+            index
+          ) => {
+            (
+              ws as any
+            )
+              .column(
+                index + 1
+              )
+              .width(
+                width
+              );
+          }
+        );
+
+        /* =========================================
+           WRAP EN LICENCIAS
+        ========================================= */
+
+        if (
+          items.length > 0
+        ) {
+          (
+            ws as any
+          )
+            .range(
+              5,
+              10,
+              items.length + 4,
+              10
+            )
+            .style({
+              wrapText:
+                true,
+            });
+        }
+
+        /* =========================================
+           FREEZE HEADER
+        ========================================= */
+
+        if (
+          typeof (
+            ws as any
+          ).freezePanes ===
+          "function"
+        ) {
+          (
+            ws as any
+          ).freezePanes(
+            4,
+            0
+          );
+        }
+
+        /* =========================================
+           GENERAR ARCHIVO
+        ========================================= */
+
+        const output =
+          await wb.outputAsync();
+
+        const blob =
+          new Blob(
+            [
+              output as ArrayBuffer,
+            ],
+            {
+              type:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            }
+          );
+
+        /* =========================================
+           NOMBRE ARCHIVO
+        ========================================= */
+
+        const fecha =
+          new Date()
+            .toISOString()
+            .slice(
+              0,
+              10
+            );
+
+        const empresaArchivo =
+          empresaNombre
+            .replace(
+              /[\\/:*?"<>|]/g,
+              "_"
+            )
+            .replace(
+              /\s+/g,
+              "_"
+            );
+
+        const licenciaArchivo =
+          licenciaFiltro ===
+            "con"
+            ? "_ConLicencia"
+            : licenciaFiltro ===
+              "sin"
+              ? "_SinLicencia"
+              : "";
+
+        const filename =
+          `Solicitantes_${estadoTexto}_${empresaArchivo}${licenciaArchivo}_${fecha}.xlsx`;
+
+        const url =
+          URL.createObjectURL(
+            blob
+          );
+
+        const link =
+          document
+            .createElement(
+              "a"
+            );
+
+        link.href =
+          url;
+
+        link.download =
+          filename;
+
+        document
+          .body
+          .appendChild(
+            link
+          );
+
+        link.click();
+
+        link.remove();
+
+        URL.revokeObjectURL(
+          url
+        );
+
+        push({
+          kind:
+            "success",
+
+          message:
+            "Excel generado correctamente",
+
+          detail:
+            `${items.length} solicitante${items.length === 1 ? "" : "s"} exportado${items.length === 1 ? "" : "s"}.`,
+        });
+      } catch (
+      error
+      ) {
+        console.error(
+          "[Solicitantes.export]",
+          error
+        );
+
+        push({
+          kind:
+            "error",
+
+          message:
+            "No se pudo generar el Excel",
+
+          detail:
+            prettyError(
+              error
+            ),
+        });
+      } finally {
+        setExporting(
+          false
+        );
+      }
+    };
 
   const checkCreateEmailDuplicado = async (): Promise<string | null> => {
     const cleanEmail = createForm.v.email?.trim().toLowerCase() || "";
@@ -952,13 +1654,32 @@ export default function SolicitantesPage() {
     void load();
   }, [detailId, push]);
 
-  const clearFilters = () => {
-    setQ("");
-    setEmpresaId(null);
-    setOrderBy("empresa");
-    setOrderDir("asc");
-    setPage(1);
-  };
+  const clearFilters =
+    () => {
+      setQ(
+        ""
+      );
+
+      setEmpresaId(
+        null
+      );
+
+      setOrderBy(
+        "empresa"
+      );
+
+      setOrderDir(
+        "asc"
+      );
+
+      setLicenciaFiltro(
+        "todos"
+      );
+
+      setPage(
+        1
+      );
+    };
 
   /* ======================= RENDER ======================= */
   return (
@@ -989,9 +1710,9 @@ export default function SolicitantesPage() {
             <p className="mt-1 text-xs sm:text-sm text-slate-600">Gestiona solicitantes, cuentas y equipos. Filtra, edita y consulta detalles.</p>
 
             {/* Toolbar */}
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-10 gap-3">
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
               {/* Búsqueda */}
-              <div className="relative md:col-span-5">
+              <div className="relative md:col-span-4">
                 <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
                 <input
                   className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
@@ -1038,6 +1759,56 @@ export default function SolicitantesPage() {
                 </div>
               )}
 
+              {activeTab === "listado" && (
+                <div className="md:col-span-3">
+                  <select
+                    className="
+                w-full
+                rounded-2xl
+                border
+                border-cyan-200/70
+                bg-white/90
+                px-3
+                py-2.5
+                text-sm
+                text-slate-900
+                focus:border-cyan-400
+                focus:outline-none
+                focus:ring-2
+                focus:ring-cyan-500/30
+            "
+                    value={
+                      licenciaFiltro
+                    }
+                    onChange={
+                      e => {
+                        setLicenciaFiltro(
+                          e.target
+                            .value as LicenciaFiltro
+                        );
+
+                        setPage(
+                          1
+                        );
+                      }
+                    }
+                    aria-label="Filtrar por licencia"
+                  >
+                    <option value="todos">
+                      Todas las licencias
+                    </option>
+
+                    <option value="con">
+                      Con licencia
+                    </option>
+
+                    <option value="sin">
+                      Sin licencia
+                    </option>
+                  </select>
+                </div>
+              )}
+
               {/* Orden */}
               <div className="md:col-span-2">
                 <select
@@ -1061,7 +1832,7 @@ export default function SolicitantesPage() {
               </div>
 
               {/* Acciones */}
-              <div className="md:col-span-10 grid grid-cols-1 sm:grid-cols-5 gap-2">
+              <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
                 <button
                   onClick={clearFilters}
                   type="button"
@@ -1078,6 +1849,68 @@ export default function SolicitantesPage() {
                   title="Recargar"
                 >
                   <ReloadOutlined /> <span className="hidden sm:inline">Recargar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    () =>
+                      void exportarSolicitantesExcel()
+                  }
+                  disabled={
+                    exporting
+                  }
+                  className={clsx(
+                    `
+            inline-flex
+            w-full
+            min-w-[120px]
+            items-center
+            justify-center
+            gap-2
+            rounded-2xl
+            border
+            px-3
+            py-2.5
+            text-sm
+            font-medium
+            transition
+        `,
+
+                    exporting
+                      ? `
+                cursor-wait
+                border-emerald-200
+                bg-emerald-50
+                text-emerald-500
+            `
+                      : `
+                border-emerald-300
+                bg-white
+                text-emerald-700
+                hover:bg-emerald-50
+                active:scale-[0.98]
+            `
+                  )}
+                  title="Exportar listado filtrado a Excel"
+                >
+                  {
+                    exporting
+                      ? (
+                        <LoadingOutlined />
+                      )
+                      : (
+                        <DownloadOutlined />
+                      )
+                  }
+
+                  <span>
+                    {
+                      exporting
+                        ? "Exportando..."
+                        : "Exportar Excel"
+                    }
+                  </span>
                 </button>
 
                 {!isCliente && (
@@ -1181,27 +2014,148 @@ export default function SolicitantesPage() {
         <>
           <div className="px-3 sm:px-4 md:px-6 lg:px-8 mt-4 max-w-7xl mx-auto w-full">
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05, duration: 0.2 }}
-              className="grid grid-cols-1 gap-3 md:grid-cols-4"
+              initial={{
+                opacity: 0,
+                y: 8,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              transition={{
+                delay: 0.05,
+                duration: 0.2,
+              }}
+              className="
+                    grid
+                    grid-cols-1
+                    gap-3
+                    sm:grid-cols-2
+                    lg:grid-cols-5
+                "
             >
+              {/* =====================================
+                    SOLICITANTES
+                ===================================== */}
+
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
                 <div className="text-sm text-gray-500">
-                  {activeTab === "inactivos" ? "Solicitantes inactivos" : "Solicitantes activos"}
+                  {activeTab === "inactivos"
+                    ? "Solicitantes inactivos"
+                    : "Solicitantes activos"}
                 </div>
-                <div className="mt-1 text-2xl font-semibold">{metrics?.solicitantes ?? 0}</div>
+
+                <div className="mt-1 text-2xl font-semibold">
+                  {metrics?.solicitantes ?? 0}
+                </div>
               </div>
+
+              {/* =====================================
+                    CON LICENCIA
+                ===================================== */}
+
+              {activeTab === "listado" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLicenciaFiltro(
+                      previous =>
+                        previous === "con"
+                          ? "todos"
+                          : "con"
+                    );
+
+                    setPage(1);
+                  }}
+                  className={clsx(
+                    `
+                                cursor-pointer
+                                rounded-2xl
+                                border
+                                bg-white
+                                p-4
+                                text-left
+                                shadow-sm
+                                transition
+                                hover:border-indigo-300
+                                hover:bg-indigo-50/40
+                                active:scale-[0.99]
+                            `,
+
+                    licenciaFiltro === "con"
+                      ? `
+                                    border-indigo-400
+                                    bg-indigo-50/60
+                                    ring-2
+                                    ring-indigo-200
+                                `
+                      : ""
+                  )}
+                >
+                  <div className="text-sm text-gray-500">
+                    Con licencia
+                  </div>
+
+                  <div
+                    className="
+                                mt-1
+                                text-2xl
+                                font-semibold
+                                text-indigo-600
+                            "
+                  >
+                    {metrics?.conLicencia ?? 0}
+                  </div>
+
+                  <div
+                    className="
+                                mt-1
+                                text-xs
+                                text-slate-500
+                            "
+                  >
+                    Solicitantes activos con Microsoft 365
+                  </div>
+                </button>
+              )}
+
+              {/* =====================================
+                    EMPRESAS
+                ===================================== */}
+
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Empresas</div>
-                <div className="mt-1 text-2xl font-semibold">{metrics?.empresas ?? 0}</div>
+                <div className="text-sm text-gray-500">
+                  Empresas
+                </div>
+
+                <div className="mt-1 text-2xl font-semibold">
+                  {metrics?.empresas ?? 0}
+                </div>
               </div>
+
+              {/* =====================================
+                    EQUIPOS
+                ===================================== */}
+
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Equipos</div>
-                <div className="mt-1 text-2xl font-semibold">{metrics?.equipos ?? 0}</div>
+                <div className="text-sm text-gray-500">
+                  Equipos
+                </div>
+
+                <div className="mt-1 text-2xl font-semibold">
+                  {metrics?.equipos ?? 0}
+                </div>
               </div>
+
+              {/* =====================================
+                    INACTIVOS
+                ===================================== */}
+
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Inactivos actuales</div>
+                <div className="text-sm text-gray-500">
+                  Inactivos actuales
+                </div>
+
                 <div className="mt-1 text-2xl font-semibold text-rose-600">
                   {metrics?.inactivos ?? 0}
                 </div>

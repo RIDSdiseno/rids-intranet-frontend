@@ -9,6 +9,10 @@ import SucursalTab from "./tabs/SucursalTab";
 import ServidoresTab from "./tabs/ServidoresTab";
 import RedesTab from "./tabs/RedesTab";
 
+/* NUEVO */
+import SuscripcionesContratosTab
+  from "./tabs/SuscripcionesContratosTab";
+
 import type {
   FichaEmpresaModalProps,
   FichaEmpresaCompleta,
@@ -160,9 +164,9 @@ const FichaEmpresaModal: React.FC<
 
                 <div className="mt-1">
                   La información permanece disponible
-                  para consulta, pero no se
-                  permiten modificaciones hasta reactivar
-                  la empresa.
+                  para consulta, pero no se permiten
+                  modificaciones hasta reactivar la
+                  empresa.
                 </div>
 
                 {localData.empresa.deactivatedAt && (
@@ -207,6 +211,27 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
+                /* =====================================================
+                   SUSCRIPCIONES Y CONTRATOS
+                ===================================================== */
+
+                {
+                  key: "suscripciones",
+                  label: "Suscripciones y Contratos",
+                  children: (
+                    <SuscripcionesContratosTab
+                      key={
+                        localData.empresa.id_empresa
+                      }
+                      empresaId={
+                        localData.empresa.id_empresa
+                      }
+                      canEdit={canEditLocal}
+                    />
+                  ),
+                },
+
                 {
                   key: "checklist",
                   label: "Checklist",
@@ -226,6 +251,7 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
                 {
                   key: "tecnica",
                   label: "Ficha técnica",
@@ -241,6 +267,7 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
                 {
                   key: "redes",
                   label: "Redes / ISP",
@@ -253,6 +280,7 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
                 {
                   key: "sucursales",
                   label: "Sucursales",
@@ -268,6 +296,7 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
                 {
                   key: "servidores",
                   label: "Servidores",
