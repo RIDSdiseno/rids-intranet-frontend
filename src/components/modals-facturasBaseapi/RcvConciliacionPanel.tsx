@@ -136,34 +136,90 @@ const RcvConciliacionPanel =
             text: string;
         } | null>(null);
 
-        const cargarConciliacion = useCallback(
-            async (forceRefresh = false) => {
-                setLoading(true);
+        const cargarConciliacion =
+            useCallback(
+                async (
+                    forceRefresh =
+                        false
+                ) => {
+                    setLoading(
+                        true
+                    );
 
-                try {
-                    const json = await fetchConciliacionRcv({
-                        empresa,
-                        tipo: activeTab,
-                        mes,
-                        ano,
-                        forceRefresh,
-                    });
+                    setRows(
+                        []
+                    );
 
-                    const data = Array.isArray(json?.data)
-                        ? json.data.map(mapBackendRow)
-                        : [];
+                    setMeta(
+                        null
+                    );
 
-                    setRows(data);
-                    setMeta(json?.meta ?? null);
-                } catch (error) {
-                    console.error("Error cargando conciliación RCV", error);
-                    alert("No se pudo cargar la conciliación RCV");
-                } finally {
-                    setLoading(false);
-                }
-            },
-            [empresa, activeTab, mes, ano]
-        );
+                    try {
+                        const json =
+                            await fetchConciliacionRcv(
+                                {
+                                    empresa,
+
+                                    tipo:
+                                        activeTab,
+
+                                    mes,
+
+                                    ano,
+
+                                    forceRefresh,
+                                }
+                            );
+
+                        const data =
+                            Array.isArray(
+                                json?.data
+                            )
+                                ? json.data.map(
+                                    mapBackendRow
+                                )
+                                : [];
+
+                        setRows(
+                            data
+                        );
+
+                        setMeta(
+                            json?.meta ??
+                            null
+                        );
+
+                        setUiMessage(
+                            null
+                        );
+                    } catch (
+                    error: any
+                    ) {
+                        console.error(
+                            "Error cargando conciliación RCV",
+                            error
+                        );
+
+                        showUiMessage(
+                            "error",
+                            getErrorMessage(
+                                error,
+                                "No se pudo cargar la conciliación RCV"
+                            )
+                        );
+                    } finally {
+                        setLoading(
+                            false
+                        );
+                    }
+                },
+                [
+                    empresa,
+                    activeTab,
+                    mes,
+                    ano,
+                ]
+            );
 
         useImperativeHandle(
             ref,

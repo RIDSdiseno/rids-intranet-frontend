@@ -62,7 +62,10 @@ export type FinanzasDashboardData = {
     string[];
 
     mesesConCompras:
-        string[];
+    string[];
+
+    clientes:
+    FinanzasClientesData;
 };
 
 export type FinanzasDashboardResponse = {
@@ -82,3 +85,82 @@ export type FinanzasChartTab =
 export type FinanzasVentaMode =
     | "bruta"
     | "neta";
+
+export type EstadoPuntualidadCliente =
+    | "SIN_HISTORIAL"
+    | "EXCELENTE"
+    | "BUEN_PAGADOR"
+    | "IRREGULAR"
+    | "RIESGO_MORA";
+
+export type FinanzasClientePago = {
+    rut:
+    string;
+
+    razonSocial:
+    string;
+
+    estado:
+    EstadoPuntualidadCliente;
+
+    score:
+    number | null;
+
+    totalConciliadas:
+    number;
+
+    conVencimientoRegistrado:
+    number;
+
+    aTiempo:
+    number;
+
+    atrasadas:
+    number;
+
+    porcentajeATiempo:
+    number;
+
+    promedioDiasAtraso:
+    number;
+
+    montoPagado:
+    number;
+
+    ultimaFechaPago:
+    string | null;
+};
+
+export type FinanzasClientesResumen = {
+    excelente:
+    number;
+
+    buenPagador:
+    number;
+
+    irregular:
+    number;
+
+    riesgoMora:
+    number;
+
+    sinHistorial:
+    number;
+};
+
+export type FinanzasClientesData = {
+    totalClientes:
+    number;
+
+    resumen:
+    FinanzasClientesResumen;
+
+    mejoresPagadores:
+    FinanzasClientePago[];
+
+    mayorRiesgo:
+    FinanzasClientePago[];
+
+    clientes:
+    FinanzasClientePago[];
+};

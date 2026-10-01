@@ -52,6 +52,7 @@ const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
 const FinanzasDashboardsPage = lazy(() => import("./host/FinanzasDashboard"));
+const FinanzasClientesPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/FinanzasClientes"));
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 const ReceptoresFacturacionPage =
@@ -331,6 +332,12 @@ export default function App() {
                 />
               }
             >
+              <Route
+                path="/finanzas/clientes"
+                element={
+                  <FinanzasClientesPage />
+                }
+              />
               {/* Cobranza */}
               <Route
                 path="/facturas/cobranza"

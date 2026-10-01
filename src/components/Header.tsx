@@ -36,7 +36,8 @@ import {
   Star,
   MonitorSpeaker,
   Contact,
-  MailCheck
+  MailCheck,
+  FileUser,
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -66,6 +67,7 @@ const REPORTES_PATH = "/reportes";
 const HELPDESK_PATH = "/helpdesk";
 
 const FINANZAS_DASHBOARD_PATH = "/finanzas";
+const FINANZAS_CLIENTES_PATH = "/finanzas/clientes";
 const COBRANZA_PATH = "/facturas/cobranza";
 const FACTURAS_BASEAPI_PATH = "/facturas";
 const CONCILIACION_PATH = "/conciliacion-rcv";
@@ -345,6 +347,16 @@ const NAV: NavEntry[] = [
         label: "Resumen financiero",
         to: FINANZAS_DASHBOARD_PATH,
         icon: <BarChart3 size={20} />,
+      },
+      {
+        label:
+          "Comportamiento clientes",
+
+        to:
+          FINANZAS_CLIENTES_PATH,
+
+        icon:
+          <FileUser size={20} />,
       },
       {
         type: "submenu",
@@ -674,7 +686,12 @@ const Header = () => {
                */
               if (isNavLinkItem(item)) {
                 if (
-                  item.to === FINANZAS_DASHBOARD_PATH &&
+                  (
+                    item.to ===
+                    FINANZAS_DASHBOARD_PATH ||
+                    item.to ===
+                    FINANZAS_CLIENTES_PATH
+                  ) &&
                   !canAccessFinanzas
                 ) {
                   return null;
