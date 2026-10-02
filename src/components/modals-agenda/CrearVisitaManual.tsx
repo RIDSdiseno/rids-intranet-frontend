@@ -2,7 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Modal, Select, Alert, Popover } from "antd";
 import { CalendarOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import type { Tecnico, Empresa, Sucursal } from "./tiposAgenda";
+import type {
+  Tecnico,
+  Empresa,
+  Sucursal,
+  TipoEmpresaAgenda,
+} from "./tiposAgenda";
 import { getAgendaEmpresaOptionLabel } from "./agendaEmpresaLabel";
 import SeleccionarFechasCalendario from "./SeleccionarFechasCalendario";
 
@@ -14,54 +19,163 @@ export interface FechaLote {
 
 export interface CrearVisitaManualProps {
   open: boolean;
+
   creating: boolean;
+
   errorText?: string;
-  empresaId: number | null;
-  sucursalId: number | null;
-  tecnicoId: number | null;
-  // Horario "por defecto": se usa para precargar cada fecha nueva que se
-  // selecciona en el calendario. Cada fecha después se puede ajustar sola.
-  horaInicio: string;
-  horaFin: string;
-  notas: string;
-  empresasDisponibles: Empresa[];
-  sucursalesDisponibles: Sucursal[];
-  sucursalesLoading?: boolean;
-  tecnicosDisponibles: Tecnico[];
-  onEmpresaChange: (id: number) => void;
-  onSucursalChange: (id: number | null) => void;
-  onTecnicoChange: (id: number) => void;
-  onHoraInicioChange: (v: string) => void;
-  onHoraFinChange: (v: string) => void;
-  onNotasChange: (v: string) => void;
-  onOk: () => void;
-  onCancel: () => void;
-  fechasLote: FechaLote[];
-  onFechasLoteChange: (fechas: FechaLote[]) => void;
+
+  tipoEmpresa:
+  TipoEmpresaAgenda;
+
+  empresaId:
+  number |
+  null;
+
+  empresaExternaNombre:
+  string;
+
+  sucursalId:
+  number |
+  null;
+
+  tecnicoId:
+  number |
+  null;
+
+  horaInicio:
+  string;
+
+  horaFin:
+  string;
+
+  finalidad:
+  string;
+
+  notas:
+  string;
+
+  empresasDisponibles:
+  Empresa[];
+
+  sucursalesDisponibles:
+  Sucursal[];
+
+  sucursalesLoading?:
+  boolean;
+
+  tecnicosDisponibles:
+  Tecnico[];
+
+  onTipoEmpresaChange:
+  (
+    value:
+      TipoEmpresaAgenda
+  ) => void;
+
+  onEmpresaChange:
+  (
+    id:
+      number
+  ) => void;
+
+  onEmpresaExternaNombreChange:
+  (
+    value:
+      string
+  ) => void;
+
+  onSucursalChange:
+  (
+    id:
+      number |
+      null
+  ) => void;
+
+  onTecnicoChange:
+  (
+    id:
+      number
+  ) => void;
+
+  onHoraInicioChange:
+  (
+    value:
+      string
+  ) => void;
+
+  onHoraFinChange:
+  (
+    value:
+      string
+  ) => void;
+
+  onFinalidadChange:
+  (
+    value:
+      string
+  ) => void;
+
+  onNotasChange:
+  (
+    value:
+      string
+  ) => void;
+
+  onOk:
+  () => void;
+
+  onCancel:
+  () => void;
+
+  fechasLote:
+  FechaLote[];
+
+  onFechasLoteChange:
+  (
+    fechas:
+      FechaLote[]
+  ) => void;
 }
 
 export function CrearVisitaManual({
   open,
   creating,
   errorText,
+
+  tipoEmpresa,
   empresaId,
+  empresaExternaNombre,
+
   sucursalId,
   tecnicoId,
+
   horaInicio,
   horaFin,
+
+  finalidad,
   notas,
+
   empresasDisponibles,
   sucursalesDisponibles,
   sucursalesLoading,
   tecnicosDisponibles,
+
+  onTipoEmpresaChange,
   onEmpresaChange,
+  onEmpresaExternaNombreChange,
+
   onSucursalChange,
   onTecnicoChange,
+
   onHoraInicioChange,
   onHoraFinChange,
+
+  onFinalidadChange,
   onNotasChange,
+
   onOk,
   onCancel,
+
   fechasLote,
   onFechasLoteChange,
 }: CrearVisitaManualProps) {
@@ -104,11 +218,29 @@ export function CrearVisitaManual({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [horaInicio, horaFin]);
 
+  const empresaValida =
+    tipoEmpresa ===
+      "INTERNA"
+      ? empresaId !==
+      null
+      : Boolean(
+        empresaExternaNombre
+          .trim()
+      );
+
   const puedeCrear =
-    empresaId !== null &&
-    tecnicoId !== null &&
-    fechasLote.length > 0 &&
-    fechasLote.every((f) => f.horaInicio && f.horaFin);
+    empresaValida &&
+    tecnicoId !==
+    null &&
+    fechasLote.length >
+    0 &&
+    fechasLote.every(
+      fecha =>
+        Boolean(
+          fecha.horaInicio &&
+          fecha.horaFin
+        )
+    );
 
   return (
     <Modal
@@ -129,42 +261,248 @@ export function CrearVisitaManual({
         ) : null}
 
         <div>
-          <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Empresa</p>
+          <p
+            style={{
+              color:
+                "#64748b",
+
+              fontSize:
+                13,
+
+              marginBottom:
+                6,
+            }}
+          >
+            Tipo de empresa
+          </p>
+
           <Select
-            style={{ width: "100%" }}
-            placeholder="Seleccionar empresa"
-            value={empresaId}
-            onChange={onEmpresaChange}
-            options={empresasDisponibles.map((e) => ({
-              label: getAgendaEmpresaOptionLabel(e),
-              value: e.id_empresa,
-            }))}
-            showSearch
-            filterOption={(input, option) =>
-              (option?.label as string ?? "").toLowerCase().includes(input.toLowerCase())
+            style={{
+              width:
+                "100%",
+            }}
+            value={
+              tipoEmpresa
             }
+            onChange={
+              onTipoEmpresaChange
+            }
+            options={[
+              {
+                label:
+                  "Empresa interna",
+
+                value:
+                  "INTERNA",
+              },
+
+              {
+                label:
+                  "Empresa externa",
+
+                value:
+                  "EXTERNA",
+              },
+            ]}
           />
         </div>
 
-        {sucursalesDisponibles.length > 0 && (
+        {tipoEmpresa ===
+          "INTERNA" ? (
           <div>
-            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>
-              Sucursal de destino
+            <p
+              style={{
+                color:
+                  "#64748b",
+
+                fontSize:
+                  13,
+
+                marginBottom:
+                  6,
+              }}
+            >
+              Empresa
             </p>
+
             <Select
-              style={{ width: "100%" }}
-              placeholder="Ubicación principal de la empresa"
-              value={sucursalId}
-              onChange={(v) => onSucursalChange(v ?? null)}
-              loading={sucursalesLoading}
-              allowClear
-              options={sucursalesDisponibles.map((s) => ({
-                label: s.nombre,
-                value: s.id_sucursal,
-              }))}
+              style={{
+                width:
+                  "100%",
+              }}
+              placeholder="Seleccionar empresa"
+              value={
+                empresaId
+              }
+              onChange={
+                onEmpresaChange
+              }
+              options={
+                empresasDisponibles.map(
+                  empresa => ({
+                    label:
+                      getAgendaEmpresaOptionLabel(
+                        empresa
+                      ),
+
+                    value:
+                      empresa.id_empresa,
+                  })
+                )
+              }
+              showSearch
+              filterOption={(
+                input,
+                option
+              ) =>
+                (
+                  (
+                    option
+                      ?.label as
+                    string
+                  ) ??
+                  ""
+                )
+                  .toLowerCase()
+                  .includes(
+                    input.toLowerCase()
+                  )
+              }
             />
           </div>
+        ) : (
+          <div>
+            <p
+              style={{
+                color:
+                  "#64748b",
+
+                fontSize:
+                  13,
+
+                marginBottom:
+                  6,
+              }}
+            >
+              Nombre empresa externa
+            </p>
+
+            <input
+              type="text"
+              value={
+                empresaExternaNombre
+              }
+              onChange={
+                event =>
+                  onEmpresaExternaNombreChange(
+                    event
+                      .target
+                      .value
+                  )
+              }
+              maxLength={
+                150
+              }
+              placeholder="Ej: Empresa externa SpA"
+              style={{
+                width:
+                  "100%",
+
+                padding:
+                  "6px 10px",
+
+                borderRadius:
+                  6,
+
+                border:
+                  "1px solid #d9d9d9",
+
+                fontSize:
+                  14,
+
+                boxSizing:
+                  "border-box",
+              }}
+            />
+
+            <div
+              style={{
+                marginTop:
+                  3,
+
+                textAlign:
+                  "right",
+
+                color:
+                  "#94a3b8",
+
+                fontSize:
+                  11,
+              }}
+            >
+              {
+                empresaExternaNombre
+                  .length
+              }
+              /150
+            </div>
+          </div>
         )}
+
+        {tipoEmpresa ===
+          "INTERNA" &&
+          sucursalesDisponibles.length >
+          0 && (
+            <div>
+              <p
+                style={{
+                  color:
+                    "#64748b",
+
+                  fontSize:
+                    13,
+
+                  marginBottom:
+                    6,
+                }}
+              >
+                Sucursal de destino
+              </p>
+
+              <Select
+                style={{
+                  width:
+                    "100%",
+                }}
+                placeholder="Ubicación principal de la empresa"
+                value={
+                  sucursalId
+                }
+                onChange={
+                  value =>
+                    onSucursalChange(
+                      value ??
+                      null
+                    )
+                }
+                loading={
+                  sucursalesLoading
+                }
+                allowClear
+                options={
+                  sucursalesDisponibles.map(
+                    sucursal => ({
+                      label:
+                        sucursal.nombre,
+
+                      value:
+                        sucursal.id_sucursal,
+                    })
+                  )
+                }
+              />
+            </div>
+          )}
 
         <div>
           <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Técnico</p>
@@ -308,6 +646,96 @@ export function CrearVisitaManual({
             )}
           </div>
         )}
+
+        <div>
+          <p
+            style={{
+              color:
+                "#64748b",
+
+              fontSize:
+                13,
+
+              marginBottom:
+                6,
+            }}
+          >
+            Finalidad de la visita
+
+            <span
+              style={{
+                marginLeft:
+                  4,
+
+                color:
+                  "#94a3b8",
+              }}
+            >
+              (opcional)
+            </span>
+          </p>
+
+          <textarea
+            value={
+              finalidad
+            }
+            onChange={
+              event =>
+                onFinalidadChange(
+                  event
+                    .target
+                    .value
+                )
+            }
+            rows={
+              2
+            }
+            maxLength={
+              300
+            }
+            placeholder="Ej: Reunión, instalación, levantamiento técnico..."
+            style={{
+              width:
+                "100%",
+
+              padding:
+                "4px 8px",
+
+              borderRadius:
+                6,
+
+              border:
+                "1px solid #d9d9d9",
+
+              fontSize:
+                13,
+
+              resize:
+                "vertical",
+
+              boxSizing:
+                "border-box",
+            }}
+          />
+
+          <div
+            style={{
+              marginTop:
+                3,
+
+              textAlign:
+                "right",
+
+              color:
+                "#94a3b8",
+
+              fontSize:
+                11,
+            }}
+          >
+            {finalidad.length}/300
+          </div>
+        </div>
 
         <div>
           <p style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>Notas</p>

@@ -14,7 +14,13 @@ import { Alert, Button, message, Modal, Spin, Popconfirm, AutoComplete } from "a
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
-import type { AgendaVisita, Tecnico, Empresa, Sucursal } from "../components/modals-agenda/tiposAgenda";
+import type {
+  AgendaVisita,
+  Tecnico,
+  Empresa,
+  Sucursal,
+  TipoEmpresaAgenda,
+} from "../components/modals-agenda/tiposAgenda";
 import { getAgendaEstadoEventColor } from "../components/modals-agenda/tiposAgenda";
 import { CrearVisitaManual, type FechaLote } from "../components/modals-agenda/CrearVisitaManual";
 import { EditarVisita } from "../components/modals-agenda/EditarVisita";
@@ -102,6 +108,30 @@ export default function AgendaPage() {
   const [selectedEmpresaIds, setSelectedEmpresaIds] = useState<number[]>([]);
   const [includeOficina, setIncludeOficina] = useState(false);
 
+  const [
+    selectedTipoEmpresa,
+    setSelectedTipoEmpresa,
+  ] =
+    useState<TipoEmpresaAgenda>(
+      "INTERNA"
+    );
+
+  const [
+    selectedEmpresaExternaNombre,
+    setSelectedEmpresaExternaNombre,
+  ] =
+    useState(
+      ""
+    );
+
+  const [
+    selectedFinalidad,
+    setSelectedFinalidad,
+  ] =
+    useState(
+      ""
+    );
+
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [detalleVisita, setDetalleVisita] = useState<AgendaVisita | null>(null);
 
@@ -137,6 +167,29 @@ export default function AgendaPage() {
   const [calendarError, setCalendarError] = useState("");
   const [creating, setCreating] = useState(false);
   const [manualEmpresaId, setManualEmpresaId] = useState<number | null>(null);
+  const [
+    manualTipoEmpresa,
+    setManualTipoEmpresa,
+  ] =
+    useState<TipoEmpresaAgenda>(
+      "INTERNA"
+    );
+
+  const [
+    manualEmpresaExternaNombre,
+    setManualEmpresaExternaNombre,
+  ] =
+    useState(
+      ""
+    );
+
+  const [
+    manualFinalidad,
+    setManualFinalidad,
+  ] =
+    useState(
+      ""
+    );
   const [manualSucursalId, setManualSucursalId] = useState<number | null>(null);
   const [manualSucursalesDisponibles, setManualSucursalesDisponibles] = useState<Sucursal[]>([]);
   const [manualSucursalesLoading, setManualSucursalesLoading] = useState(false);
@@ -346,6 +399,45 @@ export default function AgendaPage() {
     }, {}),
     [visitas]);
 
+  /* =====================================================
+   EMPRESAS EXTERNAS DISPONIBLES PARA FILTRO
+===================================================== */
+
+  const empresasExternasFiltro =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            visitas
+              .map(
+                visita =>
+                  visita
+                    .empresaExternaNombre
+                    ?.trim()
+              )
+              .filter(
+                (
+                  nombre
+                ): nombre is string =>
+                  Boolean(
+                    nombre
+                  )
+              )
+          )
+        ).sort(
+          (
+            a,
+            b
+          ) =>
+            a.localeCompare(
+              b,
+              "es"
+            )
+        ),
+      [visitas]
+    );
+
+
   const fcEvents = useMemo(() =>
     visitas.map((v) => {
       const isPast = isPastVisita(v);
@@ -432,97 +524,471 @@ export default function AgendaPage() {
     setDetalleOpen(true);
   };
 
-  const handleOpenEditar = (visita: AgendaVisita) => {
-    const empresaRids = empresasDisponibles.find((e) => e.nombre.trim().toLowerCase() === "rids");
-    setSelectedVisita(visita);
-    setSelectedTecnicos(visita.tecnicos.map((t) => t.tecnico.id_tecnico));
-    setSelectedEmpresaId(visita.empresa?.id_empresa ?? empresaRids?.id_empresa ?? null);
-    setSelectedSucursalId(visita.sucursalId ?? visita.sucursal?.id_sucursal ?? null);
-    selectedSucursalTouchedRef.current = false;
-    setSelectedHoraInicio(visita.horaInicio ?? "");
-    setSelectedHoraFin(visita.horaFin ?? "");
-    setSelectedNotas(visita.notas ?? "");
-    setEditFechasAdicionales([]);
-    setSendingNota(false);
-    setDetalleOpen(false);
-    setModalOpen(true);
-  };
+  const handleOpenEditar =
+    (
+      visita:
+        AgendaVisita
+    ) => {
+      const empresaRids =
+        empresasDisponibles.find(
+          empresa =>
+            empresa.nombre
+              .trim()
+              .toLowerCase() ===
+            "rids"
+        );
 
-  const handleSaveVisita = async () => {
-    if (!selectedVisita) return;
-    setSaving(true);
-    try {
-      const resPatch = await fetch(`${API_URL}/agenda/${selectedVisita.id}`, {
-        method: "PATCH", headers: authHeaders(), credentials: "include",
-        body: JSON.stringify({
-          empresaId: selectedEmpresaId,
-          ...(selectedSucursalTouchedRef.current && { sucursalId: selectedSucursalId }),
-          ...(selectedHoraInicio && { horaInicio: selectedHoraInicio }),
-          ...(selectedHoraFin && { horaFin: selectedHoraFin }),
-          notas: selectedNotas,
-        }),
-      });
-      if (!resPatch.ok) throw new Error(await errorMsg(resPatch, "Error al guardar la visita"));
+      const esEmpresaExterna =
+        visita.empresa ===
+        null &&
+        Boolean(
+          visita
+            .empresaExternaNombre
+            ?.trim()
+        );
 
-      const resTecnicos = await fetch(`${API_URL}/agenda/${selectedVisita.id}/tecnicos`, {
-        method: "PUT", headers: authHeaders(), credentials: "include",
-        body: JSON.stringify({ nuevosTecnicoIds: selectedTecnicos }),
-      });
-      if (!resTecnicos.ok) throw new Error(await errorMsg(resTecnicos, "Error al guardar la visita"));
-
-      const updatedEmpresa =
-        selectedEmpresaId === null
-          ? null
-          : empresasDisponibles.find((e) => e.id_empresa === selectedEmpresaId) ??
-          (selectedVisita.empresa?.id_empresa === selectedEmpresaId ? selectedVisita.empresa : null);
-
-      setSelectedVisita((prev) =>
-        prev ? { ...prev, empresa: updatedEmpresa, horaInicio: selectedHoraInicio || null, horaFin: selectedHoraFin || null, notas: selectedNotas } : prev
+      setSelectedVisita(
+        visita
       );
 
-      if (editFechasAdicionales.length > 0 && selectedTecnicos.length === 1) {
-        const resLote = await fetch(`${API_URL}/agenda/manual/lote`, {
-          method: "POST", headers: authHeaders(), credentials: "include",
-          body: JSON.stringify({
-            empresaId: selectedEmpresaId,
-            sucursalId: selectedSucursalId,
-            tecnicoId: selectedTecnicos[0],
-            ...(selectedNotas.trim() && { notas: selectedNotas.trim() }),
-            fechas: editFechasAdicionales.map((fecha) => ({
-              fecha,
-              horaInicio: selectedHoraInicio,
-              horaFin: selectedHoraFin,
-            })),
-          }),
-        });
-        if (resLote.ok) {
-          const dataLote = await resLote.json();
-          if (dataLote.errores?.length > 0) {
-            message.warning(
-              `Visita actualizada. ${dataLote.creadas.length} día(s) más creado(s), ${dataLote.errores.length} fallaron (revisa conflictos de horario).`
-            );
-          } else {
-            message.success(`Visita actualizada y repetida en ${dataLote.creadas.length} día(s) más`);
-          }
-        } else {
-          message.warning("Visita actualizada, pero no se pudo repetir en los días adicionales.");
-        }
-      } else {
-        message.success("Visita actualizada");
+      setSelectedTecnicos(
+        visita.tecnicos.map(
+          relacion =>
+            relacion
+              .tecnico
+              .id_tecnico
+        )
+      );
+
+      setSelectedTipoEmpresa(
+        esEmpresaExterna
+          ? "EXTERNA"
+          : "INTERNA"
+      );
+
+      setSelectedEmpresaId(
+        esEmpresaExterna
+          ? null
+          : visita.empresa
+            ?.id_empresa ??
+          empresaRids
+            ?.id_empresa ??
+          null
+      );
+
+      setSelectedEmpresaExternaNombre(
+        esEmpresaExterna
+          ? visita
+            .empresaExternaNombre ??
+          ""
+          : ""
+      );
+
+      setSelectedSucursalId(
+        esEmpresaExterna
+          ? null
+          : visita.sucursalId ??
+          visita.sucursal
+            ?.id_sucursal ??
+          null
+      );
+
+      setSelectedFinalidad(
+        visita.finalidad ??
+        ""
+      );
+
+      selectedSucursalTouchedRef.current =
+        false;
+
+      setSelectedHoraInicio(
+        visita.horaInicio ??
+        ""
+      );
+
+      setSelectedHoraFin(
+        visita.horaFin ??
+        ""
+      );
+
+      setSelectedNotas(
+        visita.notas ??
+        ""
+      );
+
+      setEditFechasAdicionales(
+        []
+      );
+
+      setSendingNota(
+        false
+      );
+
+      setDetalleOpen(
+        false
+      );
+
+      setModalOpen(
+        true
+      );
+    };
+
+  const handleSaveVisita =
+    async () => {
+      if (
+        !selectedVisita
+      ) {
+        return;
       }
 
-      setModalOpen(false);
-      setEditFechasAdicionales([]);
-      fetchVisitas(currentDate);
-    } catch (e) {
-      Modal.error({
-        title: "Error al guardar la visita",
-        content: e instanceof Error ? e.message : "Error al guardar la visita",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
+      const empresaValida =
+        selectedTipoEmpresa ===
+          "INTERNA"
+          ? selectedEmpresaId !==
+          null
+          : Boolean(
+            selectedEmpresaExternaNombre
+              .trim()
+          );
+
+      if (
+        !empresaValida
+      ) {
+        Modal.warning({
+          title:
+            "Empresa requerida",
+
+          content:
+            selectedTipoEmpresa ===
+              "INTERNA"
+              ? "Debes seleccionar una empresa."
+              : "Debes ingresar el nombre de la empresa externa.",
+        });
+
+        return;
+      }
+
+      if (
+        selectedTecnicos.length ===
+        0
+      ) {
+        Modal.warning({
+          title:
+            "Técnico requerido",
+
+          content:
+            "Debes seleccionar al menos un técnico.",
+        });
+
+        return;
+      }
+
+      setSaving(
+        true
+      );
+
+      try {
+        const resPatch =
+          await fetch(
+            `${API_URL}/agenda/${selectedVisita.id}`,
+            {
+              method:
+                "PATCH",
+
+              headers:
+                authHeaders(),
+
+              credentials:
+                "include",
+
+              body:
+                JSON.stringify({
+                  empresaId:
+                    selectedTipoEmpresa ===
+                      "INTERNA"
+                      ? selectedEmpresaId
+                      : null,
+
+                  empresaExternaNombre:
+                    selectedTipoEmpresa ===
+                      "EXTERNA"
+                      ? selectedEmpresaExternaNombre
+                        .trim()
+                      : null,
+
+                  finalidad:
+                    selectedFinalidad
+                      .trim() ||
+                    null,
+
+                  ...(
+                    selectedTipoEmpresa ===
+                    "INTERNA" &&
+                    selectedSucursalTouchedRef
+                      .current && {
+                      sucursalId:
+                        selectedSucursalId,
+                    }
+                  ),
+
+                  ...(selectedHoraInicio && {
+                    horaInicio:
+                      selectedHoraInicio,
+                  }),
+
+                  ...(selectedHoraFin && {
+                    horaFin:
+                      selectedHoraFin,
+                  }),
+
+                  notas:
+                    selectedNotas,
+                }),
+            }
+          );
+
+        if (
+          !resPatch.ok
+        ) {
+          throw new Error(
+            await errorMsg(
+              resPatch,
+              "Error al guardar la visita"
+            )
+          );
+        }
+
+        const resTecnicos =
+          await fetch(
+            `${API_URL}/agenda/${selectedVisita.id}/tecnicos`,
+            {
+              method:
+                "PUT",
+
+              headers:
+                authHeaders(),
+
+              credentials:
+                "include",
+
+              body:
+                JSON.stringify({
+                  nuevosTecnicoIds:
+                    selectedTecnicos,
+                }),
+            }
+          );
+
+        if (
+          !resTecnicos.ok
+        ) {
+          throw new Error(
+            await errorMsg(
+              resTecnicos,
+              "Error al guardar la visita"
+            )
+          );
+        }
+
+        const updatedEmpresa =
+          selectedTipoEmpresa ===
+            "EXTERNA"
+            ? null
+            : selectedEmpresaId ===
+              null
+              ? null
+              : empresasDisponibles.find(
+                empresa =>
+                  empresa.id_empresa ===
+                  selectedEmpresaId
+              ) ??
+              (
+                selectedVisita
+                  .empresa
+                  ?.id_empresa ===
+                  selectedEmpresaId
+                  ? selectedVisita
+                    .empresa
+                  : null
+              );
+
+        setSelectedVisita(
+          previous =>
+            previous
+              ? {
+                ...previous,
+
+                empresa:
+                  updatedEmpresa,
+
+                empresaId:
+                  selectedTipoEmpresa ===
+                    "INTERNA"
+                    ? selectedEmpresaId
+                    : null,
+
+                empresaExternaNombre:
+                  selectedTipoEmpresa ===
+                    "EXTERNA"
+                    ? selectedEmpresaExternaNombre
+                      .trim()
+                    : null,
+
+                finalidad:
+                  selectedFinalidad
+                    .trim() ||
+                  null,
+
+                sucursalId:
+                  selectedTipoEmpresa ===
+                    "INTERNA"
+                    ? selectedSucursalId
+                    : null,
+
+                horaInicio:
+                  selectedHoraInicio ||
+                  null,
+
+                horaFin:
+                  selectedHoraFin ||
+                  null,
+
+                notas:
+                  selectedNotas,
+              }
+              : previous
+        );
+
+        if (
+          editFechasAdicionales.length >
+          0 &&
+          selectedTecnicos.length ===
+          1
+        ) {
+          const resLote =
+            await fetch(
+              `${API_URL}/agenda/manual/lote`,
+              {
+                method:
+                  "POST",
+
+                headers:
+                  authHeaders(),
+
+                credentials:
+                  "include",
+
+                body:
+                  JSON.stringify({
+                    empresaId:
+                      selectedTipoEmpresa ===
+                        "INTERNA"
+                        ? selectedEmpresaId
+                        : null,
+
+                    empresaExternaNombre:
+                      selectedTipoEmpresa ===
+                        "EXTERNA"
+                        ? selectedEmpresaExternaNombre
+                          .trim()
+                        : null,
+
+                    sucursalId:
+                      selectedTipoEmpresa ===
+                        "INTERNA"
+                        ? selectedSucursalId
+                        : null,
+
+                    tecnicoId:
+                      selectedTecnicos[
+                      0
+                      ],
+
+                    finalidad:
+                      selectedFinalidad
+                        .trim() ||
+                      null,
+
+                    ...(selectedNotas
+                      .trim() && {
+                      notas:
+                        selectedNotas
+                          .trim(),
+                    }),
+
+                    fechas:
+                      editFechasAdicionales.map(
+                        fecha => ({
+                          fecha,
+
+                          horaInicio:
+                            selectedHoraInicio,
+
+                          horaFin:
+                            selectedHoraFin,
+                        })
+                      ),
+                  }),
+              }
+            );
+
+          if (
+            resLote.ok
+          ) {
+            const dataLote =
+              await resLote.json();
+
+            if (
+              dataLote.errores
+                ?.length >
+              0
+            ) {
+              message.warning(
+                `Visita actualizada. ${dataLote.creadas.length} día(s) más creado(s), ${dataLote.errores.length} fallaron.`
+              );
+            } else {
+              message.success(
+                `Visita actualizada y repetida en ${dataLote.creadas.length} día(s) más`
+              );
+            }
+          } else {
+            message.warning(
+              "Visita actualizada, pero no se pudo repetir en los días adicionales."
+            );
+          }
+        } else {
+          message.success(
+            "Visita actualizada"
+          );
+        }
+
+        setModalOpen(
+          false
+        );
+
+        setEditFechasAdicionales(
+          []
+        );
+
+        await fetchVisitas(
+          currentDate
+        );
+      } catch (error) {
+        Modal.error({
+          title:
+            "Error al guardar la visita",
+
+          content:
+            error instanceof Error
+              ? error.message
+              : "Error al guardar la visita",
+        });
+      } finally {
+        setSaving(
+          false
+        );
+      }
+    };
 
   const handleEnviarNota = async () => {
     if (!selectedVisita || !Number.isFinite(selectedVisita.id) || selectedVisita.id <= 0) return;
@@ -602,43 +1068,174 @@ export default function AgendaPage() {
     }
   };
 
-  const handleCrearManual = async () => {
-    if (manualEmpresaId === null || manualTecnicoId === null || manualFechasLote.length === 0) return;
-    setCreating(true);
-    try {
-      const res = await fetch(`${API_URL}/agenda/manual/lote`, {
-        method: "POST", headers: authHeaders(), credentials: "include",
-        body: JSON.stringify({
-          empresaId: manualEmpresaId,
-          sucursalId: manualSucursalId,
-          tecnicoId: manualTecnicoId,
-          ...(manualNotas.trim() && { notas: manualNotas.trim() }),
-          fechas: manualFechasLote.map((f) => ({
-            fecha: f.fecha,
-            horaInicio: f.horaInicio,
-            horaFin: f.horaFin,
-          })),
-        }),
-      });
-      if (!res.ok) throw new Error(await errorMsg(res, "Error al crear la(s) visita(s)"));
-      const data = await res.json();
-      if (data.errores?.length > 0) {
-        message.warning(
-          `${data.creadas.length} visita(s) creada(s), ${data.errores.length} fallaron (revisa conflictos de horario).`
-        );
-      } else {
-        message.success(`${data.creadas.length} visita(s) creada(s) correctamente`);
+  const handleCrearManual =
+    async () => {
+      const empresaValida =
+        manualTipoEmpresa ===
+          "INTERNA"
+          ? manualEmpresaId !==
+          null
+          : Boolean(
+            manualEmpresaExternaNombre
+              .trim()
+          );
+
+      if (
+        !empresaValida ||
+        manualTecnicoId ===
+        null ||
+        manualFechasLote.length ===
+        0
+      ) {
+        return;
       }
-      setCreateError("");
-      setCreateModalOpen(false);
-      setManualFechasLote([]);
-      fetchVisitas(currentDate);
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Error al crear la(s) visita(s)");
-    } finally {
-      setCreating(false);
-    }
-  };
+
+      setCreating(
+        true
+      );
+
+      try {
+        const res =
+          await fetch(
+            `${API_URL}/agenda/manual/lote`,
+            {
+              method:
+                "POST",
+
+              headers:
+                authHeaders(),
+
+              credentials:
+                "include",
+
+              body:
+                JSON.stringify({
+                  empresaId:
+                    manualTipoEmpresa ===
+                      "INTERNA"
+                      ? manualEmpresaId
+                      : null,
+
+                  empresaExternaNombre:
+                    manualTipoEmpresa ===
+                      "EXTERNA"
+                      ? manualEmpresaExternaNombre
+                        .trim()
+                      : null,
+
+                  sucursalId:
+                    manualTipoEmpresa ===
+                      "INTERNA"
+                      ? manualSucursalId
+                      : null,
+
+                  tecnicoId:
+                    manualTecnicoId,
+
+                  finalidad:
+                    manualFinalidad
+                      .trim() ||
+                    null,
+
+                  ...(manualNotas
+                    .trim() && {
+                    notas:
+                      manualNotas
+                        .trim(),
+                  }),
+
+                  fechas:
+                    manualFechasLote.map(
+                      fecha => ({
+                        fecha:
+                          fecha.fecha,
+
+                        horaInicio:
+                          fecha.horaInicio,
+
+                        horaFin:
+                          fecha.horaFin,
+                      })
+                    ),
+                }),
+            }
+          );
+
+        if (
+          !res.ok
+        ) {
+          throw new Error(
+            await errorMsg(
+              res,
+              "Error al crear la(s) visita(s)"
+            )
+          );
+        }
+
+        const data =
+          await res.json();
+
+        if (
+          data.errores
+            ?.length >
+          0
+        ) {
+          message.warning(
+            `${data.creadas.length} visita(s) creada(s), ${data.errores.length} fallaron (revisa conflictos de horario).`
+          );
+        } else {
+          message.success(
+            `${data.creadas.length} visita(s) creada(s) correctamente`
+          );
+        }
+
+        setCreateError(
+          ""
+        );
+
+        setCreateModalOpen(
+          false
+        );
+
+        setManualFechasLote(
+          []
+        );
+
+        setManualTipoEmpresa(
+          "INTERNA"
+        );
+
+        setManualEmpresaId(
+          null
+        );
+
+        setManualEmpresaExternaNombre(
+          ""
+        );
+
+        setManualSucursalId(
+          null
+        );
+
+        setManualFinalidad(
+          ""
+        );
+
+        fetchVisitas(
+          currentDate
+        );
+      } catch (error) {
+        setCreateError(
+          error instanceof Error
+            ? error.message
+            : "Error al crear la(s) visita(s)"
+        );
+      } finally {
+        setCreating(
+          false
+        );
+      }
+    };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEventDrop = async (info: any) => {
@@ -853,11 +1450,64 @@ export default function AgendaPage() {
           <Button
             size="middle"
             onClick={() => {
-              setCreateError("");
-              setManualFechasLote([{ fecha: dayjs().format("YYYY-MM-DD"), horaInicio: "", horaFin: "" }]);
-              setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
-              setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
-              setCreateModalOpen(true);
+              setCreateError(
+                ""
+              );
+
+              setManualFechasLote([
+                {
+                  fecha:
+                    dayjs().format(
+                      "YYYY-MM-DD"
+                    ),
+
+                  horaInicio:
+                    "",
+
+                  horaFin:
+                    "",
+                },
+              ]);
+
+              setManualTipoEmpresa(
+                "INTERNA"
+              );
+
+              setManualEmpresaId(
+                null
+              );
+
+              setManualEmpresaExternaNombre(
+                ""
+              );
+
+              setManualSucursalId(
+                null
+              );
+
+              setManualTecnicoId(
+                null
+              );
+
+              setManualFinalidad(
+                ""
+              );
+
+              setManualHoraInicio(
+                ""
+              );
+
+              setManualHoraFin(
+                ""
+              );
+
+              setManualNotas(
+                ""
+              );
+
+              setCreateModalOpen(
+                true
+              );
             }}
             style={{ borderRadius: 8 }}
           >
@@ -951,10 +1601,36 @@ export default function AgendaPage() {
           onChange={setFiltroEmpresa}
           allowClear
           style={{ width: 220, borderRadius: 8 }}
-          options={empresasDisponibles.map((e) => ({
-            value: getAgendaEmpresaOptionLabel(e).replace(/\s+/g, " ").trim(),
-            label: getAgendaEmpresaOptionLabel(e),
-          }))}
+          options={[
+            ...empresasDisponibles.map(
+              empresa => ({
+                value:
+                  getAgendaEmpresaOptionLabel(
+                    empresa
+                  )
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .trim(),
+
+                label:
+                  getAgendaEmpresaOptionLabel(
+                    empresa
+                  ),
+              })
+            ),
+
+            ...empresasExternasFiltro.map(
+              nombre => ({
+                value:
+                  nombre,
+
+                label:
+                  `${nombre} (externa)`,
+              })
+            ),
+          ]}
         />
         {(filtroTecnico || filtroEmpresa) && (
           <Button
@@ -1059,41 +1735,257 @@ export default function AgendaPage() {
         fecha={dayModalDate}
         visitas={dayModalVisitas}
         onAgregarVisita={() => {
-          setDayModalOpen(false);
-          setCreateError("");
-          setManualFechasLote([{ fecha: dayModalDateKey, horaInicio: "", horaFin: "" }]);
-          setManualEmpresaId(null); setManualSucursalId(null); setManualTecnicoId(null);
-          setManualHoraInicio(""); setManualHoraFin(""); setManualNotas("");
-          setCreateModalOpen(true);
+          setDayModalOpen(
+            false
+          );
+
+          setCreateError(
+            ""
+          );
+
+          setManualFechasLote([
+            {
+              fecha:
+                dayModalDateKey,
+
+              horaInicio:
+                "",
+
+              horaFin:
+                "",
+            },
+          ]);
+
+          setManualTipoEmpresa(
+            "INTERNA"
+          );
+
+          setManualEmpresaId(
+            null
+          );
+
+          setManualEmpresaExternaNombre(
+            ""
+          );
+
+          setManualSucursalId(
+            null
+          );
+
+          setManualTecnicoId(
+            null
+          );
+
+          setManualFinalidad(
+            ""
+          );
+
+          setManualHoraInicio(
+            ""
+          );
+
+          setManualHoraFin(
+            ""
+          );
+
+          setManualNotas(
+            ""
+          );
+
+          setCreateModalOpen(
+            true
+          );
         }}
         onVisitaClick={(v) => { setDayModalOpen(false); handleVisitaClick(v); }}
         onCancel={() => setDayModalOpen(false)}
       />
 
       <CrearVisitaManual
-        open={createModalOpen}
-        creating={creating}
-        errorText={createError}
-        empresaId={manualEmpresaId}
-        tecnicoId={manualTecnicoId}
-        horaInicio={manualHoraInicio}
-        horaFin={manualHoraFin}
-        notas={manualNotas}
-        empresasDisponibles={empresasDisponibles}
-        sucursalId={manualSucursalId}
-        sucursalesDisponibles={manualSucursalesDisponibles}
-        sucursalesLoading={manualSucursalesLoading}
-        tecnicosDisponibles={tecnicosDisponibles}
-        onEmpresaChange={(id) => { setManualEmpresaId(id); setManualSucursalId(null); }}
-        onSucursalChange={setManualSucursalId}
-        onTecnicoChange={setManualTecnicoId}
-        onHoraInicioChange={setManualHoraInicio}
-        onHoraFinChange={setManualHoraFin}
-        onNotasChange={setManualNotas}
-        onOk={handleCrearManual}
-        onCancel={() => { setCreateError(""); setCreateModalOpen(false); setManualFechasLote([]); }}
-        fechasLote={manualFechasLote}
-        onFechasLoteChange={setManualFechasLote}
+        open={
+          createModalOpen
+        }
+
+        creating={
+          creating
+        }
+
+        errorText={
+          createError
+        }
+
+        tipoEmpresa={
+          manualTipoEmpresa
+        }
+
+        empresaId={
+          manualEmpresaId
+        }
+
+        empresaExternaNombre={
+          manualEmpresaExternaNombre
+        }
+
+        sucursalId={
+          manualSucursalId
+        }
+
+        tecnicoId={
+          manualTecnicoId
+        }
+
+        horaInicio={
+          manualHoraInicio
+        }
+
+        horaFin={
+          manualHoraFin
+        }
+
+        finalidad={
+          manualFinalidad
+        }
+
+        notas={
+          manualNotas
+        }
+
+        empresasDisponibles={
+          empresasDisponibles
+        }
+
+        sucursalesDisponibles={
+          manualSucursalesDisponibles
+        }
+
+        sucursalesLoading={
+          manualSucursalesLoading
+        }
+
+        tecnicosDisponibles={
+          tecnicosDisponibles
+        }
+
+        onTipoEmpresaChange={
+          tipo => {
+            setManualTipoEmpresa(
+              tipo
+            );
+
+            setManualEmpresaId(
+              null
+            );
+
+            setManualEmpresaExternaNombre(
+              ""
+            );
+
+            setManualSucursalId(
+              null
+            );
+          }
+        }
+
+        onEmpresaChange={
+          id => {
+            setManualEmpresaId(
+              id
+            );
+
+            setManualEmpresaExternaNombre(
+              ""
+            );
+
+            setManualSucursalId(
+              null
+            );
+          }
+        }
+
+        onEmpresaExternaNombreChange={
+          value => {
+            setManualEmpresaExternaNombre(
+              value
+            );
+
+            setManualEmpresaId(
+              null
+            );
+
+            setManualSucursalId(
+              null
+            );
+          }
+        }
+
+        onSucursalChange={
+          setManualSucursalId
+        }
+
+        onTecnicoChange={
+          setManualTecnicoId
+        }
+
+        onHoraInicioChange={
+          setManualHoraInicio
+        }
+
+        onHoraFinChange={
+          setManualHoraFin
+        }
+
+        onFinalidadChange={
+          setManualFinalidad
+        }
+
+        onNotasChange={
+          setManualNotas
+        }
+
+        onOk={
+          handleCrearManual
+        }
+
+        onCancel={() => {
+          setCreateError(
+            ""
+          );
+
+          setCreateModalOpen(
+            false
+          );
+
+          setManualFechasLote(
+            []
+          );
+
+          setManualTipoEmpresa(
+            "INTERNA"
+          );
+
+          setManualEmpresaId(
+            null
+          );
+
+          setManualEmpresaExternaNombre(
+            ""
+          );
+
+          setManualSucursalId(
+            null
+          );
+
+          setManualFinalidad(
+            ""
+          );
+        }}
+
+        fechasLote={
+          manualFechasLote
+        }
+
+        onFechasLoteChange={
+          setManualFechasLote
+        }
       />
 
       <DetalleVisita
@@ -1107,40 +1999,211 @@ export default function AgendaPage() {
       />
 
       <EditarVisita
-        open={modalOpen}
-        visita={selectedVisita}
-        empresaId={selectedEmpresaId}
-        tecnicoIds={selectedTecnicos}
-        horaInicio={selectedHoraInicio}
-        horaFin={selectedHoraFin}
-        notas={selectedNotas}
-        empresasDisponibles={empresasDisponibles}
-        sucursalId={selectedSucursalId}
-        sucursalesDisponibles={selectedSucursalesDisponibles}
-        sucursalesLoading={selectedSucursalesLoading}
-        tecnicosDisponibles={tecnicosDisponibles}
-        saving={saving}
-        sendingNota={sendingNota}
-        deleting={deletingVisitaId}
-        fechasAdicionales={editFechasAdicionales}
-        onFechasAdicionalesChange={setEditFechasAdicionales}
-        onEmpresaChange={(id) => {
-          setSelectedEmpresaId(id);
-          setSelectedSucursalId(null);
-          selectedSucursalTouchedRef.current = true;
+        open={
+          modalOpen
+        }
+
+        visita={
+          selectedVisita
+        }
+
+        tipoEmpresa={
+          selectedTipoEmpresa
+        }
+
+        empresaId={
+          selectedEmpresaId
+        }
+
+        empresaExternaNombre={
+          selectedEmpresaExternaNombre
+        }
+
+        sucursalId={
+          selectedSucursalId
+        }
+
+        tecnicoIds={
+          selectedTecnicos
+        }
+
+        horaInicio={
+          selectedHoraInicio
+        }
+
+        horaFin={
+          selectedHoraFin
+        }
+
+        finalidad={
+          selectedFinalidad
+        }
+
+        notas={
+          selectedNotas
+        }
+
+        empresasDisponibles={
+          empresasDisponibles
+        }
+
+        sucursalesDisponibles={
+          selectedSucursalesDisponibles
+        }
+
+        sucursalesLoading={
+          selectedSucursalesLoading
+        }
+
+        tecnicosDisponibles={
+          tecnicosDisponibles
+        }
+
+        saving={
+          saving
+        }
+
+        sendingNota={
+          sendingNota
+        }
+
+        deleting={
+          deletingVisitaId
+        }
+
+        fechasAdicionales={
+          editFechasAdicionales
+        }
+
+        onFechasAdicionalesChange={
+          setEditFechasAdicionales
+        }
+
+        onTipoEmpresaChange={
+          tipo => {
+            setSelectedTipoEmpresa(
+              tipo
+            );
+
+            setSelectedEmpresaId(
+              null
+            );
+
+            setSelectedEmpresaExternaNombre(
+              ""
+            );
+
+            setSelectedSucursalId(
+              null
+            );
+
+            selectedSucursalTouchedRef.current =
+              true;
+          }
+        }
+
+        onEmpresaChange={
+          id => {
+            setSelectedTipoEmpresa(
+              "INTERNA"
+            );
+
+            setSelectedEmpresaId(
+              id
+            );
+
+            setSelectedEmpresaExternaNombre(
+              ""
+            );
+
+            setSelectedSucursalId(
+              null
+            );
+
+            selectedSucursalTouchedRef.current =
+              true;
+          }
+        }
+
+        onEmpresaExternaNombreChange={
+          value => {
+            setSelectedTipoEmpresa(
+              "EXTERNA"
+            );
+
+            setSelectedEmpresaExternaNombre(
+              value
+            );
+
+            setSelectedEmpresaId(
+              null
+            );
+
+            setSelectedSucursalId(
+              null
+            );
+
+            selectedSucursalTouchedRef.current =
+              true;
+          }
+        }
+
+        onSucursalChange={
+          id => {
+            setSelectedSucursalId(
+              id
+            );
+
+            selectedSucursalTouchedRef.current =
+              true;
+          }
+        }
+
+        onTecnicosChange={
+          setSelectedTecnicos
+        }
+
+        onHoraInicioChange={
+          setSelectedHoraInicio
+        }
+
+        onHoraFinChange={
+          setSelectedHoraFin
+        }
+
+        onFinalidadChange={
+          setSelectedFinalidad
+        }
+
+        onNotasChange={
+          setSelectedNotas
+        }
+
+        onSave={
+          handleSaveVisita
+        }
+
+        onSendNota={
+          handleEnviarNota
+        }
+
+        onDelete={
+          handleEliminarVisita
+        }
+
+        onCancel={() => {
+          setModalOpen(
+            false
+          );
+
+          setSelectedEmpresaExternaNombre(
+            ""
+          );
+
+          setSelectedFinalidad(
+            ""
+          );
         }}
-        onSucursalChange={(id) => {
-          setSelectedSucursalId(id);
-          selectedSucursalTouchedRef.current = true;
-        }}
-        onTecnicosChange={setSelectedTecnicos}
-        onHoraInicioChange={setSelectedHoraInicio}
-        onHoraFinChange={setSelectedHoraFin}
-        onNotasChange={setSelectedNotas}
-        onSave={handleSaveVisita}
-        onSendNota={handleEnviarNota}
-        onDelete={handleEliminarVisita}
-        onCancel={() => setModalOpen(false)}
       />
     </div>
   );

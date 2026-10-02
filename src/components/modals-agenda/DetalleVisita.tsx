@@ -1,17 +1,49 @@
 import React from "react";
-import { Modal, Button, Popconfirm } from "antd";
-import type { AgendaVisita } from "./tiposAgenda";
-import { getAgendaEstadoBadgeStyle, getAgendaEstadoLabel } from "./tiposAgenda";
-import { getAgendaEmpresaNombreFromVisita } from "./agendaEmpresaLabel";
+
+import {
+  Modal,
+  Button,
+  Popconfirm,
+} from "antd";
+
+import type {
+  AgendaVisita,
+} from "./tiposAgenda";
+
+import {
+  getAgendaEstadoBadgeStyle,
+  getAgendaEstadoLabel,
+} from "./tiposAgenda";
+
+import {
+  getAgendaEmpresaNombreFromVisita,
+} from "./agendaEmpresaLabel";
 
 export interface DetalleVisitaProps {
-  open: boolean;
-  visita: AgendaVisita | null;
-  deleting: boolean;
-  onEditar: (visita: AgendaVisita) => void;
-  onEliminar: () => void;
-  onEliminarVarias: () => void;
-  onCancel: () => void;
+  open:
+  boolean;
+
+  visita:
+  AgendaVisita |
+  null;
+
+  deleting:
+  boolean;
+
+  onEditar:
+  (
+    visita:
+      AgendaVisita
+  ) => void;
+
+  onEliminar:
+  () => void;
+
+  onEliminarVarias:
+  () => void;
+
+  onCancel:
+  () => void;
 }
 
 export function DetalleVisita({
@@ -23,156 +55,665 @@ export function DetalleVisita({
   onEliminarVarias,
   onCancel,
 }: DetalleVisitaProps) {
-  if (!visita) return null;
-  const nombreEmpresa = getAgendaEmpresaNombreFromVisita(visita).toUpperCase();
+  if (
+    !visita
+  ) {
+    return null;
+  }
+
+  const nombreEmpresa =
+    getAgendaEmpresaNombreFromVisita(
+      visita
+    ).toUpperCase();
+
+  const esEmpresaExterna =
+    visita.empresa ===
+    null &&
+    Boolean(
+      visita
+        .empresaExternaNombre
+        ?.trim()
+    );
 
   return (
     <Modal
-      title={nombreEmpresa}
-      open={open}
-      onCancel={onCancel}
+      title={
+        nombreEmpresa
+      }
+
+      open={
+        open
+      }
+
+      onCancel={
+        onCancel
+      }
+
       footer={
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div
+          style={{
+            display:
+              "flex",
+
+            justifyContent:
+              "space-between",
+          }}
+        >
+          <div
+            style={{
+              display:
+                "flex",
+
+              gap:
+                8,
+            }}
+          >
             <Popconfirm
               title="¿Eliminar esta visita?"
-              onConfirm={onEliminar}
+              onConfirm={
+                onEliminar
+              }
               okText="Sí, eliminar"
               cancelText="Cancelar"
-              okButtonProps={{ danger: true }}
+              okButtonProps={{
+                danger:
+                  true,
+              }}
             >
-              <Button danger loading={deleting}>
+              <Button
+                danger
+                loading={
+                  deleting
+                }
+              >
                 Eliminar
               </Button>
             </Popconfirm>
+
             <Button
               danger
               type="text"
-              onClick={onEliminarVarias}
+              onClick={
+                onEliminarVarias
+              }
             >
               Eliminar varias
             </Button>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button onClick={onCancel}>Cerrar</Button>
-            <Button type="primary" onClick={() => onEditar(visita)}>
+
+          <div
+            style={{
+              display:
+                "flex",
+
+              gap:
+                8,
+            }}
+          >
+            <Button
+              onClick={
+                onCancel
+              }
+            >
+              Cerrar
+            </Button>
+
+            <Button
+              type="primary"
+              onClick={() =>
+                onEditar(
+                  visita
+                )
+              }
+            >
               Editar
             </Button>
           </div>
         </div>
       }
+
       destroyOnHidden
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, marginTop: 4 }}>
+      <div
+        style={{
+          display:
+            "flex",
+
+          flexDirection:
+            "column",
+
+          gap:
+            8,
+
+          fontSize:
+            13,
+
+          marginTop:
+            4,
+        }}
+      >
         <div>
-          <span style={{ color: "#94a3b8" }}>Estado: </span>
           <span
             style={{
-              ...getAgendaEstadoBadgeStyle(visita.estado),
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 800,
-              padding: "2px 8px",
+              color:
+                "#94a3b8",
             }}
           >
-            {getAgendaEstadoLabel(visita.estado)}
+            Estado:{" "}
+          </span>
+
+          <span
+            style={{
+              ...getAgendaEstadoBadgeStyle(
+                visita.estado
+              ),
+
+              borderRadius:
+                999,
+
+              fontSize:
+                11,
+
+              fontWeight:
+                800,
+
+              padding:
+                "2px 8px",
+            }}
+          >
+            {
+              getAgendaEstadoLabel(
+                visita.estado
+              )
+            }
           </span>
         </div>
 
-        <div>
-          <span style={{ color: "#94a3b8" }}>Empresa: </span>
-          <strong style={{ color: "#dc2626" }}>
-            {nombreEmpresa}
+        <div
+          style={{
+            display:
+              "flex",
+
+            alignItems:
+              "center",
+
+            gap:
+              6,
+
+            flexWrap:
+              "wrap",
+          }}
+        >
+          <span
+            style={{
+              color:
+                "#94a3b8",
+            }}
+          >
+            Empresa:
+          </span>
+
+          <strong
+            style={{
+              color:
+                "#dc2626",
+            }}
+          >
+            {
+              nombreEmpresa
+            }
           </strong>
+
+          {esEmpresaExterna && (
+            <span
+              style={{
+                padding:
+                  "1px 6px",
+
+                borderRadius:
+                  999,
+
+                fontSize:
+                  10,
+
+                fontWeight:
+                  700,
+
+                background:
+                  "#fef3c7",
+
+                color:
+                  "#92400e",
+
+                border:
+                  "1px solid #fde68a",
+              }}
+            >
+              EXTERNA
+            </span>
+          )}
         </div>
 
-        {(visita.sucursal?.nombre || visita.destinoNombre || visita.destinoDireccion) && (
-          <div>
-            <span style={{ color: "#94a3b8" }}>Destino: </span>
-            <span style={{ color: "#334155" }}>
-              {visita.sucursal?.nombre ?? visita.destinoNombre ?? "Ubicación principal"}
-              {visita.destinoDireccion ? ` — ${visita.destinoDireccion}` : ""}
-            </span>
-          </div>
-        )}
+        {(
+          visita.sucursal
+            ?.nombre ||
+          visita.destinoNombre ||
+          visita.destinoDireccion
+        ) && (
+            <div>
+              <span
+                style={{
+                  color:
+                    "#94a3b8",
+                }}
+              >
+                Destino:{" "}
+              </span>
 
-        {(visita.horaInicio || visita.horaFin) && (
-          <div>
-            <span style={{ color: "#94a3b8" }}>Horario: </span>
-            <span style={{ color: "#475569" }}>
-              {visita.horaInicio ?? "--:--"} - {visita.horaFin ?? "--:--"}
-            </span>
-          </div>
-        )}
+              <span
+                style={{
+                  color:
+                    "#334155",
+                }}
+              >
+                {
+                  visita.sucursal
+                    ?.nombre ??
+                  visita.destinoNombre ??
+                  "Ubicación principal"
+                }
 
-        {visita.tecnicos.length > 0 && (
-          <div>
-            <span style={{ color: "#94a3b8" }}>Técnicos: </span>
-            <span style={{ color: "#334155" }}>
-              {visita.tecnicos.map((tr) => tr.tecnico.nombre).join(", ")}
-            </span>
-          </div>
-        )}
+                {
+                  visita.destinoDireccion
+                    ? ` — ${visita.destinoDireccion}`
+                    : ""
+                }
+              </span>
+            </div>
+          )}
+
+        {(
+          visita.horaInicio ||
+          visita.horaFin
+        ) && (
+            <div>
+              <span
+                style={{
+                  color:
+                    "#94a3b8",
+                }}
+              >
+                Horario:{" "}
+              </span>
+
+              <span
+                style={{
+                  color:
+                    "#475569",
+                }}
+              >
+                {
+                  visita.horaInicio ??
+                  "--:--"
+                }
+                {" - "}
+                {
+                  visita.horaFin ??
+                  "--:--"
+                }
+              </span>
+            </div>
+          )}
+
+        {visita.tecnicos
+          .length >
+          0 && (
+            <div>
+              <span
+                style={{
+                  color:
+                    "#94a3b8",
+                }}
+              >
+                Técnicos:{" "}
+              </span>
+
+              <span
+                style={{
+                  color:
+                    "#334155",
+                }}
+              >
+                {
+                  visita.tecnicos
+                    .map(
+                      relacion =>
+                        relacion
+                          .tecnico
+                          .nombre
+                    )
+                    .join(
+                      ", "
+                    )
+                }
+              </span>
+            </div>
+          )}
 
         {visita.tipo && (
           <div>
-            <span style={{ color: "#94a3b8" }}>Tipo: </span>
-            <span style={{ color: "#334155" }}>{visita.tipo}</span>
+            <span
+              style={{
+                color:
+                  "#94a3b8",
+              }}
+            >
+              Tipo:{" "}
+            </span>
+
+            <span
+              style={{
+                color:
+                  "#334155",
+              }}
+            >
+              {
+                visita.tipo
+              }
+            </span>
+          </div>
+        )}
+
+        {visita.finalidad?.trim() && (
+          <div>
+            <div
+              style={{
+                color: "#94a3b8",
+                fontSize: 12,
+                marginBottom: 4,
+              }}
+            >
+              Finalidad
+            </div>
+
+            <div
+              style={{
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: "var(--color-surface-2)",
+                color: "var(--color-text-primary)",
+                lineHeight: 1.45,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {visita.finalidad.trim()}
+            </div>
           </div>
         )}
 
         {visita.fechaInicioRuta && (
           <div>
-            <span style={{ color: "#94a3b8" }}>Inicio ruta: </span>
-            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioRuta).toLocaleString("es-CL")}</span>
+            <span
+              style={{
+                color:
+                  "#94a3b8",
+              }}
+            >
+              Inicio ruta:{" "}
+            </span>
+
+            <span
+              style={{
+                color:
+                  "#334155",
+              }}
+            >
+              {
+                new Date(
+                  visita.fechaInicioRuta
+                ).toLocaleString(
+                  "es-CL"
+                )
+              }
+            </span>
           </div>
         )}
 
         {visita.fechaInicioVisita && (
           <div>
-            <span style={{ color: "#94a3b8" }}>Inicio visita: </span>
-            <span style={{ color: "#334155" }}>{new Date(visita.fechaInicioVisita).toLocaleString("es-CL")}</span>
+            <span
+              style={{
+                color:
+                  "#94a3b8",
+              }}
+            >
+              Inicio visita:{" "}
+            </span>
+
+            <span
+              style={{
+                color:
+                  "#334155",
+              }}
+            >
+              {
+                new Date(
+                  visita.fechaInicioVisita
+                ).toLocaleString(
+                  "es-CL"
+                )
+              }
+            </span>
           </div>
         )}
 
         <div
           style={{
-            borderRadius: 8,
-            border: "1px solid #e2e8f0",
-            background: visita.visita ? "#f8fafc" : "#fff7ed",
-            padding: "8px 10px",
-            marginTop: 4,
+            borderRadius:
+              8,
+
+            border:
+              "1px solid #e2e8f0",
+
+            background:
+              visita.visita
+                ? "#f8fafc"
+                : "#fff7ed",
+
+            padding:
+              "8px 10px",
+
+            marginTop:
+              4,
           }}
         >
-          <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+          <div
+            style={{
+              color:
+                "#64748b",
+
+              fontSize:
+                12,
+
+              fontWeight:
+                700,
+
+              textTransform:
+                "uppercase",
+            }}
+          >
             Formulario asociado
           </div>
+
           {visita.visita ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
-              <span style={{ color: "#0f172a", fontWeight: 700 }}>
-                Visita #{visita.visita.id_visita}
+            <div
+              style={{
+                display:
+                  "flex",
+
+                flexDirection:
+                  "column",
+
+                gap:
+                  2,
+
+                marginTop:
+                  4,
+              }}
+            >
+              <span
+                style={{
+                  color:
+                    "#0f172a",
+
+                  fontWeight:
+                    700,
+                }}
+              >
+                Visita #
+                {
+                  visita
+                    .visita
+                    .id_visita
+                }
               </span>
-              <span style={{ color: "#475569", fontSize: 12 }}>
-                Estado: {visita.visita.status ?? "Sin estado"} · Origen: {visita.visita.origen ?? "AGENDA"}
+
+              <span
+                style={{
+                  color:
+                    "#475569",
+
+                  fontSize:
+                    12,
+                }}
+              >
+                Estado:{" "}
+                {
+                  visita
+                    .visita
+                    .status ??
+                  "Sin estado"
+                }
+                {" · "}
+                Origen:{" "}
+                {
+                  visita
+                    .visita
+                    .origen ??
+                  "AGENDA"
+                }
               </span>
-              {(visita.visita.inicio || visita.visita.fin) && (
-                <span style={{ color: "#475569", fontSize: 12 }}>
-                  {visita.visita.inicio ? new Date(visita.visita.inicio).toLocaleString("es-CL") : "--"}{" "}
-                  - {visita.visita.fin ? new Date(visita.visita.fin).toLocaleString("es-CL") : "En curso"}
-                </span>
-              )}
+
+              {(
+                visita
+                  .visita
+                  .inicio ||
+                visita
+                  .visita
+                  .fin
+              ) && (
+                  <span
+                    style={{
+                      color:
+                        "#475569",
+
+                      fontSize:
+                        12,
+                    }}
+                  >
+                    {
+                      visita
+                        .visita
+                        .inicio
+                        ? new Date(
+                          visita
+                            .visita
+                            .inicio
+                        ).toLocaleString(
+                          "es-CL"
+                        )
+                        : "--"
+                    }
+                    {" - "}
+                    {
+                      visita
+                        .visita
+                        .fin
+                        ? new Date(
+                          visita
+                            .visita
+                            .fin
+                        ).toLocaleString(
+                          "es-CL"
+                        )
+                        : "En curso"
+                    }
+                  </span>
+                )}
             </div>
           ) : (
-            <span style={{ color: "#9a3412", fontSize: 13 }}>
+            <span
+              style={{
+                color:
+                  "#9a3412",
+
+                fontSize:
+                  13,
+              }}
+            >
               Sin formulario de visita asociado.
             </span>
           )}
         </div>
 
+        {visita.mensaje
+          ?.trim() && (
+            <div>
+              <span
+                style={{
+                  color:
+                    "#94a3b8",
+                }}
+              >
+                Mensaje:{" "}
+              </span>
+
+              <span
+                style={{
+                  color:
+                    "#334155",
+                }}
+              >
+                {
+                  visita.mensaje
+                    .trim()
+                }
+              </span>
+            </div>
+          )}
+
         {visita.notas && (
           <div>
-            <span style={{ color: "#94a3b8" }}>Notas: </span>
-            <span style={{ color: "#334155" }}>{visita.notas}</span>
+            <span
+              style={{
+                color:
+                  "#94a3b8",
+              }}
+            >
+              Notas:{" "}
+            </span>
+
+            <span
+              style={{
+                color:
+                  "#334155",
+              }}
+            >
+              {
+                visita.notas
+              }
+            </span>
           </div>
         )}
       </div>
