@@ -59,7 +59,6 @@ export type SolicitanteRow = {
 // Tipos en el mismo archivo (arriba de la función o en tu bloque de tipos)
 type MsSyncPayload = {
   empresaId: number;
-  domain?: string;
   email?: string;
 };
 
@@ -79,6 +78,7 @@ type SyncResponse = {
   skipped?: number;
   deactivated?: number;
   deactivatedUsers?: DeactivatedUser[];
+  domains?: string[];
   [key: string]: unknown;
 };
 
@@ -642,20 +642,26 @@ export default function SolicitantesPage() {
     );
 
   // ===================== Sync Microsoft (nuevo) =====================
-  const [syncMsOpen, setSyncMsOpen] = useState(false);
-  const [syncingMs, setSyncingMs] = useState(false);
-  const [msEmpresaId, setMsEmpresaId] = useState<number | null>(null);
-  const [msDomain, setMsDomain] = useState<string>("");
-  const [msEmail, setMsEmail] = useState<string>("");
+  const [syncMsOpen, setSyncMsOpen] =
+    useState(false);
+
+  const [syncingMs, setSyncingMs] =
+    useState(false);
+
+  const [msEmpresaId, setMsEmpresaId] =
+    useState<number | null>(null);
+
+  const [msEmail, setMsEmail] =
+    useState<string>("");
 
   const [lastSyncDeactivated, setLastSyncDeactivated] = useState<DeactivatedUser[]>([]);
 
   const openSyncMicrosoft = () => {
     setSyncMsOpen(true);
-    setMsEmpresaId(empresaId ?? null);
 
-    const emp = empresas.find(e => e.id_empresa === empresaId);
-    setMsDomain(emp?.dominios?.[0] ?? "");
+    setMsEmpresaId(
+      empresaId ?? null
+    );
 
     setMsEmail("");
   };
@@ -669,9 +675,17 @@ export default function SolicitantesPage() {
       setSyncingMs(true);
 
       const payload: MsSyncPayload = {
-        empresaId: msEmpresaId,
-        ...(msDomain.trim() ? { domain: msDomain.trim() } : {}),
-        ...(msEmail.trim() ? { email: msEmail.trim() } : {}),
+        empresaId:
+          msEmpresaId,
+
+        ...(msEmail.trim()
+          ? {
+            email:
+              msEmail
+                .trim()
+                .toLowerCase(),
+          }
+          : {}),
       };
 
       const resp = msEmail.trim()
@@ -680,16 +694,34 @@ export default function SolicitantesPage() {
 
       const r = resp.data ?? {};
 
+      const domainsUsed =
+        Array.isArray(r.domains)
+          ? r.domains
+          : [];
+
       setLastSyncDeactivated(Array.isArray(r.deactivatedUsers) ? r.deactivatedUsers : []);
 
       push({
-        kind: "success",
-        message: "Sincronización Microsoft lista",
+        kind:
+          "success",
+
+        message:
+          "Sincronización Microsoft lista",
+
         detail:
-          `Empresa: ${msEmpresaId} • Dominio: ${msDomain || "—"} • ` +
-          `Total: ${r.total ?? 0}, Creados: ${r.created ?? 0}, ` +
-          `Actualizados: ${r.updated ?? 0}, Omitidos: ${r.skipped ?? 0}` +
-          `${msEmail.trim() ? "" : `, Inactivos: ${r.deactivated ?? 0}`}`,
+          `Empresa: ${msEmpresaId} • ` +
+          `Dominios: ${domainsUsed.length > 0
+            ? domainsUsed.join(", ")
+            : "—"
+          } • ` +
+          `Total: ${r.total ?? 0}, ` +
+          `Creados: ${r.created ?? 0}, ` +
+          `Actualizados: ${r.updated ?? 0}, ` +
+          `Omitidos: ${r.skipped ?? 0}` +
+          `${msEmail.trim()
+            ? ""
+            : `, Inactivos: ${r.deactivated ?? 0}`
+          }`,
       });
 
       if (!msEmail.trim() && Array.isArray(r.deactivatedUsers) && r.deactivatedUsers.length > 0) {
@@ -1680,6 +1712,24 @@ export default function SolicitantesPage() {
         1
       );
     };
+
+  const msEmpresaSeleccionada =
+    useMemo(
+      () =>
+        empresas.find(
+          empresa =>
+            empresa.id_empresa ===
+            msEmpresaId
+        ) ?? null,
+      [
+        empresas,
+        msEmpresaId,
+      ]
+    );
+
+  const msDominios =
+    msEmpresaSeleccionada?.dominios ??
+    [];
 
   /* ======================= RENDER ======================= */
   return (
@@ -2707,64 +2757,180 @@ export default function SolicitantesPage() {
       <TWModal
         open={syncMsOpen}
         title="Actualizar Microsoft 365"
-        onClose={() => setSyncMsOpen(false)}
+        onClose={() =>
+          setSyncMsOpen(false)
+        }
         onOk={runSyncMicrosoft}
         okText="Sincronizar"
         loading={syncingMs}
-        okDisabled={!msEmpresaId}
+        okDisabled={
+          !msEmpresaId ||
+          msDominios.length === 0
+        }
       >
         <div className="grid gap-3">
           <label className="block text-sm">
             Empresa
+
             <select
-              className="mt-1 w-full rounded-xl border px-3 py-2"
-              value={msEmpresaId ?? ""}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : null;
-                setMsEmpresaId(id);
+              className="
+          mt-1
+          w-full
+          rounded-xl
+          border
+          px-3
+          py-2
+        "
+              value={
+                msEmpresaId ??
+                ""
+              }
+              onChange={e => {
+                const id =
+                  e.target.value
+                    ? Number(
+                      e.target.value
+                    )
+                    : null;
 
-                const emp = empresas.find(x => x.id_empresa === id);
-                const dominioPrincipal = emp?.dominios?.[0] ?? "";
-
-                setMsDomain(dominioPrincipal);
+                setMsEmpresaId(
+                  id
+                );
               }}
-
             >
-              <option value="">Selecciona…</option>
-              {empresas.map((e) => (
-                <option key={e.id_empresa} value={e.id_empresa}>{e.nombre}</option>
-              ))}
+              <option value="">
+                Selecciona…
+              </option>
+
+              {empresas.map(
+                empresa => (
+                  <option
+                    key={
+                      empresa.id_empresa
+                    }
+                    value={
+                      empresa.id_empresa
+                    }
+                  >
+                    {empresa.nombre}
+                  </option>
+                )
+              )}
             </select>
           </label>
 
-          <label className="block text-sm">
-            Dominio (opcional)
-            <input
-              className="mt-1 w-full rounded-xl border px-3 py-2"
-              placeholder="p.ej. grupocolchagua.cl"
-              value={msDomain}
-              onChange={(e) => setMsDomain(e.target.value)}
-            />
-            <div className="mt-1 text-[11px] text-slate-500">
-              Si lo dejas vacío, sincroniza todo el tenant permitido por tus credenciales.
+          {msEmpresaId && (
+            <div>
+              <div
+                className="
+            text-sm
+            font-medium
+            text-slate-700
+          "
+              >
+                Dominios configurados
+              </div>
+
+              {msDominios.length > 0 ? (
+                <>
+                  <div
+                    className="
+                mt-2
+                flex
+                flex-wrap
+                gap-1.5
+              "
+                  >
+                    {msDominios.map(
+                      dominio => (
+                        <span
+                          key={
+                            dominio
+                          }
+                          className="
+                      inline-flex
+                      items-center
+                      rounded-full
+                      border
+                      border-cyan-200
+                      bg-cyan-50
+                      px-2.5
+                      py-1
+                      text-xs
+                      font-medium
+                      text-cyan-800
+                    "
+                        >
+                          {dominio}
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  <div
+                    className="
+                mt-1.5
+                text-[11px]
+                text-slate-500
+              "
+                  >
+                    La sincronización
+                    consultará automáticamente
+                    todos estos dominios.
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="
+              mt-1
+              text-xs
+              text-rose-600
+            "
+                >
+                  Esta empresa no tiene
+                  dominios configurados.
+                </div>
+              )}
             </div>
-          </label>
+          )}
 
           <label className="block text-sm">
             Email específico (opcional)
+
             <input
-              className="mt-1 w-full rounded-xl border px-3 py-2"
-              placeholder="usuario@grupocolchagua.cl"
+              className="
+          mt-1
+          w-full
+          rounded-xl
+          border
+          px-3
+          py-2
+        "
+              placeholder="usuario@empresa.cl"
               value={msEmail}
-              onChange={(e) => setMsEmail(e.target.value)}
+              onChange={e =>
+                setMsEmail(
+                  e.target.value
+                )
+              }
             />
-            <div className="mt-1 text-[11px] text-slate-500">
-              Si indicas un email, se sincroniza solo ese usuario (usa método PUT).
+
+            <div
+              className="
+          mt-1
+          text-[11px]
+          text-slate-500
+        "
+            >
+              Si indicas un email, se sincroniza
+              solo ese usuario. Si lo dejas vacío,
+              se sincronizan todos los usuarios
+              pertenecientes a los dominios
+              configurados.
             </div>
           </label>
         </div>
       </TWModal>
-
       {/* Modal de Detalle */}
       <Suspense fallback={null}>
         {detail && (
