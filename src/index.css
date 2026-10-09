@@ -46,7 +46,7 @@ html.a11y-theme-dark {
   --color-border-light: #1e293b;
   --color-text-primary: #f8fafc;
   --color-text-secondary: #cbd5e1;
-  --color-text-muted: #64748b;
+  --color-text-muted: #94a3b8;
   --color-accent: #22d3ee;
   --color-accent-light: #164e63;
   --color-success: #34d399;
@@ -3956,4 +3956,245 @@ html.a11y-theme-dark .receptor-contacto-nombre.text-xs.font-semibold {
 html.a11y-theme-dark .receptor-contacto-email.text-xs.text-slate-500 {
   color: #cbd5e1 !important;
   opacity: 1 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AGENDA — DARK MODE
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Filtros AutoComplete ─────────────────────────────────────────────── */
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-selector {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-surface-3) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-selection-search-input {
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+  caret-color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-selection-search-input::placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 1 !important;
+}
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-selection-placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 1 !important;
+}
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-selection-item {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-filters
+  .ant-select-clear {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-muted) !important;
+}
+
+
+/* ── FullCalendar ────────────────────────────────────────────────────── */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-view-harness,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-view,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-scrollgrid {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-theme-standard
+  td,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-theme-standard
+  th,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-theme-standard
+  .fc-scrollgrid {
+  border-color: var(--color-border) !important;
+}
+
+
+/* Cabecera días */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-col-header-cell {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-col-header-cell-cushion {
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* Días */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-daygrid-day {
+  background-color: var(--color-surface) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-daygrid-day:hover {
+  background-color: var(--color-surface-2) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-daygrid-day-number {
+  color: var(--color-text-secondary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-day-other
+  .fc-daygrid-day-number {
+  color: var(--color-text-muted) !important;
+  opacity: 0.55;
+}
+
+
+/* Hoy */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-day-today {
+  background-color: rgba(
+    34,
+    211,
+    238,
+    0.07
+  ) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-day-today
+  .fc-daygrid-day-number {
+  color: var(--color-accent) !important;
+  font-weight: 700;
+}
+
+
+/* Toolbar */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-toolbar-title {
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-button {
+  background-color: var(--color-surface-2) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  box-shadow: none !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-button:hover:not(:disabled) {
+  background-color: var(--color-surface-3) !important;
+  border-color: var(--color-accent) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  color: #020617 !important;
+}
+
+
+/* Más eventos */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-more-link {
+  color: var(--color-accent) !important;
+  background-color: var(--color-surface-2) !important;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+
+/* Popover */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-popover {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-popover-header {
+  background-color: var(--color-surface-2) !important;
+  color: var(--color-text-primary) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-popover-body {
+  background-color: var(--color-surface) !important;
+}
+
+
+/* Semana / Día */
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-timegrid-slot,
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-timegrid-axis {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-border-light) !important;
+}
+
+html.a11y-theme-dark
+  .agenda-calendar-compact
+  .fc-timegrid-slot-label-cushion {
+  color: var(--color-text-muted) !important;
 }

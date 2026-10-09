@@ -279,14 +279,9 @@ export function DetalleVisita({
                 fontWeight:
                   700,
 
-                background:
-                  "#fef3c7",
-
-                color:
-                  "#92400e",
-
-                border:
-                  "1px solid #fde68a",
+                background: "var(--color-accent-light)",
+                color: "var(--color-accent)",
+                border: "1px solid var(--color-accent)",
               }}
             >
               EXTERNA
@@ -428,7 +423,7 @@ export function DetalleVisita({
           <div>
             <div
               style={{
-                color: "#94a3b8",
+                color: "var(--color-text-muted)",
                 fontSize: 12,
                 marginBottom: 4,
               }}
@@ -510,22 +505,16 @@ export function DetalleVisita({
 
         <div
           style={{
-            borderRadius:
-              8,
+            borderRadius: 8,
 
-            border:
-              "1px solid #e2e8f0",
+            border: visita.visita
+              ? "1px solid var(--color-border)"
+              : "1px solid var(--color-warning)",
 
-            background:
-              visita.visita
-                ? "#f8fafc"
-                : "#fff7ed",
+            background: "var(--color-surface-2)",
 
-            padding:
-              "8px 10px",
-
-            marginTop:
-              4,
+            padding: "8px 10px",
+            marginTop: 4,
           }}
         >
           <div

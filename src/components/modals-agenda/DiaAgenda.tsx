@@ -53,7 +53,14 @@ export function DiaAgenda({
       </div>
 
       {visitas.length === 0 ? (
-        <p style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", margin: "16px 0" }}>
+        <p
+          style={{
+            color: "var(--color-text-muted)",
+            fontSize: 13,
+            textAlign: "center",
+            margin: "16px 0",
+          }}
+        >
           Sin visitas este día
         </p>
       ) : (
@@ -63,16 +70,21 @@ export function DiaAgenda({
             .map((grupo) => (
               <div
                 key={grupo.nombre}
-                style={{ borderRadius: 8, border: "1px solid #e2e8f0", overflow: "hidden" }}
+                style={{
+                  borderRadius: 8,
+                  border: "1px solid var(--color-border)",
+                  overflow: "hidden",
+                  background: "var(--color-surface)",
+                }}
               >
                 <div
                   style={{
-                    background: "#f8fafc",
+                    background: "var(--color-surface-2)",
                     padding: "6px 12px",
-                    borderBottom: "1px solid #e2e8f0",
+                    borderBottom: "1px solid var(--color-border)",
                     fontSize: 13,
                     fontWeight: 600,
-                    color: "#334155",
+                    color: "var(--color-text-primary)",
                   }}
                 >
                   {grupo.nombre}
@@ -93,33 +105,49 @@ export function DiaAgenda({
                           cursor: "pointer",
                           padding: "7px 12px",
                           borderLeft: `3px solid ${getAgendaEstadoEventColor(v.estado)}`,
-                          background: "#fff",
+                          background: "var(--color-surface)",
                           transition: "background 0.15s",
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f9ff")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "var(--color-surface-2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background =
+                            "var(--color-surface)";
+                        }}
                       >
                         <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
                           {getAgendaEmpresaNombreFromVisita(v).toUpperCase()}
                         </span>
                         {(v.horaInicio || v.horaFin) && (
-                          <span style={{ fontSize: 12, color: "#475569" }}>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "var(--color-text-secondary)",
+                            }}
+                          >
                             {v.horaInicio ?? "--:--"} - {v.horaFin ?? "--:--"}
                           </span>
                         )}
                         {v.tipo && (
-                          <span style={{ fontSize: 11, color: "#94a3b8" }}>{v.tipo}</span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "var(--color-text-muted)",
+                            }}
+                          >{v.tipo}</span>
                         )}
                         {v.visitaId && (
                           <span
                             style={{
                               fontSize: 10,
-                              color: "#1d4ed8",
-                              background: "#eff6ff",
-                              border: "1px solid #bfdbfe",
+                              color: "var(--color-accent)",
+                              background: "var(--color-accent-light)",
+                              border: "1px solid var(--color-accent)",
                               borderRadius: 999,
                               fontWeight: 800,
                               padding: "1px 6px",

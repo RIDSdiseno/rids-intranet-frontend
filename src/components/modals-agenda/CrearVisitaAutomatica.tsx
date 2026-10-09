@@ -39,7 +39,13 @@ export function CrearVisitaAutomatica({
       destroyOnHidden
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
-        <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+        <p
+          style={{
+            margin: 0,
+            color: "var(--color-text-secondary)",
+            fontSize: 13,
+          }}
+        >
           Se generará la malla para{" "}
           <strong style={{ textTransform: "capitalize" }}>
             {currentDate.format("MMMM YYYY")}
@@ -48,7 +54,15 @@ export function CrearVisitaAutomatica({
         </p>
 
         <div>
-          <p style={{ margin: "0 0 4px", fontSize: 12, color: "#94a3b8" }}>Empresas</p>
+          <p
+            style={{
+              margin: "0 0 4px",
+              fontSize: 12,
+              color: "var(--color-text-muted)",
+            }}
+          >
+            Empresas
+          </p>
           <Select
             mode="multiple"
             style={{ width: "100%" }}
@@ -68,7 +82,13 @@ export function CrearVisitaAutomatica({
         </div>
 
         {selectedEmpresaIds.length === 0 && (
-          <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: "var(--color-text-muted)",
+            }}
+          >
             Sin selección → se generará la malla con la lógica automática del backend.
           </p>
         )}

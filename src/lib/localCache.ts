@@ -1,3 +1,4 @@
+// src/lib/localCache.ts
 type CacheRecord<T> = {
   ts: number;
   ttl?: number | null;

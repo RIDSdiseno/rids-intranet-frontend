@@ -72,7 +72,7 @@ function tecnicoColor(nombre?: string | null) {
   if (!key) {
     return {
       backgroundColor: "rgba(148,163,184,0.25)",
-      borderColor: "#94a3b8",
+      borderColor: "var(--color-text-muted)",
       textColor: "var(--color-text-secondary)",
     };
   }
@@ -1306,110 +1306,25 @@ export default function AgendaPage() {
         inline o con clases específicas que no captura el selector genérico.
       */}
       <style>{`
-        /* Eventos compactos */
-        .agenda-calendar-compact .fc-event {
-          font-size: 11px;
-          padding: 1px 3px;
-          border-radius: 4px;
-        }
-        .agenda-calendar-compact .fc-daygrid-event {
-          margin-top: 1px;
-        }
-        .agenda-calendar-compact .fc-daygrid-day-frame {
-          min-height: 90px;
-        }
-        .agenda-calendar-compact .fc-event.agenda-event-selected {
-          outline: 3px solid #ef4444;
-          outline-offset: 1px;
-        }
+  .agenda-calendar-compact .fc-event {
+    font-size: 11px;
+    padding: 1px 3px;
+    border-radius: 4px;
+  }
 
-        /* ── Dark mode: sobreescribe lo que FullCalendar pone inline ── */
-        html.a11y-theme-dark .fc {
-          color: var(--color-text-primary) !important;
-        }
-        html.a11y-theme-dark .fc-theme-standard td,
-        html.a11y-theme-dark .fc-theme-standard th,
-        html.a11y-theme-dark .fc-theme-standard .fc-scrollgrid {
-          border-color: var(--color-border) !important;
-        }
-        html.a11y-theme-dark .fc-col-header-cell {
-          background-color: var(--color-surface-2) !important;
-        }
-        html.a11y-theme-dark .fc-daygrid-day {
-          background-color: var(--color-surface) !important;
-        }
-        html.a11y-theme-dark .fc-daygrid-day:hover {
-          background-color: var(--color-surface-2) !important;
-        }
-        html.a11y-theme-dark .fc-day-other .fc-daygrid-day-top {
-          opacity: 0.4;
-        }
-        html.a11y-theme-dark .fc-daygrid-day-number,
-        html.a11y-theme-dark .fc-col-header-cell-cushion {
-          color: var(--color-text-secondary) !important;
-        }
-        html.a11y-theme-dark .fc-day-today {
-          background-color: rgba(8,145,178,0.10) !important;
-        }
-        html.a11y-theme-dark .fc-day-today .fc-daygrid-day-number {
-          color: var(--color-accent) !important;
-          font-weight: 700;
-        }
-        html.a11y-theme-dark .fc-more-link {
-          color: var(--color-accent) !important;
-          background: var(--color-surface-2) !important;
-          border-radius: 4px;
-          padding: 1px 4px;
-        }
-        /* Toolbar (prev/next/today/title/views) */
-        html.a11y-theme-dark .fc-toolbar-title {
-          color: var(--color-text-primary) !important;
-        }
-        html.a11y-theme-dark .fc-button,
-        html.a11y-theme-dark .fc-button-group .fc-button {
-          background-color: var(--color-surface-2) !important;
-          border-color: var(--color-border) !important;
-          color: var(--color-text-primary) !important;
-        }
-        html.a11y-theme-dark .fc-button:hover {
-          background-color: var(--color-surface-3) !important;
-        }
-        html.a11y-theme-dark .fc-button-active,
-        html.a11y-theme-dark .fc-button-primary:not(:disabled).fc-button-active {
-          background-color: var(--color-accent) !important;
-          border-color: var(--color-accent) !important;
-          color: #fff !important;
-        }
-        /* Popover "ver más" */
-        html.a11y-theme-dark .fc-popover {
-          background-color: var(--color-surface) !important;
-          border-color: var(--color-border) !important;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-        }
-        html.a11y-theme-dark .fc-popover-header {
-          background-color: var(--color-surface-2) !important;
-          color: var(--color-text-primary) !important;
-        }
-        html.a11y-theme-dark .fc-popover-body {
-          background-color: var(--color-surface) !important;
-        }
-        /* Timegrid */
-        html.a11y-theme-dark .fc-timegrid-slot,
-        html.a11y-theme-dark .fc-timegrid-axis {
-          background-color: var(--color-surface) !important;
-          border-color: var(--color-border-light) !important;
-        }
-        html.a11y-theme-dark .fc-timegrid-slot-label-cushion {
-          color: var(--color-text-muted) !important;
-        }
-        html.a11y-theme-dark .fc-timegrid-now-indicator-line {
-          border-color: var(--color-accent) !important;
-        }
-        html.a11y-theme-dark .fc-timegrid-now-indicator-arrow {
-          border-top-color: var(--color-accent) !important;
-          border-bottom-color: var(--color-accent) !important;
-        }
-      `}</style>
+  .agenda-calendar-compact .fc-daygrid-event {
+    margin-top: 1px;
+  }
+
+  .agenda-calendar-compact .fc-daygrid-day-frame {
+    min-height: 90px;
+  }
+
+  .agenda-calendar-compact .fc-event.agenda-event-selected {
+    outline: 3px solid var(--color-error);
+    outline-offset: 1px;
+  }
+`}</style>
 
       {/* ── Cabecera ── */}
       <div
@@ -1571,6 +1486,7 @@ export default function AgendaPage() {
 
       {/* ── Filtros ── */}
       <div
+        className="agenda-filters"
         style={{
           background: "var(--color-surface)",
           borderRadius: 12,

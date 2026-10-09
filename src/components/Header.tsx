@@ -316,7 +316,7 @@ const NAV: NavEntry[] = [
       { label: "Órdenes de Taller", to: ORDENESTALLER, icon: <ClipboardList size={20} /> },
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
-      { label: "Mailer Masivo", to: MAILER_PATH, icon: <Mails size={20} /> },
+      { label: "Correos Masivos", to: MAILER_PATH, icon: <Mails size={20} /> },
     ],
     match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ADICIONALES_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
   },
