@@ -6,6 +6,9 @@ type Props = {
     helper: string;
     icon: React.ReactNode;
 
+    onClick?:
+    () => void;
+
     tone:
     | "cyan"
     | "amber"
@@ -34,11 +37,75 @@ const FinanzasKpiCard:
         helper,
         icon,
         tone,
+        onClick,
     }) => {
+
+        const handleKeyDown = (
+            event:
+                React.KeyboardEvent<HTMLDivElement>
+        ) => {
+
+            if (
+                !onClick
+            ) {
+                return;
+            }
+
+            if (
+                event.key === "Enter" ||
+                event.key === " "
+            ) {
+
+                event.preventDefault();
+
+                onClick();
+            }
+        };
+
         return (
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <div
+                onClick={
+                    onClick
+                }
+
+                onKeyDown={
+                    handleKeyDown
+                }
+
+                role={
+                    onClick
+                        ? "button"
+                        : undefined
+                }
+
+                tabIndex={
+                    onClick
+                        ? 0
+                        : undefined
+                }
+
+                className={`
+                    rounded-3xl
+                    border
+                    border-slate-200
+                    bg-white
+                    p-5
+                    shadow-sm
+                    transition
+                    hover:-translate-y-0.5
+                    hover:shadow-md
+
+                    ${onClick
+                        ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2"
+                        : ""
+                    }
+                `}
+            >
+
                 <div className="flex items-start justify-between gap-3">
+
                     <div className="min-w-0">
+
                         <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                             {label}
                         </p>
@@ -55,6 +122,7 @@ const FinanzasKpiCard:
                         <p className="mt-1 text-xs text-slate-500">
                             {helper}
                         </p>
+
                     </div>
 
                     <div
@@ -67,7 +135,9 @@ const FinanzasKpiCard:
                     >
                         {icon}
                     </div>
+
                 </div>
+
             </div>
         );
     };

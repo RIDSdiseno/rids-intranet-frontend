@@ -15,6 +15,8 @@ import type {
     PlantillaCorreoDetalle,
     SolicitanteMailer,
     TecnicoMailer,
+    UsoPlantillaCorreo,
+    FirmaRemitenteMailer
 } from "./mailer.types";
 
 
@@ -115,14 +117,25 @@ export async function getTecnicosMailer():
 // PLANTILLAS - READ
 // =====================================================
 
-export async function getPlantillasCorreo():
+export async function getPlantillasCorreo(
+    uso?:
+        UsoPlantillaCorreo
+):
     Promise<PlantillaCorreo[]> {
 
     const {
         data,
     } =
         await api.get(
-            "/correo/plantillas"
+            "/correo/plantillas",
+            {
+                params:
+                    uso
+                        ? {
+                            uso,
+                        }
+                        : undefined,
+            }
         );
 
     return Array.isArray(
@@ -155,6 +168,7 @@ export async function getPlantillaCorreo(
 export async function crearPlantillaCorreo({
     nombre,
     descripcion,
+    uso,
     file,
 }: CrearPlantillaInput):
     Promise<PlantillaCorreoDetalle> {
@@ -165,6 +179,11 @@ export async function crearPlantillaCorreo({
     formData.append(
         "nombre",
         nombre.trim()
+    );
+
+    formData.append(
+        "uso",
+        uso
     );
 
     if (
@@ -228,6 +247,34 @@ export async function eliminarPlantillaCorreo(
     );
 }
 
+// =====================================================
+// FIRMA REMITENTE
+// =====================================================
+
+export async function getFirmaRemitente(
+    tecnicoId?:
+        number |
+        null
+): Promise<FirmaRemitenteMailer> {
+
+    const {
+        data,
+    } =
+        await api.get(
+            "/correo/firma-remitente",
+            {
+                params:
+                    tecnicoId !== undefined &&
+                        tecnicoId !== null
+                        ? {
+                            tecnicoId,
+                        }
+                        : undefined,
+            }
+        );
+
+    return data.firma;
+}
 
 // =====================================================
 // ENVÍO

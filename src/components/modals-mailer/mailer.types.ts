@@ -78,6 +78,9 @@ export type PlantillaCorreo = {
 
     updatedAt:
     string;
+
+    uso:
+    UsoPlantillaCorreo;
 };
 
 export type PlantillaCorreoDetalle =
@@ -98,12 +101,16 @@ export type CrearPlantillaInput = {
     nombre: string;
     descripcion?: string;
     file: File;
+    uso:
+    UsoPlantillaCorreo;
 };
 
 export type ActualizarPlantillaInput = {
     nombre?: string;
     descripcion?: string | null;
     activo?: boolean;
+    uso?:
+    UsoPlantillaCorreo;
 };
 
 export type EnviarMasivoPayload = {
@@ -117,6 +124,12 @@ export type EnviarMasivoPayload = {
     string;
 
     plantillaId?:
+    number;
+
+    usarFirmaTecnico?:
+    boolean;
+
+    firmaTecnicoId?:
     number;
 
     attachments?:
@@ -174,4 +187,43 @@ export type MailerJob = {
 
     status:
     MailerJobStatus;
+};
+
+export type UsoPlantillaCorreo =
+    | "CONTENIDO"
+    | "FIRMA";
+
+export type FirmaRemitenteTecnicoMailer = {
+    id:
+    number;
+
+    nombre:
+    string |
+    null;
+
+    email:
+    string |
+    null;
+
+    cargo:
+    string |
+    null;
+
+    area:
+    string |
+    null;
+
+    firmaPath:
+    string |
+    null;
+};
+
+
+export type FirmaRemitenteMailer = {
+    tecnico:
+    FirmaRemitenteTecnicoMailer |
+    null;
+
+    html:
+    string;
 };

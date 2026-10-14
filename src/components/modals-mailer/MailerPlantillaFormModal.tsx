@@ -17,10 +17,14 @@ import {
 import type {
     PlantillaCorreo,
     PlantillaCorreoDetalle,
+    UsoPlantillaCorreo
 } from "./mailer.types";
 
 type Props = {
     open: boolean;
+
+    uso:
+    UsoPlantillaCorreo;
 
     plantilla?:
     PlantillaCorreo |
@@ -39,6 +43,7 @@ type Props = {
 
 export default function MailerPlantillaFormModal({
     open,
+    uso,
     plantilla,
     onClose,
     onSaved,
@@ -143,7 +148,9 @@ export default function MailerPlantillaFormModal({
                     "Archivo requerido",
 
                 description:
-                    "Selecciona un archivo HTML, PNG, JPG, JPEG o WEBP.",
+                    uso === "FIRMA"
+                        ? "Selecciona una imagen PNG, JPG, JPEG, WEBP o GIF."
+                        : "Selecciona un archivo HTML, PNG, JPG, JPEG, WEBP o GIF.",
             });
 
             return;
@@ -201,6 +208,8 @@ export default function MailerPlantillaFormModal({
                 await crearPlantillaCorreo({
                     nombre:
                         nombreTrim,
+
+                    uso,
 
                     file,
 
@@ -271,14 +280,22 @@ export default function MailerPlantillaFormModal({
 
                         <h3 className="text-lg font-black text-slate-900">
                             {editing
-                                ? "Editar plantilla"
-                                : "Nueva plantilla"}
+                                ? uso === "FIRMA"
+                                    ? "Editar firma"
+                                    : "Editar plantilla"
+                                : uso === "FIRMA"
+                                    ? "Nueva firma"
+                                    : "Nueva plantilla"}
                         </h3>
 
                         <p className="text-xs text-slate-400">
                             {editing
-                                ? "Modifica los datos de la plantilla."
-                                : "Importa HTML, PNG, JPG, JPEG o WEBP."}
+                                ? uso === "FIRMA"
+                                    ? "Modifica los datos de la firma."
+                                    : "Modifica los datos de la plantilla."
+                                : uso === "FIRMA"
+                                    ? "Importa PNG, JPG, JPEG, WEBP o GIF."
+                                    : "Importa HTML, PNG, JPG, JPEG, WEBP o GIF."}
                         </p>
 
                     </div>
@@ -366,12 +383,12 @@ export default function MailerPlantillaFormModal({
                                 </span>
 
                                 <span className="mt-1 text-xs text-slate-400">
-                                    HTML · PNG · JPG · JPEG · WEBP · máximo 10 MB
+                                    HTML · PNG · JPG · JPEG · WEBP · GIF · máximo 10 MB
                                 </span>
 
                                 <input
                                     type="file"
-                                    accept=".html,.htm,.png,.jpg,.jpeg,.webp,text/html,image/png,image/jpeg,image/webp"
+                                    accept=".html,.htm,.png,.jpg,.jpeg,.webp,.gif,text/html,image/png,image/jpeg,image/webp,image/gif"
                                     className="hidden"
                                     onChange={
                                         (
@@ -406,9 +423,8 @@ export default function MailerPlantillaFormModal({
                                 </span>
 
                                 <div className="mt-1">
-                                    El archivo de la plantilla no se reemplaza desde la edición; solo nombre y descripción.
+                                    El archivo no se reemplaza desde la edición; solo se actualizan sus datos.
                                 </div>
-
                             </div>
 
                         )}
@@ -446,7 +462,9 @@ export default function MailerPlantillaFormModal({
                             ? "Guardando..."
                             : editing
                                 ? "Guardar cambios"
-                                : "Crear plantilla"}
+                                : uso === "FIRMA"
+                                    ? "Crear firma"
+                                    : "Crear plantilla"}
                     </button>
 
                 </div>

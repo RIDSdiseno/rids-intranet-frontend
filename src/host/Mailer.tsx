@@ -38,6 +38,7 @@ import {
   getEstadoEnvioMasivo,
   getSolicitantesMailer,
   getTecnicosMailer,
+  getFirmaRemitente
 } from "../components/modals-mailer/mailer.api";
 
 import type {
@@ -49,6 +50,7 @@ import type {
   SendMode,
   SolicitanteMailer,
   TecnicoMailer,
+  FirmaRemitenteMailer
 } from "../components/modals-mailer/mailer.types";
 
 import MailerPlantillasModal from "../components/modals-mailer/MailerPlantillasModal";
@@ -284,26 +286,6 @@ function wrapInTemplate(
                     >
                         ${contentHtml}
 
-                        <p
-                            style="
-                                margin:24px 0 4px;
-                                font-size:14px;
-                                color:#374151;
-                            "
-                        >
-                            Saludos cordiales,
-                        </p>
-
-                        <p
-                            style="
-                                margin:0;
-                                font-size:14px;
-                                font-weight:700;
-                                color:#0f172a;
-                            "
-                        >
-                            Equipo RIDS
-                        </p>
                     </td>
                 </tr>
 
@@ -472,6 +454,46 @@ export default function Mailer() {
   // =================================================
   // COMPOSICIÓN
   // =================================================
+
+  const [
+    usarFirmaTecnico,
+    setUsarFirmaTecnico,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    firmaTecnicoId,
+    setFirmaTecnicoId,
+  ] =
+    useState<
+      number |
+      null
+    >(
+      null
+    );
+
+
+  const [
+    firmaRemitente,
+    setFirmaRemitente,
+  ] =
+    useState<
+      FirmaRemitenteMailer |
+      null
+    >(
+      null
+    );
+
+
+  const [
+    loadingFirmaRemitente,
+    setLoadingFirmaRemitente,
+  ] =
+    useState(
+      false
+    );
 
   const [
     subject,
@@ -841,10 +863,83 @@ export default function Mailer() {
       []
     );
 
+  // =================================================
+  // FIRMA REMITENTE
+  // =================================================
 
-  // =================================================
-  // PLANTILLAS
-  // =================================================
+  const loadFirmaRemitente =
+    useCallback(
+      async (
+        tecnicoId?:
+          number |
+          null
+      ) => {
+
+        try {
+
+          setLoadingFirmaRemitente(
+            true
+          );
+
+
+          const firma =
+            await getFirmaRemitente(
+              tecnicoId
+            );
+
+
+          setFirmaRemitente(
+            firma
+          );
+
+        } catch (
+        error: any
+        ) {
+
+          console.error(
+            "[Mailer] Error cargando firma:",
+            error
+          );
+
+
+          setFirmaRemitente(
+            null
+          );
+
+        } finally {
+
+          setLoadingFirmaRemitente(
+            false
+          );
+        }
+      },
+      []
+    );
+
+  const previewEditorHtml =
+    useMemo(
+      () => {
+
+        if (
+          !usarFirmaTecnico ||
+          !firmaRemitente?.html
+        ) {
+          return fullHtml;
+        }
+
+
+        return fullHtml.replace(
+          "</body>",
+          `${firmaRemitente.html}</body>`
+        );
+
+      },
+      [
+        fullHtml,
+        usarFirmaTecnico,
+        firmaRemitente,
+      ]
+    );
 
 
   // =================================================
@@ -866,13 +961,43 @@ export default function Mailer() {
             undefined
         );
 
+      void loadFirmaRemitente(
+        null
+      )
+        .catch(
+          () =>
+            undefined
+        );
+
     },
     [
       loadEmpresas,
       loadTecnicos,
+      loadFirmaRemitente,
     ]
   );
 
+  useEffect(
+    () => {
+
+      if (
+        !usarFirmaTecnico
+      ) {
+        return;
+      }
+
+
+      void loadFirmaRemitente(
+        firmaTecnicoId
+      );
+
+    },
+    [
+      usarFirmaTecnico,
+      firmaTecnicoId,
+      loadFirmaRemitente,
+    ]
+  );
 
   useEffect(
     () => {
@@ -906,6 +1031,10 @@ export default function Mailer() {
         ),
 
         loadTecnicos(),
+
+        loadFirmaRemitente(
+          firmaTecnicoId
+        ),
 
       ]);
     };
@@ -1182,6 +1311,15 @@ export default function Mailer() {
       editorRef.current.innerHTML =
         DEFAULT_CONTENT;
     }
+
+    setUsarFirmaTecnico(
+      true
+    );
+
+    setFirmaTecnicoId(
+      null
+    );
+
   }
 
 
@@ -1933,6 +2071,15 @@ export default function Mailer() {
             plantillaId:
               plantillaSeleccionada.id,
 
+            usarFirmaTecnico,
+
+            ...(usarFirmaTecnico &&
+              firmaTecnicoId !== null
+              ? {
+                firmaTecnicoId,
+              }
+              : {}),
+
             attachments,
           });
 
@@ -2005,6 +2152,15 @@ export default function Mailer() {
             subject.trim(),
 
           bodyHtml,
+
+          usarFirmaTecnico,
+
+          ...(usarFirmaTecnico &&
+            firmaTecnicoId !== null
+            ? {
+              firmaTecnicoId,
+            }
+            : {}),
 
           attachments,
         });
@@ -2325,7 +2481,7 @@ export default function Mailer() {
                 plantillaSeleccionada
                   .nombre
               }
-              className="mx-auto block h-auto max-w-full"
+              className="mx-auto block h-auto max-h-[70vh] max-w-full object-contain"
             />
           );
         }
@@ -3081,9 +3237,9 @@ export default function Mailer() {
 
         {showPreview && (
 
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 xl:p-5">
 
-            <div className="flex max-h-[95vh] w-full max-w-6xl flex-col rounded-3xl bg-white shadow-2xl">
+            <div className="flex max-h-[100vh] w-[96vw] max-w-[1300px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
 
               {/* HEADER */}
 
@@ -3128,7 +3284,7 @@ export default function Mailer() {
               </div>
 
 
-              <div className="flex flex-1 flex-col gap-6 overflow-auto px-8 py-6">
+              <div className="flex flex-1 flex-col gap-6 overflow-auto px-6 py-5 xl:px-8 xl:py-6">
 
                 {/* ASUNTO */}
 
@@ -3662,7 +3818,7 @@ export default function Mailer() {
                             className="mx-auto max-w-[600px] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
                             dangerouslySetInnerHTML={{
                               __html:
-                                fullHtml,
+                                previewEditorHtml,
                             }}
                           />
 
@@ -3830,7 +3986,6 @@ export default function Mailer() {
 
                       </div>
 
-
                       {/* PREVIEW DE LA PLANTILLA SELECCIONADA */}
 
                       {plantillaSeleccionada && (
@@ -3841,13 +3996,26 @@ export default function Mailer() {
                             Vista previa de la plantilla
                           </label>
 
-                          <div className="max-h-[700px] overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-6">
+                          <div className="max-h-[78vh] overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-5">
 
-                            <div className="mx-auto max-w-[700px] rounded-xl bg-white p-4 shadow-sm">
+                            <div className="mx-auto w-full max-w-[1000px] rounded-xl bg-white p-5 shadow-sm">
 
                               {
                                 plantillaPreview
                               }
+
+                              {usarFirmaTecnico &&
+                                firmaRemitente?.html && (
+
+                                  <div
+                                    className="mt-6 border-t border-slate-100 pt-5"
+                                    dangerouslySetInnerHTML={{
+                                      __html:
+                                        firmaRemitente.html,
+                                    }}
+                                  />
+
+                                )}
 
                             </div>
 
@@ -3970,6 +4138,253 @@ export default function Mailer() {
 
                     </>
                   )}
+
+                {/* =================================================
+    FIRMA DEL REMITENTE
+================================================= */}
+
+                {/* =================================================
+    FIRMA DEL CORREO
+================================================= */}
+
+                <div>
+
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Firma del correo
+                  </label>
+
+
+                  <div
+                    className={
+                      `rounded-2xl border p-4 transition ${usarFirmaTecnico
+                        ? "border-emerald-200 bg-emerald-50/50"
+                        : "border-slate-200 bg-slate-50"
+                      }`
+                    }
+                  >
+
+                    <div className="flex items-start justify-between gap-4">
+
+                      <div className="flex items-start gap-3">
+
+                        <div
+                          className={
+                            `flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${usarFirmaTecnico
+                              ? "bg-emerald-100 text-emerald-600"
+                              : "bg-slate-100 text-slate-400"
+                            }`
+                          }
+                        >
+                          <UserOutlined />
+                        </div>
+
+
+                        <div>
+
+                          <p className="text-sm font-bold text-slate-800">
+                            Incluir firma
+                          </p>
+
+                          <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
+                            Puedes utilizar tu firma o seleccionar la firma
+                            de otro técnico para este envío.
+                          </p>
+
+                        </div>
+
+                      </div>
+
+
+                      <label className="relative inline-flex cursor-pointer items-center">
+
+                        <input
+                          type="checkbox"
+                          checked={
+                            usarFirmaTecnico
+                          }
+                          onChange={
+                            (
+                              event
+                            ) =>
+                              setUsarFirmaTecnico(
+                                event.target.checked
+                              )
+                          }
+                          disabled={
+                            isSending
+                          }
+                          className="peer sr-only"
+                        />
+
+                        <div className="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500 peer-disabled:opacity-50">
+
+                          <div
+                            className={
+                              `mt-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${usarFirmaTecnico
+                                ? "translate-x-[22px]"
+                                : "translate-x-0.5"
+                              }`
+                            }
+                          />
+
+                        </div>
+
+                      </label>
+
+                    </div>
+
+
+                    {usarFirmaTecnico && (
+
+                      <div className="mt-4 space-y-3">
+
+                        <div>
+
+                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                            Firmar como
+                          </label>
+
+
+                          <select
+                            value={
+                              firmaTecnicoId ??
+                              ""
+                            }
+                            onChange={
+                              (
+                                event
+                              ) => {
+
+                                const value =
+                                  event.target.value;
+
+
+                                setFirmaTecnicoId(
+                                  value
+                                    ? Number(
+                                      value
+                                    )
+                                    : null
+                                );
+                              }
+                            }
+                            disabled={
+                              isSending ||
+                              loadingFirmaRemitente
+                            }
+                            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 disabled:opacity-60"
+                          >
+
+                            <option value="">
+                              Usuario autenticado
+                            </option>
+
+
+                            {tecnicos
+                              .filter(
+                                (
+                                  tecnico
+                                ) =>
+                                  isValidEmail(
+                                    tecnico.email
+                                  )
+                              )
+                              .map(
+                                (
+                                  tecnico
+                                ) => (
+
+                                  <option
+                                    key={
+                                      tecnico.id_tecnico
+                                    }
+                                    value={
+                                      tecnico.id_tecnico
+                                    }
+                                  >
+                                    {tecnico.nombre}
+
+                                    {tecnico.email
+                                      ? ` · ${tecnico.email}`
+                                      : ""}
+                                  </option>
+
+                                )
+                              )}
+
+                          </select>
+
+                        </div>
+
+
+                        {loadingFirmaRemitente ? (
+
+                          <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-xs text-slate-400">
+                            Cargando firma...
+                          </div>
+
+                        ) : firmaRemitente ? (
+
+                          <div className="rounded-xl border border-emerald-100 bg-white p-4">
+
+                            {firmaRemitente.tecnico && (
+
+                              <div className="mb-3">
+
+                                <p className="text-sm font-bold text-slate-800">
+                                  {firmaRemitente.tecnico.nombre ??
+                                    "Sin nombre"}
+                                </p>
+
+                                <p className="text-xs text-slate-400">
+                                  {
+                                    [
+                                      firmaRemitente.tecnico.cargo,
+                                      firmaRemitente.tecnico.area,
+                                      firmaRemitente.tecnico.email,
+                                    ]
+                                      .filter(
+                                        Boolean
+                                      )
+                                      .join(
+                                        " · "
+                                      )
+                                  }
+                                </p>
+
+                              </div>
+
+                            )}
+
+
+                            <div
+                              dangerouslySetInnerHTML={{
+                                __html:
+                                  firmaRemitente.html,
+                              }}
+                            />
+
+                          </div>
+
+                        ) : (
+
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+
+                            <p className="text-xs text-amber-700">
+                              No fue posible cargar la firma seleccionada.
+                            </p>
+
+                          </div>
+
+                        )}
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                </div>
 
               </div>
 
@@ -4140,6 +4555,8 @@ export default function Mailer() {
           open={
             plantillasModalOpen
           }
+
+          uso="CONTENIDO"
 
           selectedId={
             plantillaSeleccionada

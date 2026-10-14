@@ -20,6 +20,10 @@ import {
     api,
 } from "../api/api";
 
+import {
+    useNavigate,
+} from "react-router-dom";
+
 import FinanzasKpiCard from "../components/modals-facturasBaseapi/finanzas/FinanzasKpiCard";
 import FinanzasChart from "../components/modals-facturasBaseapi/finanzas/FinanzasChart";
 
@@ -115,6 +119,9 @@ const FinanzasDashboard:
     React.FC = () => {
         const now =
             new Date();
+
+        const navigate =
+            useNavigate();
 
         const [
             empresa,
@@ -318,6 +325,69 @@ const FinanzasDashboard:
                     selectedMonth,
                 ]
             );
+
+        /* =====================================================
+   NAVEGACIÓN A DOCUMENTOS
+===================================================== */
+
+        const irADocumentosPorEstado =
+            (
+                estadoPago:
+                    "PENDIENTE" |
+                    "VENCIDA"
+            ) => {
+
+                const params =
+                    new URLSearchParams();
+
+
+                params.set(
+                    "empresa",
+                    empresa
+                );
+
+
+                params.set(
+                    "ano",
+                    String(
+                        ano
+                    )
+                );
+
+
+                params.set(
+                    "estadoPago",
+                    estadoPago
+                );
+
+
+                if (
+                    mesSeleccionado
+                ) {
+
+                    params.set(
+                        "mes",
+                        String(
+                            mesSeleccionado
+                                .mes
+                        ).padStart(
+                            2,
+                            "0"
+                        )
+                    );
+
+                } else {
+
+                    params.set(
+                        "periodo",
+                        "anual"
+                    );
+                }
+
+                navigate(
+                    `/facturas?${params.toString()}`
+                );
+            };
 
         const mesesDisponibles =
             useMemo(
@@ -605,6 +675,12 @@ const FinanzasDashboard:
 
                         <FinanzasKpiCard
                             label="Por vencer"
+                            onClick={
+                                () =>
+                                    irADocumentosPorEstado(
+                                        "PENDIENTE"
+                                    )
+                            }
                             value={
                                 formatCLP(
                                     mesSeleccionado
@@ -628,6 +704,12 @@ const FinanzasDashboard:
 
                         <FinanzasKpiCard
                             label="Vencido"
+                            onClick={
+                                () =>
+                                    irADocumentosPorEstado(
+                                        "VENCIDA"
+                                    )
+                            }
                             value={
                                 formatCLP(
                                     mesSeleccionado

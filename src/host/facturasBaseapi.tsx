@@ -9,6 +9,10 @@ import React, {
 
 import { api } from "../api/api";
 
+import {
+    useSearchParams,
+} from "react-router-dom";
+
 import type {
     DashboardData,
     EmpresaKey,
@@ -69,12 +73,149 @@ function esPeriodoActual(
     );
 }
 
+type EstadoPagoFiltro =
+    | ""
+    | "PENDIENTE"
+    | "VENCIDA"
+    | "CONFIRMADA";
+
+
+function getEmpresaQuery(
+    value:
+        string |
+        null
+): EmpresaKey {
+
+    return value === "rids"
+        ? "rids"
+        : "econnet";
+}
+
+
+function getAnoQuery(
+    value:
+        string |
+        null,
+    fallback:
+        string
+): string {
+
+    const numero =
+        Number(
+            value
+        );
+
+    if (
+        Number.isInteger(
+            numero
+        ) &&
+        numero >= 2000 &&
+        numero <= 2100
+    ) {
+        return String(
+            numero
+        );
+    }
+
+    return fallback;
+}
+
+
+function getMesQuery(
+    mes:
+        string |
+        null,
+    periodo:
+        string |
+        null,
+    fallback:
+        string
+): string {
+
+    if (
+        periodo === "anual" ||
+        mes === "anual"
+    ) {
+        return "anual";
+    }
+
+    const numero =
+        Number(
+            mes
+        );
+
+    if (
+        Number.isInteger(
+            numero
+        ) &&
+        numero >= 1 &&
+        numero <= 12
+    ) {
+
+        return String(
+            numero
+        ).padStart(
+            2,
+            "0"
+        );
+    }
+
+    return fallback;
+}
+
+
+function getEstadoPagoQuery(
+    value:
+        string |
+        null
+): EstadoPagoFiltro {
+
+    const estado =
+        String(
+            value ??
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+    if (
+        estado === "PENDIENTE" ||
+        estado === "VENCIDA" ||
+        estado === "CONFIRMADA"
+    ) {
+        return estado;
+    }
+
+    return "";
+}
+
 /* =========================================================
    COMPONENTE PRINCIPAL
 ========================================================= */
 
 const FacturasBaseapi: React.FC = () => {
     const now = new Date();
+
+    const [
+        searchParams,
+    ] =
+        useSearchParams();
+
+
+    const mesActual =
+        String(
+            now.getMonth() +
+            1
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    const anoActual =
+        String(
+            now.getFullYear()
+        );
 
     const user = useMemo(
         () => safeParseUser(),
@@ -88,18 +229,36 @@ const FacturasBaseapi: React.FC = () => {
        FILTROS
     ===================================================== */
 
-    const [mes, setMes] =
+    const [
+        mes,
+        setMes,
+    ] =
         useState(
-            String(
-                now.getMonth() + 1
-            ).padStart(2, "0")
+            () =>
+                getMesQuery(
+                    searchParams.get(
+                        "mes"
+                    ),
+                    searchParams.get(
+                        "periodo"
+                    ),
+                    mesActual
+                )
         );
 
-    const [ano, setAno] =
+
+    const [
+        ano,
+        setAno,
+    ] =
         useState(
-            String(
-                now.getFullYear()
-            )
+            () =>
+                getAnoQuery(
+                    searchParams.get(
+                        "ano"
+                    ),
+                    anoActual
+                )
         );
 
     const [activeTab, setActiveTab] =
@@ -107,10 +266,61 @@ const FacturasBaseapi: React.FC = () => {
             "ventas"
         );
 
-    const [empresa, setEmpresa] =
+    const [
+        empresa,
+        setEmpresa,
+    ] =
         useState<EmpresaKey>(
-            "econnet"
+            () =>
+                getEmpresaQuery(
+                    searchParams.get(
+                        "empresa"
+                    )
+                )
         );
+
+    const [
+        estadoPagoFiltro,
+        setEstadoPagoFiltro,
+    ] =
+        useState<EstadoPagoFiltro>(
+            () =>
+                getEstadoPagoQuery(
+                    searchParams.get(
+                        "estadoPago"
+                    )
+                )
+        );
+
+
+    const esAnual =
+        mes === "anual";
+
+    useEffect(
+        () => {
+
+            console.log(
+                "[FACTURAS] searchParams:",
+                searchParams.toString()
+            );
+
+            console.log(
+                "[FACTURAS] mes:",
+                mes
+            );
+
+            console.log(
+                "[FACTURAS] estadoPagoFiltro:",
+                estadoPagoFiltro
+            );
+
+        },
+        [
+            searchParams,
+            mes,
+            estadoPagoFiltro,
+        ]
+    );
 
     const [mainTab, setMainTab] =
         useState<
@@ -317,10 +527,57 @@ const FacturasBaseapi: React.FC = () => {
                     }
 
                     const endpoint =
-                        activeTab ===
-                            "ventas"
-                            ? "/baseapi/rcv/ventas"
-                            : "/baseapi/rcv/compras";
+                        esAnual
+                            ? "/baseapi/rcv/ventas/anual"
+                            : activeTab === "ventas"
+                                ? "/baseapi/rcv/ventas"
+                                : "/baseapi/rcv/compras";
+
+
+                    const params =
+                        esAnual
+                            ? {
+                                ano,
+
+                                ...(
+                                    !isCliente
+                                        ? {
+                                            empresa,
+                                        }
+                                        : {}
+                                ),
+
+                                ...(
+                                    estadoPagoFiltro
+                                        ? {
+                                            estadoPago:
+                                                estadoPagoFiltro,
+                                        }
+                                        : {}
+                                ),
+                            }
+                            : {
+                                mes,
+                                ano,
+
+                                ...(
+                                    !isCliente
+                                        ? {
+                                            empresa,
+                                        }
+                                        : {}
+                                ),
+
+                                ...(
+                                    forceRefresh
+                                        ? {
+                                            forceRefresh:
+                                                true,
+                                        }
+                                        : {}
+                                ),
+                            };
+
 
                     const {
                         data,
@@ -328,27 +585,7 @@ const FacturasBaseapi: React.FC = () => {
                         await api.get(
                             endpoint,
                             {
-                                params: {
-                                    mes,
-                                    ano,
-
-                                    ...(
-                                        !isCliente
-                                            ? {
-                                                empresa,
-                                            }
-                                            : {}
-                                    ),
-
-                                    ...(
-                                        forceRefresh
-                                            ? {
-                                                forceRefresh:
-                                                    true,
-                                            }
-                                            : {}
-                                    ),
-                                },
+                                params,
                             }
                         );
 
@@ -398,6 +635,8 @@ const FacturasBaseapi: React.FC = () => {
                 activeTab,
                 empresa,
                 isCliente,
+                esAnual,
+                estadoPagoFiltro,
                 showError,
                 showSuccess,
             ]
@@ -563,6 +802,18 @@ const FacturasBaseapi: React.FC = () => {
                             .trim()
                             .toLowerCase();
 
+                    const periodoDocumento =
+                        String(
+                            getValue(
+                                doc,
+                                [
+                                    "periodo",
+                                ],
+                                ""
+                            )
+                        ).trim() ||
+                        `${ano}-${mes}`;
+
                     const {
                         data,
                     } =
@@ -571,7 +822,7 @@ const FacturasBaseapi: React.FC = () => {
                             {
                                 params: {
                                     periodo:
-                                        `${ano}-${mes}`,
+                                        periodoDocumento,
 
                                     empresa:
                                         empresaDocumento,
@@ -717,16 +968,26 @@ const FacturasBaseapi: React.FC = () => {
        CARGA INICIAL / CAMBIO FILTROS
     ===================================================== */
 
-    useEffect(() => {
-        void fetchDatos(
-            false
-        );
+    useEffect(
+        () => {
 
-        void fetchDashboard();
-    }, [
-        fetchDatos,
-        fetchDashboard,
-    ]);
+            void fetchDatos(
+                false
+            );
+
+            if (
+                !esAnual
+            ) {
+                void fetchDashboard();
+            }
+
+        },
+        [
+            fetchDatos,
+            fetchDashboard,
+            esAnual,
+        ]
+    );
 
     /* =====================================================
        DOCUMENTOS NORMALIZADOS
@@ -757,33 +1018,125 @@ const FacturasBaseapi: React.FC = () => {
     const documentosFiltrados =
         useMemo(
             () => {
+
                 const q =
                     busqueda
                         .trim()
                         .toLowerCase();
 
-                if (!q) {
-                    return documentos;
-                }
 
                 return documentos.filter(
                     (
                         doc
-                    ) =>
-                        JSON.stringify(
+                    ) => {
+
+                        if (
+                            estadoPagoFiltro
+                        ) {
+
+                            const estado =
+                                String(
+                                    getValue(
+                                        doc,
+                                        [
+                                            "estadoPago",
+                                            "EstadoPago",
+                                            "estado_pago",
+                                        ],
+                                        ""
+                                    )
+                                )
+                                    .trim()
+                                    .toUpperCase();
+
+
+                            if (
+                                estado !==
+                                estadoPagoFiltro
+                            ) {
+                                return false;
+                            }
+                        }
+
+
+                        if (
+                            !q
+                        ) {
+                            return true;
+                        }
+
+
+                        return JSON.stringify(
                             doc
                         )
                             .toLowerCase()
                             .includes(
                                 q
-                            )
+                            );
+                    }
                 );
             },
             [
                 documentos,
                 busqueda,
+                estadoPagoFiltro,
             ]
         );
+
+    useEffect(
+        () => {
+
+            console.log(
+                "[FACTURAS] documentos totales:",
+                documentos.length
+            );
+
+            console.log(
+                "[FACTURAS] documentos filtrados:",
+                documentosFiltrados.length
+            );
+
+            console.table(
+                documentos.slice(
+                    0,
+                    10
+                ).map(
+                    (
+                        doc
+                    ) => ({
+                        folio:
+                            getValue(
+                                doc,
+                                [
+                                    "Folio",
+                                    "folio",
+                                ],
+                                ""
+                            ),
+
+                        estadoPago:
+                            getValue(
+                                doc,
+                                [
+                                    "estadoPago",
+                                    "EstadoPago",
+                                    "estado_pago",
+                                ],
+                                ""
+                            ),
+
+                        documento:
+                            doc,
+                    })
+                )
+            );
+
+        },
+        [
+            documentos,
+            documentosFiltrados,
+        ]
+    );
 
     /* =====================================================
        TOTALES
@@ -792,7 +1145,7 @@ const FacturasBaseapi: React.FC = () => {
     const totalNeto =
         useMemo(
             () =>
-                documentos.reduce(
+                documentosFiltrados.reduce(
                     (
                         sum,
                         doc
@@ -810,13 +1163,13 @@ const FacturasBaseapi: React.FC = () => {
                         ),
                     0
                 ),
-            [documentos]
+            [documentosFiltrados]
         );
 
     const totalIVA =
         useMemo(
             () =>
-                documentos.reduce(
+                documentosFiltrados.reduce(
                     (
                         sum,
                         doc
@@ -837,13 +1190,13 @@ const FacturasBaseapi: React.FC = () => {
                         ),
                     0
                 ),
-            [documentos]
+            [documentosFiltrados]
         );
 
     const totalBruto =
         useMemo(
             () =>
-                documentos.reduce(
+                documentosFiltrados.reduce(
                     (
                         sum,
                         doc
@@ -862,7 +1215,7 @@ const FacturasBaseapi: React.FC = () => {
                         ),
                     0
                 ),
-            [documentos]
+            [documentosFiltrados]
         );
 
     /* =====================================================
@@ -870,9 +1223,14 @@ const FacturasBaseapi: React.FC = () => {
     ===================================================== */
 
     const periodoLabel =
-        `${MESES[
-        Number(mes) - 1
-        ] ?? mes} ${ano}`;
+        esAnual
+            ? `Año completo ${ano}`
+            : `${MESES[
+            Number(
+                mes
+            ) -
+            1
+            ] ?? mes} ${ano}`;
 
     const empresaLabel =
         isCliente
@@ -898,15 +1256,30 @@ const FacturasBaseapi: React.FC = () => {
 
     const handleActualizar =
         async () => {
+
+            if (
+                esAnual
+            ) {
+
+                await fetchDatos(
+                    false
+                );
+
+                return;
+            }
+
+
             const forceRefresh =
                 esPeriodoActual(
                     mes,
                     ano
                 );
 
+
             await fetchDatos(
                 forceRefresh
             );
+
 
             await fetchDashboard();
         };
@@ -917,9 +1290,23 @@ const FacturasBaseapi: React.FC = () => {
 
     const handleConsultarSii =
         async () => {
+
+            if (
+                esAnual
+            ) {
+
+                showError(
+                    "Selecciona un mes específico para consultar directamente al SII."
+                );
+
+                return;
+            }
+
+
             await fetchDatos(
                 true
             );
+
 
             await fetchDashboard();
         };
@@ -1204,9 +1591,9 @@ const FacturasBaseapi: React.FC = () => {
                         </div>
 
                         <p className="text-xs text-slate-500">
-                            {documentos.length >
+                            {documentosFiltrados.length >
                                 0
-                                ? `${documentos.length} documentos cargados para ${periodoLabel}`
+                                ? `${documentosFiltrados.length} documentos cargados para ${periodoLabel}`
                                 : "Selecciona filtros y consulta el periodo"}
                         </p>
 
@@ -1348,6 +1735,14 @@ const FacturasBaseapi: React.FC = () => {
                                 }
                                 className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                             >
+                                {esAnual && (
+
+                                    <option value="anual">
+                                        Año completo
+                                    </option>
+
+                                )}
+
                                 {MESES.map(
                                     (
                                         nombre,
@@ -1474,7 +1869,7 @@ const FacturasBaseapi: React.FC = () => {
                                             "Documentos",
 
                                         value:
-                                            documentos.length,
+                                            documentosFiltrados.length,
 
                                         helper:
                                             "Registros encontrados",
@@ -1601,7 +1996,7 @@ const FacturasBaseapi: React.FC = () => {
                                     documentosFiltrados
                                 }
                                 documentosLength={
-                                    documentos.length
+                                    documentosFiltrados.length
                                 }
                                 loading={
                                     loading
