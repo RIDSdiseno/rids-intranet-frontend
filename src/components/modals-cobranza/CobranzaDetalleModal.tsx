@@ -729,478 +729,1478 @@ const CobranzaDetalleModal: React.FC<{
             : [];
 
     return (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex w-full max-w-3xl flex-col rounded-3xl bg-white shadow-2xl max-h-[92vh]">
+        <div
+            className="
+            fixed inset-0 z-60
+            flex items-center justify-center
+            bg-black/50
+            p-2
+            sm:p-3
+            lg:p-4
+        "
+        >
+            <div
+                className="
+                flex
+                w-full
+                max-w-4xl
+                flex-col
+                overflow-hidden
+                rounded-2xl
+                bg-white
+                shadow-2xl
 
-                {/* Header */}
-                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+                max-h-[calc(100dvh-1rem)]
+                sm:max-h-[calc(100dvh-1.5rem)]
+                lg:max-h-[calc(100dvh-2rem)]
+            "
+            >
+
+                {/* =====================================================
+                HEADER
+            ===================================================== */}
+
+                <div
+                    className="
+                    flex
+                    shrink-0
+                    items-center
+                    justify-between
+                    gap-3
+                    border-b
+                    border-slate-100
+                    bg-white
+                    px-4
+                    py-3
+
+                    sm:px-5
+                    sm:py-4
+                "
+                >
                     <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600">
-                            <FileTextOutlined style={{ fontSize: 18 }} />
+
+                        <div
+                            className="
+                            flex
+                            h-10
+                            w-10
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-xl
+                            bg-cyan-50
+                            text-cyan-600
+                        "
+                        >
+                            <FileTextOutlined
+                                style={{
+                                    fontSize:
+                                        17,
+                                }}
+                            />
                         </div>
+
+
                         <div className="min-w-0">
-                            <h2 className="truncate text-lg font-black text-slate-900">Documento #{folio}</h2>
-                            <p className="text-xs text-slate-400">Vista rápida · {nombreCliente}</p>
+
+                            <h2
+                                className="
+                                truncate
+                                text-base
+                                font-black
+                                text-slate-900
+
+                                sm:text-lg
+                            "
+                            >
+                                Documento #{folio}
+                            </h2>
+
+
+                            <p className="truncate text-xs text-slate-400">
+                                Vista rápida · {nombreCliente}
+                            </p>
+
                         </div>
+
                     </div>
-                    <button onClick={onClose} className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-50 transition shrink-0">
+
+
+                    <button
+                        type="button"
+                        onClick={
+                            onClose
+                        }
+                        className="
+                        shrink-0
+                        rounded-xl
+                        border
+                        border-slate-200
+                        bg-white
+                        px-3
+                        py-1.5
+                        text-sm
+                        font-medium
+                        text-slate-500
+                        transition
+
+                        hover:bg-slate-50
+                        hover:text-slate-700
+                    "
+                    >
                         Cerrar
                     </button>
+
                 </div>
 
-                {/* Body */}
-                <div className="flex-1 overflow-auto px-6 py-5 flex flex-col gap-4">
 
-                    {(hasNC || hasND) && (
-                        <div className="flex flex-wrap gap-2">
-                            {hasNC && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-100">
-                                    <ExclamationCircleOutlined /> Nota de Crédito adjunta
-                                </span>
-                            )}
-                            {hasND && (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">
-                                    <ExclamationCircleOutlined /> Nota de Débito adjunta
-                                </span>
-                            )}
-                        </div>
-                    )}
+                {/* =====================================================
+                BODY SCROLLEABLE
+            ===================================================== */}
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <div className="mb-2 flex items-center gap-2">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500 text-sm">
-                                    <FileTextOutlined />
-                                </span>
-                                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Tipo · Folio</span>
+                <div
+                    className="
+                    min-h-0
+                    flex-1
+                    overflow-y-auto
+                    overscroll-contain
+                    px-3
+                    py-3
+
+                    sm:px-4
+                    sm:py-4
+
+                    lg:px-5
+                "
+                >
+                    <div className="flex flex-col gap-3">
+
+                        {/* =================================================
+                        ALERTAS NC / ND
+                    ================================================= */}
+
+                        {(hasNC || hasND) && (
+
+                            <div className="flex flex-wrap gap-2">
+
+                                {hasNC && (
+
+                                    <span
+                                        className="
+                                        inline-flex
+                                        items-center
+                                        gap-1.5
+                                        rounded-full
+                                        bg-rose-50
+                                        px-3
+                                        py-1
+                                        text-xs
+                                        font-bold
+                                        text-rose-700
+                                        ring-1
+                                        ring-rose-100
+                                    "
+                                    >
+                                        <ExclamationCircleOutlined />
+
+                                        Nota de Crédito adjunta
+                                    </span>
+
+                                )}
+
+
+                                {hasND && (
+
+                                    <span
+                                        className="
+                                        inline-flex
+                                        items-center
+                                        gap-1.5
+                                        rounded-full
+                                        bg-amber-50
+                                        px-3
+                                        py-1
+                                        text-xs
+                                        font-bold
+                                        text-amber-700
+                                        ring-1
+                                        ring-amber-100
+                                    "
+                                    >
+                                        <ExclamationCircleOutlined />
+
+                                        Nota de Débito adjunta
+                                    </span>
+
+                                )}
+
                             </div>
-                            <p className="text-lg font-black text-slate-900">{getValue(documento, ["Tipo Doc", "tipoDoc", "tipoDTE"], "—")} · #{folio}</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                            <div className="mb-2 flex items-center gap-2">
-                                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600 text-sm">
-                                    <DollarOutlined />
-                                </span>
-                                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total</span>
-                            </div>
-                            <p className="text-lg font-black text-slate-900">{total}</p>
-                        </div>
+
+                        )}
+
+
+                        {/* =================================================
+                        RESUMEN PRINCIPAL
+                    ================================================= */}
+
                         <div
-                            className={`
-        rounded-2xl
-        border
-        p-4
-        ${estadoFinanciero.className}
-    `}
+                            className="
+                            grid
+                            grid-cols-1
+                            gap-2
+
+                            sm:grid-cols-3
+                        "
                         >
-                            <div className="mb-2 flex items-center gap-2">
-                                <span
-                                    className={`
-                flex
-                h-8
-                w-8
-                items-center
-                justify-center
-                rounded-xl
-                text-sm
-                ${estadoFinanciero.iconClass}
-            `}
-                                >
-                                    {estadoFinanciero.icon}
-                                </span>
 
-                                <span
-                                    className={`
-                text-[11px]
-                font-bold
-                uppercase
-                tracking-wide
-                ${estadoFinanciero.textClass}
-            `}
-                                >
-                                    Estado
-                                </span>
-                            </div>
+                            {/* TIPO / FOLIO */}
 
-                            <p
-                                className={`
-            text-lg
-            font-black
-            ${estadoFinanciero.textClass}
-        `}
+                            <div
+                                className="
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                                p-3
+                            "
                             >
-                                {estadoFinanciero.label}
-                            </p>
-                        </div>
-                    </div>
+                                <div className="mb-1.5 flex items-center gap-2">
 
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="mb-4 flex items-center gap-2">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-                                <CalendarOutlined />
-                            </span>
+                                    <span
+                                        className="
+                                        flex
+                                        h-8
+                                        w-8
+                                        items-center
+                                        justify-center
+                                        rounded-lg
+                                        bg-slate-100
+                                        text-sm
+                                        text-slate-500
+                                    "
+                                    >
+                                        <FileTextOutlined />
+                                    </span>
 
-                            <div>
-                                <p className="text-sm font-bold text-slate-800">
-                                    Vencimiento
-                                </p>
 
-                                <p className="text-xs text-slate-400">
-                                    Estado financiero del documento
-                                </p>
-                            </div>
-                        </div>
+                                    <span
+                                        className="
+                                        text-[10px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        text-slate-400
+                                    "
+                                    >
+                                        Tipo · Folio
+                                    </span>
 
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div className="rounded-xl bg-slate-50 p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                    Fecha
-                                </p>
+                                </div>
 
-                                <p className="mt-1 text-sm font-bold text-slate-800">
-                                    {fechaVencimiento
-                                        ? formatFechaVista(
-                                            fechaVencimiento
+
+                                <p className="text-base font-black text-slate-900 sm:text-lg">
+                                    {
+                                        getValue(
+                                            documento,
+                                            [
+                                                "Tipo Doc",
+                                                "tipoDoc",
+                                                "tipoDTE",
+                                            ],
+                                            "—"
                                         )
-                                        : "Sin fecha"}
+                                    }{" "}
+                                    · #{folio}
                                 </p>
+
                             </div>
 
-                            <div className="rounded-xl bg-slate-50 p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                    Situación
+
+                            {/* TOTAL */}
+
+                            <div
+                                className="
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                                p-3
+                            "
+                            >
+                                <div className="mb-1.5 flex items-center gap-2">
+
+                                    <span
+                                        className="
+                                        flex
+                                        h-8
+                                        w-8
+                                        items-center
+                                        justify-center
+                                        rounded-lg
+                                        bg-cyan-50
+                                        text-sm
+                                        text-cyan-600
+                                    "
+                                    >
+                                        <DollarOutlined />
+                                    </span>
+
+
+                                    <span
+                                        className="
+                                        text-[10px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        text-slate-400
+                                    "
+                                    >
+                                        Total
+                                    </span>
+
+                                </div>
+
+
+                                <p className="text-base font-black text-slate-900 sm:text-lg">
+                                    {total}
                                 </p>
+
+                            </div>
+
+
+                            {/* ESTADO */}
+
+                            <div
+                                className={`
+                                rounded-xl
+                                border
+                                p-3
+                                ${estadoFinanciero.className}
+                            `}
+                            >
+                                <div className="mb-1.5 flex items-center gap-2">
+
+                                    <span
+                                        className={`
+                                        flex
+                                        h-8
+                                        w-8
+                                        items-center
+                                        justify-center
+                                        rounded-lg
+                                        text-sm
+                                        ${estadoFinanciero.iconClass}
+                                    `}
+                                    >
+                                        {
+                                            estadoFinanciero
+                                                .icon
+                                        }
+                                    </span>
+
+
+                                    <span
+                                        className={`
+                                        text-[10px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        ${estadoFinanciero.textClass}
+                                    `}
+                                    >
+                                        Estado
+                                    </span>
+
+                                </div>
+
 
                                 <p
                                     className={`
-                    mt-1
-                    text-sm
-                    font-bold
-                    ${situacionVencimiento.className}
-                `}
+                                    text-base
+                                    font-black
+                                    sm:text-lg
+                                    ${estadoFinanciero.textClass}
+                                `}
                                 >
-                                    {situacionVencimiento.label}
-                                </p>
-                            </div>
-
-                            <div className="rounded-xl bg-slate-50 p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                    Origen
+                                    {
+                                        estadoFinanciero
+                                            .label
+                                    }
                                 </p>
 
-                                <p className="mt-1 text-sm font-bold text-slate-800">
-                                    {documento
-                                        ?.origenVencimiento ===
-                                        "OVERRIDE"
-                                        ? "Fecha manual"
-                                        : documento
-                                            ?.origenVencimiento ===
-                                            "DOCUMENTO"
-                                            ? "Documento"
-                                            : "Sin fecha"}
-                                </p>
                             </div>
+
                         </div>
-                    </div>
 
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-                            <div className="flex items-center gap-2">
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
-                                    <MailOutlined />
+
+                        {/* =================================================
+                        VENCIMIENTO
+                    ================================================= */}
+
+                        <div
+                            className="
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            p-3
+                        "
+                        >
+                            <div className="mb-3 flex items-center gap-2">
+
+                                <span
+                                    className="
+                                    flex
+                                    h-8
+                                    w-8
+                                    items-center
+                                    justify-center
+                                    rounded-lg
+                                    bg-cyan-50
+                                    text-cyan-600
+                                "
+                                >
+                                    <CalendarOutlined />
                                 </span>
+
 
                                 <div>
+
                                     <p className="text-sm font-bold text-slate-800">
-                                        Cobranza automática
+                                        Vencimiento
                                     </p>
 
-                                    <p className="text-xs text-slate-400">
-                                        Estado del último ciclo de recordatorios
+                                    <p className="text-[11px] text-slate-400">
+                                        Estado financiero del documento
                                     </p>
+
                                 </div>
+
                             </div>
 
-                            <span
-                                className={`
-                inline-flex
-                items-center
-                gap-1.5
-                rounded-full
-                px-3
-                py-1
-                text-xs
-                font-bold
-                ${automatizacionBadge.className}
-            `}
-                            >
-                                {automatizacionBadge.icon}
 
-                                {automatizacionBadge.label}
-                            </span>
+                            <div
+                                className="
+                                grid
+                                grid-cols-1
+                                gap-2
+
+                                sm:grid-cols-3
+                            "
+                            >
+
+                                <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                    <p
+                                        className="
+                                        text-[9px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        text-slate-400
+                                    "
+                                    >
+                                        Fecha
+                                    </p>
+
+
+                                    <p className="mt-1 text-sm font-bold text-slate-800">
+                                        {
+                                            fechaVencimiento
+                                                ? formatFechaVista(
+                                                    fechaVencimiento
+                                                )
+                                                : "Sin fecha"
+                                        }
+                                    </p>
+
+                                </div>
+
+
+                                <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                    <p
+                                        className="
+                                        text-[9px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        text-slate-400
+                                    "
+                                    >
+                                        Situación
+                                    </p>
+
+
+                                    <p
+                                        className={`
+                                        mt-1
+                                        text-sm
+                                        font-bold
+                                        ${situacionVencimiento.className}
+                                    `}
+                                    >
+                                        {
+                                            situacionVencimiento
+                                                .label
+                                        }
+                                    </p>
+
+                                </div>
+
+
+                                <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                    <p
+                                        className="
+                                        text-[9px]
+                                        font-bold
+                                        uppercase
+                                        tracking-wide
+                                        text-slate-400
+                                    "
+                                    >
+                                        Origen
+                                    </p>
+
+
+                                    <p className="mt-1 text-sm font-bold text-slate-800">
+                                        {
+                                            documento
+                                                ?.origenVencimiento ===
+                                                "OVERRIDE"
+                                                ? "Fecha manual"
+
+                                                : documento
+                                                    ?.origenVencimiento ===
+                                                    "DOCUMENTO"
+                                                    ? "Documento"
+
+                                                    : "Sin fecha"
+                                        }
+                                    </p>
+
+                                </div>
+
+                            </div>
+
                         </div>
 
-                        <div className="p-4">
-                            {!automatizacion?.tieneHistorial ? (
-                                <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-400">
-                                    Este documento todavía no registra recordatorios automáticos.
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                        <div className="rounded-xl bg-slate-50 p-3">
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                                Último recordatorio
-                                            </p>
 
-                                            <p className="mt-1 text-sm font-bold text-slate-800">
-                                                {humanizarTipoRecordatorio(
-                                                    automatizacion
-                                                        .ultimoTipoRecordatorio
-                                                )}
-                                            </p>
-                                        </div>
+                        {/* =================================================
+                        COBRANZA AUTOMÁTICA
+                    ================================================= */}
 
-                                        <div className="rounded-xl bg-slate-50 p-3">
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                                Último envío
-                                            </p>
+                        <div
+                            className="
+                            overflow-hidden
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                        "
+                        >
 
-                                            <p className="mt-1 text-sm font-bold text-slate-800">
-                                                {formatFechaHoraChile(
-                                                    automatizacion
-                                                        .ultimoEnvioAt
-                                                )}
-                                            </p>
-                                        </div>
+                            {/* HEADER COBRANZA */}
 
-                                        <div className="rounded-xl bg-slate-50 p-3">
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                                Historial
-                                            </p>
+                            <div
+                                className="
+                                flex
+                                items-center
+                                justify-between
+                                gap-3
+                                border-b
+                                border-slate-100
+                                bg-slate-50/60
+                                px-3
+                                py-2.5
 
-                                            <p className="mt-1 text-sm font-bold text-slate-800">
-                                                {automatizacion.total ?? 0} envío
-                                                {(automatizacion.total ?? 0) !==
-                                                    1
-                                                    ? "s"
-                                                    : ""}
-                                            </p>
-                                        </div>
+                                sm:px-4
+                            "
+                            >
+                                <div className="flex min-w-0 items-center gap-2">
+
+                                    <span
+                                        className="
+                                        flex
+                                        h-8
+                                        w-8
+                                        shrink-0
+                                        items-center
+                                        justify-center
+                                        rounded-lg
+                                        bg-cyan-50
+                                        text-cyan-600
+                                    "
+                                    >
+                                        <MailOutlined />
+                                    </span>
+
+
+                                    <div className="min-w-0">
+
+                                        <p className="truncate text-sm font-bold text-slate-800">
+                                            Cobranza automática
+                                        </p>
+
+                                        <p className="truncate text-[11px] text-slate-400">
+                                            Estado del último ciclo de recordatorios
+                                        </p>
+
                                     </div>
 
-                                    {destinatarios.length > 0 && (
-                                        <div className="mt-4">
-                                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-                                                Destinatarios del último ciclo
-                                            </p>
-
-                                            <div className="flex flex-col gap-2">
-                                                {destinatarios.map(
-                                                    (
-                                                        destinatario: any,
-                                                        index: number
-                                                    ) => {
-                                                        const enviado =
-                                                            destinatario.estado ===
-                                                            "ENVIADO" ||
-                                                            Boolean(
-                                                                destinatario.enviadoAt
-                                                            );
-
-                                                        const error =
-                                                            destinatario.estado ===
-                                                            "ERROR";
-
-                                                        return (
-                                                            <div
-                                                                key={`${destinatario.email}-${index}`}
-                                                                className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
-                                                            >
-                                                                <div className="min-w-0">
-                                                                    <p className="truncate text-sm font-bold text-slate-800">
-                                                                        {destinatario.nombre ||
-                                                                            "Sin nombre"}
-                                                                    </p>
-
-                                                                    <p className="truncate text-xs text-slate-500">
-                                                                        {destinatario.email}
-                                                                    </p>
-                                                                </div>
-
-                                                                <div className="shrink-0 text-left sm:text-right">
-                                                                    <p
-                                                                        className={`
-                                                        text-xs
-                                                        font-bold
-                                                        ${enviado
-                                                                                ? "text-emerald-600"
-                                                                                : error
-                                                                                    ? "text-red-600"
-                                                                                    : "text-amber-600"
-                                                                            }
-                                                    `}
-                                                                    >
-                                                                        {enviado
-                                                                            ? "Enviado"
-                                                                            : error
-                                                                                ? "Error"
-                                                                                : destinatario.estado}
-                                                                    </p>
-
-                                                                    <p className="mt-0.5 text-[10px] text-slate-400">
-                                                                        {destinatario.enviadoAt
-                                                                            ? formatFechaHoraChile(
-                                                                                destinatario.enviadoAt
-                                                                            )
-                                                                            : `Intentos: ${destinatario.intentos ?? 0}`}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {historial.length > 0 && (
-                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                    <HistoryOutlined className="text-cyan-600" />
-
-                                    <p className="text-sm font-bold text-slate-800">
-                                        Historial de cobranza
-                                    </p>
                                 </div>
 
-                                <span className="text-xs text-slate-400">
-                                    {historial.length} registro
-                                    {historial.length !== 1
-                                        ? "s"
-                                        : ""}
-                                </span>
-                            </div>
 
-                            <div className="divide-y divide-slate-100">
-                                {historial.map(
-                                    (
-                                        item: any,
-                                        index: number
-                                    ) => (
-                                        <div
-                                            key={
-                                                item.id ??
-                                                `${item.email}-${index}`
-                                            }
-                                            className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                                        >
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold text-slate-800">
-                                                    {humanizarTipoRecordatorio(
-                                                        item.tipoRecordatorio
-                                                    )}
-                                                </p>
-
-                                                <p className="mt-0.5 truncate text-xs text-slate-500">
-                                                    {item.nombre ||
-                                                        "Sin nombre"}{" "}
-                                                    ·{" "}
-                                                    {item.email}
-                                                </p>
-
-                                                {item.error && (
-                                                    <p className="mt-1 text-xs text-red-600">
-                                                        {item.error}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="shrink-0 text-left sm:text-right">
-                                                <p
-                                                    className={`
-                                    text-xs
+                                <span
+                                    className={`
+                                    inline-flex
+                                    shrink-0
+                                    items-center
+                                    gap-1.5
+                                    rounded-full
+                                    px-2.5
+                                    py-1
+                                    text-[11px]
                                     font-bold
-                                    ${item.estado ===
-                                                            "ENVIADO"
-                                                            ? "text-emerald-600"
-                                                            : item.estado ===
-                                                                "ERROR"
-                                                                ? "text-red-600"
-                                                                : "text-amber-600"
-                                                        }
+                                    ${automatizacionBadge.className}
                                 `}
-                                                >
-                                                    {item.estado}
-                                                </p>
+                                >
+                                    {
+                                        automatizacionBadge
+                                            .icon
+                                    }
 
-                                                <p className="mt-0.5 text-[10px] text-slate-400">
-                                                    {item.enviadoAt
-                                                        ? formatFechaHoraChile(
-                                                            item.enviadoAt
-                                                        )
-                                                        : formatFechaHoraChile(
-                                                            item.createdAt
-                                                        )}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )
-                                )}
+                                    {
+                                        automatizacionBadge
+                                            .label
+                                    }
+                                </span>
+
                             </div>
-                        </div>
-                    )}
 
-                    <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                        <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
-                            <p className="text-sm font-bold text-slate-800">Documentos que referencian este folio</p>
-                            <span className="text-xs text-slate-400">{referencing.length} encontrado{referencing.length !== 1 ? "s" : ""}</span>
-                        </div>
 
-                        <div className="p-4">
-                            {referencing.length === 0 && (
-                                <div className="text-sm text-slate-400">No se encontraron NC/ND que referencien este folio en el payload actual.</div>
-                            )}
+                            {/* BODY COBRANZA */}
 
-                            <div className="flex flex-col gap-2">
-                                {referencing.map((r, idx) => (
-                                    <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3">
-                                        <div>
-                                            <div className="text-sm font-semibold text-slate-800">{r.razon || '—'}</div>
-                                            <div className="text-xs text-slate-500">Tipo {r.tipo} · Folio {r.folio} · {r.fecha}</div>
+                            <div className="p-3 sm:p-4">
+
+                                {!automatizacion?.tieneHistorial ? (
+
+                                    <div
+                                        className="
+                                        rounded-lg
+                                        bg-slate-50
+                                        p-3
+                                        text-sm
+                                        text-slate-400
+                                    "
+                                    >
+                                        Este documento todavía no registra recordatorios automáticos.
+                                    </div>
+
+                                ) : (
+
+                                    <>
+                                        <div
+                                            className="
+                                            grid
+                                            grid-cols-1
+                                            gap-2
+
+                                            sm:grid-cols-3
+                                        "
+                                        >
+
+                                            <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                                <p
+                                                    className="
+                                                    text-[9px]
+                                                    font-bold
+                                                    uppercase
+                                                    tracking-wide
+                                                    text-slate-400
+                                                "
+                                                >
+                                                    Último recordatorio
+                                                </p>
+
+
+                                                <p className="mt-1 text-sm font-bold text-slate-800">
+                                                    {
+                                                        humanizarTipoRecordatorio(
+                                                            automatizacion
+                                                                .ultimoTipoRecordatorio
+                                                        )
+                                                    }
+                                                </p>
+
+                                            </div>
+
+
+                                            <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                                <p
+                                                    className="
+                                                    text-[9px]
+                                                    font-bold
+                                                    uppercase
+                                                    tracking-wide
+                                                    text-slate-400
+                                                "
+                                                >
+                                                    Último envío
+                                                </p>
+
+
+                                                <p className="mt-1 text-sm font-bold text-slate-800">
+                                                    {
+                                                        formatFechaHoraChile(
+                                                            automatizacion
+                                                                .ultimoEnvioAt
+                                                        )
+                                                    }
+                                                </p>
+
+                                            </div>
+
+
+                                            <div className="rounded-lg bg-slate-50 p-2.5">
+
+                                                <p
+                                                    className="
+                                                    text-[9px]
+                                                    font-bold
+                                                    uppercase
+                                                    tracking-wide
+                                                    text-slate-400
+                                                "
+                                                >
+                                                    Historial
+                                                </p>
+
+
+                                                <p className="mt-1 text-sm font-bold text-slate-800">
+                                                    {
+                                                        automatizacion
+                                                            .total ??
+                                                        0
+                                                    }{" "}
+                                                    envío
+                                                    {
+                                                        (
+                                                            automatizacion
+                                                                .total ??
+                                                            0
+                                                        ) !==
+                                                            1
+                                                            ? "s"
+                                                            : ""
+                                                    }
+                                                </p>
+
+                                            </div>
+
                                         </div>
+
+
+                                        {/* =====================================
+                                        DESTINATARIOS
+                                    ===================================== */}
+
+                                        {destinatarios.length >
+                                            0 && (
+
+                                                <div className="mt-3">
+
+                                                    <p
+                                                        className="
+                                                    mb-2
+                                                    text-[10px]
+                                                    font-bold
+                                                    uppercase
+                                                    tracking-wide
+                                                    text-slate-400
+                                                "
+                                                    >
+                                                        Destinatarios del último ciclo
+                                                    </p>
+
+
+                                                    <div className="flex flex-col gap-2">
+
+                                                        {destinatarios.map(
+                                                            (
+                                                                destinatario:
+                                                                    any,
+                                                                index:
+                                                                    number
+                                                            ) => {
+
+                                                                const enviado =
+                                                                    destinatario
+                                                                        .estado ===
+                                                                    "ENVIADO" ||
+                                                                    Boolean(
+                                                                        destinatario
+                                                                            .enviadoAt
+                                                                    );
+
+
+                                                                const error =
+                                                                    destinatario
+                                                                        .estado ===
+                                                                    "ERROR";
+
+
+                                                                return (
+                                                                    <div
+                                                                        key={`${destinatario.email}-${index}`}
+                                                                        className="
+                                                                    flex
+                                                                    flex-col
+                                                                    gap-2
+                                                                    rounded-lg
+                                                                    border
+                                                                    border-slate-100
+                                                                    bg-white
+                                                                    p-2.5
+
+                                                                    sm:flex-row
+                                                                    sm:items-center
+                                                                    sm:justify-between
+                                                                "
+                                                                    >
+
+                                                                        <div className="min-w-0">
+
+                                                                            <p className="truncate text-sm font-bold text-slate-800">
+                                                                                {
+                                                                                    destinatario
+                                                                                        .nombre ||
+                                                                                    "Sin nombre"
+                                                                                }
+                                                                            </p>
+
+                                                                            <p className="truncate text-xs text-slate-500">
+                                                                                {
+                                                                                    destinatario
+                                                                                        .email
+                                                                                }
+                                                                            </p>
+
+                                                                        </div>
+
+
+                                                                        <div className="shrink-0 text-left sm:text-right">
+
+                                                                            <p
+                                                                                className={`
+                                                                            text-xs
+                                                                            font-bold
+
+                                                                            ${enviado
+                                                                                        ? "text-emerald-600"
+
+                                                                                        : error
+                                                                                            ? "text-red-600"
+
+                                                                                            : "text-amber-600"
+                                                                                    }
+                                                                        `}
+                                                                            >
+                                                                                {
+                                                                                    enviado
+                                                                                        ? "Enviado"
+
+                                                                                        : error
+                                                                                            ? "Error"
+
+                                                                                            : destinatario
+                                                                                                .estado
+                                                                                }
+                                                                            </p>
+
+
+                                                                            <p className="mt-0.5 text-[10px] text-slate-400">
+                                                                                {
+                                                                                    destinatario
+                                                                                        .enviadoAt
+
+                                                                                        ? formatFechaHoraChile(
+                                                                                            destinatario
+                                                                                                .enviadoAt
+                                                                                        )
+
+                                                                                        : `Intentos: ${destinatario
+                                                                                            .intentos ??
+                                                                                        0
+                                                                                        }`
+                                                                                }
+                                                                            </p>
+
+                                                                        </div>
+
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        )}
+
+                                                    </div>
+
+                                                </div>
+
+                                            )}
+
+                                    </>
+
+                                )}
+
+                            </div>
+
+                        </div>
+
+
+                        {/* =================================================
+                        HISTORIAL DE COBRANZA
+                        Se deja COLAPSADO por defecto.
+                    ================================================= */}
+
+                        {historial.length >
+                            0 && (
+
+                                <details
+                                    className="
+                                group
+                                overflow-hidden
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                            "
+                                >
+                                    <summary
+                                        className="
+                                    flex
+                                    cursor-pointer
+                                    list-none
+                                    items-center
+                                    justify-between
+                                    gap-3
+                                    bg-slate-50/60
+                                    px-3
+                                    py-2.5
+
+                                    hover:bg-slate-50
+
+                                    sm:px-4
+                                "
+                                    >
+                                        <div className="flex items-center gap-2">
+
+                                            <HistoryOutlined className="text-cyan-600" />
+
+                                            <p className="text-sm font-bold text-slate-800">
+                                                Historial de cobranza
+                                            </p>
+
+                                        </div>
+
 
                                         <div className="flex items-center gap-3">
-                                            <div className="text-sm font-bold text-slate-700">{formatCLP(r.total || 0)}</div>
-                                            <button className="rounded-lg bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition" onClick={() => onOpenFullDetail(r.raw)}>Abrir detalle</button>
+
+                                            <span className="text-xs text-slate-400">
+                                                {
+                                                    historial
+                                                        .length
+                                                }{" "}
+                                                registro
+                                                {
+                                                    historial
+                                                        .length !==
+                                                        1
+                                                        ? "s"
+                                                        : ""
+                                                }
+                                            </span>
+
+
+                                            <span
+                                                className="
+                                            text-xs
+                                            font-bold
+                                            text-slate-400
+                                            transition
+                                            group-open:rotate-180
+                                        "
+                                            >
+                                                ▼
+                                            </span>
+
                                         </div>
+
+                                    </summary>
+
+
+                                    <div className="divide-y divide-slate-100">
+
+                                        {historial.map(
+                                            (
+                                                item:
+                                                    any,
+                                                index:
+                                                    number
+                                            ) => (
+
+                                                <div
+                                                    key={
+                                                        item.id ??
+                                                        `${item.email}-${index}`
+                                                    }
+                                                    className="
+                                                flex
+                                                flex-col
+                                                gap-2
+                                                px-3
+                                                py-2.5
+
+                                                sm:flex-row
+                                                sm:items-center
+                                                sm:justify-between
+
+                                                sm:px-4
+                                            "
+                                                >
+
+                                                    <div className="min-w-0">
+
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            {
+                                                                humanizarTipoRecordatorio(
+                                                                    item.tipoRecordatorio
+                                                                )
+                                                            }
+                                                        </p>
+
+
+                                                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                                                            {
+                                                                item.nombre ||
+                                                                "Sin nombre"
+                                                            }{" "}
+                                                            ·{" "}
+                                                            {
+                                                                item.email
+                                                            }
+                                                        </p>
+
+
+                                                        {item.error && (
+
+                                                            <p className="mt-1 text-xs text-red-600">
+                                                                {
+                                                                    item.error
+                                                                }
+                                                            </p>
+
+                                                        )}
+
+                                                    </div>
+
+
+                                                    <div className="shrink-0 text-left sm:text-right">
+
+                                                        <p
+                                                            className={`
+                                                        text-xs
+                                                        font-bold
+
+                                                        ${item.estado ===
+                                                                    "ENVIADO"
+                                                                    ? "text-emerald-600"
+
+                                                                    : item.estado ===
+                                                                        "ERROR"
+                                                                        ? "text-red-600"
+
+                                                                        : "text-amber-600"
+                                                                }
+                                                    `}
+                                                        >
+                                                            {
+                                                                item.estado
+                                                            }
+                                                        </p>
+
+
+                                                        <p className="mt-0.5 text-[10px] text-slate-400">
+                                                            {
+                                                                item.enviadoAt
+                                                                    ? formatFechaHoraChile(
+                                                                        item.enviadoAt
+                                                                    )
+
+                                                                    : formatFechaHoraChile(
+                                                                        item.createdAt
+                                                                    )
+                                                            }
+                                                        </p>
+
+                                                    </div>
+
+                                                </div>
+
+                                            )
+                                        )}
+
                                     </div>
-                                ))}
+
+                                </details>
+
+                            )}
+
+
+                        {/* =================================================
+                        DOCUMENTOS RELACIONADOS
+                        También colapsado por defecto.
+                    ================================================= */}
+
+                        <details
+                            className="
+                            group
+                            overflow-hidden
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                        "
+                        >
+
+                            <summary
+                                className="
+                                flex
+                                cursor-pointer
+                                list-none
+                                items-center
+                                justify-between
+                                gap-3
+                                bg-slate-50/60
+                                px-3
+                                py-2.5
+
+                                hover:bg-slate-50
+
+                                sm:px-4
+                            "
+                            >
+
+                                <p className="text-sm font-bold text-slate-800">
+                                    Documentos que referencian este folio
+                                </p>
+
+
+                                <div className="flex items-center gap-3">
+
+                                    <span className="text-xs text-slate-400">
+                                        {
+                                            referencing
+                                                .length
+                                        }{" "}
+                                        encontrado
+                                        {
+                                            referencing
+                                                .length !==
+                                                1
+                                                ? "s"
+                                                : ""
+                                        }
+                                    </span>
+
+
+                                    <span
+                                        className="
+                                        text-xs
+                                        font-bold
+                                        text-slate-400
+                                        transition
+                                        group-open:rotate-180
+                                    "
+                                    >
+                                        ▼
+                                    </span>
+
+                                </div>
+
+                            </summary>
+
+
+                            <div className="p-3 sm:p-4">
+
+                                {referencing.length ===
+                                    0 && (
+
+                                        <div className="text-sm text-slate-400">
+                                            No se encontraron NC/ND que referencien este folio.
+                                        </div>
+
+                                    )}
+
+
+                                {referencing.length >
+                                    0 && (
+
+                                        <div className="flex flex-col gap-2">
+
+                                            {referencing.map(
+                                                (
+                                                    r,
+                                                    idx
+                                                ) => (
+
+                                                    <div
+                                                        key={
+                                                            idx
+                                                        }
+                                                        className="
+                                                    flex
+                                                    flex-col
+                                                    gap-3
+                                                    rounded-lg
+                                                    border
+                                                    border-slate-100
+                                                    bg-white
+                                                    p-3
+
+                                                    sm:flex-row
+                                                    sm:items-center
+                                                    sm:justify-between
+                                                "
+                                                    >
+
+                                                        <div className="min-w-0">
+
+                                                            <div className="truncate text-sm font-semibold text-slate-800">
+                                                                {
+                                                                    r.razon ||
+                                                                    "—"
+                                                                }
+                                                            </div>
+
+
+                                                            <div className="mt-0.5 text-xs text-slate-500">
+                                                                Tipo{" "}
+                                                                {
+                                                                    r.tipo
+                                                                }{" "}
+                                                                · Folio{" "}
+                                                                {
+                                                                    r.folio
+                                                                }{" "}
+                                                                ·{" "}
+                                                                {
+                                                                    r.fecha
+                                                                }
+                                                            </div>
+
+                                                        </div>
+
+
+                                                        <div
+                                                            className="
+                                                        flex
+                                                        shrink-0
+                                                        items-center
+                                                        justify-between
+                                                        gap-3
+
+                                                        sm:justify-end
+                                                    "
+                                                        >
+
+                                                            <div className="text-sm font-bold text-slate-700">
+                                                                {
+                                                                    formatCLP(
+                                                                        r.total ||
+                                                                        0
+                                                                    )
+                                                                }
+                                                            </div>
+
+
+                                                            <button
+                                                                type="button"
+                                                                className="
+                                                            rounded-lg
+                                                            bg-cyan-50
+                                                            px-3
+                                                            py-1.5
+                                                            text-xs
+                                                            font-semibold
+                                                            text-cyan-700
+                                                            transition
+
+                                                            hover:bg-cyan-100
+                                                        "
+                                                                onClick={
+                                                                    () =>
+                                                                        onOpenFullDetail(
+                                                                            r.raw
+                                                                        )
+                                                                }
+                                                            >
+                                                                Abrir detalle
+                                                            </button>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                )
+                                            )}
+
+                                        </div>
+
+                                    )}
+
                             </div>
-                        </div>
+
+                        </details>
+
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+
+                {/* =====================================================
+                FOOTER FIJO
+            ===================================================== */}
+
+                <div
+                    className="
+                    shrink-0
+                    grid
+                    grid-cols-1
+                    gap-2
+                    border-t
+                    border-slate-100
+                    bg-white
+                    px-3
+                    py-3
+
+                    sm:flex
+                    sm:items-center
+                    sm:justify-end
+                    sm:px-5
+                "
+                >
+
                     {onOpenCliente && (
+
                         <button
-                            onClick={() => onOpenCliente(documento)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-700 hover:bg-cyan-100 transition"
+                            type="button"
+                            onClick={
+                                () =>
+                                    onOpenCliente(
+                                        documento
+                                    )
+                            }
+                            className="
+                            inline-flex
+                            w-full
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-cyan-200
+                            bg-cyan-50
+                            px-3
+                            py-2
+                            text-xs
+                            font-bold
+                            text-cyan-700
+                            transition
+
+                            hover:bg-cyan-100
+
+                            sm:w-auto
+                            sm:text-sm
+                        "
                         >
-                            <UserOutlined /> Ver ficha del cliente
+                            <UserOutlined />
+
+                            Ver ficha del cliente
                         </button>
+
                     )}
-                    <button onClick={() => onOpenFullDetail(documento)} className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-500 transition">
-                        <EyeOutlined /> Ver detalle completo
+
+
+                    <button
+                        type="button"
+                        onClick={
+                            () =>
+                                onOpenFullDetail(
+                                    documento
+                                )
+                        }
+                        className="
+                        inline-flex
+                        w-full
+                        items-center
+                        justify-center
+                        gap-2
+                        rounded-xl
+                        bg-cyan-600
+                        px-3
+                        py-2
+                        text-xs
+                        font-bold
+                        text-white
+                        transition
+
+                        hover:bg-cyan-500
+
+                        sm:w-auto
+                        sm:text-sm
+                    "
+                    >
+                        <EyeOutlined />
+
+                        Ver detalle completo
                     </button>
-                    <button onClick={onClose} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition">Cerrar</button>
+
+
+                    <button
+                        type="button"
+                        onClick={
+                            onClose
+                        }
+                        className="
+                        inline-flex
+                        w-full
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-slate-200
+                        bg-white
+                        px-3
+                        py-2
+                        text-xs
+                        font-bold
+                        text-slate-700
+                        transition
+
+                        hover:bg-slate-50
+
+                        sm:w-auto
+                        sm:text-sm
+                    "
+                    >
+                        Cerrar
+                    </button>
+
                 </div>
+
             </div>
         </div>
     );
