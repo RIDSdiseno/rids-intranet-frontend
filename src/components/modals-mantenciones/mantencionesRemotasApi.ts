@@ -1,6 +1,6 @@
 // src/lib/mantencionesRemotasApi.ts
 import axios from "axios";
-import { http } from "../service/http"; // <-- AJUSTA si tu carpeta es /services o la ruta difiere
+import { http } from "../../service/http"; // <-- AJUSTA si tu carpeta es /services o la ruta difiere
 
 export type MantencionStatus = "EN_CURSO" | "COMPLETADA" | "CANCELADA";
 

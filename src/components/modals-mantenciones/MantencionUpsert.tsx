@@ -4,7 +4,7 @@ import type {
     FiltersResp,
     MantencionRemota,
     MantencionStatus,
-} from "../../lib/mantencionesRemotasApi";
+} from "./mantencionesRemotasApi";
 
 function clsx(...xs: Array<string | false | null | undefined>) {
     return xs.filter(Boolean).join(" ");

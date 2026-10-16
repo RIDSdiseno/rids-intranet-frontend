@@ -1,6 +1,6 @@
 // src/components/modal-mantenciones/StatusBadge.tsx
 import React from "react";
-import type { MantencionStatus } from "../../lib/mantencionesRemotasApi";
+import type { MantencionStatus } from "./mantencionesRemotasApi";
 
 function clsx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");

@@ -27,7 +27,7 @@ const DocumentosPage = lazy(() => import("./host/DocumentosPage"));
 const OrdenesTallerPage = lazy(() => import("./host/OrdenesTaller"));
 const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const FunnelPage = lazy(() => import("./host/Funnel"));
-const CotizacionesEnviadasPage = lazy(() => import("./host/CotizacionesEnviadas"));
+const CotizacionesEnviadasPage = lazy(() => import("./components/modals-cotizaciones/coizaciones-enviadas/CotizacionesEnviadas"));
 const MailerPage = lazy(() => import("./host/Mailer"));
 const CobranzaPage = lazy(() => import("./host/Cobranza"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));

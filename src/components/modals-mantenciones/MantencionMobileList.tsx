@@ -1,5 +1,5 @@
 // src/components/modal-mantenciones/MantencionMobileList.tsx
-import type { MantencionRemota } from "../../lib/mantencionesRemotasApi";
+import type { MantencionRemota } from "./mantencionesRemotasApi";
 import StatusBadge from "./StatusBadge";
 
 function clsx(...xs: Array<string | false | null | undefined>) {

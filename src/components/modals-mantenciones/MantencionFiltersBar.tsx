@@ -21,7 +21,7 @@ import {
 import type {
     FiltersResp,
     MantencionStatus,
-} from "../../lib/mantencionesRemotasApi";
+} from "./mantencionesRemotasApi";
 
 import {
     DatePicker,

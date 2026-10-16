@@ -287,6 +287,108 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     const { subtotalBruto, descuentos, subtotal, iva, total } =
         calcularTotales(itemsLocal);
 
+    // =====================================================
+    // DESGLOSE FINANCIERO
+    // =====================================================
+
+    // Costo original total de productos
+    const costoOriginalProductos = itemsLocal.reduce(
+        (acc, item) => {
+            if (
+                item.tipo !== ItemTipoGestioo.PRODUCTO
+            ) {
+                return acc;
+            }
+
+            const costoUnitario =
+                Number(item.precioCosto || 0);
+
+            const cantidad =
+                Number(item.cantidad || 1);
+
+            return (
+                acc +
+                costoUnitario * cantidad
+            );
+        },
+        0
+    );
+
+    // Precio de venta bruto SOLO de productos
+    const ventaBrutaProductos = itemsLocal.reduce(
+        (acc, item) => {
+            if (
+                item.tipo !== ItemTipoGestioo.PRODUCTO
+            ) {
+                return acc;
+            }
+
+            const precioVenta =
+                Number(
+                    item.precioOriginalCLP ??
+                    item.precio ??
+                    0
+                );
+
+            const cantidad =
+                Number(item.cantidad || 1);
+
+            return (
+                acc +
+                precioVenta * cantidad
+            );
+        },
+        0
+    );
+
+    // Ganancia comercial antes de descuentos
+    const gananciaBrutaProductos =
+        Math.max(
+            0,
+            ventaBrutaProductos -
+            costoOriginalProductos
+        );
+
+    // Total de servicios antes de descuentos
+    const ventaBrutaServicios = itemsLocal.reduce(
+        (acc, item) => {
+            if (
+                item.tipo !== ItemTipoGestioo.SERVICIO
+            ) {
+                return acc;
+            }
+
+            const precio =
+                Number(
+                    item.precioOriginalCLP ??
+                    item.precio ??
+                    0
+                );
+
+            const cantidad =
+                Number(item.cantidad || 1);
+
+            return acc + precio * cantidad;
+        },
+        0
+    );
+
+    // Margen promedio ponderado de productos
+    const margenPromedio =
+        ventaBrutaProductos > 0
+            ? (
+                gananciaBrutaProductos /
+                ventaBrutaProductos
+            ) * 100
+            : 0;
+
+    // Ganancia después de descuentos.
+    // Se calcula contra el costo de productos.
+    // Ojo: si existen servicios, se muestran aparte.
+    const resultadoDespuesDescuentos =
+        subtotal -
+        costoOriginalProductos;
+
     // Renderizar el modal completo
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-3">
@@ -299,8 +401,8 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             bg-white
             rounded-2xl
             shadow-2xl
-            w-[90vw]
-            max-w-[1500px]
+            w-[96vw]
+max-w-[1800px]
             h-[92vh]
             relative
             flex
@@ -755,7 +857,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                             {/* TABLA DE ITEMS */}
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-lg">
-                                <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-4 border-b border-slate-200">
+                                <div className="bg-gradient-to-r from-slate-50 to-white px-4 py-3 border-b border-slate-200">
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-3">
                                             <h4 className="text-lg font-bold text-slate-800">
@@ -779,38 +881,46 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 {/* TABLA DE ÍTEMS */}
                                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                                     <div className="w-full overflow-x-auto">
-                                        <table className="w-full text-sm table-fixed">
+                                        <table className="w-full min-w-[1380px] table-fixed text-sm">
                                             <thead className="bg-slate-100 border-b border-slate-200">
                                                 <tr>
-                                                    <th className="px-3 py-3 text-left text-sm font-semibold text-slate-700 w-[160px] max-w-[160px]">
+                                                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 w-[32%]">
                                                         Nombre
                                                     </th>
-                                                    <th className="px-2 py-2 text-center text-sm font-semibold text-slate-700 w-15">
+
+                                                    <th className="px-2 py-3 text-center text-sm font-semibold text-slate-700 w-[6%]">
                                                         Cant.
                                                     </th>
-                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
-                                                        P. Unitario (
-                                                        {moneda === "USD" ? "US$" : "$"})
+
+                                                    <th className="px-3 py-3 text-center text-sm font-semibold text-slate-700 w-[11%]">
+                                                        P. Unitario ({moneda === "USD" ? "US$" : "$"})
                                                     </th>
-                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
-                                                        % Ganancia
+
+                                                    <th className="px-3 py-3 text-center text-sm font-semibold text-slate-700 w-[8%]">
+                                                        % Margen
                                                     </th>
-                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+
+                                                    <th className="px-3 py-3 text-center text-sm font-semibold text-slate-700 w-[8%]">
                                                         IVA
                                                     </th>
-                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-28">
+
+                                                    <th className="px-3 py-3 text-center text-sm font-semibold text-slate-700 w-[8%]">
                                                         % Desc
                                                     </th>
-                                                    <th className="px-4 px-3 text-right text-sm font-semibold text-slate-700 w-32">
+
+                                                    <th className="px-3 py-3 text-right text-sm font-semibold text-slate-700 w-[12%]">
                                                         Neto sin IVA
                                                     </th>
-                                                    <th className="px-4 px-3 text-right text-sm font-semibold text-slate-700 w-32 whitespace-nowrap">
+
+                                                    <th className="px-3 py-3 text-right text-sm font-semibold text-slate-700 w-[12%]">
                                                         Total con IVA
                                                     </th>
-                                                    <th className="px-4 px-3 text-center text-sm font-semibold text-slate-700 w-20">
+
+                                                    <th className="px-2 py-3 text-center text-sm font-semibold text-slate-700 w-[6%]">
                                                         Acción
                                                     </th>
-                                                    <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700 w-40">
+
+                                                    <th className="px-2 py-3 text-center text-sm font-semibold text-slate-700 w-[9%]">
                                                         Equipo
                                                     </th>
                                                 </tr>
@@ -873,7 +983,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                             >
 
                                                                 {/* NOMBRE */}
-                                                                <td className="px-3 py-4 w-[160px] max-w-[160px]">
+                                                                <td className="px-4 py-3 align-top">
                                                                     <input
                                                                         value={item.nombre || ""}
                                                                         title={item.nombre || ""}
@@ -885,13 +995,13 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        className="w-full border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-sm truncate"
+                                                                        className="w-full max-w-[520px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-sm"
                                                                         placeholder="Nombre del ítem"
                                                                     />
                                                                 </td>
 
                                                                 {/* CANTIDAD */}
-                                                                <td className="px-6 py-4 align-top">
+                                                                <td className="px-4 py-3 align-top">
                                                                     <div className="flex items-center justify-center mt-1">
                                                                         <input
                                                                             type="number"
@@ -936,14 +1046,12 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 </td>
 
                                                                 {/* PRECIO UNITARIO */}
-                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                <td className="px-3 py-3 text-center align-middle whitespace-nowrap">
                                                                     <div className="flex flex-col items-center gap-1">
 
                                                                         <input
-                                                                            type="number"
-                                                                            min={0}
-                                                                            step={0.01}
-                                                                            inputMode="decimal"
+                                                                            type="text"
+                                                                            inputMode="numeric"
                                                                             readOnly={
                                                                                 item.tipo === ItemTipoGestioo.PRODUCTO
                                                                             }
@@ -954,50 +1062,54 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                                 item.precio === null ||
                                                                                     item.precio === undefined
                                                                                     ? ""
-                                                                                    : item.precio
+                                                                                    : Number(item.precio).toLocaleString(
+                                                                                        "es-CL",
+                                                                                        {
+                                                                                            minimumFractionDigits: 0,
+                                                                                            maximumFractionDigits: 2,
+                                                                                        }
+                                                                                    )
                                                                             }
                                                                             onChange={(e) => {
-                                                                                const value =
-                                                                                    e.currentTarget.valueAsNumber;
+                                                                                if (
+                                                                                    item.tipo === ItemTipoGestioo.PRODUCTO ||
+                                                                                    item.tipo === ItemTipoGestioo.SERVICIO
+                                                                                ) {
+                                                                                    return;
+                                                                                }
+
+                                                                                const value = Number(
+                                                                                    e.target.value
+                                                                                        .replace(/\./g, "")
+                                                                                        .replace(/[^\d]/g, "")
+                                                                                ) || 0;
 
                                                                                 handleItemChange(
                                                                                     index,
                                                                                     "precio",
-                                                                                    Number.isNaN(value)
-                                                                                        ? 0
-                                                                                        : value
+                                                                                    value
                                                                                 );
                                                                             }}
                                                                             className={`
-                w-24 min-w-[90px]
-                px-3 py-2.5
-                border border-slate-200
-                rounded-lg text-right
-                text-sm transition-all
-                ${item.tipo === ItemTipoGestioo.SERVICIO
+    w-full min-w-[125px] max-w-[150px]
+    px-3 py-2
+    border border-slate-200
+    rounded-lg
+    text-right
+    text-sm
+    transition-all
+    ${item.tipo === ItemTipoGestioo.SERVICIO
                                                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                                                                    : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                                                                                    : item.tipo === ItemTipoGestioo.PRODUCTO
+                                                                                        ? "bg-slate-50 text-slate-700 cursor-not-allowed"
+                                                                                        : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                                                                                 }
-            `}
-                                                                            placeholder={
-                                                                                moneda === "USD"
-                                                                                    ? "US$"
-                                                                                    : "$"
-                                                                            }
+`}
                                                                         />
-
-                                                                        {/* PRECIO DE VENTA FORMATEADO */}
-                                                                        <div className="text-xs text-slate-500">
-                                                                            {formatearPrecio(
-                                                                                valores.base / (item.cantidad || 1),
-                                                                                moneda,
-                                                                                tasa
-                                                                            )}
-                                                                        </div>
 
                                                                         {/* COSTO ORIGINAL */}
                                                                         {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
-                                                                            <div className="text-[11px] text-slate-400 whitespace-nowrap">
+                                                                            <div className="text-[11px] text-slate-500 whitespace-nowrap">
                                                                                 Costo:{" "}
                                                                                 {formatearPrecio(
                                                                                     precioCosto,
@@ -1010,7 +1122,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 </td>
 
                                                                 {/* % GANANCIA */}
-                                                                <td className="px-6 py-4 text-center">
+                                                                <td className="px-3 py-3 text-center">
                                                                     {item.tipo === ItemTipoGestioo.PRODUCTO ? (
                                                                         <div className="flex flex-col items-center">
                                                                             <div
@@ -1038,7 +1150,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 </td>
 
                                                                 {/* IVA */}
-                                                                <td className="px-6 py-4 text-center">
+                                                                <td className="px-4 py-3 text-center">
                                                                     {item.tipo !== ItemTipoGestioo.ADICIONAL ? (
                                                                         <div className="flex flex-col items-center gap-1">
                                                                             <input
@@ -1062,7 +1174,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 </td>
 
                                                                 {/* DESCUENTO */}
-                                                                <td className="px-6 py-4 text-center">
+                                                                <td className="px-4 py-3 text-center">
                                                                     <div className="flex items-center justify-center gap-2">
 
                                                                         {/* Checkbox */}
@@ -1131,21 +1243,33 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                 </td>
 
                                                                 {/* NETO */}
-                                                                <td className="px-6 py-4 text-right whitespace-nowrap">
-                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                        ? "—"
-                                                                        : formatearPrecio(valores.neto, moneda, tasa)}
+                                                                <td className="px-3 py-3 text-right align-middle whitespace-nowrap">
+                                                                    <span className="inline-block min-w-max text-sm font-medium tabular-nums">
+                                                                        {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                            ? "—"
+                                                                            : formatearPrecio(
+                                                                                valores.neto,
+                                                                                moneda,
+                                                                                tasa
+                                                                            )}
+                                                                    </span>
                                                                 </td>
 
                                                                 {/* SUBTOTAL / TOTAL ITEM */}
-                                                                <td className="px-6 py-4 text-right font-bold whitespace-nowrap">
-                                                                    {item.tipo === ItemTipoGestioo.ADICIONAL
-                                                                        ? "—"
-                                                                        : formatearPrecio(valores.total, moneda, tasa)}
+                                                                <td className="px-3 py-3 text-right align-middle whitespace-nowrap">
+                                                                    <span className="inline-block min-w-max text-sm font-bold text-slate-900 tabular-nums">
+                                                                        {item.tipo === ItemTipoGestioo.ADICIONAL
+                                                                            ? "—"
+                                                                            : formatearPrecio(
+                                                                                valores.total,
+                                                                                moneda,
+                                                                                tasa
+                                                                            )}
+                                                                    </span>
                                                                 </td>
 
                                                                 {/* ACCIÓN */}
-                                                                <td className="px-6 py-4 text-center">
+                                                                <td className="px-4 py-3 text-center">
                                                                     <div className="flex items-center justify-center gap-2">
                                                                         {item.tipo !== ItemTipoGestioo.ADICIONAL && (
                                                                             <button
@@ -1222,7 +1346,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                 {/* PIE DE TABLA CON TOTALES Y MONEDA */}
                                 {itemsLocal.length > 0 && (
-                                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                                    <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
                                         <div className="flex justify-between items-center">
                                             <div className="text-sm text-slate-600">
                                                 Mostrando {itemsLocal.length} ítem
@@ -1283,78 +1407,202 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">
-                                        Total productos antes de descuentos:
-                                    </div>
+                                <div className="space-y-0">
 
-                                    <div className="font-medium text-slate-900">
-                                        {formatearMontoFinal(
-                                            subtotalBruto,
-                                            moneda,
-                                            tasa
-                                        )}
-                                    </div>
-                                </div>
-
-                                {descuentos > 0 && (
+                                    {/* COSTO ORIGINAL */}
                                     <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                        <div className="text-rose-600 font-medium">
-                                            Descuentos Aplicados:
+                                        <div>
+                                            <div className="text-slate-700 font-medium">
+                                                Costo original de productos
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                                Costo de compra × cantidad
+                                            </div>
                                         </div>
 
-                                        <div className="font-bold text-rose-600">
-                                            - {formatearMontoFinal(
-                                                descuentos,
-                                                moneda,
-                                                tasa
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                    <div className="text-slate-700">
-                                        Subtotal neto sin IVA:
-                                    </div>
-
-                                    <div className="font-semibold text-slate-900">
-                                        {formatearMontoFinal(
-                                            subtotal,
-                                            moneda,
-                                            tasa
-                                        )}
-                                    </div>
-                                </div>
-
-                                {iva > 0 && (
-                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
-                                        <div className="text-slate-700">
-                                            IVA (19%)
-                                        </div>
-
-                                        <div className="font-semibold text-slate-900">
+                                        <div className="font-semibold text-slate-900 tabular-nums">
                                             {formatearMontoFinal(
-                                                iva,
+                                                costoOriginalProductos,
                                                 moneda,
                                                 tasa
                                             )}
                                         </div>
                                     </div>
-                                )}
 
-                                <div className="flex justify-between items-center pt-4 border-t border-slate-300">
-                                    <div className="text-lg font-bold text-slate-900">
-                                        TOTAL FINAL
+
+                                    {/* GANANCIA */}
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                        <div>
+                                            <div className="text-emerald-700 font-medium">
+                                                Ganancia comercial
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                                Margen promedio:{" "}
+                                                {redondearDecimal(
+                                                    margenPromedio,
+                                                    2
+                                                ).toLocaleString("es-CL", {
+                                                    minimumFractionDigits: 0,
+                                                    maximumFractionDigits: 2,
+                                                })}%
+                                            </div>
+                                        </div>
+
+                                        <div className="font-bold text-emerald-600 tabular-nums">
+                                            +{" "}
+                                            {formatearMontoFinal(
+                                                gananciaBrutaProductos,
+                                                moneda,
+                                                tasa
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="text-2xl font-bold text-blue-700">
-                                        {formatearMontoFinal(
-                                            total,
-                                            moneda,
-                                            tasa
-                                        )}
+
+                                    {/* SERVICIOS */}
+                                    {ventaBrutaServicios > 0 && (
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-slate-700 font-medium">
+                                                    Servicios
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Valor bruto de servicios
+                                                </div>
+                                            </div>
+
+                                            <div className="font-semibold text-slate-900 tabular-nums">
+                                                {formatearMontoFinal(
+                                                    ventaBrutaServicios,
+                                                    moneda,
+                                                    tasa
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+
+                                    {/* PRECIO VENTA BRUTO */}
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-200 bg-slate-50/70 px-3 -mx-3">
+                                        <div>
+                                            <div className="text-slate-800 font-semibold">
+                                                Precio de venta antes de descuentos
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                                Productos + servicios
+                                            </div>
+                                        </div>
+
+                                        <div className="font-bold text-slate-900 tabular-nums">
+                                            {formatearMontoFinal(
+                                                subtotalBruto,
+                                                moneda,
+                                                tasa
+                                            )}
+                                        </div>
                                     </div>
+
+
+                                    {/* DESCUENTOS */}
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                        <div>
+                                            <div className="text-rose-600 font-medium">
+                                                Descuentos aplicados
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                                Descuentos comerciales de la cotización
+                                            </div>
+                                        </div>
+
+                                        <div className="font-bold text-rose-600 tabular-nums">
+                                            {descuentos > 0
+                                                ? `- ${formatearMontoFinal(
+                                                    descuentos,
+                                                    moneda,
+                                                    tasa
+                                                )}`
+                                                : formatearMontoFinal(
+                                                    0,
+                                                    moneda,
+                                                    tasa
+                                                )
+                                            }
+                                        </div>
+                                    </div>
+
+
+                                    {/* NETO */}
+                                    <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                        <div>
+                                            <div className="text-slate-700 font-medium">
+                                                Neto después de descuentos
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 mt-0.5">
+                                                Base afecta antes de IVA
+                                            </div>
+                                        </div>
+
+                                        <div className="font-semibold text-slate-900 tabular-nums">
+                                            {formatearMontoFinal(
+                                                subtotal,
+                                                moneda,
+                                                tasa
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* IVA */}
+                                    {iva > 0 && (
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-slate-700 font-medium">
+                                                    IVA (19%)
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Impuesto agregado al neto
+                                                </div>
+                                            </div>
+
+                                            <div className="font-semibold text-slate-900 tabular-nums">
+                                                +{" "}
+                                                {formatearMontoFinal(
+                                                    iva,
+                                                    moneda,
+                                                    tasa
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+
+                                    {/* TOTAL FINAL */}
+                                    <div className="flex justify-between items-center pt-5 mt-1 border-t-2 border-slate-300">
+                                        <div>
+                                            <div className="text-lg font-bold text-slate-900">
+                                                TOTAL FINAL
+                                            </div>
+
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                Total a cobrar al cliente
+                                            </div>
+                                        </div>
+
+                                        <div className="text-2xl font-bold text-blue-700 tabular-nums">
+                                            {formatearMontoFinal(
+                                                total,
+                                                moneda,
+                                                tasa
+                                            )}
+                                        </div>
+                                    </div>
+
                                 </div>
 
                             </div>
@@ -1400,8 +1648,17 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                 Última actualización:{" "}
                                 {new Date(
                                     cotizacion.updatedAt
-                                ).toLocaleString("es-CL")}
+                                ).toLocaleString("es-CL", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                    hour12: false,
+                                })}
                             </div>
+
                             <div className="mt-1">
                                 ID: {cotizacion.id} • Creada:{" "}
                                 {new Date(

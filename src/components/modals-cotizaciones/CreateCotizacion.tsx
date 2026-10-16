@@ -44,8 +44,9 @@ interface CreateCotizacionModalProps {
     onAddItem: (tipo: ItemTipoGestioo, seccionId?: number) => void;
     onUpdateItem: (id: number, field: string, value: any) => void;
     onRemoveItem: (id: number) => void;
-    onCrearCotizacion: () => void;
-    onCrearYEnviarCotizacion?: () => void;
+    onCrearCotizacion: (agregarAlFunnel?: boolean) => void;
+    onCrearYEnviarCotizacion?: (agregarAlFunnel?: boolean) => void;
+    puedeUsarFunnel?: boolean;
     onCrearEmpresa: () => void;
     onCrearProducto: () => void;
     onCrearPersona: () => void;
@@ -58,6 +59,7 @@ interface CreateCotizacionModalProps {
     onAbrirCrearEquipo?: (item: CotizacionItemGestioo) => void;
     onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
     onVincularEquipo?: (itemId: number, equipoId: number | null) => void;
+    creatingAndSending?: boolean;
 }
 
 // Modal para crear una nueva cotización, con múltiples secciones y items, selección de entidad, y creación/edición rápida de productos y servicios
@@ -88,16 +90,152 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
     onAbrirCrearEquipo,
     onAbrirSeleccionEquipo,
     onVincularEquipo,
+    puedeUsarFunnel = false,
 }) => {
 
     // Estados para modales de edición
     const [showEditServicio, setShowEditServicio] = useState(false);
     const [servicioAEditar, setServicioAEditar] = useState<CotizacionItemGestioo | null>(null);
 
+    const [
+        agregarAlFunnel,
+        setAgregarAlFunnel
+    ] = useState(false);
+
     if (!show) return null;
 
     const moneda = formData.moneda;
     const tasaCambio = formData.tasaCambio ?? 1;
+
+    // =====================================================
+    // TOTALES GENERALES
+    // =====================================================
+
+    const {
+        subtotalBruto,
+        descuentos,
+        subtotal,
+        iva,
+        total,
+    } = calcularTotales(items);
+
+
+    // =====================================================
+    // DESGLOSE FINANCIERO
+    // =====================================================
+
+    // Costo original total de productos
+    const costoOriginalProductos = items.reduce(
+        (acc, item) => {
+            if (
+                item.tipo !==
+                ItemTipoGestioo.PRODUCTO
+            ) {
+                return acc;
+            }
+
+            const costoUnitario =
+                Number(
+                    item.precioCosto || 0
+                );
+
+            const cantidad =
+                Number(
+                    item.cantidad || 1
+                );
+
+            return (
+                acc +
+                costoUnitario *
+                cantidad
+            );
+        },
+        0
+    );
+
+
+    // Precio de venta bruto SOLO de productos
+    const ventaBrutaProductos = items.reduce(
+        (acc, item) => {
+            if (
+                item.tipo !==
+                ItemTipoGestioo.PRODUCTO
+            ) {
+                return acc;
+            }
+
+            const precioVenta =
+                Number(
+                    item.precioOriginalCLP ??
+                    item.precio ??
+                    0
+                );
+
+            const cantidad =
+                Number(
+                    item.cantidad || 1
+                );
+
+            return (
+                acc +
+                precioVenta *
+                cantidad
+            );
+        },
+        0
+    );
+
+
+    // Ganancia comercial antes de descuentos
+    const gananciaBrutaProductos =
+        Math.max(
+            0,
+            ventaBrutaProductos -
+            costoOriginalProductos
+        );
+
+
+    // Servicios antes de descuentos
+    const ventaBrutaServicios =
+        items.reduce(
+            (acc, item) => {
+                if (
+                    item.tipo !==
+                    ItemTipoGestioo.SERVICIO
+                ) {
+                    return acc;
+                }
+
+                const precio =
+                    Number(
+                        item.precioOriginalCLP ??
+                        item.precio ??
+                        0
+                    );
+
+                const cantidad =
+                    Number(
+                        item.cantidad || 1
+                    );
+
+                return (
+                    acc +
+                    precio *
+                    cantidad
+                );
+            },
+            0
+        );
+
+
+    // Margen promedio ponderado
+    const margenPromedio =
+        ventaBrutaProductos > 0
+            ? (
+                gananciaBrutaProductos /
+                ventaBrutaProductos
+            ) * 100
+            : 0;
 
     const entidadSeleccionada = entidades.find(e => e.id.toString() === formData.entidadId);
 
@@ -300,7 +438,7 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                     }`}
             >
                 {/* NOMBRE */}
-                <td className="px-3 py-2 border-r border-cyan-100">
+                <td className="px-4 py-3 border-r border-cyan-100 align-top">
                     <input
                         value={item.nombre ?? ""}
                         readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
@@ -309,8 +447,8 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 handleUpdateItem(item.id, "nombre", e.target.value);
                             }
                         }}
-                        className={`w-full border rounded-lg px-2 py-1 focus:ring-2 focus:ring-cyan-400 focus:outline-none ${item.tipo === ItemTipoGestioo.PRODUCTO
-                            ? "bg-gray-100 text-gray-500 cursor-not-allowed border-gray-300"
+                        className={`w-full max-w-[520px] border rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-400 focus:outline-none ${item.tipo === ItemTipoGestioo.PRODUCTO
+                            ? "bg-gray-100 text-gray-600 cursor-not-allowed border-gray-300"
                             : "border-cyan-200 bg-white"
                             }`}
                         placeholder="Nombre del ítem"
@@ -617,13 +755,24 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
 
     // Renderizar el modal completo
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl relative max-h-[90vh] overflow-y-auto"
+                className="
+            bg-white
+            rounded-2xl
+            shadow-2xl
+            w-[96vw]
+            max-w-[1600px]
+            h-[92vh]
+            relative
+            flex
+            flex-col
+            overflow-hidden
+        "
             >
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto p-4 lg:p-6 xl:p-8">
                     <h2 className="text-xl font-bold text-slate-800 mb-4">
                         Nueva Cotización
                     </h2>
@@ -1128,19 +1277,47 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                             </div>
                                         </div>
                                     </div>
-                                    <table className="w-full text-sm">
+                                    <table className="w-full table-fixed text-sm">
                                         <thead className="bg-cyan-50 text-slate-700 border-b border-cyan-200">
                                             <tr>
-                                                <th className="px-3 py-2 text-left border-r border-cyan-200">Nombre</th>
-                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">Cant.</th>
-                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-28">P.Unitario</th>
-                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Ganancia</th>
-                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-20">IVA</th>
-                                                <th className="px-3 py-2 text-center border-r border-cyan-200 w-24">% Desc</th>
-                                                <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Neto sin IVA</th>
-                                                <th className="px-3 py-2 text-right border-r border-cyan-200 w-28">Total con IVA</th>
-                                                <th className="px-3 py-2 text-right w-16"></th>
-                                                <th className="px-3 py-2 text-center border-l border-cyan-200 w-32">Equipo</th>
+                                                <th className="px-4 py-3 text-left border-r border-cyan-200 w-[38%]">
+                                                    Nombre
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-r border-cyan-200 w-[7%]">
+                                                    Cant.
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-r border-cyan-200 w-[10%]">
+                                                    P.Unitario
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-r border-cyan-200 w-[8%]">
+                                                    % Margen
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-r border-cyan-200 w-[7%]">
+                                                    IVA
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-r border-cyan-200 w-[8%]">
+                                                    % Desc
+                                                </th>
+
+                                                <th className="px-3 py-3 text-right border-r border-cyan-200 w-[10%]">
+                                                    Neto sin IVA
+                                                </th>
+
+                                                <th className="px-3 py-3 text-right border-r border-cyan-200 w-[10%]">
+                                                    Total con IVA
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center w-[5%]">
+                                                </th>
+
+                                                <th className="px-3 py-3 text-center border-l border-cyan-200 w-[10%]">
+                                                    Equipo
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1234,87 +1411,484 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                                 </div>
                             )}
 
-                            {/* COMENTARIOS DE LA COTIZACIÓN */}
-                            <div className="mt-2">
-                                <label className="block text-xs font-medium text-slate-600 mb-1">
-                                    Comentarios de la cotización
-                                </label>
-                                <textarea
-                                    value={formData.comentariosCotizacion}
-                                    onChange={(e) =>
-                                        setFormData({
-                                            ...formData,
-                                            comentariosCotizacion: e.target.value,
-                                        })
-                                    }
-                                    rows={3}
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                    placeholder="Notas internas, condiciones especiales, indicaciones para el cliente, etc."
-                                />
-                            </div>
+                            {/* RESUMEN + COMENTARIOS */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:col-span-2">
 
-                            {/* TOTALES GENERALES */}
-                            <div className="flex justify-end text-sm text-slate-700">
-                                <div className="text-right space-y-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <p>Total productos antes de descuentos: {formatearPrecio(totales.subtotalBruto, formData.moneda, formData.tasaCambio)}</p>
-                                    <p className="text-rose-600">
-                                        Descuentos Aplicados: -{formatearPrecio(totales.descuentos, formData.moneda, formData.tasaCambio)}
-                                    </p>
-                                    <p>Subtotal neto sin IVA: {formatearPrecio(totales.subtotal, formData.moneda, formData.tasaCambio)}</p>
-                                    <p>IVA (19%): {formatearPrecio(totales.iva, formData.moneda, formData.tasaCambio)}</p>
-                                    <p className="font-bold text-slate-900 border-t pt-1">
-                                        Total final: {formatearPrecio(totales.total, formData.moneda, formData.tasaCambio)}
-                                    </p>
-                                    {formData.moneda === "USD" && (
-                                        <p className="text-xs text-slate-500 border-t pt-1 mt-1">
-                                            Equivalente en CLP:{" "}
-                                            {formatearPrecio(
-                                                totales.total * formData.tasaCambio,
-                                                "CLP",
-                                                1
-                                            )}
-                                        </p>
-                                    )}
+                                {/* RESUMEN FINANCIERO */}
+                                <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-bold text-slate-800">
+                                            Resumen Financiero
+                                        </h3>
+
+                                        <div className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                                            {moneda === "USD"
+                                                ? "USD - Dólares"
+                                                : "CLP - Pesos Chilenos"
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-0">
+
+                                        {/* COSTO ORIGINAL */}
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-slate-700 font-medium">
+                                                    Costo original de productos
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Costo de compra × cantidad
+                                                </div>
+                                            </div>
+
+                                            <div className="font-semibold text-slate-900 tabular-nums">
+                                                {formatearMontoFinal(
+                                                    costoOriginalProductos,
+                                                    moneda,
+                                                    tasaCambio
+                                                )}
+                                            </div>
+                                        </div>
+
+
+                                        {/* GANANCIA */}
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-emerald-700 font-medium">
+                                                    Ganancia comercial
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Margen promedio:{" "}
+                                                    {redondearDecimal(
+                                                        margenPromedio,
+                                                        2
+                                                    ).toLocaleString(
+                                                        "es-CL",
+                                                        {
+                                                            minimumFractionDigits: 0,
+                                                            maximumFractionDigits: 2,
+                                                        }
+                                                    )}%
+                                                </div>
+                                            </div>
+
+                                            <div className="font-bold text-emerald-600 tabular-nums">
+                                                +{" "}
+                                                {formatearMontoFinal(
+                                                    gananciaBrutaProductos,
+                                                    moneda,
+                                                    tasaCambio
+                                                )}
+                                            </div>
+                                        </div>
+
+
+                                        {/* SERVICIOS */}
+                                        {ventaBrutaServicios > 0 && (
+                                            <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                                <div>
+                                                    <div className="text-slate-700 font-medium">
+                                                        Servicios
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-400 mt-0.5">
+                                                        Valor bruto de servicios
+                                                    </div>
+                                                </div>
+
+                                                <div className="font-semibold text-slate-900 tabular-nums">
+                                                    {formatearMontoFinal(
+                                                        ventaBrutaServicios,
+                                                        moneda,
+                                                        tasaCambio
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+
+                                        {/* PRECIO VENTA BRUTO */}
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-200 bg-slate-50/70 px-3 -mx-3">
+                                            <div>
+                                                <div className="text-slate-800 font-semibold">
+                                                    Precio de venta antes de descuentos
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Productos + servicios
+                                                </div>
+                                            </div>
+
+                                            <div className="font-bold text-slate-900 tabular-nums">
+                                                {formatearMontoFinal(
+                                                    subtotalBruto,
+                                                    moneda,
+                                                    tasaCambio
+                                                )}
+                                            </div>
+                                        </div>
+
+
+                                        {/* DESCUENTOS */}
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-rose-600 font-medium">
+                                                    Descuentos aplicados
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Descuentos comerciales de la cotización
+                                                </div>
+                                            </div>
+
+                                            <div className="font-bold text-rose-600 tabular-nums">
+                                                {descuentos > 0
+                                                    ? `- ${formatearMontoFinal(
+                                                        descuentos,
+                                                        moneda,
+                                                        tasaCambio
+                                                    )}`
+                                                    : formatearMontoFinal(
+                                                        0,
+                                                        moneda,
+                                                        tasaCambio
+                                                    )
+                                                }
+                                            </div>
+                                        </div>
+
+
+                                        {/* NETO */}
+                                        <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                            <div>
+                                                <div className="text-slate-700 font-medium">
+                                                    Neto después de descuentos
+                                                </div>
+
+                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                    Base afecta antes de IVA
+                                                </div>
+                                            </div>
+
+                                            <div className="font-semibold text-slate-900 tabular-nums">
+                                                {formatearMontoFinal(
+                                                    subtotal,
+                                                    moneda,
+                                                    tasaCambio
+                                                )}
+                                            </div>
+                                        </div>
+
+
+                                        {/* IVA */}
+                                        {iva > 0 && (
+                                            <div className="flex justify-between items-center py-3 border-b border-slate-100">
+                                                <div>
+                                                    <div className="text-slate-700 font-medium">
+                                                        IVA (19%)
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-400 mt-0.5">
+                                                        Impuesto agregado al neto
+                                                    </div>
+                                                </div>
+
+                                                <div className="font-semibold text-slate-900 tabular-nums">
+                                                    +{" "}
+                                                    {formatearMontoFinal(
+                                                        iva,
+                                                        moneda,
+                                                        tasaCambio
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+
+                                        {/* TOTAL FINAL */}
+                                        <div className="flex justify-between items-center pt-5 mt-1 border-t-2 border-slate-300">
+                                            <div>
+                                                <div className="text-lg font-bold text-slate-900">
+                                                    TOTAL FINAL
+                                                </div>
+
+                                                <div className="text-xs text-slate-500 mt-1">
+                                                    Total a cobrar al cliente
+                                                </div>
+                                            </div>
+
+                                            <div className="text-2xl font-bold text-blue-700 tabular-nums">
+                                                {formatearMontoFinal(
+                                                    total,
+                                                    moneda,
+                                                    tasaCambio
+                                                )}
+                                            </div>
+                                        </div>
+
+
+                                        {/* EQUIVALENTE CLP */}
+                                        {moneda === "USD" && (
+                                            <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between text-sm">
+                                                <span className="text-slate-500">
+                                                    Equivalente en CLP
+                                                </span>
+
+                                                <span className="font-semibold text-slate-700 tabular-nums">
+                                                    {formatearMontoFinal(
+                                                        total * tasaCambio,
+                                                        "CLP",
+                                                        1
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                    </div>
+
+                                </div>
+
+                                {/* COMENTARIOS */}
+                                <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700">
+                                            <FileTextOutlined className="text-lg" />
+                                        </div>
+
+                                        <h3 className="text-xl font-bold text-slate-800">
+                                            Comentarios y Notas
+                                        </h3>
+                                    </div>
+
+                                    <textarea
+                                        value={formData.comentariosCotizacion}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                comentariosCotizacion:
+                                                    e.target.value,
+                                            })
+                                        }
+                                        className="
+                w-full
+                h-48
+                border-2
+                border-slate-200
+                rounded-xl
+                px-4
+                py-3
+                text-base
+                focus:outline-none
+                focus:border-cyan-500
+                focus:ring-2
+                focus:ring-cyan-200
+                transition-all
+                resize-none
+                bg-white
+            "
+                                        placeholder="Agregue comentarios, notas o instrucciones especiales para esta cotización..."
+                                    />
+
+                                    <div className="mt-4 text-sm text-slate-500">
+                                        <InfoCircleOutlined className="mr-2" />
+                                        Estos comentarios serán visibles en el documento PDF generado
+                                    </div>
                                 </div>
                             </div>
 
                             {/* BOTONES FINALES */}
-                            <div className="flex justify-between items-center pt-4 border-t">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-slate-600">Estado inicial:</span>
-                                    <span
-                                        className={`px-3 py-1 rounded-full text-xs font-semibold ${estadoConfig[formData.estadoCotizacion]?.color
-                                            }`}
+                            <div
+                                className="
+        flex
+        flex-col
+        gap-4
+        pt-4
+        border-t
+        lg:flex-row
+        lg:items-center
+        lg:justify-between
+    "
+                            >
+                                {/* IZQUIERDA */}
+                                <div
+                                    className="
+            flex
+            flex-col
+            gap-3
+        "
+                                >
+                                    {/* ESTADO */}
+                                    <div
+                                        className="
+                flex
+                items-center
+                gap-2
+            "
                                     >
-                                        {estadoConfig[formData.estadoCotizacion]?.label}
-                                    </span>
+                                        <span
+                                            className="
+                    text-sm
+                    text-slate-600
+                "
+                                        >
+                                            Estado inicial:
+                                        </span>
+
+                                        <span
+                                            className={`
+                    px-3
+                    py-1
+                    rounded-full
+                    text-xs
+                    font-semibold
+                    ${estadoConfig[
+                                                    formData
+                                                        .estadoCotizacion
+                                                ]?.color
+                                                }
+                `}
+                                        >
+                                            {
+                                                estadoConfig[
+                                                    formData
+                                                        .estadoCotizacion
+                                                ]?.label
+                                            }
+                                        </span>
+                                    </div>
+
+                                    {/* FUNNEL */}
+                                    {puedeUsarFunnel && (
+                                        <label
+                                            className="
+                    flex
+                    items-start
+                    gap-3
+                    cursor-pointer
+                    select-none
+                    rounded-xl
+                    border
+                    border-violet-200
+                    bg-violet-50/60
+                    px-4
+                    py-3
+                    max-w-md
+                "
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    agregarAlFunnel
+                                                }
+                                                onChange={(e) =>
+                                                    setAgregarAlFunnel(
+                                                        e.target.checked
+                                                    )
+                                                }
+                                                className="
+                        mt-0.5
+                        h-4
+                        w-4
+                        rounded
+                        border-violet-300
+                        accent-violet-600
+                    "
+                                            />
+
+                                            <div>
+                                                <div
+                                                    className="
+                            text-sm
+                            font-semibold
+                            text-violet-800
+                        "
+                                                >
+                                                    Añadir al Funnel
+                                                    automáticamente
+                                                </div>
+
+                                                <div
+                                                    className="
+                            mt-0.5
+                            text-xs
+                            text-violet-600
+                        "
+                                                >
+                                                    Se creará una
+                                                    oportunidad comercial
+                                                    vinculada a esta
+                                                    cotización.
+                                                </div>
+                                            </div>
+                                        </label>
+                                    )}
                                 </div>
-                                <div className="flex gap-3">
+
+                                {/* BOTONES */}
+                                <div
+                                    className="
+            flex
+            flex-wrap
+            gap-3
+            justify-end
+        "
+                                >
                                     <button
                                         type="button"
                                         onClick={onClose}
-                                        className="px-4 py-2 rounded-xl bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                        disabled={apiLoading}
+                                        className="
+                px-4
+                py-2
+                rounded-xl
+                bg-slate-200
+                text-slate-700
+                hover:bg-slate-300
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+            "
                                     >
                                         Cancelar
                                     </button>
+
                                     <button
-                                        onClick={onCrearCotizacion}
-                                        disabled={!formData.entidadId || !formData.estadoCotizacion || items.length === 0 || !!motivoDeshabilitado() || apiLoading}
-                                        title={motivoDeshabilitado()}
-                                        className="px-4 py-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        type="button"
+                                        onClick={() =>
+                                            onCrearCotizacion(
+                                                agregarAlFunnel
+                                            )
+                                        }
+                                        disabled={
+                                            !formData.entidadId ||
+                                            !formData.estadoCotizacion ||
+                                            items.length === 0 ||
+                                            !!motivoDeshabilitado() ||
+                                            apiLoading
+                                        }
+                                        title={
+                                            motivoDeshabilitado()
+                                        }
+                                        className="
+                px-4
+                py-2
+                rounded-xl
+                bg-cyan-600
+                text-white
+                hover:bg-cyan-700
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+            "
                                     >
-                                        {apiLoading ? "Creando..." : "Crear Cotización"}
+                                        {apiLoading
+                                            ? "Creando..."
+                                            : agregarAlFunnel
+                                                ? "Crear y añadir al Funnel"
+                                                : "Crear Cotización"
+                                        }
                                     </button>
-                                    {onCrearYEnviarCotizacion && (
-                                        <button
-                                            onClick={onCrearYEnviarCotizacion}
-                                            disabled={!formData.entidadId || !formData.estadoCotizacion || items.length === 0 || !!motivoDeshabilitado() || apiLoading}
-                                            title={motivoDeshabilitado()}
-                                            className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {apiLoading ? "Procesando..." : "Crear y Enviar"}
-                                        </button>
-                                    )}
                                 </div>
                             </div>
                         </div>

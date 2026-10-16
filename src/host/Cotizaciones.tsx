@@ -14,6 +14,7 @@ import {
     PrinterOutlined,
     MailOutlined,
     CopyOutlined,
+    FunnelPlotOutlined,
 } from "@ant-design/icons";
 import { Modal } from 'antd';
 import { motion } from "framer-motion";
@@ -34,8 +35,8 @@ import {
 } from "../components/modals-cotizaciones";
 import { generarPDF } from "../components/modals-cotizaciones/GenerarPDFModal";
 import { http } from '../service/http';
-import SendCotizacionModal from "../components/modals-cotizaciones/SendCotizacionModal";
-import CotizacionesEnviadas from "./CotizacionesEnviadas";
+import SendCotizacionModal from "../components/modals-cotizaciones/coizaciones-enviadas/SendCotizacionModal";
+import CotizacionesEnviadas from "../components/modals-cotizaciones/coizaciones-enviadas/CotizacionesEnviadas";
 import type {
     CotizacionGestioo,
     EntidadGestioo,
@@ -49,7 +50,7 @@ import type {
     CotizacionItemGestioo
 } from "../components/modals-cotizaciones/types";
 import { notification } from 'antd';
-import { escapeHtml, formatCurrency, buildCotizacionHtml } from '../lib/emailTemplates';
+import { escapeHtml, formatCurrency, buildCotizacionHtml } from '../components/modals-cotizaciones/coizaciones-enviadas/emailTemplates';
 import {
     TipoCotizacionGestioo,
     ItemTipoGestioo,
@@ -78,7 +79,11 @@ import { useAuth } from "../components/hooks/useAuth"
 import CotizacionesMasivasManager from "../components/modals-cotizaciones/cotizaciones-masivas/CotizacionesMasivasManager";
 import { normalizarPdfOrigen } from "../components/modals-gestioo/pdfOrigen";
 
-const { isCliente } = useAuth();
+import {
+    useLocation,
+    useNavigate,
+    useSearchParams,
+} from "react-router-dom";
 
 // Definición de tipos específicos para esta vista
 type EstadoDTE =
@@ -140,9 +145,80 @@ const getTipoDTELabel = (tipo: number) => {
     }
 };
 
+interface FunnelReturnContext {
+    origen:
+    "funnel";
+
+    oportunidadId:
+    number;
+
+    drawerTab:
+    "cotizaciones";
+}
+
 // Componente principal de la vista de cotizaciones
 const Cotizaciones: React.FC = () => {
+
+    const {
+        isCliente,
+        isAdmin,
+        isAdministracion,
+        isVentas,
+    } = useAuth();
+
+    const puedeUsarFunnel =
+        isAdmin ||
+        isAdministracion ||
+        isVentas;
+
+    const location =
+        useLocation();
+
+    const navigate =
+        useNavigate();
+
     // === ESTADOS PRINCIPALES ===
+
+    const [modal, contextHolder] = Modal.useModal();
+
+    const [
+        searchParams,
+        setSearchParams,
+    ] =
+        useSearchParams();
+
+    const [
+        funnelReturnContext
+    ] =
+        useState<
+            FunnelReturnContext |
+            null
+        >(
+            () => {
+                const state =
+                    location.state as
+                    | FunnelReturnContext
+                    | null;
+
+                if (
+                    state?.origen !==
+                    "funnel" ||
+                    !Number.isInteger(
+                        state.oportunidadId
+                    )
+                ) {
+                    return null;
+                }
+
+                return state;
+            }
+        );
+
+    const [
+        creatingAndSending,
+        setCreatingAndSending
+    ] = useState(false);
+
     const [cotizaciones, setCotizaciones] = useState<CotRow[]>([]);
 
     const [page, setPage] = useState(1);
@@ -674,19 +750,64 @@ const Cotizaciones: React.FC = () => {
             const productos = productosData.data || productosData.items || productosData.rows || productosData || [];
             const servicios = serviciosData.data || serviciosData.items || serviciosData.rows || serviciosData || [];
 
-            const productosMapeados = productos.map((p: any) => ({
-                id: p.id,
-                tipo: "PRODUCTO" as const,
-                descripcion: p.descripcion || "",
-                precio: Number(p.precio || p.precioBase || p.valor || 0),
-                porcGanancia: Number(p.porcGanancia || 0),
-                precioTotal: Number(p.precioTotal || p.precio || 0),
-                nombre: p.nombre,
-                sku: p.serie,
-                serie: p.serie,
-                categoria: p.categoria,
-                imagen: p.imagen || null,
-            }));
+            const productosMapeados =
+                productos.map((p: any) => ({
+                    ...p,
+
+                    id: p.id,
+                    tipo: "PRODUCTO" as const,
+
+                    descripcion:
+                        p.descripcion ?? "",
+
+                    precio:
+                        Number(
+                            p.precio ??
+                            p.precioBase ??
+                            p.valor ??
+                            0
+                        ),
+
+                    porcGanancia:
+                        Number(
+                            p.porcGanancia ??
+                            0
+                        ),
+
+                    precioTotal:
+                        Number(
+                            p.precioTotal ??
+                            p.precio ??
+                            0
+                        ),
+
+                    nombre:
+                        p.nombre,
+
+                    sku:
+                        p.serie ??
+                        p.sku ??
+                        "",
+
+                    serie:
+                        p.serie ??
+                        p.sku ??
+                        "",
+
+                    categoria:
+                        p.categoria ?? "",
+
+                    stock:
+                        Number(
+                            p.stock ?? 0
+                        ),
+
+                    imagen:
+                        p.imagen ?? null,
+
+                    publicId:
+                        p.publicId ?? null,
+                }));
 
             setProductosCatalogo(productosMapeados);
             setServiciosCatalogo(servicios);
@@ -709,20 +830,64 @@ const Cotizaciones: React.FC = () => {
             const data = await apiFetch("/productos-gestioo");
             const productos = data.data || data.items || data.rows || data || [];
 
-            const productosMapeados = productos.map((p: any) => ({
-                id: p.id,
-                tipo: "PRODUCTO" as const,
-                descripcion: p.descripcion || "",
-                precio: Number(p.precio || p.precioBase || p.valor || 0),
-                porcGanancia: Number(p.porcGanancia || 0),
-                precioTotal: Number(p.precioTotal || p.precio || 0),
-                nombre: p.nombre,
-                sku: p.serie,
-                serie: p.serie,
-                categoria: p.categoria,
-                imagen: p.imagen || null,
-            }));
+            const productosMapeados =
+                productos.map((p: any) => ({
+                    ...p,
 
+                    id: p.id,
+                    tipo: "PRODUCTO" as const,
+
+                    descripcion:
+                        p.descripcion ?? "",
+
+                    precio:
+                        Number(
+                            p.precio ??
+                            p.precioBase ??
+                            p.valor ??
+                            0
+                        ),
+
+                    porcGanancia:
+                        Number(
+                            p.porcGanancia ??
+                            0
+                        ),
+
+                    precioTotal:
+                        Number(
+                            p.precioTotal ??
+                            p.precio ??
+                            0
+                        ),
+
+                    nombre:
+                        p.nombre,
+
+                    sku:
+                        p.serie ??
+                        p.sku ??
+                        "",
+
+                    serie:
+                        p.serie ??
+                        p.sku ??
+                        "",
+
+                    categoria:
+                        p.categoria ?? "",
+
+                    stock:
+                        Number(
+                            p.stock ?? 0
+                        ),
+
+                    imagen:
+                        p.imagen ?? null,
+
+                    publicId:
+                        p.publicId ?? null,
+                }));
             setProductosCatalogo(productosMapeados);
 
             const categoriasUnicas = Array.from(
@@ -929,6 +1094,9 @@ const Cotizaciones: React.FC = () => {
                     imagen:
                         item.imagen || null,
 
+                    productoId:
+                        item.productoId ?? null,
+
                     equipoId:
                         item.equipoId ?? null,
                 };
@@ -936,220 +1104,1114 @@ const Cotizaciones: React.FC = () => {
         );
     };
 
-    const handleCreateCotizacion = async () => {
-        if (!formData.entidadId) {
-            handleApiError(null, "Debe seleccionar una entidad");
-            return;
-        }
+    const agregarCotizacionAlFunnel =
+        async (
+            cotizacionId: number,
+            mostrarMensaje = true
+        ) => {
+            try {
+                const response =
+                    await apiFetch(
+                        `/oportunidades/desde-cotizacion/${cotizacionId}`,
+                        {
+                            method:
+                                "POST",
 
-        if (items.length === 0) {
-            handleApiError(null, "Debe agregar al menos un item en alguna sección");
-            return;
-        }
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+                        }
+                    );
 
-        try {
-            let imagenUrl = null;
+                const resultado =
+                    response?.data ??
+                    response;
 
-            if (formData.imagenFile) {
-                const formDataToSend = new FormData();
-                formDataToSend.append("imagen", formData.imagenFile);
+                const oportunidad =
+                    resultado?.oportunidad;
 
-                const uploadResp = await apiFetch("/upload-imagenes/upload", {
-                    method: "POST",
-                    body: formDataToSend
-                });
+                const cotizacionActualizada =
+                    resultado?.cotizacion;
 
-                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+                const yaVinculada =
+                    Boolean(
+                        resultado
+                            ?.yaVinculada
+                    );
+
+                const oportunidadId =
+                    oportunidad?.id ??
+                    cotizacionActualizada
+                        ?.oportunidadVentaId ??
+                    null;
+
+                /*
+                 * Sincronizar inmediatamente el listado
+                 * para cambiar el botón de Funnel.
+                 */
+                if (oportunidadId) {
+                    setCotizaciones(
+                        (prev) =>
+                            prev.map(
+                                (cot) =>
+                                    cot.id ===
+                                        cotizacionId
+                                        ? {
+                                            ...cot,
+
+                                            oportunidadVentaId:
+                                                oportunidadId,
+                                        }
+                                        : cot
+                            )
+                    );
+
+                    setSelectedCotizacion(
+                        (prev) =>
+                            prev &&
+                                prev.id ===
+                                cotizacionId
+                                ? {
+                                    ...prev,
+
+                                    oportunidadVentaId:
+                                        oportunidadId,
+                                }
+                                : prev
+                    );
+                }
+
+                if (mostrarMensaje) {
+                    if (yaVinculada) {
+                        notification.info({
+                            message:
+                                "Cotización ya vinculada",
+
+                            description:
+                                "La cotización ya pertenece a una oportunidad del Funnel.",
+                        });
+                    } else {
+                        notification.success({
+                            message:
+                                "Añadida al Funnel",
+
+                            description:
+                                oportunidad?.codigo
+                                    ? `Se creó la oportunidad ${oportunidad.codigo} correctamente.`
+                                    : "Se creó y vinculó la oportunidad correctamente.",
+                        });
+                    }
+                }
+
+                return resultado;
+
+            } catch (error: any) {
+                const code =
+                    error?.response
+                        ?.data?.code ??
+                    error?.data
+                        ?.code;
+
+                /*
+                 * Protección adicional por si el
+                 * estado local todavía no estaba
+                 * actualizado.
+                 */
+                if (
+                    code ===
+                    "COTIZACION_YA_VINCULADA"
+                ) {
+                    notification.info({
+                        message:
+                            "Cotización ya vinculada",
+
+                        description:
+                            "Esta cotización ya pertenece a una oportunidad del Funnel.",
+                    });
+
+                    await fetchCotizaciones(
+                        page
+                    );
+
+                    return null;
+                }
+
+                throw error;
+            }
+        };
+
+    const handleCreateCotizacion =
+        async (
+            agregarAlFunnel = false
+        ) => {
+            if (!formData.entidadId) {
+                handleApiError(
+                    null,
+                    "Debe seleccionar una entidad"
+                );
+
+                return;
             }
 
-            const itemsParaEnviar =
-                prepararItemsCotizacion(
-                    items
+            if (items.length === 0) {
+                handleApiError(
+                    null,
+                    "Debe agregar al menos un item en alguna sección"
                 );
-            const totales = calcularTotales(itemsParaEnviar);
 
-            const cotizacionData = {
-                tipo: TipoCotizacionGestioo.CLIENTE,
-                estado: EstadoCotizacionGestioo.BORRADOR,
-                entidadId: Number(formData.entidadId),
-                subtotal: totales.subtotal,
-                descuentos: totales.descuentos,
-                iva: totales.iva,
-                total: totales.total,
-                moneda: formData.moneda,
-                tasaCambio: formData.moneda === "USD"
-                    ? Number(formData.tasaCambio || 1)
-                    : 1,
-                items: itemsParaEnviar,
-                comentariosCotizacion: formData.comentariosCotizacion?.trim() || null,
-                secciones: formData.secciones,
-                personaResponsable: formData.personaResponsable || null,
-                imagen: imagenUrl
-            };
+                return;
+            }
 
-            const data = await apiFetch("/cotizaciones", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(cotizacionData)
-            });
+            try {
+                let imagenUrl =
+                    null;
 
-            setCotizaciones(prev => [data.data, ...prev]);
-            setShowCreateModal(false);
-            resetForm();
-            showSuccess("Cotización creada correctamente");
+                if (
+                    formData.imagenFile
+                ) {
+                    const formDataToSend =
+                        new FormData();
 
-        } catch (error) {
-            handleApiError(error, "Error al crear cotización");
-        }
-    };
+                    formDataToSend.append(
+                        "imagen",
+                        formData.imagenFile
+                    );
+
+                    const uploadResp =
+                        await apiFetch(
+                            "/upload-imagenes/upload",
+                            {
+                                method:
+                                    "POST",
+
+                                body:
+                                    formDataToSend,
+                            }
+                        );
+
+                    imagenUrl =
+                        uploadResp
+                            .secure_url ||
+                        uploadResp.url ||
+                        null;
+                }
+
+                const itemsParaEnviar =
+                    prepararItemsCotizacion(
+                        items
+                    );
+
+                const totales =
+                    calcularTotales(
+                        itemsParaEnviar
+                    );
+
+                const cotizacionData = {
+                    tipo:
+                        TipoCotizacionGestioo
+                            .CLIENTE,
+
+                    estado:
+                        EstadoCotizacionGestioo
+                            .BORRADOR,
+
+                    entidadId:
+                        Number(
+                            formData
+                                .entidadId
+                        ),
+
+                    subtotal:
+                        totales.subtotal,
+
+                    descuentos:
+                        totales.descuentos,
+
+                    iva:
+                        totales.iva,
+
+                    total:
+                        totales.total,
+
+                    moneda:
+                        formData.moneda,
+
+                    tasaCambio:
+                        formData.moneda ===
+                            "USD"
+                            ? Number(
+                                formData
+                                    .tasaCambio ||
+                                1
+                            )
+                            : 1,
+
+                    items:
+                        itemsParaEnviar,
+
+                    comentariosCotizacion:
+                        formData
+                            .comentariosCotizacion
+                            ?.trim() ||
+                        null,
+
+                    secciones:
+                        formData.secciones,
+
+                    personaResponsable:
+                        formData
+                            .personaResponsable ||
+                        null,
+
+                    imagen:
+                        imagenUrl,
+                };
+
+                const response =
+                    await apiFetch(
+                        "/cotizaciones",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+
+                            body:
+                                JSON.stringify(
+                                    cotizacionData
+                                ),
+                        }
+                    );
+
+                let created:
+                    CotizacionGestioo =
+                    response.data ??
+                    response;
+
+                /*
+                 * ==========================================
+                 * AÑADIR AL FUNNEL
+                 * ==========================================
+                 */
+                if (
+                    agregarAlFunnel
+                ) {
+                    try {
+                        const resultado =
+                            await agregarCotizacionAlFunnel(
+                                created.id,
+                                false
+                            );
+
+                        const oportunidadId =
+                            resultado
+                                ?.oportunidad
+                                ?.id ??
+                            resultado
+                                ?.cotizacion
+                                ?.oportunidadVentaId ??
+                            null;
+
+                        if (
+                            oportunidadId
+                        ) {
+                            created = {
+                                ...created,
+
+                                oportunidadVentaId:
+                                    oportunidadId,
+                            };
+                        }
+
+                        notification.success({
+                            message:
+                                "Cotización creada",
+
+                            description:
+                                resultado
+                                    ?.yaVinculada
+                                    ? "La cotización fue creada y ya estaba vinculada al Funnel."
+                                    : "La cotización fue creada y añadida al Funnel correctamente.",
+                        });
+
+                    } catch (funnelError) {
+                        console.error(
+                            "Error agregando cotización al Funnel:",
+                            funnelError
+                        );
+
+                        /*
+                         * La cotización YA existe.
+                         * No convertirlo en error de creación.
+                         */
+                        notification.warning({
+                            message:
+                                "Cotización creada",
+
+                            description:
+                                "La cotización se creó correctamente, pero no fue posible añadirla al Funnel. Puedes hacerlo desde la tabla.",
+                        });
+                    }
+
+                } else {
+                    showSuccess(
+                        "Cotización creada correctamente"
+                    );
+                }
+
+                setCotizaciones(
+                    (prev) => [
+                        created as CotRow,
+                        ...prev,
+                    ]
+                );
+
+                setShowCreateModal(
+                    false
+                );
+
+                resetForm();
+
+            } catch (error) {
+                handleApiError(
+                    error,
+                    "Error al crear cotización"
+                );
+            }
+        };
 
     // Crear y enviar: crea la cotización y genera el PDF + envía por correo sin abrir modal
-    const handleCreateAndSendCotizacion = async () => {
-        if (!formData.entidadId) {
-            handleApiError(null, "Debe seleccionar una entidad");
-            return;
-        }
+    const handleCreateAndSendCotizacion =
+        async (
+            agregarAlFunnel = false
+        ) => {
+            /* =====================================================
+               VALIDACIONES
+            ===================================================== */
 
-        if (items.length === 0) {
-            handleApiError(null, "Debe agregar al menos un item en alguna sección");
-            return;
-        }
+            if (!formData.entidadId) {
+                handleApiError(
+                    null,
+                    "Debe seleccionar una entidad"
+                );
 
-        try {
-            // reuse creation logic (file upload if needed)
-            let imagenUrl = null;
-
-            if (formData.imagenFile) {
-                const formDataToSend = new FormData();
-                formDataToSend.append("imagen", formData.imagenFile);
-
-                const uploadResp = await apiFetch("/upload-imagenes/upload", {
-                    method: "POST",
-                    body: formDataToSend
-                });
-
-                imagenUrl = uploadResp.secure_url || uploadResp.url || null;
+                return;
             }
 
-            const itemsParaEnviar =
-                prepararItemsCotizacion(
-                    items
+            if (items.length === 0) {
+                handleApiError(
+                    null,
+                    "Debe agregar al menos un item en alguna sección"
                 );
 
-            const totales = calcularTotales(itemsParaEnviar);
+                return;
+            }
 
-            const cotizacionData = {
-                tipo: TipoCotizacionGestioo.CLIENTE,
-                estado: EstadoCotizacionGestioo.BORRADOR,
-                entidadId: Number(formData.entidadId),
-                subtotal: totales.subtotal,
-                descuentos: totales.descuentos,
-                iva: totales.iva,
-                total: totales.total,
-                moneda: formData.moneda,
-                tasaCambio: formData.moneda === "USD"
-                    ? Number(formData.tasaCambio || 1)
-                    : 1,
-                items: itemsParaEnviar,
-                comentariosCotizacion: formData.comentariosCotizacion?.trim() || null,
-                secciones: formData.secciones,
-                personaResponsable: formData.personaResponsable || null,
-                imagen: imagenUrl
-            };
+            setCreatingAndSending(true);
 
-            const data = await apiFetch("/cotizaciones", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(cotizacionData)
-            });
-
-            const created = data.data;
-            setCotizaciones(prev => [created, ...prev]);
-            setShowCreateModal(false);
-            resetForm();
-            showSuccess("Cotización creada correctamente");
-
-            // Generar el PDF programáticamente y enviarlo
             try {
-                const pdf = await generarPDF(
-                    created,
-                    true,
-                    normalizarPdfOrigen(created.entidad?.origen ?? "RIDS")
-                );
-                let dataUrl: string | null = null;
-                try { dataUrl = pdf.output('datauristring'); } catch (e) {
-                    const blob = pdf.output('blob');
-                    dataUrl = await new Promise<string>((res) => {
-                        const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
+                /* =================================================
+                   1. SUBIR IMAGEN
+                ================================================= */
+
+                let imagenUrl:
+                    string |
+                    null = null;
+
+                if (
+                    formData.imagenFile
+                ) {
+                    const formDataToSend =
+                        new FormData();
+
+                    formDataToSend.append(
+                        "imagen",
+                        formData.imagenFile
+                    );
+
+                    const uploadResp =
+                        await apiFetch(
+                            "/upload-imagenes/upload",
+                            {
+                                method:
+                                    "POST",
+
+                                body:
+                                    formDataToSend,
+                            }
+                        );
+
+                    imagenUrl =
+                        uploadResp?.secure_url ??
+                        uploadResp?.url ??
+                        null;
+                }
+
+
+                /* =================================================
+                   2. PREPARAR ITEMS
+                ================================================= */
+
+                const itemsParaEnviar =
+                    prepararItemsCotizacion(
+                        items
+                    );
+
+                const totales =
+                    calcularTotales(
+                        itemsParaEnviar
+                    );
+
+
+                /* =================================================
+                   3. PAYLOAD COTIZACIÓN
+                ================================================= */
+
+                const cotizacionData = {
+                    tipo:
+                        TipoCotizacionGestioo
+                            .CLIENTE,
+
+                    estado:
+                        EstadoCotizacionGestioo
+                            .BORRADOR,
+
+                    entidadId:
+                        Number(
+                            formData.entidadId
+                        ),
+
+                    subtotal:
+                        totales.subtotal,
+
+                    descuentos:
+                        totales.descuentos,
+
+                    iva:
+                        totales.iva,
+
+                    total:
+                        totales.total,
+
+                    moneda:
+                        formData.moneda,
+
+                    tasaCambio:
+                        formData.moneda ===
+                            "USD"
+                            ? Number(
+                                formData
+                                    .tasaCambio ||
+                                1
+                            )
+                            : 1,
+
+                    items:
+                        itemsParaEnviar,
+
+                    comentariosCotizacion:
+                        formData
+                            .comentariosCotizacion
+                            ?.trim() ||
+                        null,
+
+                    secciones:
+                        formData.secciones,
+
+                    personaResponsable:
+                        formData
+                            .personaResponsable ||
+                        null,
+
+                    imagen:
+                        imagenUrl,
+                };
+
+
+                /* =================================================
+                   4. CREAR COTIZACIÓN
+                ================================================= */
+
+                const response =
+                    await apiFetch(
+                        "/cotizaciones",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                            },
+
+                            body:
+                                JSON.stringify(
+                                    cotizacionData
+                                ),
+                        }
+                    );
+
+                const creadaBase:
+                    CotizacionGestioo =
+                    response?.data ??
+                    response;
+
+                if (!creadaBase?.id) {
+                    throw new Error(
+                        "El servidor no devolvió el ID de la cotización creada."
+                    );
+                }
+
+
+                /* =================================================
+                   5. AÑADIR AL FUNNEL
+                ================================================= */
+
+                let oportunidadVentaId:
+                    number |
+                    null =
+                    creadaBase
+                        .oportunidadVentaId ??
+                    null;
+
+                if (
+                    agregarAlFunnel &&
+                    puedeUsarFunnel
+                ) {
+                    try {
+                        const resultado =
+                            await agregarCotizacionAlFunnel(
+                                creadaBase.id,
+                                false
+                            );
+
+                        oportunidadVentaId =
+                            resultado
+                                ?.oportunidad
+                                ?.id ??
+                            resultado
+                                ?.cotizacion
+                                ?.oportunidadVentaId ??
+                            null;
+
+                        notification.success({
+                            message:
+                                "Añadida al Funnel",
+
+                            description:
+                                resultado
+                                    ?.oportunidad
+                                    ?.codigo
+                                    ? `Se creó la oportunidad ${resultado.oportunidad.codigo}.`
+                                    : "La oportunidad comercial fue creada correctamente.",
+                        });
+
+                    } catch (
+                    funnelError
+                    ) {
+                        console.error(
+                            "Error agregando al Funnel:",
+                            funnelError
+                        );
+
+                        notification.warning({
+                            message:
+                                "Funnel no actualizado",
+
+                            description:
+                                "La cotización fue creada, pero no pudo añadirse al Funnel. El envío continuará.",
+                        });
+                    }
+                }
+
+
+                /* =================================================
+                   6. OBTENER COTIZACIÓN COMPLETA
+    
+                   IMPORTANTE:
+                   No usar directamente la respuesta del POST.
+                ================================================= */
+
+                const responseCompleta =
+                    await apiFetch(
+                        `/cotizaciones/${creadaBase.id}`
+                    );
+
+                let created:
+                    CotizacionGestioo =
+                    responseCompleta?.data ??
+                    responseCompleta;
+
+                if (
+                    oportunidadVentaId
+                ) {
+                    created = {
+                        ...created,
+
+                        oportunidadVentaId:
+                            oportunidadVentaId,
+                    };
+                }
+
+
+                /* =================================================
+                   7. VALIDAR CORREO
+                ================================================= */
+
+                const destinatario =
+                    created
+                        .entidad
+                        ?.correo
+                        ?.trim() ??
+                    "";
+
+                if (!destinatario) {
+                    setCotizaciones(
+                        (prev) => [
+                            created as CotRow,
+                            ...prev,
+                        ]
+                    );
+
+                    setShowCreateModal(
+                        false
+                    );
+
+                    resetForm();
+
+                    notification.warning({
+                        message:
+                            "Cotización creada",
+
+                        description:
+                            "La cotización se creó correctamente, pero la entidad no tiene un correo registrado. No se realizó el envío.",
+                    });
+
+                    return;
+                }
+
+
+                const emailRegex =
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (
+                    !emailRegex.test(
+                        destinatario
+                    )
+                ) {
+                    setCotizaciones(
+                        (prev) => [
+                            created as CotRow,
+                            ...prev,
+                        ]
+                    );
+
+                    setShowCreateModal(
+                        false
+                    );
+
+                    resetForm();
+
+                    notification.warning({
+                        message:
+                            "Cotización creada",
+
+                        description:
+                            `La cotización se creó correctamente, pero el correo "${destinatario}" no es válido.`,
+                    });
+
+                    return;
+                }
+
+
+                /* =================================================
+                   8. GENERAR PDF
+                ================================================= */
+
+                const pdf =
+                    await generarPDF(
+                        created,
+                        true,
+                        normalizarPdfOrigen(
+                            created
+                                .entidad
+                                ?.origen ??
+                            "RIDS"
+                        )
+                    );
+
+                let dataUrl:
+                    string |
+                    null = null;
+
+                try {
+                    dataUrl =
+                        pdf.output(
+                            "datauristring"
+                        );
+                } catch {
+                    const blob =
+                        pdf.output(
+                            "blob"
+                        );
+
+                    dataUrl =
+                        await new Promise<string>(
+                            (
+                                resolve,
+                                reject
+                            ) => {
+                                const reader =
+                                    new FileReader();
+
+                                reader.onloadend =
+                                    () => {
+                                        if (
+                                            typeof reader
+                                                .result ===
+                                            "string"
+                                        ) {
+                                            resolve(
+                                                reader.result
+                                            );
+                                        } else {
+                                            reject(
+                                                new Error(
+                                                    "No se pudo convertir el PDF."
+                                                )
+                                            );
+                                        }
+                                    };
+
+                                reader.onerror =
+                                    () =>
+                                        reject(
+                                            new Error(
+                                                "Error leyendo el PDF."
+                                            )
+                                        );
+
+                                reader.readAsDataURL(
+                                    blob
+                                );
+                            }
+                        );
+                }
+
+                if (!dataUrl) {
+                    throw new Error(
+                        "No se pudo generar el PDF."
+                    );
+                }
+
+
+                /* =================================================
+                   9. PDF A BASE64
+                ================================================= */
+
+                const comma =
+                    dataUrl.indexOf(
+                        ","
+                    );
+
+                const base64 =
+                    comma >= 0
+                        ? dataUrl.slice(
+                            comma + 1
+                        )
+                        : dataUrl;
+
+                const mimeMatch =
+                    dataUrl.match(
+                        /data:([^;]+);/
+                    );
+
+                const contentType =
+                    mimeMatch?.[1] ??
+                    "application/pdf";
+
+
+                /* =================================================
+                   10. NOMBRE ARCHIVO
+                ================================================= */
+
+                const numeroCotizacion =
+                    `COT-${String(
+                        created.id
+                    ).padStart(
+                        6,
+                        "0"
+                    )}`;
+
+                const clienteArchivo =
+                    String(
+                        created.entidad?.nombre ??
+                        "Cliente"
+                    )
+                        .normalize(
+                            "NFD"
+                        )
+                        .replace(
+                            /[\u0300-\u036f]/g,
+                            ""
+                        )
+                        .replace(
+                            /[^a-zA-Z0-9_-]+/g,
+                            "_"
+                        )
+                        .replace(
+                            /^_+|_+$/g,
+                            ""
+                        );
+
+                const pdfFilename =
+                    `Cotizacion_${numeroCotizacion}_${clienteArchivo}.pdf`;
+
+
+                /* =================================================
+                   11. HTML DEL CORREO
+                ================================================= */
+
+                const finalHtml =
+                    buildCotizacionHtml(
+                        created
+                    );
+
+
+                /* =================================================
+                   12. PAYLOAD CORREO
+                ================================================= */
+
+                const subject =
+                    `Cotización ${numeroCotizacion} | ${created.entidad?.nombre ?? "Cliente"} | RIDS`;
+
+                const payload = {
+                    targets: [
+                        {
+                            email:
+                                destinatario,
+
+                            nombre:
+                                created
+                                    .entidad
+                                    ?.nombre ??
+                                "",
+                        },
+                    ],
+
+                    subject,
+
+                    bodyHtml:
+                        finalHtml,
+
+                    attachments: [
+                        {
+                            name:
+                                pdfFilename,
+
+                            contentType,
+
+                            contentBytes:
+                                base64,
+                        },
+                    ],
+                };
+
+
+                /* =================================================
+                   13. ENVIAR
+                ================================================= */
+
+                const sendResp =
+                    await http.post(
+                        "/correo/enviar-masivo",
+                        payload
+                    );
+
+                const envioOk =
+                    Boolean(
+                        sendResp.data
+                            ?.ok ||
+                        sendResp.data
+                            ?.queued ||
+                        sendResp.data
+                            ?.jobId
+                    );
+
+                if (!envioOk) {
+                    throw new Error(
+                        String(
+                            sendResp.data
+                                ?.message ??
+                            "El servidor no confirmó el envío."
+                        )
+                    );
+                }
+
+
+                /* =================================================
+                   14. REGISTRAR ENVÍO
+                ================================================= */
+
+                try {
+                    let currentUserName:
+                        string |
+                        null = null;
+
+                    try {
+                        const rawUser =
+                            localStorage.getItem(
+                                "user"
+                            );
+
+                        if (rawUser) {
+                            const user =
+                                JSON.parse(
+                                    rawUser
+                                );
+
+                            currentUserName =
+                                user?.nombre ??
+                                user?.name ??
+                                null;
+                        }
+                    } catch {
+                        currentUserName =
+                            null;
+                    }
+
+                    await http.post(
+                        "/cotizaciones/enviadas",
+                        {
+                            cotizacionId:
+                                created.id,
+
+                            to:
+                                destinatario,
+
+                            subject,
+
+                            jobId:
+                                sendResp.data
+                                    ?.jobId ??
+                                null,
+
+                            sentBy:
+                                currentUserName,
+
+                            meta: {
+                                attachments:
+                                    1,
+                            },
+
+                            clienteNombre:
+                                created
+                                    .entidad
+                                    ?.nombre ??
+                                null,
+
+                            creadoPor:
+                                created
+                                    .tecnico
+                                    ?.nombre ??
+                                created
+                                    .personaResponsable ??
+                                null,
+
+                            fechaCreacion:
+                                created.fecha ??
+                                created.createdAt ??
+                                null,
+                        }
+                    );
+
+                } catch (
+                registroError
+                ) {
+                    console.error(
+                        "Error registrando envío:",
+                        registroError
+                    );
+
+                    notification.warning({
+                        message:
+                            "Correo enviado",
+
+                        description:
+                            "El correo fue enviado, pero no se pudo registrar en el historial de envíos.",
                     });
                 }
 
-                if (!dataUrl) throw new Error('No se pudo generar el PDF');
 
-                const comma = dataUrl.indexOf(',');
-                const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-                const mimeMatch = dataUrl.match(/data:([^;]+);/);
-                const contentType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+                /* =================================================
+                   15. ACTUALIZAR UI
+                ================================================= */
 
-                // armar HTML con logo embebido (simple replacement)
-                let finalHtml = buildDefaultHtmlForSend(created as any);
-                try {
-                    const resp = await fetch('/img/splash.png');
-                    if (resp.ok) {
-                        const blob = await resp.blob();
-                        const logoData = await new Promise<string>((res) => {
-                            const r = new FileReader(); r.onloadend = () => res(r.result as string); r.readAsDataURL(blob);
-                        });
-                        finalHtml = finalHtml.replace(/src=["']\/img\/splash\.png["']/g, `src="${logoData}"`);
-                    }
-                } catch (e) {
-                    // ignore logo embedding errors
-                }
+                setCotizaciones(
+                    (prev) => [
+                        created as CotRow,
+                        ...prev,
+                    ]
+                );
 
-                const payload = {
-                    targets: [{ email: created.entidad?.correo || '', nombre: created.entidad?.nombre || '' }],
-                    subject: `Cotización #${created.id} - ${created.entidad?.nombre || ''}`,
-                    bodyHtml: finalHtml,
-                    attachments: [{ name: `Cotizacion_${created.id}.pdf`, contentType, contentBytes: base64 }]
-                };
+                setShowCreateModal(
+                    false
+                );
 
-                const sendResp = await http.post('/correo/enviar-masivo', payload);
-                if (sendResp.data?.ok || sendResp.data?.queued || sendResp.data?.jobId) {
-                    const queued = !!sendResp.data?.queued;
-                    const jobId = sendResp.data?.jobId ?? null;
-                    const sucMsg = queued ? `Envio en cola (job ${jobId}) — destinatarios: ${sendResp.data.queuedCount ?? 1}` : `Cotización enviada a ${created.entidad?.correo}`;
-                    try { Modal.success({ title: queued ? 'Envío en cola' : 'Envío confirmado', content: sucMsg }); } catch (_) { }
-                    notification.success({ message: queued ? 'Envío en cola' : 'Correo enviado', description: sucMsg });
-                    // Registrar envío en cotizaciones-enviadas (no bloquear)
-                    (async () => {
-                        try {
-                            await http.post('/cotizaciones/enviadas', {
-                                cotizacionId: created.id,
-                                to: created.entidad?.correo ?? null,
-                                subject: payload.subject,
-                                jobId: sendResp.data.jobId ?? null,
-                                meta: { attachments: Array.isArray(payload.attachments) ? payload.attachments.length : 0 }
-                            });
-                        } catch (err: any) {
-                            console.error('Error registrando cotizacion enviada:', err);
-                            try {
-                                const msg = err?.response?.data?.error ?? err?.message ?? String(err);
-                                notification.warning({ message: 'Registro no guardado', description: `No se pudo registrar el envío: ${msg}`, duration: 6 });
-                            } catch (_) { }
-                        }
-                    })();
-                } else {
-                    notification.error({ message: 'Error al enviar', description: String(sendResp.data?.message ?? 'Respuesta inválida') });
-                }
-            } catch (err) {
-                console.error('Error generando/enviando PDF:', err);
-                notification.error({ message: 'Error', description: 'No se pudo generar o enviar el PDF automáticamente.' });
+                resetForm();
+
+
+                /* =================================================
+                   16. RESULTADO
+                ================================================= */
+
+                const queued =
+                    Boolean(
+                        sendResp.data
+                            ?.queued
+                    );
+
+                notification.success({
+                    message:
+                        queued
+                            ? "Cotización en cola"
+                            : "Cotización enviada",
+
+                    description:
+                        queued
+                            ? `La cotización fue creada y el correo quedó en cola para ${destinatario}.`
+                            : `La cotización fue creada y enviada correctamente a ${destinatario}.`,
+                });
+
+
+                /*
+                 * Recargar desde backend para mantener
+                 * oportunidadVentaId, técnico, factura, etc.
+                 */
+                await fetchCotizaciones(
+                    1
+                );
+
+            } catch (error: any) {
+                console.error(
+                    "[CREAR Y ENVIAR] Error:",
+                    error
+                );
+
+                handleApiError(
+                    error,
+                    "No se pudo crear y enviar la cotización"
+                );
+            } finally {
+                setCreatingAndSending(
+                    false
+                );
             }
-
-        } catch (error) {
-            handleApiError(error, "Error al crear cotización");
-        }
-    };
+        };
 
     const handleGuardarYEnviarCotizacion = async () => {
         if (!selectedCotizacion) {
@@ -1431,9 +2493,24 @@ const Cotizaciones: React.FC = () => {
                 )
             );
 
-            setShowEditModal(false);
-            showSuccess("Cotización actualizada correctamente");
-            await fetchCotizaciones(page);
+            setShowEditModal(
+                false
+            );
+
+            showSuccess(
+                "Cotización actualizada correctamente"
+            );
+
+            await fetchCotizaciones(
+                page
+            );
+
+
+            if (
+                funnelReturnContext
+            ) {
+                volverAlFunnel();
+            }
 
         } catch (error) {
             handleApiError(error, "Error al actualizar cotización");
@@ -1608,22 +2685,77 @@ const Cotizaciones: React.FC = () => {
 
         let producto = productosCatalogo.find(p => p.id === productoId);
 
-        if (!producto && item?.sku) {
-            producto = productosCatalogo.find(
-                p => p.sku === item.sku || p.serie === item.sku
-            );
+        if (!producto && item) {
+            const skuItem =
+                String(item.sku ?? "")
+                    .trim()
+                    .toLowerCase();
 
-            if (producto && selectedCotizacion && item) {
-                setSelectedCotizacion(prev => {
-                    if (!prev) return prev;
+            const nombreItem =
+                String(item.nombre ?? "")
+                    .trim()
+                    .toLowerCase();
+
+            producto = productosCatalogo.find((p) => {
+                const skuProducto =
+                    String(
+                        p.sku ??
+                        p.serie ??
+                        ""
+                    )
+                        .trim()
+                        .toLowerCase();
+
+                const nombreProducto =
+                    String(
+                        p.nombre ??
+                        ""
+                    )
+                        .trim()
+                        .toLowerCase();
+
+                // Primero buscar por SKU
+                if (
+                    skuItem &&
+                    skuProducto &&
+                    skuProducto === skuItem
+                ) {
+                    return true;
+                }
+
+                // Fallback para registros históricos
+                if (
+                    nombreItem &&
+                    nombreProducto === nombreItem
+                ) {
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (
+                producto &&
+                selectedCotizacion
+            ) {
+                setSelectedCotizacion((prev) => {
+                    if (!prev) {
+                        return prev;
+                    }
 
                     return {
                         ...prev,
-                        items: prev.items.map(i =>
-                            i.id === item.id
-                                ? { ...i, productoId: producto!.id }
-                                : i
-                        )
+
+                        items:
+                            prev.items.map((i) =>
+                                i.id === item.id
+                                    ? {
+                                        ...i,
+                                        productoId:
+                                            producto.id,
+                                    }
+                                    : i
+                            ),
                     };
                 });
             }
@@ -1645,6 +2777,7 @@ const Cotizaciones: React.FC = () => {
                     stock: 0,
                     codigo: item.sku ?? "",
                     imagen: item.imagen ?? null,
+                    publicId: producto.publicId ?? null,
                 });
 
                 setShowSelectorProducto(false);
@@ -2157,40 +3290,47 @@ const Cotizaciones: React.FC = () => {
     };
 
     // === MODAL EDICIÓN COTIZACIÓN ===
-    const openEditModal = async (cotizacion: CotizacionGestioo) => {
-        try {
-            const resp = await apiFetch(`/cotizaciones/${cotizacion.id}`);
-            const cotCompleta = resp.data || resp;
+    const openEditModal =
+        async (
+            cotizacion:
+                Pick<
+                    CotizacionGestioo,
+                    "id"
+                >
+        ) => {
+            try {
+                const resp = await apiFetch(`/cotizaciones/${cotizacion.id}`);
+                const cotCompleta = resp.data || resp;
 
-            await fetchCatalogo();
+                await fetchCatalogo();
 
-            const moneda = cotCompleta.moneda || "CLP";
-            const tasaCambio =
-                moneda === "USD"
-                    ? Number(cotCompleta.tasaCambio) || 1
-                    : 1;
+                const moneda = cotCompleta.moneda || "CLP";
+                const tasaCambio =
+                    moneda === "USD"
+                        ? Number(cotCompleta.tasaCambio) || 1
+                        : 1;
 
-            const items = Array.isArray(cotCompleta.items) ? cotCompleta.items : [];
+                const items = Array.isArray(cotCompleta.items) ? cotCompleta.items : [];
 
-            const itemsNormalizados = items.map((item: any) =>
-                normalizarItemCotizacion(item, moneda, tasaCambio)
-            );
+                const itemsNormalizados = items.map((item: any) =>
+                    normalizarItemCotizacion(item, moneda, tasaCambio)
+                );
 
-            const cotizacionEditable: CotizacionGestioo = {
-                ...cotCompleta,
-                moneda,
-                tasaCambio,
-                comentariosCotizacion: cotCompleta.comentariosCotizacion ?? "",
-                imagen: cotCompleta.imagen ?? null,
-                items: itemsNormalizados,
-            };
+                const cotizacionEditable: CotizacionGestioo = {
+                    ...cotCompleta,
+                    moneda,
+                    tasaCambio,
+                    comentariosCotizacion: cotCompleta.comentariosCotizacion ?? "",
+                    imagen: cotCompleta.imagen ?? null,
+                    items: itemsNormalizados,
+                };
 
-            setSelectedCotizacion(cotizacionEditable);
-            setShowEditModal(true);
-        } catch (error) {
-            handleApiError(error, "Error al cargar cotización para editar");
-        }
-    };
+                setSelectedCotizacion(cotizacionEditable);
+                setShowEditModal(true);
+            } catch (error) {
+                handleApiError(error, "Error al cargar cotización para editar");
+            }
+        };
 
     const [showGenerarPDFModal, setShowGenerarPDFModal] = useState(false);
     const [pdfURL, setPdfURL] = useState<string | null>(null);
@@ -2219,6 +3359,148 @@ const Cotizaciones: React.FC = () => {
         };
         window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:setFilters', { detail }));
     };
+
+    useEffect(() => {
+
+        const cotizacionIdParam =
+            searchParams.get(
+                "cotizacionId"
+            );
+
+        const accion =
+            searchParams.get(
+                "accion"
+            );
+
+
+        if (
+            !cotizacionIdParam
+        ) {
+            return;
+        }
+
+
+        const cotizacionId =
+            Number(
+                cotizacionIdParam
+            );
+
+
+        if (
+            !Number.isInteger(
+                cotizacionId
+            ) ||
+            cotizacionId <=
+            0
+        ) {
+            return;
+        }
+
+
+        let cancelado =
+            false;
+
+
+        async function abrirDesdeFunnel() {
+
+            try {
+
+                if (
+                    accion ===
+                    "editar"
+                ) {
+
+                    /*
+                     * openEditModal solamente
+                     * necesita id inicialmente.
+                     * Dentro vuelve a cargar
+                     * la cotización completa.
+                     */
+
+                    await openEditModal({
+                        id:
+                            cotizacionId,
+                    });
+
+                } else {
+
+                    const resp =
+                        await apiFetch(
+                            `/cotizaciones/${cotizacionId}`
+                        );
+
+
+                    if (
+                        cancelado
+                    ) {
+                        return;
+                    }
+
+
+                    const cotizacion =
+                        resp.data ??
+                        resp;
+
+
+                    setSelectedCotizacion(
+                        cotizacion
+                    );
+
+
+                    setShowViewModal(
+                        true
+                    );
+                }
+
+
+                /*
+                 * Quitamos los parámetros
+                 * después de abrir el modal.
+                 *
+                 * Evita volver a abrirlo
+                 * si el componente renderiza
+                 * nuevamente.
+                 */
+                if (
+                    !cancelado
+                ) {
+
+                    setSearchParams(
+                        {},
+                        {
+                            replace:
+                                true,
+                        }
+                    );
+                }
+
+            } catch (
+            error
+            ) {
+
+                if (
+                    !cancelado
+                ) {
+                    handleApiError(
+                        error,
+                        "No se pudo abrir la cotización"
+                    );
+                }
+            }
+        }
+
+
+        void abrirDesdeFunnel();
+
+
+        return () => {
+            cancelado =
+                true;
+        };
+
+    }, [
+        searchParams,
+    ]);
 
     // Al cambiar de pestaña: ocultar cabecera interna de CotizacionesEnviadas cuando está embebida
     useEffect(() => {
@@ -2463,6 +3745,80 @@ const Cotizaciones: React.FC = () => {
         </div>
     );
 
+    const handleAgregarAlFunnel =
+        (
+            cotizacion: CotRow
+        ) => {
+            if (
+                cotizacion
+                    .oportunidadVentaId
+            ) {
+                notification.info({
+                    message:
+                        "Ya está en el Funnel",
+
+                    description:
+                        "Esta cotización ya está vinculada a una oportunidad comercial.",
+                });
+
+                return;
+            }
+
+
+            modal.confirm({
+                title:
+                    "Añadir al Funnel",
+
+                content:
+                    `Se creará una oportunidad comercial a partir de la cotización #${cotizacion.id}.`,
+
+                okText:
+                    "Añadir al Funnel",
+
+                cancelText:
+                    "Cancelar",
+
+                centered:
+                    true,
+
+                async onOk() {
+                    try {
+                        const resultado =
+                            await agregarCotizacionAlFunnel(
+                                cotizacion.id,
+                                false
+                            );
+
+                        const oportunidad =
+                            resultado
+                                ?.oportunidad;
+
+                        notification.success({
+                            message:
+                                "Añadida al Funnel",
+
+                            description:
+                                oportunidad?.codigo
+                                    ? `La oportunidad ${oportunidad.codigo} fue creada correctamente.`
+                                    : "La oportunidad comercial fue creada correctamente.",
+                        });
+
+                        await fetchCotizaciones(
+                            page
+                        );
+
+                    } catch (error) {
+                        handleApiError(
+                            error,
+                            "No se pudo añadir la cotización al Funnel"
+                        );
+
+                        throw error;
+                    }
+                },
+            });
+        };
+
     const renderActionButtons = (c: CotRow, mobile = false) => (
         <div className={mobile ? "grid grid-cols-3 gap-2" : "flex justify-center gap-2"}>
             <button
@@ -2521,6 +3877,66 @@ const Cotizaciones: React.FC = () => {
                     </button>
 
                     <button
+                        type="button"
+                        onClick={() =>
+                            handleAgregarAlFunnel(
+                                c
+                            )
+                        }
+                        className={
+                            mobile
+                                ? c
+                                    .oportunidadVentaId
+                                    ? `
+                        rounded-xl
+                        border
+                        border-emerald-200
+                        bg-emerald-50
+                        p-2
+                        text-emerald-600
+                      `
+                                    : `
+                        rounded-xl
+                        border
+                        border-violet-200
+                        p-2
+                        text-violet-600
+                        hover:bg-violet-50
+                      `
+                                : c
+                                    .oportunidadVentaId
+                                    ? `
+                        text-sm
+                        text-emerald-600
+                      `
+                                    : `
+                        text-sm
+                        text-violet-600
+                        hover:text-violet-800
+                      `
+                        }
+                        title={
+                            c.oportunidadVentaId
+                                ? `Vinculada al Funnel${c.oportunidadVentaId
+                                    ? ` · Oportunidad #${c.oportunidadVentaId}`
+                                    : ""
+                                }`
+                                : "Añadir al Funnel"
+                        }
+                    >
+                        <FunnelPlotOutlined />
+
+                        {c.oportunidadVentaId && (
+                            <CheckCircleOutlined
+                                className="
+                    ml-0.5
+                    text-[10px]
+                "
+                            />
+                        )}
+                    </button>
+
+                    <button
                         onClick={() => handleDelete(c.id)}
                         className={mobile ? "rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50" : "text-sm text-red-600 hover:text-red-800"}
                         title="Eliminar"
@@ -2532,814 +3948,1086 @@ const Cotizaciones: React.FC = () => {
         </div>
     );
 
+    function volverAlFunnel(): boolean {
+
+        if (
+            !funnelReturnContext
+        ) {
+            return false;
+        }
+
+
+        navigate(
+            "/funnel",
+
+            {
+                state: {
+                    origen:
+                        "cotizaciones",
+
+                    oportunidadId:
+                        funnelReturnContext
+                            .oportunidadId,
+
+                    drawerTab:
+                        funnelReturnContext
+                            .drawerTab,
+                },
+            }
+        );
+
+
+        return true;
+    }
+
     // Render principal
     return (
-        <div className="min-h-screen relative bg-gradient-to-b from-white via-white to-cyan-50">
-            <div className="mx-auto mt-4 w-full max-w-screen-2xl px-3 pb-10 pt-16 sm:mt-8 sm:px-6 sm:pt-6 lg:px-8">
-                {/* CARD PRINCIPAL - TÍTULO, BUSCADOR Y FILTROS */}
-                <section className="rounded-2xl border border-cyan-200 bg-white px-4 py-5 shadow-sm sm:px-6 sm:py-6">
-                    {/* Encabezado */}
-                    <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50">
-                                <FileTextOutlined className="text-xl text-cyan-600" />
-                            </div>
+        <>
+            {contextHolder}
+            <div className="min-h-screen relative bg-gradient-to-b from-white via-white to-cyan-50">
+                <div className="mx-auto mt-4 w-full max-w-screen-2xl px-3 pb-10 pt-16 sm:mt-8 sm:px-6 sm:pt-6 lg:px-8">
+
+                    {funnelReturnContext && (
+
+                        <div
+                            className="
+            mb-4
+            flex
+            flex-col
+            gap-2
+            rounded-xl
+            border
+            border-cyan-200
+            bg-cyan-50
+            px-4
+            py-3
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+        "
+                        >
+
                             <div>
-                                <h1 className="text-2xl font-bold text-slate-900">
-                                    Cotizaciones
-                                </h1>
-                                <p className="text-sm text-slate-500">
-                                    Gestión y seguimiento de cotizaciones.
+                                <p
+                                    className="
+                    text-sm
+                    font-semibold
+                    text-cyan-800
+                "
+                                >
+                                    Estás revisando una cotización desde el Funnel
                                 </p>
-                                <div className="mt-3">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('list')}
-                                            className={`px-3 py-1 rounded-full text-sm ${activeTab === 'list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                                        >
-                                            Cotizaciones
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('enviadas')}
-                                            className={`px-3 py-1 rounded-full text-sm ${activeTab === 'enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                                        >
-                                            Cotizaciones Enviadas
-                                        </button>
+
+                                <p
+                                    className="
+                    mt-0.5
+                    text-xs
+                    text-cyan-600
+                "
+                                >
+                                    Al terminar puedes volver directamente a la oportunidad.
+                                </p>
+                            </div>
+
+
+                            <button
+                                type="button"
+
+                                onClick={
+                                    volverAlFunnel
+                                }
+
+                                className="
+                inline-flex
+                items-center
+                justify-center
+                rounded-lg
+                bg-cyan-600
+                px-3
+                py-2
+                text-sm
+                font-medium
+                text-white
+                transition
+                hover:bg-cyan-700
+            "
+                            >
+                                ← Volver a la oportunidad
+                            </button>
+
+                        </div>
+                    )}
+                    {/* CARD PRINCIPAL - TÍTULO, BUSCADOR Y FILTROS */}
+                    <section className="rounded-2xl border border-cyan-200 bg-white px-4 py-5 shadow-sm sm:px-6 sm:py-6">
+                        {/* Encabezado */}
+                        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50">
+                                    <FileTextOutlined className="text-xl text-cyan-600" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-900">
+                                        Cotizaciones
+                                    </h1>
+                                    <p className="text-sm text-slate-500">
+                                        Gestión y seguimiento de cotizaciones.
+                                    </p>
+                                    <div className="mt-3">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab('list')}
+                                                className={`px-3 py-1 rounded-full text-sm ${activeTab === 'list' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                            >
+                                                Cotizaciones
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab('enviadas')}
+                                                className={`px-3 py-1 rounded-full text-sm ${activeTab === 'enviadas' ? 'bg-cyan-100 text-cyan-800' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                                            >
+                                                Cotizaciones Enviadas
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
-                            {activeTab === 'list' && (
-                                <button
-                                    type="button"
-                                    onClick={() => fetchCotizaciones(page)}
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm text-cyan-700 transition hover:bg-cyan-50 sm:w-auto"
-                                >
-                                    <ReloadOutlined className="text-xs" />
-                                    <span>Recargar</span>
-                                </button>
-                            )}
-                            {!isCliente && (
-                                <>
+                            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+                                {activeTab === 'list' && (
                                     <button
                                         type="button"
-                                        onClick={() => setShowCotizacionesMasivasManager(true)}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-purple-300 bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-50 sm:w-auto"
+                                        onClick={() => fetchCotizaciones(page)}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm text-cyan-700 transition hover:bg-cyan-50 sm:w-auto"
                                     >
-                                        <FileTextOutlined className="text-base" />
-                                        Masivas / Plantillas
+                                        <ReloadOutlined className="text-xs" />
+                                        <span>Recargar</span>
                                     </button>
+                                )}
+                                {!isCliente && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCotizacionesMasivasManager(true)}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-purple-300 bg-white px-5 py-2.5 text-sm font-semibold text-purple-700 transition hover:bg-purple-50 sm:w-auto"
+                                        >
+                                            <FileTextOutlined className="text-base" />
+                                            Masivas / Plantillas
+                                        </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            resetForm();
-                                            setShowCreateModal(true);
-                                        }}
-                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
-                                    >
-                                        <PlusOutlined className="text-base" />
-                                        Crear
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Buscador — solo visible en tab de cotizaciones */}
-                    {activeTab === 'list' && (
-                        <div className="mt-2">
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <SearchOutlined />
-                                </span>
-                                <input
-                                    type="text"
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    placeholder="Buscar cotización, cliente o estado..."
-                                    className="w-full rounded-full border border-cyan-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                resetForm();
+                                                setShowCreateModal(true);
+                                            }}
+                                            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(0,0,0,0.15)] transition-all duration-200 hover:from-emerald-700 hover:to-cyan-700 sm:w-auto"
+                                        >
+                                            <PlusOutlined className="text-base" />
+                                            Crear
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
-                    )}
 
-                    {/* Filtros */}
-                    <div className="mt-5">
-                        {activeTab === 'list' ? (
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Filtrar por Origen
-                                    </label>
-                                    <select
-                                        value={filtrosHistorial.origen}
-                                        onChange={(e) =>
-                                            setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
-                                        }
-                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                    >
-                                        <option value="">Todos los orígenes</option>
-                                        <option value="RIDS">RIDS</option>
-                                        <option value="ECONNET">ECONNET</option>
-                                        <option value="OTRO">OTRO</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Filtrar por Estado
-                                    </label>
-                                    <select
-                                        value={filtrosHistorial.estado}
-                                        onChange={(e) =>
-                                            setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
-                                        }
-                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                    >
-                                        <option value="">Todos los estados</option>
-                                        <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
-                                        <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
-                                        <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
-                                        <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Filtrar por Técnico
-                                    </label>
-
-                                    <select
-                                        value={filtrosHistorial.tecnico || ""}
-                                        onChange={(e) =>
-                                            setFiltrosHistorial(prev => ({
-                                                ...prev,
-                                                tecnico: e.target.value
-                                            }))
-                                        }
-                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                                    >
-                                        <option value="">Todos los técnicos</option>
-                                        {tecnicos.map(t => (
-                                            <option key={t.id_tecnico} value={t.id_tecnico}>
-                                                {t.nombre}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Filtrar por Mes
-                                    </label>
-
+                        {/* Buscador — solo visible en tab de cotizaciones */}
+                        {activeTab === 'list' && (
+                            <div className="mt-2">
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                        <SearchOutlined />
+                                    </span>
                                     <input
-                                        type="month"
-                                        value={filtroMes}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-                                            setFiltroMes(value);
-                                            setPage(1);
-
-                                            if (!value) {
-                                                fetchCotizaciones(1);
-                                                return;
-                                            }
-                                        }}
-                                        className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                        type="text"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder="Buscar cotización, cliente o estado..."
+                                        className="w-full rounded-full border border-cyan-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                                     />
                                 </div>
                             </div>
-                        ) : (
-                            <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
-                                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                                    <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
-                                        <input
-                                            type="text"
-                                            placeholder="Buscar cotización, cliente o estado..."
-                                            className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
-                                            value={envSearch}
-                                            onChange={(e) => {
-                                                setEnvSearch(e.target.value);
-                                                dispatchCotEnviadasFilters({ search: e.target.value });
-                                            }}
-                                        />
-                                        <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-                                            </svg>
-                                        </button>
+                        )}
+
+                        {/* Filtros */}
+                        <div className="mt-5">
+                            {activeTab === 'list' ? (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Filtrar por Origen
+                                        </label>
+                                        <select
+                                            value={filtrosHistorial.origen}
+                                            onChange={(e) =>
+                                                setFiltrosHistorial(prev => ({ ...prev, origen: e.target.value }))
+                                            }
+                                            className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                        >
+                                            <option value="">Todos los orígenes</option>
+                                            <option value="RIDS">RIDS</option>
+                                            <option value="ECONNET">ECONNET</option>
+                                            <option value="OTRO">OTRO</option>
+                                        </select>
                                     </div>
 
-                                    <div className="flex items-center gap-3">
-                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
-                                            <option value="">Cliente</option>
-                                            {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Filtrar por Estado
+                                        </label>
+                                        <select
+                                            value={filtrosHistorial.estado}
+                                            onChange={(e) =>
+                                                setFiltrosHistorial(prev => ({ ...prev, estado: e.target.value }))
+                                            }
+                                            className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                        >
+                                            <option value="">Todos los estados</option>
+                                            <option value={EstadoCotizacionGestioo.BORRADOR}>Borrador</option>
+                                            <option value={EstadoCotizacionGestioo.APROBADA}>Aprobada</option>
+                                            <option value={EstadoCotizacionGestioo.RECHAZADA}>Rechazada</option>
+                                            <option value={EstadoCotizacionGestioo.FACTURADA}>Facturación</option>
                                         </select>
+                                    </div>
 
-                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
-                                            <option value="">Generado Por</option>
-                                            {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Filtrar por Técnico
+                                        </label>
+
+                                        <select
+                                            value={filtrosHistorial.tecnico || ""}
+                                            onChange={(e) =>
+                                                setFiltrosHistorial(prev => ({
+                                                    ...prev,
+                                                    tecnico: e.target.value
+                                                }))
+                                            }
+                                            className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                        >
+                                            <option value="">Todos los técnicos</option>
+                                            {tecnicos.map(t => (
+                                                <option key={t.id_tecnico} value={t.id_tecnico}>
+                                                    {t.nombre}
+                                                </option>
+                                            ))}
                                         </select>
+                                    </div>
 
-                                        <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
-                                            <option value="">Enviado Por</option>
-                                            {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
-                                        </select>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Filtrar por Mes
+                                        </label>
 
-                                        <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
+                                        <input
+                                            type="month"
+                                            value={filtroMes}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+                                                setFiltroMes(value);
+                                                setPage(1);
 
-                                        <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
+                                                if (!value) {
+                                                    fetchCotizaciones(1);
+                                                    return;
+                                                }
+                                            }}
+                                            className="w-full rounded-full border border-cyan-100 bg-white px-3 py-2 text-sm text-slate-700 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                                        />
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                </section>
+                            ) : (
+                                <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-4">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                        <div className="flex items-center w-full rounded-full bg-white border border-cyan-100 px-3 py-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar cotización, cliente o estado..."
+                                                className="flex-1 bg-transparent outline-none text-sm text-slate-700 px-3 py-2"
+                                                value={envSearch}
+                                                onChange={(e) => {
+                                                    setEnvSearch(e.target.value);
+                                                    dispatchCotEnviadasFilters({ search: e.target.value });
+                                                }}
+                                            />
+                                            <button className="inline-flex items-center justify-center rounded-full bg-cyan-600 text-white p-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                                                </svg>
+                                            </button>
+                                        </div>
 
+                                        <div className="flex items-center gap-3">
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterCliente} onChange={(e) => { setEnvFilterCliente(e.target.value); dispatchCotEnviadasFilters({ filterCliente: e.target.value }); }}>
+                                                <option value="">Cliente</option>
+                                                {envClientesOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                                            </select>
 
-                <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterGenero} onChange={(e) => { setEnvFilterGenero(e.target.value); dispatchCotEnviadasFilters({ filterGenero: e.target.value }); }}>
+                                                <option value="">Generado Por</option>
+                                                {envGenerosOptions.map(g => (<option key={g} value={g}>{g}</option>))}
+                                            </select>
 
-                {/* Mostrar la vista de Cotizaciones Enviadas dentro de la misma página cuando esté activa */}
-                {activeTab === 'enviadas' && (
-                    <section className="mt-6">
-                        <CotizacionesEnviadas />
-                    </section>
-                )}
+                                            <select className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envFilterEnviadoPor} onChange={(e) => { setEnvFilterEnviadoPor(e.target.value); dispatchCotEnviadasFilters({ filterEnviadoPor: e.target.value }); }}>
+                                                <option value="">Enviado Por</option>
+                                                {envEnviadosOptions.map(s => (<option key={s} value={s}>{s}</option>))}
+                                            </select>
 
-                {/* LISTADO */}
-                {activeTab === 'list' && (
-                    <section className="mt-6">
-                        <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
-                            {/* MOBILE */}
-                            <div className="block md:hidden">
-                                {cotizaciones.length === 0 ? (
-                                    <div className="py-6 text-center text-sm text-gray-500">
-                                        Sin resultados.
+                                            <input type="month" className="rounded-full border border-slate-300 px-3 py-1 text-sm bg-white" value={envMonth} onChange={(e) => { setEnvMonth(e.target.value); dispatchCotEnviadasFilters({ dateRange: e.target.value ? [e.target.value, e.target.value] : null }); }} />
+
+                                            <button onClick={() => window.dispatchEvent(new CustomEvent('cotizacionesEnviadas:refresh'))} className="inline-flex items-center gap-2 rounded-full px-4 py-2 border border-cyan-200 text-cyan-700 bg-white hover:bg-cyan-50">Recargar</button>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="divide-y divide-cyan-100">
-                                        {cotizaciones.map((c: CotRow) => (
-                                            <div key={c.id} className="px-4 py-4">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <div className="text-base font-semibold text-slate-800">
-                                                            Cotización #{c.id}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+
+
+                    <SendCotizacionModal show={showSendMailModal} onClose={() => setShowSendMailModal(false)} cotizacion={showSendMailModal ? selectedCotizacion : null} />
+
+                    {/* Mostrar la vista de Cotizaciones Enviadas dentro de la misma página cuando esté activa */}
+                    {activeTab === 'enviadas' && (
+                        <section className="mt-6">
+                            <CotizacionesEnviadas />
+                        </section>
+                    )}
+
+                    {/* LISTADO */}
+                    {activeTab === 'list' && (
+                        <section className="mt-6">
+                            <div className="overflow-hidden rounded-2xl border border-cyan-200 bg-white shadow-sm">
+                                {/* MOBILE */}
+                                <div className="block md:hidden">
+                                    {cotizaciones.length === 0 ? (
+                                        <div className="py-6 text-center text-sm text-gray-500">
+                                            Sin resultados.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-cyan-100">
+                                            {cotizaciones.map((c: CotRow) => (
+                                                <div key={c.id} className="px-4 py-4">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="text-base font-semibold text-slate-800">
+                                                                Cotización #{c.id}
+                                                            </div>
+                                                            <div className="mt-1 text-sm text-slate-500">
+                                                                {new Date(c.fecha).toLocaleDateString("es-CL")}
+                                                            </div>
                                                         </div>
-                                                        <div className="mt-1 text-sm text-slate-500">
-                                                            {new Date(c.fecha).toLocaleDateString("es-CL")}
+
+                                                        <div className="relative shrink-0">
+                                                            {renderEstadoButton(c)}
                                                         </div>
                                                     </div>
 
-                                                    <div className="relative shrink-0">
-                                                        {renderEstadoButton(c)}
+                                                    <div className="mt-3 space-y-1 text-sm text-slate-600">
+                                                        <div><b>Técnico:</b> {c.tecnico?.nombre || "---"}</div>
+                                                        <div><b>Cliente:</b> {c.entidad?.nombre || "---"}</div>
+                                                        <div>
+                                                            <b>Total:</b>{" "}
+                                                            {formatearMontoFinal(
+                                                                c.total,
+                                                                c.moneda || "CLP",
+                                                                c.tasaCambio ?? 1
+                                                            )}
+                                                        </div>
+                                                        {!isCliente && (
+                                                            <div>
+                                                                <b>Factura:</b>{" "}
+                                                                <span className="inline-block align-middle">
+                                                                    {renderFacturaContent(c)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="mt-4">
+                                                        {renderActionButtons(c, true)}
                                                     </div>
                                                 </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
-                                                <div className="mt-3 space-y-1 text-sm text-slate-600">
-                                                    <div><b>Técnico:</b> {c.tecnico?.nombre || "---"}</div>
-                                                    <div><b>Cliente:</b> {c.entidad?.nombre || "---"}</div>
-                                                    <div>
-                                                        <b>Total:</b>{" "}
+                                {/* DESKTOP */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full min-w-[1100px] divide-y divide-gray-200">
+                                        <thead className="bg-cyan-50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    N°
+                                                </th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Fecha Cotización
+                                                </th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Estado
+                                                </th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Cotización generado por:
+                                                </th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Cliente
+                                                </th>
+                                                {!isCliente && (
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                        Factura
+                                                    </th>
+                                                )}
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Total
+                                                </th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
+                                                    Acciones
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody className="divide-y divide-gray-200">
+                                            {cotizaciones.map((c: CotRow) => (
+                                                <tr key={c.id} className="transition hover:bg-cyan-50">
+                                                    <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
+                                                        {c.id}
+                                                    </td>
+
+                                                    <td className="px-4 py-3 text-center text-sm text-slate-600">
+                                                        {new Date(c.fecha).toLocaleDateString("es-CL")}
+                                                    </td>
+
+                                                    <td className="relative px-4 py-3 text-center">
+                                                        {renderEstadoButton(c)}
+                                                    </td>
+
+                                                    <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                        {c.tecnico?.nombre || "---"}
+                                                    </td>
+
+                                                    <td className="px-4 py-3 text-center text-sm text-slate-700">
+                                                        {c.entidad?.nombre || "---"}
+                                                    </td>
+                                                    {!isCliente && (
+                                                        <td className="px-4 py-3 text-center text-sm">
+                                                            {renderFacturaContent(c)}
+                                                        </td>
+                                                    )}
+
+                                                    <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
                                                         {formatearMontoFinal(
                                                             c.total,
                                                             c.moneda || "CLP",
                                                             c.tasaCambio ?? 1
                                                         )}
-                                                    </div>
-                                                    {!isCliente && (
-                                                        <div>
-                                                            <b>Factura:</b>{" "}
-                                                            <span className="inline-block align-middle">
-                                                                {renderFacturaContent(c)}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="mt-4">
-                                                    {renderActionButtons(c, true)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* DESKTOP */}
-                            <div className="hidden md:block overflow-x-auto">
-                                <table className="w-full min-w-[1100px] divide-y divide-gray-200">
-                                    <thead className="bg-cyan-50">
-                                        <tr>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                N°
-                                            </th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Fecha Cotización
-                                            </th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Estado
-                                            </th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Cotización generado por:
-                                            </th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Cliente
-                                            </th>
-                                            {!isCliente && (
-                                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                    Factura
-                                                </th>
-                                            )}
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Total
-                                            </th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">
-                                                Acciones
-                                            </th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="divide-y divide-gray-200">
-                                        {cotizaciones.map((c: CotRow) => (
-                                            <tr key={c.id} className="transition hover:bg-cyan-50">
-                                                <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
-                                                    {c.id}
-                                                </td>
-
-                                                <td className="px-4 py-3 text-center text-sm text-slate-600">
-                                                    {new Date(c.fecha).toLocaleDateString("es-CL")}
-                                                </td>
-
-                                                <td className="relative px-4 py-3 text-center">
-                                                    {renderEstadoButton(c)}
-                                                </td>
-
-                                                <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                    {c.tecnico?.nombre || "---"}
-                                                </td>
-
-                                                <td className="px-4 py-3 text-center text-sm text-slate-700">
-                                                    {c.entidad?.nombre || "---"}
-                                                </td>
-                                                {!isCliente && (
-                                                    <td className="px-4 py-3 text-center text-sm">
-                                                        {renderFacturaContent(c)}
                                                     </td>
-                                                )}
 
-                                                <td className="whitespace-nowrap px-4 py-3 text-center text-sm font-bold text-slate-900">
-                                                    {formatearMontoFinal(
-                                                        c.total,
-                                                        c.moneda || "CLP",
-                                                        c.tasaCambio ?? 1
-                                                    )}
-                                                </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        {renderActionButtons(c, false)}
+                                                    </td>
+                                                </tr>
+                                            ))}
 
-                                                <td className="px-4 py-3 text-center">
-                                                    {renderActionButtons(c, false)}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                            {cotizaciones.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        colSpan={9}
+                                                        className="py-6 text-center text-sm text-gray-500"
+                                                    >
+                                                        Sin resultados.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
 
-                                        {cotizaciones.length === 0 && (
-                                            <tr>
-                                                <td
-                                                    colSpan={9}
-                                                    className="py-6 text-center text-sm text-gray-500"
-                                                >
-                                                    Sin resultados.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                {/* Footer */}
+                                <div className="flex flex-col gap-3 border-t border-cyan-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <span className="whitespace-nowrap text-xs text-slate-500">
+                                        Mostrando {cotizaciones.length} de {totalCotizaciones} cotizaciones
+                                    </span>
 
-                            {/* Footer */}
-                            <div className="flex flex-col gap-3 border-t border-cyan-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                                <span className="whitespace-nowrap text-xs text-slate-500">
-                                    Mostrando {cotizaciones.length} de {totalCotizaciones} cotizaciones
-                                </span>
+                                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+                                        <button
+                                            onClick={() => fetchCotizaciones(page - 1)}
+                                            disabled={page <= 1}
+                                            className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            ← Anterior
+                                        </button>
 
-                                <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
-                                    <button
-                                        onClick={() => fetchCotizaciones(page - 1)}
-                                        disabled={page <= 1}
-                                        className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        ← Anterior
-                                    </button>
+                                        {(() => {
+                                            const visiblePages: (number | "...")[] = [];
 
-                                    {(() => {
-                                        const visiblePages: (number | "...")[] = [];
+                                            const start = Math.max(1, page - 1);
+                                            const end = Math.min(totalPages, page + 1);
 
-                                        const start = Math.max(1, page - 1);
-                                        const end = Math.min(totalPages, page + 1);
+                                            if (start > 1) {
+                                                visiblePages.push(1);
+                                                if (start > 2) visiblePages.push("...");
+                                            }
 
-                                        if (start > 1) {
-                                            visiblePages.push(1);
-                                            if (start > 2) visiblePages.push("...");
-                                        }
+                                            for (let i = start; i <= end; i++) {
+                                                visiblePages.push(i);
+                                            }
 
-                                        for (let i = start; i <= end; i++) {
-                                            visiblePages.push(i);
-                                        }
+                                            if (end < totalPages) {
+                                                if (end < totalPages - 1) visiblePages.push("...");
+                                                visiblePages.push(totalPages);
+                                            }
 
-                                        if (end < totalPages) {
-                                            if (end < totalPages - 1) visiblePages.push("...");
-                                            visiblePages.push(totalPages);
-                                        }
+                                            return visiblePages.map((p, idx) =>
+                                                p === "..." ? (
+                                                    <span
+                                                        key={`e-${idx}`}
+                                                        className="px-1 text-sm text-slate-400"
+                                                    >
+                                                        …
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => fetchCotizaciones(p)}
+                                                        className={`h-8 w-8 rounded-lg text-sm font-medium transition ${page === p
+                                                            ? "bg-cyan-600 text-white shadow-sm"
+                                                            : "border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                                                            }`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                )
+                                            );
+                                        })()}
 
-                                        return visiblePages.map((p, idx) =>
-                                            p === "..." ? (
-                                                <span
-                                                    key={`e-${idx}`}
-                                                    className="px-1 text-sm text-slate-400"
-                                                >
-                                                    …
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    key={p}
-                                                    onClick={() => fetchCotizaciones(p)}
-                                                    className={`h-8 w-8 rounded-lg text-sm font-medium transition ${page === p
-                                                        ? "bg-cyan-600 text-white shadow-sm"
-                                                        : "border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
-                                                        }`}
-                                                >
-                                                    {p}
-                                                </button>
-                                            )
-                                        );
-                                    })()}
-
-                                    <button
-                                        onClick={() => {
-                                            const next = page + 1;
-                                            setPage(next);
-                                            fetchCotizaciones(next);
-                                        }}
-                                        disabled={page >= totalPages}
-                                        className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                        Siguiente →
-                                    </button>
+                                        <button
+                                            onClick={() => {
+                                                const next = page + 1;
+                                                setPage(next);
+                                                fetchCotizaciones(next);
+                                            }}
+                                            disabled={page >= totalPages}
+                                            className="rounded-lg border border-cyan-200 px-3 py-1.5 text-sm text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Siguiente →
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </section>
-                )}
-            </div>
+                        </section>
+                    )}
+                </div>
 
-            {/* Agregar el nuevo modal */}
-            <GenerarPDFModal
-                show={showGenerarPDFModal}
-                onClose={() => setShowGenerarPDFModal(false)}
-                cotizacion={selectedCotizacion}
-                onPreviewPDF={handlePDFPreview}
-            />
-
-            {/* MODALES */}
-            <ViewCotizacionModal
-                show={showViewModal}
-                cotizacion={selectedCotizacion}
-                onClose={() => {
-                    setShowViewModal(false);
-                }}
-                pdfURL={null}
-            />
-
-            <ViewCotizacionModal
-                show={showPdfViewerModal}
-                cotizacion={selectedCotizacion}
-                onClose={() => {
-                    setShowPdfViewerModal(false);
-                    setPdfURL(null);
-                }}
-                pdfURL={pdfURL}
-            />
-            {!isCliente && (
-                <CotizacionesMasivasManager
-                    show={showCotizacionesMasivasManager}
-                    onClose={() => setShowCotizacionesMasivasManager(false)}
-                    entidades={entidades}
-                    productos={productosCatalogo}
-                    onReloadCotizaciones={() => fetchCotizaciones(1)}
-                    showSuccess={showSuccess}
-                    handleApiError={handleApiError}
-                    apiFetch={apiFetch}
-                    fetchCatalogo={fetchCatalogo}
-                    fetchEntidades={fetchEntidades}
-                />
-            )}
-            {!isCliente && (
-                <CreateCotizacionModal
-                    show={showCreateModal}
-                    onClose={() => {
-                        setShowCreateModal(false);
-                        resetForm();
-                    }}
-                    formData={formData}
-                    setFormData={setFormData}
-                    items={items}
-                    setItems={setItems}
-                    entidades={entidades}
-                    filtroOrigen={filtroOrigen}
-                    setFiltroOrigen={setFiltroOrigen}
-                    onCargarProductos={cargarProductos}
-                    onCargarServicios={cargarServicios}
-                    onAddItem={handleAddItem}
-                    onUpdateItem={handleUpdateItem}
-                    onRemoveItem={handleRemoveItem}
-                    onCrearCotizacion={handleCreateCotizacion}
-                    onCrearEmpresa={() => setShowNewEmpresaModal(true)}
-                    onCrearProducto={() => {
-                        setShowNewProductoModal(true);
-                        document.body.classList.add("modal-nested-open");
-                    }}
-                    onCrearPersona={() => setShowNewEntidadModal(true)}
-                    onEditarPersona={(entidad) => {
-                        setEntidadParaEditar(entidad);
-                        setNombre(entidad.nombre);
-                        setRut(entidad.rut ?? "");
-                        setCorreo(entidad.correo ?? "");
-                        setTelefono(entidad.telefono ?? "");
-                        setDireccion(entidad.direccion ?? "");
-                        setShowEditEntidadModal(true);
-                    }}
-                    onEditarProducto={abrirEditarProductoDesdeCotizacion}
-                    onEditarServicio={editarItem}
-                    onCrearServicio={() => { setShowCreateServicioModal(true); }}
-                    totales={totales}
-                    apiLoading={apiLoading}
-                    onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, false)}
-                    onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, false)}
-                    onVincularEquipo={handleVincularEquipoAItem}
-                />)}
-            {!isCliente && (
-                <EditCotizacionModal
-                    show={showEditModal}
+                {/* Agregar el nuevo modal */}
+                <GenerarPDFModal
+                    show={showGenerarPDFModal}
+                    onClose={() => setShowGenerarPDFModal(false)}
                     cotizacion={selectedCotizacion}
-                    onGenerarPDF={(cotizacionActualizada) => {
-                        setSelectedCotizacion(cotizacionActualizada);
-                        setShowGenerarPDFModal(true);
-                    }}
-                    onClose={() => setShowEditModal(false)}
-                    onUpdate={handleUpdateCotizacion}
-                    onCargarProductos={cargarProductos}
-                    onCargarServicios={cargarServicios}
-                    onUpdateCotizacion={setSelectedCotizacion}
-                    apiLoading={apiLoading}
-                    onCrearProducto={() => {
-                        setShowNewProductoModal(true);
-                        document.body.classList.add("modal-nested-open");
-                    }}
-                    onEditarProducto={abrirEditarItem}
-                    onItemChange={handleItemChange}
-                    onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
-                    onVincularEquipo={handleVincularEquipoAItem}
-                    onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
+                    onPreviewPDF={handlePDFPreview}
+                />
 
-                />)}
-
-            <SelectProductoModal
-                show={showSelectorProducto}
-                onClose={() => setShowSelectorProducto(false)}
-                productos={productosCatalogo}
-                filtros={filtrosProductos}
-                onFiltroChange={(filtro, value) =>
-                    setFiltrosProductos(prev => ({ ...prev, [filtro]: value }))
-                }
-                onLimpiarFiltros={() =>
-                    setFiltrosProductos({
-                        texto: "",
-                        codigo: "",
-                        precioMin: "",
-                        precioMax: "",
-                        categoria: ""
-                    })
-                }
-                onAgregarProducto={
-                    showEditModal
-                        ? agregarProductoEnEdicion
-                        : agregarProducto
-                }
-                onEliminarProducto={handleEliminarProducto}
-                orden={ordenProducto}
-                onOrdenChange={setOrdenProducto}
-                categoriasDisponibles={categoriasDisponibles}
-            />
-
-            <SelectServicioModal
-                show={showSelectorServicio}
-                onClose={() => setShowSelectorServicio(false)}
-                servicios={serviciosCatalogo}
-                filtros={filtrosServicios}
-                onFiltroChange={(filtro, value) =>
-                    setFiltrosServicios(prev => ({ ...prev, [filtro]: value }))
-                }
-                onLimpiarFiltros={() =>
-                    setFiltrosServicios({
-                        texto: "",
-                        codigo: "",
-                        precioMin: "",
-                        precioMax: "",
-                        categoria: ""
-                    })
-                }
-                onAgregarServicio={agregarServicio}
-            />
-
-            <EditProductoModal
-                onBackToSelector={() => {
-                    setShowEditProductoModal(false);
-
-                    if (origenEditProducto === "catalogo") {
-                        setShowSelectorProducto(true);
+                {/* MODALES */}
+                <ViewCotizacionModal
+                    show={
+                        showViewModal
                     }
 
-                    setOrigenEditProducto(null);
-                }}
-                show={showEditProductoModal}
-                producto={productoAEditar}
-                onClose={() => setShowEditProductoModal(false)}
-                onSave={handleEditarProducto}
-                apiLoading={apiLoading}
-                onUpdateRealTime={(itemActualizado) => {
-                    if (selectedCotizacion && showEditModal) {
-                        const itemsActualizados = selectedCotizacion.items.map(i =>
-                            i.id === itemActualizado.id
-                                ? { ...i, ...itemActualizado }
-                                : i
+                    cotizacion={
+                        selectedCotizacion
+                    }
+
+                    onClose={() => {
+
+                        setShowViewModal(
+                            false
                         );
 
-                        setSelectedCotizacion({
-                            ...selectedCotizacion,
-                            items: itemsActualizados
-                        });
-                    }
 
-                    if (showCreateModal) {
-                        setItems(prev =>
-                            prev.map(i =>
+                        if (
+                            funnelReturnContext
+                        ) {
+                            volverAlFunnel();
+                        }
+                    }}
+
+                    pdfURL={
+                        null
+                    }
+                />
+
+                <ViewCotizacionModal
+                    show={showPdfViewerModal}
+                    cotizacion={selectedCotizacion}
+                    onClose={() => {
+                        setShowPdfViewerModal(false);
+                        setPdfURL(null);
+                    }}
+                    pdfURL={pdfURL}
+                />
+                {!isCliente && (
+                    <CotizacionesMasivasManager
+                        show={showCotizacionesMasivasManager}
+                        onClose={() => setShowCotizacionesMasivasManager(false)}
+                        entidades={entidades}
+                        productos={productosCatalogo}
+                        onReloadCotizaciones={() => fetchCotizaciones(1)}
+                        showSuccess={showSuccess}
+                        handleApiError={handleApiError}
+                        apiFetch={apiFetch}
+                        fetchCatalogo={fetchCatalogo}
+                        fetchEntidades={fetchEntidades}
+                    />
+                )}
+                {!isCliente && (
+                    <CreateCotizacionModal
+                        show={
+                            showCreateModal
+                        }
+
+                        puedeUsarFunnel={
+                            puedeUsarFunnel
+                        }
+
+                        onClose={() => {
+                            setShowCreateModal(
+                                false
+                            );
+
+                            resetForm();
+                        }}
+
+                        formData={
+                            formData
+                        }
+
+                        setFormData={
+                            setFormData
+                        }
+
+                        items={
+                            items
+                        }
+
+                        setItems={
+                            setItems
+                        }
+
+                        entidades={
+                            entidades
+                        }
+
+                        filtroOrigen={
+                            filtroOrigen
+                        }
+
+                        setFiltroOrigen={
+                            setFiltroOrigen
+                        }
+
+                        onCargarProductos={
+                            cargarProductos
+                        }
+
+                        onCargarServicios={
+                            cargarServicios
+                        }
+
+                        onAddItem={
+                            handleAddItem
+                        }
+
+                        onUpdateItem={
+                            handleUpdateItem
+                        }
+
+                        onRemoveItem={
+                            handleRemoveItem
+                        }
+
+                        onCrearCotizacion={
+                            handleCreateCotizacion
+                        }
+
+                        onCrearYEnviarCotizacion={
+                            handleCreateAndSendCotizacion
+                        }
+
+                        onCrearEmpresa={() =>
+                            setShowNewEmpresaModal(
+                                true
+                            )
+                        }
+
+                        onCrearProducto={() => {
+                            setShowNewProductoModal(
+                                true
+                            );
+
+                            document.body.classList.add(
+                                "modal-nested-open"
+                            );
+                        }}
+
+                        onCrearPersona={() =>
+                            setShowNewEntidadModal(
+                                true
+                            )
+                        }
+
+                        onEditarPersona={(
+                            entidad
+                        ) => {
+                            setEntidadParaEditar(
+                                entidad
+                            );
+
+                            setNombre(
+                                entidad.nombre
+                            );
+
+                            setRut(
+                                entidad.rut ?? ""
+                            );
+
+                            setCorreo(
+                                entidad.correo ??
+                                ""
+                            );
+
+                            setTelefono(
+                                entidad.telefono ??
+                                ""
+                            );
+
+                            setDireccion(
+                                entidad.direccion ??
+                                ""
+                            );
+
+                            setShowEditEntidadModal(
+                                true
+                            );
+                        }}
+
+                        onEditarProducto={
+                            abrirEditarProductoDesdeCotizacion
+                        }
+
+                        onEditarServicio={
+                            editarItem
+                        }
+
+                        onCrearServicio={() => {
+                            setShowCreateServicioModal(
+                                true
+                            );
+                        }}
+
+                        totales={
+                            totales
+                        }
+
+                        apiLoading={
+                            apiLoading
+                        }
+
+                        creatingAndSending={
+                            creatingAndSending
+                        }
+
+                        onAbrirCrearEquipo={(
+                            item
+                        ) =>
+                            handleAbrirCrearEquipoDesdeItem(
+                                item,
+                                false
+                            )
+                        }
+
+                        onAbrirSeleccionEquipo={(
+                            item
+                        ) =>
+                            handleAbrirSeleccionEquipo(
+                                item,
+                                false
+                            )
+                        }
+
+                        onVincularEquipo={
+                            handleVincularEquipoAItem
+                        }
+                    />)}
+                {!isCliente && (
+                    <EditCotizacionModal
+                        show={showEditModal}
+                        cotizacion={selectedCotizacion}
+                        onGenerarPDF={(cotizacionActualizada) => {
+                            setSelectedCotizacion(cotizacionActualizada);
+                            setShowGenerarPDFModal(true);
+                        }}
+                        onClose={() => {
+
+                            setShowEditModal(
+                                false
+                            );
+
+
+                            if (
+                                funnelReturnContext
+                            ) {
+                                volverAlFunnel();
+                            }
+                        }}
+                        onUpdate={handleUpdateCotizacion}
+                        onCargarProductos={cargarProductos}
+                        onCargarServicios={cargarServicios}
+                        onUpdateCotizacion={setSelectedCotizacion}
+                        apiLoading={apiLoading}
+                        onCrearProducto={() => {
+                            setShowNewProductoModal(true);
+                            document.body.classList.add("modal-nested-open");
+                        }}
+                        onEditarProducto={abrirEditarItem}
+                        onItemChange={handleItemChange}
+                        onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
+                        onVincularEquipo={handleVincularEquipoAItem}
+                        onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
+
+                    />)}
+
+                <SelectProductoModal
+                    show={showSelectorProducto}
+                    onClose={() => setShowSelectorProducto(false)}
+                    productos={productosCatalogo}
+                    filtros={filtrosProductos}
+                    onFiltroChange={(filtro, value) =>
+                        setFiltrosProductos(prev => ({ ...prev, [filtro]: value }))
+                    }
+                    onLimpiarFiltros={() =>
+                        setFiltrosProductos({
+                            texto: "",
+                            codigo: "",
+                            precioMin: "",
+                            precioMax: "",
+                            categoria: ""
+                        })
+                    }
+                    onAgregarProducto={
+                        showEditModal
+                            ? agregarProductoEnEdicion
+                            : agregarProducto
+                    }
+                    onEliminarProducto={handleEliminarProducto}
+                    orden={ordenProducto}
+                    onOrdenChange={setOrdenProducto}
+                    categoriasDisponibles={categoriasDisponibles}
+                />
+
+                <SelectServicioModal
+                    show={showSelectorServicio}
+                    onClose={() => setShowSelectorServicio(false)}
+                    servicios={serviciosCatalogo}
+                    filtros={filtrosServicios}
+                    onFiltroChange={(filtro, value) =>
+                        setFiltrosServicios(prev => ({ ...prev, [filtro]: value }))
+                    }
+                    onLimpiarFiltros={() =>
+                        setFiltrosServicios({
+                            texto: "",
+                            codigo: "",
+                            precioMin: "",
+                            precioMax: "",
+                            categoria: ""
+                        })
+                    }
+                    onAgregarServicio={agregarServicio}
+                />
+
+                <EditProductoModal
+                    onBackToSelector={() => {
+                        setShowEditProductoModal(false);
+
+                        if (origenEditProducto === "catalogo") {
+                            setShowSelectorProducto(true);
+                        }
+
+                        setOrigenEditProducto(null);
+                    }}
+                    show={showEditProductoModal}
+                    producto={productoAEditar}
+                    onClose={() => setShowEditProductoModal(false)}
+                    onSave={handleEditarProducto}
+                    apiLoading={apiLoading}
+                    onUpdateRealTime={(itemActualizado) => {
+                        if (selectedCotizacion && showEditModal) {
+                            const itemsActualizados = selectedCotizacion.items.map(i =>
                                 i.id === itemActualizado.id
                                     ? { ...i, ...itemActualizado }
                                     : i
-                            )
-                        );
+                            );
+
+                            setSelectedCotizacion({
+                                ...selectedCotizacion,
+                                items: itemsActualizados
+                            });
+                        }
+
+                        if (showCreateModal) {
+                            setItems(prev =>
+                                prev.map(i =>
+                                    i.id === itemActualizado.id
+                                        ? { ...i, ...itemActualizado }
+                                        : i
+                                )
+                            );
+                        }
+                    }}
+                />
+
+                <NewEntidadModal
+                    show={showNewEntidadModal}
+                    onClose={() => setShowNewEntidadModal(false)}
+                    onSubmit={handleCrearPersona}
+                    formData={{ nombre, rut, correo, telefono, direccion }}
+                    onFormChange={(field, value) => {
+                        if (field === "nombre") setNombre(value);
+                        if (field === "rut") setRut(value);
+                        if (field === "correo") setCorreo(value);
+                        if (field === "telefono") setTelefono(value);
+                        if (field === "direccion") setDireccion(value);
+                    }}
+                    apiLoading={apiLoading}
+                />
+
+                <EditEntidadModal
+                    show={showEditEntidadModal}
+                    entidad={entidadParaEditar}
+                    onClose={() => setShowEditEntidadModal(false)}
+                    onSubmit={handleEditarPersona}
+                    formData={{ nombre, rut, correo, telefono, direccion }}
+                    onFormChange={(field, value) => {
+                        if (field === "nombre") setNombre(value);
+                        if (field === "rut") setRut(value);
+                        if (field === "correo") setCorreo(value);
+                        if (field === "telefono") setTelefono(value);
+                        if (field === "direccion") setDireccion(value);
+                    }}
+                    apiLoading={apiLoading}
+                />
+
+                <NewEmpresaModal
+                    show={showNewEmpresaModal}
+                    onClose={() => setShowNewEmpresaModal(false)}
+                    onSubmit={handleCrearEmpresa}
+                    formData={empresaForm}
+                    onFormChange={(field, value) =>
+                        setEmpresaForm(prev => ({ ...prev, [field]: value }))
                     }
-                }}
-            />
+                    apiLoading={apiLoading}
+                />
 
-            <NewEntidadModal
-                show={showNewEntidadModal}
-                onClose={() => setShowNewEntidadModal(false)}
-                onSubmit={handleCrearPersona}
-                formData={{ nombre, rut, correo, telefono, direccion }}
-                onFormChange={(field, value) => {
-                    if (field === "nombre") setNombre(value);
-                    if (field === "rut") setRut(value);
-                    if (field === "correo") setCorreo(value);
-                    if (field === "telefono") setTelefono(value);
-                    if (field === "direccion") setDireccion(value);
-                }}
-                apiLoading={apiLoading}
-            />
+                <NewProductoModal
+                    show={showNewProductoModal}
+                    onClose={() => {
+                        setShowNewProductoModal(false);
 
-            <EditEntidadModal
-                show={showEditEntidadModal}
-                entidad={entidadParaEditar}
-                onClose={() => setShowEditEntidadModal(false)}
-                onSubmit={handleEditarPersona}
-                formData={{ nombre, rut, correo, telefono, direccion }}
-                onFormChange={(field, value) => {
-                    if (field === "nombre") setNombre(value);
-                    if (field === "rut") setRut(value);
-                    if (field === "correo") setCorreo(value);
-                    if (field === "telefono") setTelefono(value);
-                    if (field === "direccion") setDireccion(value);
-                }}
-                apiLoading={apiLoading}
-            />
-
-            <NewEmpresaModal
-                show={showNewEmpresaModal}
-                onClose={() => setShowNewEmpresaModal(false)}
-                onSubmit={handleCrearEmpresa}
-                formData={empresaForm}
-                onFormChange={(field, value) =>
-                    setEmpresaForm(prev => ({ ...prev, [field]: value }))
-                }
-                apiLoading={apiLoading}
-            />
-
-            <NewProductoModal
-                show={showNewProductoModal}
-                onClose={() => {
-                    setShowNewProductoModal(false);
-
-                    setProductoForm({
-                        nombre: "",
-                        descripcion: "",
-                        precio: 0,
-                        porcGanancia: 30,
-                        precioTotal: 0,
-                        categoria: "",
-                        stock: 0,
-                        serie: "",
-                        imagen: "",
-                        imagenFile: null,
-                    });
-
-                    document.body.classList.remove("modal-nested-open");
-                }}
-                onSubmit={handleCrearProducto}
-                formData={productoForm}
-                onFormChange={(field, value) =>
-                    setProductoForm(prev => ({ ...prev, [field]: value }))
-                }
-                categoriasDisponibles={categoriasDisponibles}
-                apiLoading={loadingCrearProducto}
-            />
-
-            <NewServicioModal
-                show={showCreateServicioModal}
-                onClose={() => setShowCreateServicioModal(false)}
-                onSave={async (servicioCreado) => {
-                    try {
-                        const resp = await apiFetch("/servicios-gestioo", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(servicioCreado),
+                        setProductoForm({
+                            nombre: "",
+                            descripcion: "",
+                            precio: 0,
+                            porcGanancia: 30,
+                            precioTotal: 0,
+                            categoria: "",
+                            stock: 0,
+                            serie: "",
+                            imagen: "",
+                            imagenFile: null,
                         });
 
-                        const servicioReal = resp.data;
-
-                        setServiciosCatalogo(prev => [...prev, servicioReal]);
-                        setShowCreateServicioModal(false);
-
-                        showSuccess("Servicio creado correctamente");
-
-                    } catch (error) {
-                        handleApiError(error, "Error al crear servicio");
+                        document.body.classList.remove("modal-nested-open");
+                    }}
+                    onSubmit={handleCrearProducto}
+                    formData={productoForm}
+                    onFormChange={(field, value) =>
+                        setProductoForm(prev => ({ ...prev, [field]: value }))
                     }
-                }}
-                apiLoading={apiLoading}
-            />
+                    categoriasDisponibles={categoriasDisponibles}
+                    apiLoading={loadingCrearProducto}
+                />
 
-            <CrearEquipoModal
-                open={showCrearEquipoDesdeItem}
-                onClose={() => {
-                    setShowCrearEquipoDesdeItem(false);
-                    setItemParaEquipo(null);
-                }}
-                defaultValues={{
-                    serial: itemParaEquipo?.sku ?? undefined,
-                    precioVenta: itemParaEquipo?.precio,
-                }}
-                onCreated={handleEquipoCreado}
-            />
+                <NewServicioModal
+                    show={showCreateServicioModal}
+                    onClose={() => setShowCreateServicioModal(false)}
+                    onSave={async (servicioCreado) => {
+                        try {
+                            const resp = await apiFetch("/servicios-gestioo", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(servicioCreado),
+                            });
 
-            <SelectEquipoModal
-                show={showSelectEquipo}
-                equipos={equiposDisponibles}
-                loading={loadingEquipos}
-                onClose={() => {
-                    setShowSelectEquipo(false);
-                    setItemEquipoActual(null);
-                }}
-                onSelect={handleSeleccionarEquipoExistente}
-            />
+                            const servicioReal = resp.data;
 
-            {/* Toast */}
-            {toast && (
-                <motion.div
-                    initial={{ y: -40, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -40, opacity: 0 }}
-                    className={`
+                            setServiciosCatalogo(prev => [...prev, servicioReal]);
+                            setShowCreateServicioModal(false);
+
+                            showSuccess("Servicio creado correctamente");
+
+                        } catch (error) {
+                            handleApiError(error, "Error al crear servicio");
+                        }
+                    }}
+                    apiLoading={apiLoading}
+                />
+
+                <CrearEquipoModal
+                    open={showCrearEquipoDesdeItem}
+                    onClose={() => {
+                        setShowCrearEquipoDesdeItem(false);
+                        setItemParaEquipo(null);
+                    }}
+                    defaultValues={{
+                        serial: itemParaEquipo?.sku ?? undefined,
+                        precioVenta: itemParaEquipo?.precio,
+                    }}
+                    onCreated={handleEquipoCreado}
+                />
+
+                <SelectEquipoModal
+                    show={showSelectEquipo}
+                    equipos={equiposDisponibles}
+                    loading={loadingEquipos}
+                    onClose={() => {
+                        setShowSelectEquipo(false);
+                        setItemEquipoActual(null);
+                    }}
+                    onSelect={handleSeleccionarEquipoExistente}
+                />
+
+                {/* Toast */}
+                {toast && (
+                    <motion.div
+                        initial={{ y: -40, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -40, opacity: 0 }}
+                        className={`
                         fixed left-3 right-3 top-3 z-[99999]
                         flex items-center gap-3 rounded-xl px-4 py-3
                         text-white shadow-[0_10px_40px_rgba(0,0,0,0.3)]
                         sm:left-auto sm:right-5 sm:top-5
                         ${toast.type === "success" ? "bg-green-600" : "bg-rose-600"}
                     `}
-                >
-                    {toast.type === "success" ? (
-                        <CheckCircleOutlined className="text-xl" />
-                    ) : (
-                        <CloseCircleOutlined className="text-xl" />
-                    )}
-                    <span className="font-medium">{toast.message}</span>
-                </motion.div>
-            )}
-        </div>
+                    >
+                        {toast.type === "success" ? (
+                            <CheckCircleOutlined className="text-xl" />
+                        ) : (
+                            <CloseCircleOutlined className="text-xl" />
+                        )}
+                        <span className="font-medium">{toast.message}</span>
+                    </motion.div>
+                )}
+            </div>
+        </>
     );
 };
 

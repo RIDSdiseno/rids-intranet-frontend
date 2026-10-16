@@ -13,7 +13,7 @@ import {
   type MantencionRemota,
   type MantencionRemotaUpsert,
   type MantencionStatus,
-} from "../lib/mantencionesRemotasApi";
+} from "../components/modals-mantenciones/mantencionesRemotasApi";
 import { http } from "../service/http";
 
 import MantencionUpsertModal from "../components/modals-mantenciones/MantencionUpsert";

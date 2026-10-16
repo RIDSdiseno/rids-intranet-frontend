@@ -11,6 +11,10 @@ import type {
   FiltrosOportunidad,
   OportunidadDetalle,
   OportunidadFunnelItem,
+  EstadoSeguimientoOportunidad,
+  SeguimientoItem,
+  EnviarInformeOportunidadPayload,
+  EnviarInformeOportunidadResultado,
 } from "../modals-funnel/types";
 import { getOportunidadErrorMessage } from "../modals-funnel/utils";
 
@@ -220,6 +224,64 @@ export function useOportunidadesFunnel() {
     [fetchDetalle, fetchFunnel]
   );
 
+  const cambiarEstadoSeguimiento =
+    useCallback(
+      async (
+        oportunidadId:
+          number,
+
+        seguimientoId:
+          number,
+
+        estado:
+          EstadoSeguimientoOportunidad,
+
+        notaEstado:
+          string
+      ) => {
+
+        const res =
+          await http.patch<{
+            data:
+            SeguimientoItem;
+          }>(
+            `/oportunidades/${oportunidadId}/seguimientos/${seguimientoId}/estado`,
+
+            {
+              estado,
+              notaEstado,
+            }
+          );
+
+
+        /*
+         * Refrescamos:
+         *
+         * 1. Detalle:
+         *    para actualizar estado del seguimiento.
+         *
+         * 2. Funnel:
+         *    por si cambia posteriormente la próxima
+         *    acción general de la oportunidad.
+         */
+        await Promise.all([
+          fetchDetalle(
+            oportunidadId
+          ),
+
+          fetchFunnel(),
+        ]);
+
+
+        return res.data.data;
+      },
+
+      [
+        fetchDetalle,
+        fetchFunnel,
+      ]
+    );
+
   /* =========================================================
      Cotizaciones vinculadas
   ========================================================= */
@@ -238,6 +300,37 @@ export function useOportunidadesFunnel() {
     },
     [fetchDetalle, fetchFunnel]
   );
+
+  /* =========================================================
+   Informe de respaldo del Funnel
+========================================================= */
+
+  const enviarInformeOportunidad =
+    useCallback(
+      async (
+        oportunidadId:
+          number,
+
+        payload:
+          EnviarInformeOportunidadPayload
+      ) => {
+
+        const res =
+          await http.post<
+            ApiEnvelope<
+              EnviarInformeOportunidadResultado
+            >
+          >(
+            `/oportunidades/${oportunidadId}/informe/enviar`,
+            payload
+          );
+
+
+        return res.data.data;
+      },
+
+      []
+    );
 
   /* =========================================================
      Soft delete
@@ -276,5 +369,9 @@ export function useOportunidadesFunnel() {
     vincularCotizacion,
     desvincularCotizacion,
     desactivarOportunidad,
+
+    cambiarEstadoSeguimiento,
+
+    enviarInformeOportunidad
   };
 }

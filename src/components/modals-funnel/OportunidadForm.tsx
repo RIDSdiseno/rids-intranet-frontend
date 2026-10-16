@@ -27,7 +27,14 @@ import {
   getPrioridadLabel,
   getRiesgoTecnicoLabel,
   getTipoServicioOportunidadLabel,
+  formatMontoInput,
+  parseMontoInput
 } from "./utils";
+
+import {
+  PROXIMAS_ACCIONES,
+  getProximasAccionesOptions,
+} from "./proximasAcciones";
 
 const EMPRESA_FORM_VACIO: EmpresaForm = { nombre: "", rut: "", correo: "", telefono: "", direccion: "", origen: "RIDS" };
 const PERSONA_FORM_VACIO = { nombre: "", rut: "", correo: "", telefono: "", direccion: "" };
@@ -57,6 +64,7 @@ interface FormState {
   proximaAccion: string;
   fechaProximaAccion: Dayjs | null;
   observaciones: string;
+  notas: string;
   estadoDesarrolloPropuesta?: EstadoDesarrolloPropuesta;
   tipoServicio?: TipoServicioOportunidad;
   tipoServicioOtro: string;
@@ -91,6 +99,7 @@ const ESTADO_INICIAL: FormState = {
   proximaAccion: "",
   fechaProximaAccion: null,
   observaciones: "",
+  notas: "",
   estadoDesarrolloPropuesta: undefined,
   tipoServicio: undefined,
   tipoServicioOtro: "",
@@ -140,6 +149,7 @@ function estadoDesdeOportunidad(oportunidad: OportunidadDetalle | null): FormSta
     proximaAccion: oportunidad.proximaAccion ?? "",
     fechaProximaAccion: oportunidad.fechaProximaAccion ? dayjs(oportunidad.fechaProximaAccion) : null,
     observaciones: oportunidad.observaciones ?? "",
+    notas: oportunidad.notas ?? "",
     estadoDesarrolloPropuesta: oportunidad.estadoDesarrolloPropuesta ?? undefined,
     tipoServicio: oportunidad.tipoServicio ?? undefined,
     tipoServicioOtro: oportunidad.tipoServicioOtro ?? "",
@@ -154,8 +164,8 @@ function estadoDesdeOportunidad(oportunidad: OportunidadDetalle | null): FormSta
     fechaEnvioPropuesta: oportunidad.fechaEnvioPropuesta
       ? dayjs(oportunidad.fechaEnvioPropuesta)
       : oportunidad.fechaComprometidaEnvio
-      ? dayjs(oportunidad.fechaComprometidaEnvio)
-      : null,
+        ? dayjs(oportunidad.fechaComprometidaEnvio)
+        : null,
     fechaVencimientoPropuesta: oportunidad.fechaVencimientoPropuesta
       ? dayjs(oportunidad.fechaVencimientoPropuesta)
       : null,
@@ -201,9 +211,9 @@ export default function OportunidadForm({
   );
   const mostrarNegociacion = Boolean(
     oportunidad &&
-      oportunidad.etapa !== "NUEVA" &&
-      oportunidad.etapa !== "COTIZACION_PREPARACION" &&
-      oportunidad.etapa !== "COTIZACION_ENVIADA"
+    oportunidad.etapa !== "NUEVA" &&
+    oportunidad.etapa !== "COTIZACION_PREPARACION" &&
+    oportunidad.etapa !== "COTIZACION_ENVIADA"
   );
   const mostrarProximaAccion = !oportunidad || !["NEGOCIACION", "GANADA", "PERDIDA", "POSTERGADA"].includes(oportunidad.etapa);
 
@@ -312,6 +322,7 @@ export default function OportunidadForm({
         proximaAccion: form.proximaAccion.trim() || null,
         fechaProximaAccion: form.fechaProximaAccion ? form.fechaProximaAccion.toISOString() : null,
         observaciones: form.observaciones.trim() || null,
+        notas: form.notas.trim() || null,
         estadoDesarrolloPropuesta: form.estadoDesarrolloPropuesta ?? null,
         tipoServicio: form.tipoServicio ?? null,
         tipoServicioOtro: form.tipoServicioOtro.trim() || null,
@@ -448,7 +459,7 @@ export default function OportunidadForm({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Responsable comercial</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Ejecutivo de venta</label>
           <Select
             showSearch
             allowClear
@@ -494,9 +505,8 @@ export default function OportunidadForm({
           <label className="block text-xs font-medium text-slate-600 mb-1">Correo de contacto</label>
           <input
             type="email"
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              errores.contactoEmail ? "border-rose-400 focus:outline-rose-400" : "border-slate-300"
-            }`}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${errores.contactoEmail ? "border-rose-400 focus:outline-rose-400" : "border-slate-300"
+              }`}
             value={form.contactoEmail}
             onChange={(e) => actualizar({ contactoEmail: e.target.value })}
             onBlur={() => {
@@ -518,9 +528,8 @@ export default function OportunidadForm({
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono de contacto</label>
           <input
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
-              errores.contactoTelefono ? "border-rose-400 focus:outline-rose-400" : "border-slate-300"
-            }`}
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${errores.contactoTelefono ? "border-rose-400 focus:outline-rose-400" : "border-slate-300"
+              }`}
             placeholder="Ej: +56987654321, 56987654321 o 987654321"
             value={form.contactoTelefono}
             onChange={(e) => actualizar({ contactoTelefono: e.target.value })}
@@ -554,9 +563,42 @@ export default function OportunidadForm({
             />
             <InputNumber
               className="w-full"
+
               min={0}
-              value={form.montoEstimado}
-              onChange={(value) => actualizar({ montoEstimado: value ?? undefined })}
+
+              value={
+                form.montoEstimado
+              }
+
+              precision={
+                form.moneda ===
+                  "CLP"
+                  ? 0
+                  : 2
+              }
+
+              formatter={(value) =>
+                formatMontoInput(
+                  value,
+                  form.moneda
+                )
+              }
+
+              parser={(value) =>
+                parseMontoInput(
+                  value,
+                  form.moneda
+                )
+              }
+
+              onChange={(value) =>
+                actualizar({
+                  montoEstimado:
+                    value !== null
+                      ? Number(value)
+                      : undefined,
+                })
+              }
             />
           </div>
           {errores.montoEstimado && <p className="text-xs text-rose-500 mt-1">{errores.montoEstimado}</p>}
@@ -587,22 +629,46 @@ export default function OportunidadForm({
         {mostrarProximaAccion && (
           <>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Próxima acción</label>
-              <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={form.proximaAccion}
-                onChange={(e) => actualizar({ proximaAccion: e.target.value })}
-                placeholder="Ej: Llamar para agendar visita"
-              />
-            </div>
+              <label
+                className="
+      block
+      text-xs
+      font-medium
+      text-slate-600
+      mb-1
+    "
+              >
+                Próxima acción
+              </label>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Fecha próxima acción</label>
-              <DatePicker
+              <Select
                 className="w-full"
-                format="DD-MM-YYYY"
-                value={form.fechaProximaAccion}
-                onChange={(value) => actualizar({ fechaProximaAccion: value })}
+
+                placeholder="Seleccionar próxima acción"
+
+                value={
+                  form.proximaAccion ||
+                  undefined
+                }
+
+                onChange={(value) =>
+                  actualizar({
+                    proximaAccion:
+                      value ?? "",
+                  })
+                }
+
+                allowClear
+
+                showSearch
+
+                optionFilterProp="label"
+
+                options={
+                  getProximasAccionesOptions(
+                    form.proximaAccion
+                  )
+                }
               />
             </div>
           </>
@@ -615,6 +681,44 @@ export default function OportunidadForm({
             rows={3}
             value={form.observaciones}
             onChange={(e) => actualizar({ observaciones: e.target.value })}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label
+            className="
+      block
+      text-xs
+      font-medium
+      text-slate-600
+      mb-1
+    "
+          >
+            Notas
+          </label>
+
+          <textarea
+            className="
+      w-full
+      rounded-lg
+      border
+      border-slate-300
+      px-3
+      py-2
+      text-sm
+    "
+            rows={3}
+            maxLength={3000}
+            value={
+              form.notas
+            }
+            onChange={(e) =>
+              actualizar({
+                notas:
+                  e.target.value,
+              })
+            }
+            placeholder="Notas generales sobre esta oportunidad..."
           />
         </div>
 

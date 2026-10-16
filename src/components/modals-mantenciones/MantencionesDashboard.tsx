@@ -5,7 +5,7 @@ import {
     getTeamViewerMonthlyBreakdown,
     type TeamViewerMonthlyAverageRow,
     type TeamViewerMonthlyBreakdownRow,
-} from "../../lib/mantencionesRemotasApi";
+} from "./mantencionesRemotasApi";
 import Chart from "chart.js/auto";
 
 import { DatePicker } from "antd";

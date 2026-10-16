@@ -177,10 +177,10 @@ export default function FunnelDashboard() {
       preset === "hoy"
         ? [hoy, hoy]
         : preset === "semana"
-        ? [hoy.startOf("week"), hoy.endOf("week")]
-        : preset === "mes"
-        ? [hoy.startOf("month"), hoy.endOf("month")]
-        : [hoy.startOf("year"), hoy.endOf("year")];
+          ? [hoy.startOf("week"), hoy.endOf("week")]
+          : preset === "mes"
+            ? [hoy.startOf("month"), hoy.endOf("month")]
+            : [hoy.startOf("year"), hoy.endOf("year")];
     const nuevos = { ...filtros, rango };
     setFiltros(nuevos);
     cargar(nuevos);
@@ -252,7 +252,7 @@ export default function FunnelDashboard() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Responsable comercial</label>
+            <label className="block text-xs text-slate-500 mb-1">Ejecutivo de venta</label>
             <Select
               allowClear
               showSearch
@@ -423,7 +423,16 @@ export default function FunnelDashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={50} />
                   <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value: number) => formatMonto(value)} />
+                  <Tooltip
+                    formatter={(value) =>
+                      formatMonto(
+                        Number(
+                          value ??
+                          0
+                        )
+                      )
+                    }
+                  />
                   <Bar dataKey="monto">
                     {barMontoData.map((entry) => (
                       <Cell key={entry.etapa} fill={getEtapaChartColor(entry.etapa)} />

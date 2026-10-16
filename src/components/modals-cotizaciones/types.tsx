@@ -30,6 +30,12 @@ export const MonedaCotizacion = {
   USD: "USD",
 } as const;
 
+export interface TecnicoCotizacion {
+  id_tecnico: number;
+  nombre: string;
+  email?: string | null;
+}
+
 export type MonedaCotizacion = typeof MonedaCotizacion[keyof typeof MonedaCotizacion];
 export type EstadoCotizacionGestioo = typeof EstadoCotizacionGestioo[keyof typeof EstadoCotizacionGestioo];
 export type TipoCotizacionGestioo = typeof TipoCotizacionGestioo[keyof typeof TipoCotizacionGestioo];
@@ -104,6 +110,12 @@ export interface CotizacionGestioo {
   personaResponsable?: string | null;
   imagen?: string | null;
   ordenGenerada?: boolean;
+
+  tecnicoId?: number | null;
+
+  tecnico?: TecnicoCotizacion | null;
+
+  oportunidadVentaId?: number | null;
 }
 
 export interface ItemCotizacionFrontend {

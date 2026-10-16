@@ -102,26 +102,76 @@ export interface OportunidadFunnelItem {
 ========================================================= */
 export interface HistorialEtapaItem {
   id: number;
-  oportunidadId: number;
-  etapaAnterior: EtapaOportunidadVenta | null;
-  etapaNueva: EtapaOportunidadVenta;
-  actorId: number | null;
-  actor: ResponsableResumen | null;
-  createdAt: string;
+
+  oportunidadId:
+  number;
+
+  etapaAnterior:
+  EtapaOportunidadVenta |
+  null;
+
+  etapaNueva:
+  EtapaOportunidadVenta;
+
+  nota:
+  string |
+  null;
+
+  actorId:
+  number |
+  null;
+
+  actor:
+  ResponsableResumen |
+  null;
+
+  createdAt:
+  string;
 }
 
 export interface SeguimientoItem {
-  id: number;
-  oportunidadId: number;
-  autorId: number;
-  autor: ResponsableResumen | null;
-  comentario: string;
-  fechaContacto: string | null;
-  proximaAccion: string | null;
-  fechaProximaAccion: string | null;
-  createdAt: string;
-}
+  id:
+  number;
 
+  oportunidadId:
+  number;
+
+  autorId:
+  number;
+
+  autor:
+  ResponsableResumen |
+  null;
+
+  comentario:
+  string;
+
+  fechaContacto:
+  string |
+  null;
+
+  proximaAccion:
+  string |
+  null;
+
+  fechaProximaAccion:
+  string |
+  null;
+
+  estado:
+  EstadoSeguimientoOportunidad;
+
+  notaEstado:
+  string |
+  null;
+
+  completadoAt:
+  string |
+  null;
+
+  createdAt:
+  string;
+}
 export interface CotizacionVinculada {
   id: number;
   estado: string;
@@ -193,6 +243,7 @@ export interface OportunidadDetalle extends OportunidadFunnelItemBase {
   probabilidadCierre: number | null;
   fechaProbableCierre: string | null;
   observaciones: string | null;
+  notas: string | null;
   estadoDesarrolloPropuesta: EstadoDesarrolloPropuesta | null;
   tipoServicio: TipoServicioOportunidad | null;
   tipoServicioOtro: string | null;
@@ -268,6 +319,7 @@ export interface CrearOportunidadPayload {
   proximaAccion?: string | null;
   fechaProximaAccion?: string | null;
   observaciones?: string | null;
+  notas?: string | null;
   estadoDesarrolloPropuesta?: EstadoDesarrolloPropuesta | null;
   tipoServicio?: TipoServicioOportunidad | null;
   tipoServicioOtro?: string | null;
@@ -292,11 +344,24 @@ export type EditarOportunidadPayload = Partial<CrearOportunidadPayload> & {
 
 export interface CambiarEtapaPayload {
   etapa: EtapaOportunidadVenta;
+
+  nota: string;
+
   motivoPerdida?: string;
   motivoPostergacion?: string;
   fechaReactivacion?: string;
   fechaCierre?: string;
   montoFinal?: number | null;
+}
+
+export interface CambioEtapaPendiente {
+  oportunidadId: number;
+
+  etapaAnterior:
+  EtapaOportunidadVenta;
+
+  etapaNueva:
+  EtapaOportunidadVenta;
 }
 
 export interface ReordenarPayload {
@@ -457,4 +522,42 @@ export interface ApiEnvelope<T> {
 export interface Toast {
   type: "success" | "error";
   message: string;
+}
+
+export type EstadoSeguimientoOportunidad =
+  | "PENDIENTE"
+  | "COMPLETADA"
+  | "CANCELADA";
+
+/* =========================================================
+   Informe de respaldo Funnel
+========================================================= */
+
+export interface EnviarInformeOportunidadPayload {
+  destinatarios:
+  string[];
+
+  mensaje?:
+  string;
+}
+
+
+export interface EnviarInformeOportunidadResultado {
+  enviado:
+  boolean;
+
+  oportunidadId:
+  number;
+
+  codigo:
+  string;
+
+  destinatarios:
+  string[];
+
+  nombreArchivo:
+  string;
+
+  messageId:
+  string;
 }

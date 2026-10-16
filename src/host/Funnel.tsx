@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { App, Input, Select } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { useOportunidadesFunnel } from "../components/hooks/useOportunidadesFunnel";
+import { useOportunidadesFunnel } from "../components/modals-funnel/useOportunidadesFunnel";
 import {
   CierreOportunidadModal,
   CrearCotizacionModal,
@@ -15,13 +15,37 @@ import {
 } from "../components/modals-funnel";
 import {
   PrioridadOportunidadVenta,
+  type CambioEtapaPendiente,
   type EtapaOportunidadVenta,
   type OportunidadDetalle,
   type OportunidadFunnelItem,
 } from "../components/modals-funnel/types";
 import { getPrioridadLabel } from "../components/modals-funnel/utils";
 
+import {
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+
+interface RetornoCotizacionesState {
+  origen:
+  "cotizaciones";
+
+  oportunidadId:
+  number;
+
+  drawerTab?:
+  "cotizaciones";
+}
+
 export default function Funnel() {
+
+  const location =
+    useLocation();
+
+  const navigate =
+    useNavigate();
+
   const {
     funnel,
     loadingFunnel,
@@ -41,6 +65,8 @@ export default function Funnel() {
     vincularCotizacion,
     desvincularCotizacion,
     desactivarOportunidad,
+    cambiarEstadoSeguimiento,
+    enviarInformeOportunidad,
   } = useOportunidadesFunnel();
 
   const [vista, setVista] = useState<
@@ -57,8 +83,301 @@ export default function Funnel() {
   const [cierreTipo, setCierreTipo] = useState<Extract<EtapaOportunidadVenta, "GANADA" | "PERDIDA" | "POSTERGADA"> | null>(null);
   const [oportunidadCierre, setOportunidadCierre] = useState<OportunidadFunnelItem | OportunidadDetalle | null>(null);
 
+  const [
+    cambioEtapaPendiente,
+    setCambioEtapaPendiente,
+  ] =
+    useState<
+      CambioEtapaPendiente |
+      null
+    >(
+      null
+    );
+
+
+  const [
+    notaCierrePendiente,
+    setNotaCierrePendiente,
+  ] =
+    useState<
+      string |
+      null
+    >(
+      null
+    );
+
   const [crearCotizacionOpen, setCrearCotizacionOpen] = useState(false);
   const [oportunidadParaCotizacion, setOportunidadParaCotizacion] = useState<OportunidadDetalle | null>(null);
+
+
+  useEffect(() => {
+
+    const state =
+      location.state as
+      | RetornoCotizacionesState
+      | null;
+
+
+    if (
+      state?.origen !==
+      "cotizaciones" ||
+      !Number.isInteger(
+        state.oportunidadId
+      )
+    ) {
+      return;
+    }
+
+
+    const oportunidadId =
+      state.oportunidadId;
+
+
+    /*
+     * Volvemos siempre al tablero Funnel.
+     */
+    setVista(
+      "funnel"
+    );
+
+
+    /*
+     * Abriremos el Drawer directamente
+     * en la sección Cotizaciones.
+     */
+    setDrawerTab(
+      state.drawerTab ??
+      "cotizaciones"
+    );
+
+
+    setDrawerOpen(
+      true
+    );
+
+
+    /*
+     * Refrescamos el tablero porque la
+     * cotización pudo cambiar monto,
+     * estado, etc.
+     */
+    void fetchFunnel();
+
+
+    /*
+     * Volvemos a cargar la oportunidad
+     * para obtener la cotización editada.
+     */
+    void fetchDetalle(
+      oportunidadId
+    );
+
+
+    /*
+     * Eliminamos el state de navegación.
+     *
+     * Esto evita que el Drawer vuelva a
+     * abrirse si después el componente
+     * vuelve a renderizar.
+     */
+    navigate(
+      "/funnel",
+
+      {
+        replace:
+          true,
+
+        state:
+          null,
+      }
+    );
+
+  }, [
+    location.state,
+  ]);
+
+  async function solicitarCambioEtapa(
+    oportunidad:
+      OportunidadFunnelItem |
+      OportunidadDetalle,
+
+    etapaNueva:
+      EtapaOportunidadVenta
+  ) {
+
+    if (
+      oportunidad.etapa ===
+      etapaNueva
+    ) {
+      return;
+    }
+
+
+    setCambioEtapaPendiente({
+      oportunidadId:
+        oportunidad.id,
+
+      etapaAnterior:
+        oportunidad.etapa,
+
+      etapaNueva,
+    });
+
+
+    setDrawerTab(
+      undefined
+    );
+
+
+    setDrawerOpen(
+      true
+    );
+
+
+    /*
+     * Nos aseguramos de que el Drawer
+     * tenga el detalle completo.
+     */
+    await fetchDetalle(
+      oportunidad.id
+    );
+  }
+
+  async function confirmarCambioEtapa(
+    nota:
+      string
+  ) {
+
+    const cambio =
+      cambioEtapaPendiente;
+
+
+    if (
+      !cambio
+    ) {
+      return;
+    }
+
+
+    const notaLimpia =
+      nota.trim();
+
+
+    if (
+      notaLimpia.length <
+      3
+    ) {
+      throw new Error(
+        "La nota del cambio de etapa es obligatoria."
+      );
+    }
+
+
+    /* =====================================================
+       GANADA / PERDIDA / POSTERGADA
+  
+       Primero recogimos la nota en el Drawer.
+       Ahora abrimos el modal de cierre.
+    ===================================================== */
+
+    if (
+      [
+        "GANADA",
+        "PERDIDA",
+        "POSTERGADA",
+      ].includes(
+        cambio.etapaNueva
+      )
+    ) {
+
+      const oportunidad =
+        detalle?.id ===
+          cambio.oportunidadId
+          ? detalle
+          : funnel.find(
+            (
+              item
+            ) =>
+              item.id ===
+              cambio.oportunidadId
+          ) ??
+          null;
+
+
+      if (
+        !oportunidad
+      ) {
+        throw new Error(
+          "No se encontró la oportunidad."
+        );
+      }
+
+
+      setNotaCierrePendiente(
+        notaLimpia
+      );
+
+
+      setOportunidadCierre(
+        oportunidad
+      );
+
+
+      setCierreTipo(
+        cambio.etapaNueva as
+        Extract<
+          EtapaOportunidadVenta,
+          | "GANADA"
+          | "PERDIDA"
+          | "POSTERGADA"
+        >
+      );
+
+
+      setCambioEtapaPendiente(
+        null
+      );
+
+
+      setCierreOpen(
+        true
+      );
+
+
+      return;
+    }
+
+
+    /* =====================================================
+       CAMBIO NORMAL
+    ===================================================== */
+
+    await cambiarEtapa(
+      cambio.oportunidadId,
+
+      {
+        etapa:
+          cambio.etapaNueva,
+
+        nota:
+          notaLimpia,
+      },
+
+      {
+        /*
+         * No movemos la tarjeta antes
+         * de confirmar con backend.
+         */
+        optimista:
+          false,
+      }
+    );
+
+
+    setCambioEtapaPendiente(
+      null
+    );
+  }
 
   async function abrirDrawer(item: OportunidadFunnelItem, tab?: string) {
     setDrawerTab(tab);
@@ -67,8 +386,18 @@ export default function Funnel() {
   }
 
   function cerrarDrawer() {
-    setDrawerOpen(false);
-    setDrawerTab(undefined);
+    setDrawerOpen(
+      false
+    );
+
+    setDrawerTab(
+      undefined
+    );
+
+    setCambioEtapaPendiente(
+      null
+    );
+
     limpiarDetalle();
   }
 
@@ -196,7 +525,7 @@ export default function Funnel() {
               className="w-64"
               value={filtros.texto ?? ""}
               onChange={(e) =>
-                setFiltros((f) => ({
+                setFiltros((f: any) => ({
                   ...f,
                   texto:
                     e.target.value ||
@@ -212,7 +541,7 @@ export default function Funnel() {
               className="w-36"
               value={filtros.prioridad}
               onChange={(value) =>
-                setFiltros((f) => ({
+                setFiltros((f: any) => ({
                   ...f,
                   prioridad:
                     value,
@@ -234,25 +563,36 @@ export default function Funnel() {
         {vista === "funnel" ? (
 
           <FunnelBoard
-            funnel={funnel}
-            loading={loadingFunnel}
-            error={errorFunnel}
-            onRetry={fetchFunnel}
-            onSelectOportunidad={(item) =>
-              abrirDrawer(item)
+            funnel={
+              funnel
             }
-            onCambiarEtapa={(id, etapa) =>
-              cambiarEtapa(
-                id,
-                {
-                  etapa,
-                }
+
+            loading={
+              loadingFunnel
+            }
+
+            error={
+              errorFunnel
+            }
+
+            onRetry={
+              fetchFunnel
+            }
+
+            onSelectOportunidad={(
+              item
+            ) =>
+              abrirDrawer(
+                item
               )
             }
-            onReordenar={reordenar}
-            onRequiereCierre={abrirCierre}
-            onBloqueoCotizacion={
-              abrirPorBloqueoCotizacion
+
+            onSolicitarCambioEtapa={
+              solicitarCambioEtapa
+            }
+
+            onReordenar={
+              reordenar
             }
           />
 
@@ -316,19 +656,75 @@ export default function Funnel() {
         )}
 
         <OportunidadDrawer
-          open={drawerOpen}
-          loading={loadingDetalle}
-          oportunidad={detalle}
-          scrollTo={drawerTab}
-          onClose={cerrarDrawer}
-          onSubmitEditar={editarOportunidad}
-          onCrearSeguimiento={crearSeguimiento}
-          onVincularCotizacion={vincularCotizacion}
-          onDesvincularCotizacion={desvincularCotizacion}
-          onDesactivar={desactivarOportunidad}
-          onCambiarEtapa={(id, etapa) => cambiarEtapa(id, { etapa })}
-          onRequiereCierre={abrirCierre}
-          onAbrirCrearCotizacion={abrirCrearCotizacion}
+          open={
+            drawerOpen
+          }
+
+          loading={
+            loadingDetalle
+          }
+
+          oportunidad={
+            detalle
+          }
+
+          scrollTo={
+            drawerTab
+          }
+
+          onClose={
+            cerrarDrawer
+          }
+
+          onSubmitEditar={
+            editarOportunidad
+          }
+
+          onCrearSeguimiento={
+            crearSeguimiento
+          }
+
+          onVincularCotizacion={
+            vincularCotizacion
+          }
+
+          onDesvincularCotizacion={
+            desvincularCotizacion
+          }
+
+          onDesactivar={
+            desactivarOportunidad
+          }
+
+          cambioEtapaPendiente={
+            cambioEtapaPendiente
+          }
+
+          onSolicitarCambioEtapa={
+            solicitarCambioEtapa
+          }
+
+          onConfirmarCambioEtapa={
+            confirmarCambioEtapa
+          }
+
+          onCancelarCambioEtapa={() =>
+            setCambioEtapaPendiente(
+              null
+            )
+          }
+
+          onEnviarInforme={
+            enviarInformeOportunidad
+          }
+
+          onAbrirCrearCotizacion={
+            abrirCrearCotizacion
+          }
+
+          onCambiarEstadoSeguimiento={
+            cambiarEstadoSeguimiento
+          }
         />
 
         <OportunidadFormModal
@@ -346,11 +742,64 @@ export default function Funnel() {
           open={cierreOpen}
           tipo={cierreTipo}
           oportunidad={oportunidadCierre}
-          onClose={() => setCierreOpen(false)}
-          onConfirm={(id, payload) => cambiarEtapa(id, payload, { optimista: false })}
+          onClose={() => {
+            setCierreOpen(
+              false
+            );
+
+            setNotaCierrePendiente(
+              null
+            );
+          }}
+          onConfirm={(
+            id,
+            payload
+          ) => {
+
+            if (
+              !notaCierrePendiente
+            ) {
+              return Promise.reject(
+                new Error(
+                  "No existe una nota asociada al cambio de etapa."
+                )
+              );
+            }
+
+
+            return cambiarEtapa(
+              id,
+
+              {
+                ...payload,
+
+                nota:
+                  notaCierrePendiente,
+              },
+
+              {
+                optimista:
+                  false,
+              }
+            );
+          }}
           onSuccess={() => {
-            if (detalle && oportunidadCierre && detalle.id === oportunidadCierre.id) {
-              fetchDetalle(oportunidadCierre.id);
+
+            setNotaCierrePendiente(
+              null
+            );
+
+
+            if (
+              detalle &&
+              oportunidadCierre &&
+              detalle.id ===
+              oportunidadCierre.id
+            ) {
+
+              fetchDetalle(
+                oportunidadCierre.id
+              );
             }
           }}
         />

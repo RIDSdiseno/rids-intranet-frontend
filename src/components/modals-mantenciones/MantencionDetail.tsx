@@ -1,5 +1,5 @@
 // src/components/modal-mantenciones/MantencionDetail.tsx
-import type { MantencionRemota, MantencionStatus } from "../../lib/mantencionesRemotasApi";
+import type { MantencionRemota, MantencionStatus } from "./mantencionesRemotasApi";
 
 function clsx(...xs: Array<string | false | null | undefined>) {
     return xs.filter(Boolean).join(" ");

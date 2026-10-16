@@ -31,12 +31,24 @@ const MOTIVOS_POSTERGACION = [
 
 type TipoCierre = Extract<EtapaOportunidadVenta, "GANADA" | "PERDIDA" | "POSTERGADA">;
 
+type CierreOportunidadPayload =
+  Omit<
+    CambiarEtapaPayload,
+    "nota"
+  >;
+
 interface CierreOportunidadModalProps {
   open: boolean;
   tipo: TipoCierre | null;
   oportunidad: OportunidadFunnelItem | OportunidadDetalle | null;
   onClose: () => void;
-  onConfirm: (id: number, payload: CambiarEtapaPayload) => Promise<unknown>;
+  onConfirm:
+  (
+    id: number,
+    payload:
+      CierreOportunidadPayload
+  ) =>
+    Promise<unknown>;
   onSuccess: () => void;
 }
 
@@ -104,11 +116,12 @@ export default function CierreOportunidadModal({
     setEnviando(true);
     setError(null);
     try {
-      const payload: CambiarEtapaPayload = esGanada
-        ? { etapa: "GANADA", fechaCierre: fechaCierre!.toISOString(), montoFinal: montoFinal ?? null }
-        : esPerdida
-        ? { etapa: "PERDIDA", fechaCierre: fechaCierre!.toISOString(), motivoPerdida: motivoNormalizado }
-        : { etapa: "POSTERGADA", fechaReactivacion: fechaReactivacion!.toISOString(), motivoPostergacion: motivoNormalizado };
+      const payload:
+        CierreOportunidadPayload = esGanada
+          ? { etapa: "GANADA", fechaCierre: fechaCierre!.toISOString(), montoFinal: montoFinal ?? null }
+          : esPerdida
+            ? { etapa: "PERDIDA", fechaCierre: fechaCierre!.toISOString(), motivoPerdida: motivoNormalizado }
+            : { etapa: "POSTERGADA", fechaReactivacion: fechaReactivacion!.toISOString(), motivoPostergacion: motivoNormalizado };
 
       await onConfirm(oportunidadActual.id, payload);
 
@@ -116,8 +129,8 @@ export default function CierreOportunidadModal({
         message: esGanada
           ? "Oportunidad marcada como ganada"
           : esPerdida
-          ? "Oportunidad marcada como pérdida"
-          : "Oportunidad marcada como postergada",
+            ? "Oportunidad marcada como pérdida"
+            : "Oportunidad marcada como postergada",
         description: `${oportunidadActual.codigo} - ${oportunidadActual.titulo}`,
       });
       onSuccess();
@@ -212,9 +225,8 @@ export default function CierreOportunidadModal({
             <button
               onClick={handleConfirm}
               disabled={enviando}
-              className={`px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-60 ${
-                esGanada ? "bg-emerald-600 hover:bg-emerald-700" : esPerdida ? "bg-rose-600 hover:bg-rose-700" : "bg-orange-500 hover:bg-orange-600"
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm text-white transition disabled:opacity-60 ${esGanada ? "bg-emerald-600 hover:bg-emerald-700" : esPerdida ? "bg-rose-600 hover:bg-rose-700" : "bg-orange-500 hover:bg-orange-600"
+                }`}
             >
               {enviando ? "Guardando…" : esGanada ? "Confirmar ganada" : esPerdida ? "Confirmar pérdida" : "Confirmar postergada"}
             </button>

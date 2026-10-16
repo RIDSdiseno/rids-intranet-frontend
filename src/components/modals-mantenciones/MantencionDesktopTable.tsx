@@ -1,6 +1,6 @@
 // src/components/modal-mantenciones/MantencionDesktopTable.tsx
 import React from "react";
-import type { MantencionRemota } from "../../lib/mantencionesRemotasApi";
+import type { MantencionRemota, MantencionStatus } from "./mantencionesRemotasApi";
 import StatusBadge from "./StatusBadge";
 import TableSkeletonRows from "./TableSkeletonRows";
 import MantencionPagination from "./MantencionPagination";

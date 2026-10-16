@@ -5,6 +5,7 @@ import type {
   EstadoDesarrolloPropuesta,
   TipoServicioOportunidad,
   RiesgoTecnicoOportunidad,
+  MonedaOportunidad
 } from "./types";
 
 /* =========================================================
@@ -146,16 +147,187 @@ export function getRiesgoTecnicoLabel(riesgo: RiesgoTecnicoOportunidad): string 
 /* =========================================================
    Formato de moneda y fecha
 ========================================================= */
-export function formatMonto(valor: string | number | null | undefined, moneda: string = "CLP"): string {
-  if (valor === null || valor === undefined || valor === "") return "—";
-  const n = typeof valor === "string" ? Number(valor) : valor;
-  if (!Number.isFinite(n)) return "—";
-  const prefix = moneda === "USD" ? "US$" : "$";
-  try {
-    return `${prefix}${Math.round(n).toLocaleString("es-CL")}`;
-  } catch {
-    return `${prefix}${n}`;
+export function formatMonto(
+  valor:
+    string |
+    number |
+    null |
+    undefined,
+
+  moneda:
+    MonedaOportunidad =
+    "CLP"
+): string {
+
+  if (
+    valor === null ||
+    valor === undefined ||
+    valor === ""
+  ) {
+    return "—";
   }
+
+  const numero =
+    Number(
+      valor
+    );
+
+  if (
+    !Number.isFinite(
+      numero
+    )
+  ) {
+    return "—";
+  }
+
+  /* =========================================
+     USD
+  ========================================= */
+
+  if (
+    moneda ===
+    "USD"
+  ) {
+    const montoFormateado =
+      numero.toLocaleString(
+        "es-CL",
+        {
+          minimumFractionDigits:
+            Number.isInteger(numero)
+              ? 0
+              : 2,
+
+          maximumFractionDigits:
+            2,
+        }
+      );
+
+    return `US$${montoFormateado} USD`;
+  }
+
+  /* =========================================
+     CLP
+  ========================================= */
+
+  const montoFormateado =
+    Math.round(
+      numero
+    ).toLocaleString(
+      "es-CL",
+      {
+        minimumFractionDigits:
+          0,
+
+        maximumFractionDigits:
+          0,
+      }
+    );
+
+  return `$${montoFormateado} CLP`;
+}
+export function formatMontoInput(
+  valor:
+    string |
+    number |
+    null |
+    undefined,
+
+  moneda:
+    MonedaOportunidad
+): string {
+
+  if (
+    valor === null ||
+    valor === undefined ||
+    valor === ""
+  ) {
+    return "";
+  }
+
+  const numero =
+    Number(
+      valor
+    );
+
+  if (
+    !Number.isFinite(
+      numero
+    )
+  ) {
+    return "";
+  }
+
+  if (
+    moneda ===
+    "USD"
+  ) {
+    return numero.toLocaleString(
+      "en-US",
+      {
+        minimumFractionDigits:
+          0,
+
+        maximumFractionDigits:
+          2,
+      }
+    );
+  }
+
+  return Math.round(
+    numero
+  ).toLocaleString(
+    "es-CL",
+    {
+      minimumFractionDigits:
+        0,
+
+      maximumFractionDigits:
+        0,
+    }
+  );
+}
+
+
+export function parseMontoInput(
+  valor:
+    string |
+    undefined,
+
+  moneda:
+    MonedaOportunidad
+): number {
+
+  if (
+    !valor
+  ) {
+    return 0;
+  }
+
+  const limpio =
+    moneda ===
+      "USD"
+      ? valor.replace(
+        /,/g,
+        ""
+      )
+      : valor.replace(
+        /\./g,
+        ""
+      );
+
+  const numero =
+    Number(
+      limpio.replace(
+        /[^\d.-]/g,
+        ""
+      )
+    );
+
+  return Number.isFinite(
+    numero
+  )
+    ? numero
+    : 0;
 }
 
 export function formatFecha(fecha: string | null | undefined): string {
@@ -167,13 +339,48 @@ export function formatFecha(fecha: string | null | undefined): string {
   }
 }
 
-export function formatFechaHora(fecha: string | null | undefined): string {
-  if (!fecha) return "—";
-  try {
-    return new Date(fecha).toLocaleString("es-CL");
-  } catch {
+export function formatFechaHora(
+  value?: string | null
+): string {
+  if (!value) {
     return "—";
   }
+
+  const fecha =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      fecha.getTime()
+    )
+  ) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat(
+    "es-CL",
+    {
+      day:
+        "2-digit",
+
+      month:
+        "2-digit",
+
+      year:
+        "numeric",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
+
+      hour12:
+        false,
+    }
+  ).format(
+    fecha
+  );
 }
 
 // Una acción se considera vencida si su fecha ya pasó y la oportunidad no está cerrada.

@@ -11,6 +11,7 @@ import {
   InputNumber,
   Input,
   Timeline,
+  Modal as AntdModal,
 } from "antd";
 import {
   CheckCircleOutlined,
@@ -26,6 +27,7 @@ import {
   UserSwitchOutlined,
   BankOutlined,
   EyeOutlined,
+  FilePdfOutlined,
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import { http } from "../../service/http";
@@ -38,8 +40,15 @@ import type {
   RiesgoTecnicoOportunidad,
   OportunidadDetalle,
   ResponsableResumen,
+  CambioEtapaPendiente,
+  MonedaOportunidad,
+  EstadoSeguimientoOportunidad,
+  EnviarInformeOportunidadPayload,
+  EnviarInformeOportunidadResultado,
 } from "./types";
 import OportunidadForm from "./OportunidadForm";
+import EnviarInformeFunnelModal
+  from "./EnviarInformeFunnelModal";
 import {
   ETAPAS_SELECCIONABLES,
   formatFecha,
@@ -53,7 +62,18 @@ import {
   getOportunidadErrorMessage,
   getPrioridadLabel,
   getPrioridadTagColor,
+  formatMontoInput,
+  parseMontoInput,
 } from "./utils";
+
+import {
+  PROXIMAS_ACCIONES,
+  getProximaAccionLabel,
+} from "./proximasAcciones";
+
+import {
+  useNavigate,
+} from "react-router-dom";
 
 interface OportunidadDrawerProps {
   open: boolean;
@@ -62,13 +82,61 @@ interface OportunidadDrawerProps {
   onClose: () => void;
   onSubmitEditar: (id: number, payload: EditarOportunidadPayload) => Promise<OportunidadDetalle | undefined>;
   onCrearSeguimiento: (id: number, payload: CrearSeguimientoPayload) => Promise<unknown>;
+  onCambiarEstadoSeguimiento:
+  (
+    oportunidadId:
+      number,
+
+    seguimientoId:
+      number,
+
+    estado:
+      EstadoSeguimientoOportunidad,
+
+    notaEstado:
+      string
+  ) =>
+    Promise<unknown>;
+  onEnviarInforme:
+  (
+    oportunidadId:
+      number,
+
+    payload:
+      EnviarInformeOportunidadPayload
+  ) =>
+    Promise<
+      EnviarInformeOportunidadResultado
+    >;
   onVincularCotizacion: (id: number, cotizacionId: number) => Promise<unknown>;
   onDesvincularCotizacion: (id: number, cotizacionId: number) => Promise<unknown>;
   onDesactivar: (id: number) => Promise<unknown>;
-  onCambiarEtapa: (id: number, etapa: EtapaOportunidadVenta) => Promise<unknown>;
-  onRequiereCierre: (oportunidad: OportunidadDetalle, tipo: Extract<EtapaOportunidadVenta, "GANADA" | "PERDIDA" | "POSTERGADA">) => void;
   onAbrirCrearCotizacion: (oportunidad: OportunidadDetalle) => void;
   scrollTo?: string;
+  cambioEtapaPendiente:
+  CambioEtapaPendiente |
+  null;
+
+  onSolicitarCambioEtapa:
+  (
+    oportunidad:
+      OportunidadDetalle,
+
+    etapa:
+      EtapaOportunidadVenta
+  ) =>
+    void;
+
+  onConfirmarCambioEtapa:
+  (
+    nota:
+      string
+  ) =>
+    Promise<void>;
+
+  onCancelarCambioEtapa:
+  () =>
+    void;
 }
 
 type ModoDrawer = "lectura" | "edicion";
@@ -188,10 +256,14 @@ export default function OportunidadDrawer({
   onVincularCotizacion,
   onDesvincularCotizacion,
   onDesactivar,
-  onCambiarEtapa,
-  onRequiereCierre,
+  cambioEtapaPendiente,
+  onSolicitarCambioEtapa,
+  onConfirmarCambioEtapa,
+  onCancelarCambioEtapa,
   onAbrirCrearCotizacion,
   scrollTo,
+  onCambiarEstadoSeguimiento,
+  onEnviarInforme,
 }: OportunidadDrawerProps) {
   const {
     notification,
@@ -201,12 +273,34 @@ export default function OportunidadDrawer({
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
   const [detalleAbierto, setDetalleAbierto] = useState(false);
 
+  const [
+    informeOpen,
+    setInformeOpen,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    notaCambioEtapa,
+    setNotaCambioEtapa,
+  ] =
+    useState("");
+
+
+  const [
+    guardandoCambioEtapa,
+    setGuardandoCambioEtapa,
+  ] =
+    useState(false);
+
   const cotizacionesRef = useRef<HTMLDivElement>(null);
   const seguimientoTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) {
       setModo("lectura");
+      setInformeOpen(false);
       setHayCambiosSinGuardar(false);
       setDetalleAbierto(false);
       if (scrollTo === "cotizaciones") {
@@ -216,20 +310,26 @@ export default function OportunidadDrawer({
     }
   }, [open, oportunidad?.id, scrollTo]);
 
-  useEffect(() => {
-    if (!open || !oportunidad) return;
-    const faltaCotizacion =
-      oportunidad.etapa !== "NUEVA" && !ETAPAS_CIERRE.has(oportunidad.etapa) && oportunidad.cotizaciones.length === 0;
-    if (faltaCotizacion) {
-      notification.warning({
-        key: `falta-cotizacion-${oportunidad.id}`,
-        message: "Falta vincular o crear una cotización",
-      });
-    }
-    // Se dispara como toast puntual (estilo Beck/Firemat), no como banner persistente:
-    // solo cuando cambia la oportunidad/etapa/cantidad de cotizaciones mientras el drawer está abierto.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, oportunidad?.id, oportunidad?.etapa, oportunidad?.cotizaciones.length, notification]);
+  useEffect(
+    () => {
+
+      if (
+        cambioEtapaPendiente
+      ) {
+        setNotaCambioEtapa(
+          ""
+        );
+      }
+
+    },
+    [
+      cambioEtapaPendiente
+        ?.oportunidadId,
+
+      cambioEtapaPendiente
+        ?.etapaNueva,
+    ]
+  );
 
   function solicitarCierre() {
 
@@ -368,239 +468,554 @@ export default function OportunidadDrawer({
     });
   }
 
+  async function confirmarCambioPendiente() {
+
+    const nota =
+      notaCambioEtapa
+        .trim();
+
+
+    if (
+      nota.length <
+      3
+    ) {
+
+      notification.warning({
+        message:
+          "Nota obligatoria",
+
+        description:
+          "Explica brevemente por qué se cambia la etapa.",
+      });
+
+      return;
+    }
+
+
+    setGuardandoCambioEtapa(
+      true
+    );
+
+
+    try {
+
+      await onConfirmarCambioEtapa(
+        nota
+      );
+
+
+      setNotaCambioEtapa(
+        ""
+      );
+
+    } catch (
+    err
+    ) {
+
+      notification.error({
+        message:
+          "No se pudo cambiar la etapa",
+
+        description:
+          getOportunidadErrorMessage(
+            err,
+            "Ocurrió un error al cambiar la etapa."
+          ),
+      });
+
+    } finally {
+
+      setGuardandoCambioEtapa(
+        false
+      );
+    }
+  }
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl relative max-h-[90vh] overflow-y-auto"
-      >
-        <div className="p-6">
-          <h2 className="text-xl font-bold text-slate-800 mb-4">
-            {oportunidad ? `${oportunidad.codigo} · ${oportunidad.titulo}` : "Oportunidad"}
-          </h2>
+    <>
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl relative max-h-[90vh] overflow-y-auto"
+        >
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              {oportunidad ? `${oportunidad.codigo} · ${oportunidad.titulo}` : "Oportunidad"}
+            </h2>
 
-          <button
-            onClick={solicitarCierre}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
+            <button
+              onClick={solicitarCierre}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
 
-          {loading || !oportunidad ? (
-            <div className="p-6 text-slate-500">Cargando detalle…</div>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getEtapaBadgeClass(oportunidad.etapa)}`}>
-                  {getEtapaLabel(oportunidad.etapa)}
-                </span>
-                <Tag color={getPrioridadTagColor(oportunidad.prioridad)}>{getPrioridadLabel(oportunidad.prioridad)}</Tag>
-                {!oportunidad.activo && <Tag color="default">Inactiva</Tag>}
-                {modo === "edicion" && <Tag color="processing">Editando</Tag>}
-              </div>
+            {loading || !oportunidad ? (
+              <div className="p-6 text-slate-500">Cargando detalle…</div>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${getEtapaBadgeClass(oportunidad.etapa)}`}>
+                    {getEtapaLabel(oportunidad.etapa)}
+                  </span>
+                  <Tag color={getPrioridadTagColor(oportunidad.prioridad)}>{getPrioridadLabel(oportunidad.prioridad)}</Tag>
+                  {!oportunidad.activo && <Tag color="default">Inactiva</Tag>}
+                  {modo === "edicion" && <Tag color="processing">Editando</Tag>}
+                </div>
 
-              <MercadoPublicoOrigenCard
-                oportunidad={
-                  oportunidad
-                }
-              />
+                {cambioEtapaPendiente &&
+                  cambioEtapaPendiente
+                    .oportunidadId ===
+                  oportunidad.id && (
 
-              {modo === "edicion" ? (
-                <OportunidadForm
-                  oportunidad={oportunidad}
-                  onSubmitEditar={onSubmitEditar}
-                  onSuccess={() => {
-                    setModo("lectura");
-                    setHayCambiosSinGuardar(false);
-                  }}
-                  onCancel={cancelarEdicion}
-                  onDirtyChange={setHayCambiosSinGuardar}
-                />
-              ) : (
-                <>
-                  {oportunidad.etapa === "PERDIDA" && oportunidad.motivoPerdida && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                      <div className="font-semibold">Motivo de perdida</div>
-                      <div className="mt-1">{oportunidad.motivoPerdida}</div>
-                    </div>
-                  )}
+                    <div
+                      className="
+      rounded-xl
+      border
+      border-cyan-200
+      bg-cyan-50
+      p-4
+      "
+                    >
 
-                  {oportunidad.etapa === "POSTERGADA" && (oportunidad.motivoPostergacion || oportunidad.fechaReactivacion) && (
-                    <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-                      <div className="font-semibold">Oportunidad postergada</div>
-                      {oportunidad.motivoPostergacion && <div className="mt-1">{oportunidad.motivoPostergacion}</div>}
-                      {oportunidad.fechaReactivacion && <div className="mt-1 text-xs">Reactivar: {formatFecha(oportunidad.fechaReactivacion)}</div>}
-                    </div>
-                  )}
-
-                  {/* Detalle: tabla compacta de 2 columnas por fila (estilo Beck), no cajas espaciosas.
-                  Solo lo esencial va siempre visible; el resto queda detrás de "Ver más detalles". */}
-                  <TablaResumen
-                    ocultarProximaAccion={["NEGOCIACION", "GANADA", "PERDIDA", "POSTERGADA"].includes(oportunidad.etapa)}
-                    onVerDetalle={() => setDetalleAbierto(true)}
-                    filasEsenciales={[
-                      ["Empresa / Entidad", oportunidad.entidad?.nombre],
-                      ["Valor estimado", formatMonto(oportunidad.montoEstimado, oportunidad.moneda)],
-                      ["Responsable", oportunidad.responsable?.nombre],
-                      ["Proyecto", oportunidad.proyecto],
-                      ["Nombre de contacto", oportunidad.contactoNombre],
-                      ["Correo", oportunidad.contactoEmail],
-                      ["Teléfono", oportunidad.contactoTelefono],
-                      [
-                        "Probabilidad de cierre",
-                        oportunidad.probabilidadCierre != null ? `${oportunidad.probabilidadCierre}%` : undefined,
-                      ],
-                      [
-                        "Fecha probable de cierre",
-                        oportunidad.fechaProbableCierre ? formatFecha(oportunidad.fechaProbableCierre) : undefined,
-                      ],
-                      ["Próxima acción", oportunidad.proximaAccion],
-                      [
-                        "Fecha próxima acción",
-                        oportunidad.fechaProximaAccion ? formatFecha(oportunidad.fechaProximaAccion) : undefined,
-                      ],
-                    ]}
-                    filasDetalle={filasDetalleAvanzado(oportunidad)}
-                  />
-
-                  {detalleAbierto && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-                      <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
+                      <div
+                        className="
+        text-sm
+        font-semibold
+        text-cyan-800
+      "
                       >
-                        <div className="p-6">
-                          <h3 className="text-lg font-bold text-slate-800 mb-1">Más detalles</h3>
-                          <p className="text-xs text-slate-500 mb-4">
-                            {oportunidad.codigo} · {oportunidad.titulo}
-                          </p>
-                          <button
-                            onClick={() => setDetalleAbierto(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                            aria-label="Cerrar"
-                          >
-                            ✕
-                          </button>
+                        Confirmar cambio de etapa
+                      </div>
 
-                          <TablaResumen
-                            ocultarProximaAccion={false}
-                            onVerDetalle={() => { }}
-                            filasEsenciales={filasDetalleAvanzado(oportunidad)}
-                            filasDetalle={[]}
-                          />
 
-                          {oportunidad.objeciones && (
-                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                              <span className="font-medium text-slate-600">Objeciones: </span>
-                              <span className="whitespace-pre-line text-slate-700">{oportunidad.objeciones}</span>
-                            </div>
+                      <div
+                        className="
+        mt-1
+        text-xs
+        text-cyan-700
+      "
+                      >
+                        {getEtapaLabel(
+                          cambioEtapaPendiente
+                            .etapaAnterior
+                        )}
+
+                        {" → "}
+
+                        <strong>
+                          {getEtapaLabel(
+                            cambioEtapaPendiente
+                              .etapaNueva
                           )}
+                        </strong>
+                      </div>
 
-                          {oportunidad.contrapropuestas && (
-                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                              <span className="font-medium text-slate-600">Contrapropuestas: </span>
-                              <span className="whitespace-pre-line text-slate-700">{oportunidad.contrapropuestas}</span>
-                            </div>
-                          )}
 
-                          {oportunidad.ajustesSolicitados && (
-                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                              <span className="font-medium text-slate-600">Ajustes solicitados: </span>
-                              <span className="whitespace-pre-line text-slate-700">{oportunidad.ajustesSolicitados}</span>
-                            </div>
-                          )}
+                      <div>
+                        <Input.TextArea
+                          rows={3}
+                          maxLength={1000}
 
-                          <div className="mt-6 flex justify-end">
+                          value={
+                            notaCambioEtapa
+                          }
+
+                          onChange={(event) =>
+                            setNotaCambioEtapa(
+                              event.target.value
+                            )
+                          }
+
+                          placeholder="Ej: El cliente confirmó interés y solicitó avanzar con la propuesta formal."
+
+                          className="resize-none"
+                        />
+
+                        <div
+                          className="
+      mt-1
+      flex
+      justify-end
+      text-[10px]
+      text-slate-400
+      "
+                        >
+                          {notaCambioEtapa.length} / 1000
+                        </div>
+                      </div>
+
+                      <div
+                        className="
+       mt-3
+      flex
+      justify-end
+      gap-2
+      "
+                      >
+
+                        <button
+                          type="button"
+
+                          disabled={
+                            guardandoCambioEtapa
+                          }
+
+                          onClick={() => {
+                            setNotaCambioEtapa(
+                              ""
+                            );
+
+                            onCancelarCambioEtapa();
+                          }}
+
+                          className="
+          rounded-lg
+          px-3
+          py-2
+          text-xs
+          text-slate-600
+          hover:bg-white
+          disabled:opacity-50
+        "
+                        >
+                          Cancelar
+                        </button>
+
+
+                        <button
+                          type="button"
+
+                          disabled={
+                            guardandoCambioEtapa ||
+                            notaCambioEtapa
+                              .trim()
+                              .length <
+                            3
+                          }
+
+                          onClick={
+                            confirmarCambioPendiente
+                          }
+
+                          className="
+          rounded-lg
+          bg-cyan-600
+          px-3
+          py-2
+          text-xs
+          font-medium
+          text-white
+          hover:bg-cyan-700
+          disabled:cursor-not-allowed
+          disabled:opacity-50
+        "
+                        >
+                          {guardandoCambioEtapa
+                            ? "Guardando..."
+                            : "Confirmar cambio"}
+                        </button>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                <MercadoPublicoOrigenCard
+                  oportunidad={
+                    oportunidad
+                  }
+                />
+
+                {modo === "edicion" ? (
+                  <OportunidadForm
+                    oportunidad={oportunidad}
+                    onSubmitEditar={onSubmitEditar}
+                    onSuccess={() => {
+                      setModo("lectura");
+                      setHayCambiosSinGuardar(false);
+                    }}
+                    onCancel={cancelarEdicion}
+                    onDirtyChange={setHayCambiosSinGuardar}
+                  />
+                ) : (
+                  <>
+                    {oportunidad.etapa === "PERDIDA" && oportunidad.motivoPerdida && (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        <div className="font-semibold">Motivo de perdida</div>
+                        <div className="mt-1">{oportunidad.motivoPerdida}</div>
+                      </div>
+                    )}
+
+                    {oportunidad.etapa === "POSTERGADA" && (oportunidad.motivoPostergacion || oportunidad.fechaReactivacion) && (
+                      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+                        <div className="font-semibold">Oportunidad postergada</div>
+                        {oportunidad.motivoPostergacion && <div className="mt-1">{oportunidad.motivoPostergacion}</div>}
+                        {oportunidad.fechaReactivacion && <div className="mt-1 text-xs">Reactivar: {formatFecha(oportunidad.fechaReactivacion)}</div>}
+                      </div>
+                    )}
+
+                    {/* Detalle: tabla compacta de 2 columnas por fila (estilo Beck), no cajas espaciosas.
+                  Solo lo esencial va siempre visible; el resto queda detrás de "Ver más detalles". */}
+                    <TablaResumen
+                      ocultarProximaAccion={["NEGOCIACION", "GANADA", "PERDIDA", "POSTERGADA"].includes(oportunidad.etapa)}
+                      onVerDetalle={() => setDetalleAbierto(true)}
+                      filasEsenciales={[
+                        ["Empresa / Entidad", oportunidad.entidad?.nombre],
+                        ["Valor estimado", formatMonto(oportunidad.montoEstimado, oportunidad.moneda)],
+                        ["Responsable", oportunidad.responsable?.nombre],
+                        ["Proyecto", oportunidad.proyecto],
+                        ["Nombre de contacto", oportunidad.contactoNombre],
+                        ["Correo", oportunidad.contactoEmail],
+                        ["Teléfono", oportunidad.contactoTelefono],
+                        [
+                          "Probabilidad de cierre",
+                          oportunidad.probabilidadCierre != null ? `${oportunidad.probabilidadCierre}%` : undefined,
+                        ],
+                        [
+                          "Fecha probable de cierre",
+                          oportunidad.fechaProbableCierre ? formatFecha(oportunidad.fechaProbableCierre) : undefined,
+                        ],
+                        [
+                          "Próxima acción",
+                          oportunidad.proximaAccion
+                            ? getProximaAccionLabel(
+                              oportunidad.proximaAccion
+                            )
+                            : undefined,
+                        ],
+                      ]}
+                      filasDetalle={filasDetalleAvanzado(oportunidad)}
+                    />
+
+                    {detalleAbierto && (
+                      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+                        <motion.div
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
+                        >
+                          <div className="p-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-1">Más detalles</h3>
+                            <p className="text-xs text-slate-500 mb-4">
+                              {oportunidad.codigo} · {oportunidad.titulo}
+                            </p>
                             <button
                               onClick={() => setDetalleAbierto(false)}
-                              className="px-4 py-2 rounded-lg text-sm bg-cyan-600 text-white hover:bg-cyan-700 transition"
+                              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
+                              aria-label="Cerrar"
                             >
-                              Cerrar
+                              ✕
                             </button>
+
+                            <TablaResumen
+                              ocultarProximaAccion={false}
+                              onVerDetalle={() => { }}
+                              filasEsenciales={filasDetalleAvanzado(oportunidad)}
+                              filasDetalle={[]}
+                            />
+
+                            {oportunidad.objeciones && (
+                              <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <span className="font-medium text-slate-600">Objeciones: </span>
+                                <span className="whitespace-pre-line text-slate-700">{oportunidad.objeciones}</span>
+                              </div>
+                            )}
+
+                            {oportunidad.contrapropuestas && (
+                              <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <span className="font-medium text-slate-600">Contrapropuestas: </span>
+                                <span className="whitespace-pre-line text-slate-700">{oportunidad.contrapropuestas}</span>
+                              </div>
+                            )}
+
+                            {oportunidad.ajustesSolicitados && (
+                              <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <span className="font-medium text-slate-600">Ajustes solicitados: </span>
+                                <span className="whitespace-pre-line text-slate-700">{oportunidad.ajustesSolicitados}</span>
+                              </div>
+                            )}
+
+                            <div className="mt-6 flex justify-end">
+                              <button
+                                onClick={() => setDetalleAbierto(false)}
+                                className="px-4 py-2 rounded-lg text-sm bg-cyan-600 text-white hover:bg-cyan-700 transition"
+                              >
+                                Cerrar
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    </div>
-                  )}
+                        </motion.div>
+                      </div>
+                    )}
 
-                  {oportunidad.observaciones && (
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-600">Observaciones: </span>
-                      <span className="whitespace-pre-line text-slate-700">{oportunidad.observaciones}</span>
-                    </div>
-                  )}
+                    {oportunidad.observaciones && (
+                      <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-600">Observaciones: </span>
+                        <span className="whitespace-pre-line text-slate-700">{oportunidad.observaciones}</span>
+                      </div>
+                    )}
 
-                  {oportunidad.informacionPendiente && (
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-600">Información pendiente: </span>
-                      <span className="whitespace-pre-line text-slate-700">{oportunidad.informacionPendiente}</span>
-                    </div>
-                  )}
+                    {oportunidad.notas && (
+                      <div
+                        className="
+      rounded-lg
+      border
+      border-slate-200
+      px-3
+      py-2
+      text-sm
+     "
+                      >
+                        <span
+                          className="
+        font-medium
+        text-slate-600
+      "
+                        >
+                          Notas:{" "}
+                        </span>
 
-                  {oportunidad.condicionesEspeciales && (
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-600">Condiciones especiales: </span>
-                      <span className="whitespace-pre-line text-slate-700">{oportunidad.condicionesEspeciales}</span>
-                    </div>
-                  )}
+                        <span
+                          className="
+        whitespace-pre-line
+        text-slate-700
+      "
+                        >
+                          {oportunidad.notas}
+                        </span>
+                      </div>
+                    )}
 
-                  {oportunidad.comentariosInternos && (
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-600">Comentarios internos: </span>
-                      <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosInternos}</span>
-                    </div>
-                  )}
+                    {oportunidad.informacionPendiente && (
+                      <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-600">Información pendiente: </span>
+                        <span className="whitespace-pre-line text-slate-700">{oportunidad.informacionPendiente}</span>
+                      </div>
+                    )}
 
-                  {oportunidad.comentariosCliente && (
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-600">Comentarios del cliente: </span>
-                      <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosCliente}</span>
-                    </div>
-                  )}
+                    {oportunidad.condicionesEspeciales && (
+                      <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-600">Condiciones especiales: </span>
+                        <span className="whitespace-pre-line text-slate-700">{oportunidad.condicionesEspeciales}</span>
+                      </div>
+                    )}
 
-                  {/* Acciones — visibles inmediatamente debajo de la tabla */}
-                  <AccionesSection
-                    oportunidad={oportunidad}
-                    onEditar={() => setModo("edicion")}
-                    onDesactivar={handleDesactivar}
-                    onIrACotizaciones={irACotizaciones}
-                    onIrASeguimientos={irASeguimientos}
-                    onSubmitEditar={onSubmitEditar}
-                    onCambiarEtapa={onCambiarEtapa}
-                    onRequiereCierre={onRequiereCierre}
-                  />
+                    {oportunidad.comentariosInternos && (
+                      <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-600">Comentarios internos: </span>
+                        <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosInternos}</span>
+                      </div>
+                    )}
 
-                  {/* 1. Cotizaciones vinculadas */}
-                  <div ref={cotizacionesRef}>
-                    <CotizacionesSection
-                      oportunidad={oportunidad}
-                      onVincular={onVincularCotizacion}
-                      onDesvincular={onDesvincularCotizacion}
-                      onCrearCotizacion={() => onAbrirCrearCotizacion(oportunidad)}
+                    {oportunidad.comentariosCliente && (
+                      <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <span className="font-medium text-slate-600">Comentarios del cliente: </span>
+                        <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosCliente}</span>
+                      </div>
+                    )}
+
+                    {/* Acciones — visibles inmediatamente debajo de la tabla */}
+                    <AccionesSection
+                      oportunidad={
+                        oportunidad
+                      }
+
+                      onEditar={() =>
+                        setModo(
+                          "edicion"
+                        )
+                      }
+
+                      onDesactivar={
+                        handleDesactivar
+                      }
+
+                      onIrACotizaciones={
+                        irACotizaciones
+                      }
+
+                      onIrASeguimientos={
+                        irASeguimientos
+                      }
+
+                      onEnviarInforme={() =>
+                        setInformeOpen(
+                          true
+                        )
+                      }
+
+                      onSubmitEditar={
+                        onSubmitEditar
+                      }
+
+                      onSolicitarCambioEtapa={
+                        onSolicitarCambioEtapa
+                      }
                     />
-                  </div>
 
-                  {/* 2. Seguimientos */}
-                  <SeguimientosSection
-                    oportunidad={oportunidad}
-                    onCrearSeguimiento={onCrearSeguimiento}
-                    textareaRef={seguimientoTextareaRef}
-                  />
+                    {/* 1. Cotizaciones vinculadas */}
+                    <div ref={cotizacionesRef}>
+                      <CotizacionesSection
+                        oportunidad={oportunidad}
+                        onVincular={onVincularCotizacion}
+                        onDesvincular={onDesvincularCotizacion}
+                        onCrearCotizacion={() => onAbrirCrearCotizacion(oportunidad)}
+                      />
+                    </div>
 
-                  {/* 3. Historial de etapas */}
-                  <HistorialSection oportunidad={oportunidad} />
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
+                    {/* 2. Seguimientos */}
+                    <SeguimientosSection
+                      oportunidad={
+                        oportunidad
+                      }
+
+                      onCrearSeguimiento={
+                        onCrearSeguimiento
+                      }
+
+                      onCambiarEstadoSeguimiento={
+                        onCambiarEstadoSeguimiento
+                      }
+
+                      textareaRef={
+                        seguimientoTextareaRef
+                      }
+                    />
+
+                    {/* 3. Historial de etapas */}
+                    <HistorialSection oportunidad={oportunidad} />
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+      <EnviarInformeFunnelModal
+        open={
+          informeOpen
+        }
+
+        oportunidad={
+          oportunidad
+        }
+
+        onClose={() =>
+          setInformeOpen(
+            false
+          )
+        }
+
+        onEnviar={
+          onEnviarInforme
+        }
+      />
+    </>
   );
 }
 
@@ -966,18 +1381,55 @@ function AccionesSection({
   onDesactivar,
   onIrACotizaciones,
   onIrASeguimientos,
+  onEnviarInforme,
   onSubmitEditar,
-  onCambiarEtapa,
-  onRequiereCierre,
+  onSolicitarCambioEtapa,
 }: {
-  oportunidad: OportunidadDetalle;
-  onEditar: () => void;
-  onDesactivar: () => void;
-  onIrACotizaciones: () => void;
-  onIrASeguimientos: () => void;
-  onSubmitEditar: (id: number, payload: EditarOportunidadPayload) => Promise<OportunidadDetalle | undefined>;
-  onCambiarEtapa: (id: number, etapa: EtapaOportunidadVenta) => Promise<unknown>;
-  onRequiereCierre: (oportunidad: OportunidadDetalle, tipo: Extract<EtapaOportunidadVenta, "GANADA" | "PERDIDA" | "POSTERGADA">) => void;
+  oportunidad:
+  OportunidadDetalle;
+
+  onEditar:
+  () =>
+    void;
+
+  onDesactivar:
+  () =>
+    void;
+
+  onIrACotizaciones:
+  () =>
+    void;
+
+  onIrASeguimientos:
+  () =>
+    void;
+
+  onEnviarInforme:
+  () =>
+    void;
+
+  onSubmitEditar:
+  (
+    id:
+      number,
+
+    payload:
+      EditarOportunidadPayload
+  ) =>
+    Promise<
+      OportunidadDetalle |
+      undefined
+    >;
+
+  onSolicitarCambioEtapa:
+  (
+    oportunidad:
+      OportunidadDetalle,
+
+    etapa:
+      EtapaOportunidadVenta
+  ) =>
+    void;
 }) {
   const { notification } = App.useApp();
   const [panel, setPanel] = useState<"responsable" | "etapa" | "campos" | null>(null);
@@ -1025,19 +1477,12 @@ function AccionesSection({
     oportunidad.activo && (oportunidad.etapa === "POSTERGADA" || oportunidad.etapa === "PERDIDA");
   const gruposCampos = gruposCamposPorEtapa(oportunidad.etapa);
 
-  async function reactivar() {
-    setGuardando(true);
-    try {
-      await onCambiarEtapa(oportunidad.id, "NEGOCIACION");
-      notification.success({ message: "Oportunidad reactivada", description: getEtapaLabel("NEGOCIACION") });
-    } catch (err) {
-      notification.error({
-        message: "No se pudo reactivar la oportunidad",
-        description: getOportunidadErrorMessage(err, "Ocurrió un error inesperado."),
-      });
-    } finally {
-      setGuardando(false);
-    }
+  function reactivar() {
+
+    onSolicitarCambioEtapa(
+      oportunidad,
+      "NEGOCIACION"
+    );
   }
 
   async function guardarResponsable() {
@@ -1060,29 +1505,30 @@ function AccionesSection({
     }
   }
 
-  async function guardarEtapa() {
-    if (nuevaEtapa === oportunidad.etapa) {
-      setPanel(null);
+  function guardarEtapa() {
+
+    if (
+      nuevaEtapa ===
+      oportunidad.etapa
+    ) {
+
+      setPanel(
+        null
+      );
+
       return;
     }
-    if (ETAPAS_CIERRE.has(nuevaEtapa)) {
-      setPanel(null);
-      onRequiereCierre(oportunidad, nuevaEtapa as Extract<EtapaOportunidadVenta, "GANADA" | "PERDIDA" | "POSTERGADA">);
-      return;
-    }
-    setGuardando(true);
-    try {
-      await onCambiarEtapa(oportunidad.id, nuevaEtapa);
-      notification.success({ message: "Etapa actualizada", description: getEtapaLabel(nuevaEtapa) });
-      setPanel(null);
-    } catch (err) {
-      notification.error({
-        message: "No se pudo cambiar la etapa",
-        description: getOportunidadErrorMessage(err, "Ocurrió un error inesperado."),
-      });
-    } finally {
-      setGuardando(false);
-    }
+
+
+    setPanel(
+      null
+    );
+
+
+    onSolicitarCambioEtapa(
+      oportunidad,
+      nuevaEtapa
+    );
   }
 
   async function guardarCamposEtapa() {
@@ -1155,6 +1601,17 @@ function AccionesSection({
         />
         <AccionButton icon={<MessageOutlined />} label="Crear seguimiento" onClick={onIrASeguimientos} />
         <AccionButton icon={<LinkOutlined />} label="Vincular cotización" onClick={onIrACotizaciones} />
+        <AccionButton
+          icon={
+            <FilePdfOutlined />
+          }
+
+          label="Enviar informe"
+
+          onClick={
+            onEnviarInforme
+          }
+        />
         {puedeReactivar && (
           <AccionButton
             tone="success"
@@ -1169,13 +1626,23 @@ function AccionesSection({
               tone="success"
               icon={<CheckCircleOutlined />}
               label="Marcar ganada"
-              onClick={() => onRequiereCierre(oportunidad, "GANADA")}
+              onClick={() =>
+                onSolicitarCambioEtapa(
+                  oportunidad,
+                  "GANADA"
+                )
+              }
             />
             <AccionButton
               tone="danger"
               icon={<CloseCircleOutlined />}
               label="Marcar perdida"
-              onClick={() => onRequiereCierre(oportunidad, "PERDIDA")}
+              onClick={() =>
+                onSolicitarCambioEtapa(
+                  oportunidad,
+                  "PERDIDA"
+                )
+              }
             />
           </>
         )}
@@ -1184,7 +1651,12 @@ function AccionesSection({
             tone="warning"
             icon={<PauseCircleOutlined />}
             label="Marcar postergada"
-            onClick={() => onRequiereCierre(oportunidad, "POSTERGADA")}
+            onClick={() =>
+              onSolicitarCambioEtapa(
+                oportunidad,
+                "POSTERGADA"
+              )
+            }
           />
         )}
         {oportunidad.activo && (
@@ -1423,9 +1895,46 @@ function AccionesSection({
                         />
                         <InputNumber
                           className="w-full"
+
                           min={0}
-                          value={camposEtapa.montoPropuesto}
-                          onChange={(value) => setCamposEtapa((c) => ({ ...c, montoPropuesto: value ?? undefined }))}
+
+                          value={
+                            camposEtapa.montoPropuesto
+                          }
+
+                          precision={
+                            camposEtapa.moneda ===
+                              "CLP"
+                              ? 0
+                              : 2
+                          }
+
+                          formatter={(value) =>
+                            formatMontoInput(
+                              value,
+                              camposEtapa.moneda
+                            )
+                          }
+
+                          parser={(value) =>
+                            parseMontoInput(
+                              value,
+                              camposEtapa.moneda
+                            )
+                          }
+
+                          onChange={(value) =>
+                            setCamposEtapa(
+                              (c) => ({
+                                ...c,
+
+                                montoPropuesto:
+                                  value !== null
+                                    ? Number(value)
+                                    : undefined,
+                              })
+                            )
+                          }
                         />
                       </div>
                     </div>
@@ -1499,9 +2008,46 @@ function AccionesSection({
                         />
                         <InputNumber
                           className="w-full"
+
                           min={0}
-                          value={camposEtapa.montoPropuesto}
-                          onChange={(value) => setCamposEtapa((c) => ({ ...c, montoPropuesto: value ?? undefined }))}
+
+                          value={
+                            camposEtapa.montoPropuesto
+                          }
+
+                          precision={
+                            camposEtapa.moneda ===
+                              "CLP"
+                              ? 0
+                              : 2
+                          }
+
+                          formatter={(value) =>
+                            formatMontoInput(
+                              value,
+                              camposEtapa.moneda
+                            )
+                          }
+
+                          parser={(value) =>
+                            parseMontoInput(
+                              value,
+                              camposEtapa.moneda
+                            )
+                          }
+
+                          onChange={(value) =>
+                            setCamposEtapa(
+                              (c) => ({
+                                ...c,
+
+                                montoPropuesto:
+                                  value !== null
+                                    ? Number(value)
+                                    : undefined,
+                              })
+                            )
+                          }
                         />
                       </div>
                     </div>
@@ -1577,13 +2123,25 @@ function AccionesSection({
 ========================================================= */
 interface CotizacionBusquedaRow {
   id: number;
-  estado: string;
-  total: number;
-  moneda: string;
-  oportunidadVentaId: number | null;
-  entidad: { nombre: string } | null;
-}
 
+  estado: string;
+
+  total: number;
+
+  moneda:
+  MonedaOportunidad;
+
+  oportunidadVentaId:
+  number |
+  null;
+
+  entidad:
+  {
+    nombre:
+    string;
+  } |
+  null;
+}
 function CotizacionesSection({
   oportunidad,
   onVincular,
@@ -1595,6 +2153,10 @@ function CotizacionesSection({
   onDesvincular: (id: number, cotizacionId: number) => Promise<unknown>;
   onCrearCotizacion: () => void;
 }) {
+
+  const navigate =
+    useNavigate();
+
   const {
     notification,
     modal,
@@ -1632,6 +2194,32 @@ function CotizacionesSection({
         setBuscando(false);
       }
     }, 400);
+  }
+
+  function abrirCotizacion(
+    cotizacionId:
+      number,
+
+    accion:
+      "ver" |
+      "editar"
+  ) {
+    navigate(
+      `/Cotizaciones?cotizacionId=${cotizacionId}&accion=${accion}`,
+
+      {
+        state: {
+          origen:
+            "funnel",
+
+          oportunidadId:
+            oportunidad.id,
+
+          drawerTab:
+            "cotizaciones",
+        },
+      }
+    );
   }
 
   async function handleVincular() {
@@ -1717,13 +2305,76 @@ function CotizacionesSection({
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-slate-700">Cotizaciones vinculadas ({oportunidad.cotizaciones.length})</h4>
-        <button
-          onClick={onCrearCotizacion}
-          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100 transition"
-        >
-          <PlusOutlined /> Crear cotización
-        </button>
+        <h4 className="text-sm font-semibold text-slate-700">
+          Cotizaciones vinculadas (
+          {oportunidad.cotizaciones.length}
+          )
+        </h4>
+
+        <div className="flex items-center gap-2">
+
+          <button
+            type="button"
+
+            onClick={() =>
+              navigate(
+                "/Cotizaciones",
+
+                {
+                  state: {
+                    origen:
+                      "funnel",
+
+                    oportunidadId:
+                      oportunidad.id,
+
+                    drawerTab:
+                      "cotizaciones",
+                  },
+                }
+              )
+            }
+
+            className="
+        rounded-lg
+        bg-slate-100
+        px-2.5
+        py-1
+        text-xs
+        font-medium
+        text-slate-600
+        hover:bg-slate-200
+      "
+          >
+            Ir a Cotizaciones
+          </button>
+
+
+          <button
+            onClick={
+              onCrearCotizacion
+            }
+
+            className="
+        inline-flex
+        items-center
+        gap-1
+        rounded-lg
+        bg-emerald-50
+        px-2.5
+        py-1
+        text-xs
+        text-emerald-700
+        hover:bg-emerald-100
+        transition
+      "
+          >
+            <PlusOutlined />
+
+            Crear cotización
+          </button>
+
+        </div>
       </div>
 
       <div className="mb-3 flex gap-2">
@@ -1749,22 +2400,165 @@ function CotizacionesSection({
       </div>
 
       <div className="space-y-2">
-        {oportunidad.cotizaciones.length === 0 ? (
-          <p className="text-sm text-slate-400">Sin cotizaciones vinculadas.</p>
-        ) : (
-          oportunidad.cotizaciones.map((c) => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm">
-              <div>
-                <div className="font-medium text-slate-700">#{c.id} · {c.entidad?.nombre ?? "Sin cliente"}</div>
-                <div className="text-xs text-slate-500">
-                  {c.estado} · {formatMonto(c.total, c.moneda)} · {formatFecha(c.createdAt)}
+        {oportunidad.cotizaciones.map(
+          (c) => (
+
+            <div
+              key={
+                c.id
+              }
+
+              className="
+        rounded-lg
+        border
+        border-slate-200
+        p-3
+        text-sm
+      "
+            >
+
+              <div
+                className="
+          flex
+          items-start
+          justify-between
+          gap-3
+        "
+              >
+
+                <div
+                  className="
+            min-w-0
+            flex-1
+          "
+                >
+
+                  <div
+                    className="
+              font-medium
+              text-slate-700
+            "
+                  >
+                    #{c.id} ·{" "}
+                    {c.entidad?.nombre ??
+                      "Sin cliente"}
+                  </div>
+
+
+                  <div
+                    className="
+              mt-0.5
+              text-xs
+              text-slate-500
+            "
+                  >
+                    {c.estado}
+
+                    {" · "}
+
+                    {formatMonto(
+                      c.total,
+                      c.moneda
+                    )}
+
+                    {" · "}
+
+                    {formatFecha(
+                      c.createdAt
+                    )}
+                  </div>
+
                 </div>
+
+
+                <div
+                  className="
+            flex
+            shrink-0
+            items-center
+            gap-2
+          "
+                >
+
+                  <button
+                    type="button"
+
+                    onClick={() =>
+                      abrirCotizacion(
+                        c.id,
+                        "ver"
+                      )
+                    }
+
+                    className="
+              rounded-lg
+              bg-blue-50
+              px-2.5
+              py-1.5
+              text-xs
+              font-medium
+              text-blue-700
+              hover:bg-blue-100
+            "
+                  >
+                    Ver
+                  </button>
+
+
+                  <button
+                    type="button"
+
+                    onClick={() =>
+                      abrirCotizacion(
+                        c.id,
+                        "editar"
+                      )
+                    }
+
+                    className="
+              rounded-lg
+              bg-emerald-50
+              px-2.5
+              py-1.5
+              text-xs
+              font-medium
+              text-emerald-700
+              hover:bg-emerald-100
+            "
+                  >
+                    Editar
+                  </button>
+
+
+                  <button
+                    type="button"
+
+                    onClick={() =>
+                      handleDesvincular(
+                        c.id
+                      )
+                    }
+
+                    className="
+              rounded-lg
+              bg-rose-50
+              px-2.5
+              py-1.5
+              text-xs
+              font-medium
+              text-rose-600
+              hover:bg-rose-100
+            "
+                  >
+                    Desvincular
+                  </button>
+
+                </div>
+
               </div>
-              <button onClick={() => handleDesvincular(c.id)} className="text-xs text-rose-600 hover:underline">
-                Desvincular
-              </button>
+
             </div>
-          ))
+          )
         )}
       </div>
     </section>
@@ -1777,11 +2571,43 @@ function CotizacionesSection({
 function SeguimientosSection({
   oportunidad,
   onCrearSeguimiento,
+  onCambiarEstadoSeguimiento,
   textareaRef,
 }: {
-  oportunidad: OportunidadDetalle;
-  onCrearSeguimiento: (id: number, payload: CrearSeguimientoPayload) => Promise<unknown>;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  oportunidad:
+  OportunidadDetalle;
+
+  onCrearSeguimiento:
+  (
+    id:
+      number,
+
+    payload:
+      CrearSeguimientoPayload
+  ) =>
+    Promise<unknown>;
+
+  onCambiarEstadoSeguimiento:
+  (
+    oportunidadId:
+      number,
+
+    seguimientoId:
+      number,
+
+    estado:
+      EstadoSeguimientoOportunidad,
+
+    notaEstado:
+      string
+  ) =>
+    Promise<unknown>;
+
+  textareaRef:
+  RefObject<
+    HTMLTextAreaElement |
+    null
+  >;
 }) {
   const { notification } = App.useApp();
   const [comentario, setComentario] = useState("");
@@ -1791,9 +2617,164 @@ function SeguimientosSection({
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [
+    actualizandoSeguimientoId,
+    setActualizandoSeguimientoId,
+  ] =
+    useState<
+      number |
+      null
+    >(
+      null
+    );
+
+  const [
+    cambioEstadoPendiente,
+    setCambioEstadoPendiente,
+  ] =
+    useState<{
+      seguimientoId:
+      number;
+
+      estado:
+      EstadoSeguimientoOportunidad;
+    } | null>(
+      null
+    );
+
+  const [
+    notaEstado,
+    setNotaEstado,
+  ] =
+    useState(
+      ""
+    );
+
+  const tareasPendientes =
+    oportunidad.seguimientos.filter(
+      (
+        seguimiento
+      ) =>
+        seguimiento.estado ===
+        "PENDIENTE"
+    );
+
+  function solicitarCambioEstado(
+    seguimientoId:
+      number,
+
+    estado:
+      EstadoSeguimientoOportunidad
+  ) {
+    setCambioEstadoPendiente({
+      seguimientoId,
+      estado,
+    });
+
+    setNotaEstado(
+      ""
+    );
+  }
+
+  async function confirmarCambioEstado() {
+
+    if (
+      !cambioEstadoPendiente
+    ) {
+      return;
+    }
+
+
+    const nota =
+      notaEstado.trim();
+
+
+    if (
+      nota.length <
+      3
+    ) {
+      notification.warning({
+        message:
+          "Nota obligatoria",
+
+        description:
+          "Indica qué ocurrió o por qué se cambia el estado de la tarea.",
+      });
+
+      return;
+    }
+
+
+    setActualizandoSeguimientoId(
+      cambioEstadoPendiente
+        .seguimientoId
+    );
+
+
+    try {
+
+      await onCambiarEstadoSeguimiento(
+        oportunidad.id,
+
+        cambioEstadoPendiente
+          .seguimientoId,
+
+        cambioEstadoPendiente
+          .estado,
+
+        nota
+      );
+
+
+      notification.success({
+        message:
+          cambioEstadoPendiente
+            .estado ===
+            "COMPLETADA"
+            ? "Tarea completada"
+            : "Tarea cancelada",
+      });
+
+
+      setCambioEstadoPendiente(
+        null
+      );
+
+      setNotaEstado(
+        ""
+      );
+
+    } catch (
+    err
+    ) {
+
+      notification.error({
+        message:
+          "No se pudo actualizar la tarea",
+
+        description:
+          getOportunidadErrorMessage(
+            err,
+            "Ocurrió un error inesperado."
+          ),
+      });
+
+    } finally {
+
+      setActualizandoSeguimientoId(
+        null
+      );
+    }
+  }
+
   async function handleAgregar() {
-    if (!comentario.trim()) {
-      setError("El comentario es obligatorio.");
+    if (
+      !comentario.trim()
+    ) {
+      setError(
+        "El detalle de la próxima tarea es obligatorio."
+      );
+
       return;
     }
     setEnviando(true);
@@ -1821,65 +2802,749 @@ function SeguimientosSection({
     <section>
       <h4 className="mb-2 text-sm font-semibold text-slate-700">Seguimientos ({oportunidad.seguimientos.length})</h4>
 
-      <div className="mb-3 rounded-xl border border-slate-200 p-3">
-        <textarea
-          ref={textareaRef}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          rows={2}
-          placeholder="Comentario del contacto..."
-          value={comentario}
-          onChange={(e) => setComentario(e.target.value)}
-        />
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Fecha de contacto</label>
-            <DatePicker className="w-full" format="DD-MM-YYYY" value={fechaContacto} onChange={setFechaContacto} />
+      {tareasPendientes.length >
+        0 && (
+
+          <div
+            className="
+      mb-3
+      rounded-lg
+      border
+      border-amber-200
+      bg-amber-50
+      px-3
+      py-2
+      text-xs
+      text-amber-700
+    "
+          >
+
+            <strong>
+              {tareasPendientes.length}
+            </strong>
+
+            {" "}
+
+            {tareasPendientes.length ===
+              1
+              ? "tarea pendiente."
+              : "tareas pendientes."}
+
+            {" "}
+
+            Puedes registrar otra tarea
+            si corresponde.
+
           </div>
+        )}
+
+      <div className="mb-3 rounded-xl border border-slate-200 p-3">
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+          {/* =====================================================
+        PRÓXIMA ACCIÓN
+    ===================================================== */}
+
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Próxima acción</label>
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={proximaAccion}
-              onChange={(e) => setProximaAccion(e.target.value)}
+            <label
+              className="
+          mb-1
+          block
+          text-xs
+          font-medium
+          text-slate-500
+        "
+            >
+              Próxima acción
+            </label>
+
+            <Select
+              className="w-full"
+
+              placeholder="Seleccionar próxima acción"
+
+              value={
+                proximaAccion ||
+                undefined
+              }
+
+              onChange={(value) =>
+                setProximaAccion(
+                  value
+                )
+              }
+
+              allowClear
+
+              showSearch
+
+              optionFilterProp="label"
+
+              options={
+                PROXIMAS_ACCIONES
+              }
             />
           </div>
-          <div className="col-span-2">
-            <label className="block text-xs text-slate-500 mb-1">Fecha próxima acción</label>
-            <DatePicker className="w-full" format="DD-MM-YYYY" value={fechaProximaAccion} onChange={setFechaProximaAccion} />
+
+
+          {/* =====================================================
+        FECHA PRÓXIMA TAREA
+    ===================================================== */}
+
+          <div>
+            <label
+              className="
+          mb-1
+          block
+          text-xs
+          font-medium
+          text-slate-500
+        "
+            >
+              Fecha de próxima tarea
+            </label>
+
+            <DatePicker
+              className="w-full"
+
+              format="DD-MM-YYYY"
+
+              placeholder="Seleccionar fecha"
+
+              value={
+                fechaProximaAccion
+              }
+
+              onChange={
+                setFechaProximaAccion
+              }
+            />
           </div>
+
         </div>
-        {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
-        <div className="mt-3 flex justify-end">
-          <button
-            onClick={handleAgregar}
-            disabled={enviando}
-            className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs text-white hover:bg-cyan-700 transition disabled:opacity-60"
+
+
+        {/* =====================================================
+      DETALLE DE LA TAREA
+  ===================================================== */}
+
+        <div className="mt-3">
+
+          <label
+            className="
+            mb-1
+            block
+            text-xs
+            font-medium
+            text-slate-500
+             "
           >
-            <PlusOutlined /> {enviando ? "Guardando…" : "Agregar seguimiento"}
-          </button>
+            Detalle de la próxima tarea
+          </label>
+
+          <Input.TextArea
+            ref={
+              textareaRef
+            }
+
+            rows={3}
+
+            maxLength={
+              1000
+            }
+
+            placeholder="Ej: Llamar al cliente para confirmar recepción de la propuesta y consultar fecha estimada de decisión."
+
+            value={
+              comentario
+            }
+
+            onChange={(event) =>
+              setComentario(
+                event.target.value
+              )
+            }
+
+            className="resize-none"
+          />
+
         </div>
+
+
+        {error && (
+          <p className="mt-2 text-xs text-rose-500">
+            {error}
+          </p>
+        )}
+
+
+        <div className="mt-2 flex justify-end">
+
+          <button
+            type="button"
+
+            onClick={
+              handleAgregar
+            }
+
+            disabled={
+              enviando
+            }
+
+            className="
+        inline-flex
+        items-center
+        gap-1
+        rounded-lg
+        bg-cyan-600
+        px-3
+        py-1.5
+        text-xs
+        text-white
+        transition
+        hover:bg-cyan-700
+        disabled:opacity-60
+      "
+          >
+            <PlusOutlined />
+
+            {enviando
+              ? "Guardando…"
+              : "Registrar próxima tarea"}
+          </button>
+
+        </div>
+
       </div>
 
+
+      {/* =====================================================
+          HISTORIAL DE SEGUIMIENTOS / PRÓXIMAS TAREAS
+      ===================================================== */}
+
       <div className="space-y-2">
+
         {oportunidad.seguimientos.length === 0 ? (
-          <p className="text-sm text-slate-400">Sin seguimientos registrados.</p>
+
+          <p className="text-sm text-slate-400">
+            Sin seguimientos registrados.
+          </p>
+
         ) : (
-          oportunidad.seguimientos.map((s) => (
-            <div key={s.id} className="rounded-lg border border-slate-200 p-3 text-sm">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{s.autor?.nombre ?? "—"}</span>
-                <span>{formatFechaHora(s.createdAt)}</span>
-              </div>
-              <p className="mt-1 text-slate-700">{s.comentario}</p>
-              {(s.proximaAccion || s.fechaProximaAccion) && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Próxima acción: {s.proximaAccion || "—"} {s.fechaProximaAccion ? `· ${formatFecha(s.fechaProximaAccion)}` : ""}
-                </p>
-              )}
-            </div>
-          ))
+
+          oportunidad.seguimientos.map(
+            (
+              s
+            ) => {
+
+              const actualizando =
+                actualizandoSeguimientoId ===
+                s.id;
+
+
+              const esPendiente =
+                s.estado ===
+                "PENDIENTE";
+
+
+              return (
+
+                <div
+                  key={
+                    s.id
+                  }
+
+                  className={`
+          rounded-lg
+          border
+          p-3
+          text-sm
+
+          ${s.estado ===
+                      "COMPLETADA"
+                      ? "border-emerald-200 bg-emerald-50/30"
+                      : s.estado ===
+                        "CANCELADA"
+                        ? "border-slate-200 bg-slate-50/50"
+                        : "border-amber-200 bg-white"
+                    }
+        `}
+                >
+
+                  {/* =========================================
+            CABECERA
+        ========================================= */}
+
+                  <div
+                    className="
+            flex
+            flex-wrap
+            items-center
+            justify-between
+            gap-2
+          "
+                  >
+
+                    <div
+                      className="
+              text-xs
+              text-slate-400
+            "
+                    >
+
+                      <span>
+                        {s.autor?.nombre ??
+                          "—"}
+                      </span>
+
+                      {" · "}
+
+                      <span>
+                        {formatFechaHora(
+                          s.createdAt
+                        )}
+                      </span>
+
+                    </div>
+
+
+                    {/* =====================================
+              ESTADO
+          ===================================== */}
+
+                    <span
+                      className={`
+              inline-flex
+              items-center
+              rounded-full
+              px-2
+              py-0.5
+              text-[10px]
+              font-semibold
+
+              ${s.estado ===
+                          "COMPLETADA"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : s.estado ===
+                            "CANCELADA"
+                            ? "bg-slate-200 text-slate-600"
+                            : "bg-amber-100 text-amber-700"
+                        }
+            `}
+                    >
+
+                      {s.estado ===
+                        "COMPLETADA"
+                        ? "Completada"
+                        : s.estado ===
+                          "CANCELADA"
+                          ? "Cancelada"
+                          : "Pendiente"}
+
+                    </span>
+
+                  </div>
+
+
+                  {/* =========================================
+            PRÓXIMA TAREA
+        ========================================= */}
+
+                  {(s.proximaAccion ||
+                    s.fechaProximaAccion) && (
+
+                      <div
+                        className="
+              mt-2
+              flex
+              flex-wrap
+              items-center
+              gap-1
+            "
+                      >
+
+                        <span
+                          className="
+                text-xs
+                font-semibold
+                text-slate-600
+              "
+                        >
+                          Acción:
+                        </span>
+
+
+                        <span
+                          className="
+                text-xs
+                text-slate-600
+              "
+                        >
+
+                          {s.proximaAccion
+                            ? getProximaAccionLabel(
+                              s.proximaAccion
+                            )
+                            : "Sin acción definida"}
+
+                          {s.fechaProximaAccion
+                            ? ` · ${formatFecha(
+                              s.fechaProximaAccion
+                            )}`
+                            : ""}
+
+                        </span>
+
+                      </div>
+                    )}
+
+
+                  {/* =========================================
+            DETALLE
+        ========================================= */}
+
+                  <div
+                    className="
+            mt-2
+            rounded-lg
+            bg-slate-50
+            px-3
+            py-2
+          "
+                  >
+
+                    <div
+                      className="
+              mb-1
+              text-[10px]
+              font-semibold
+              uppercase
+              tracking-wide
+              text-slate-400
+            "
+                    >
+                      Detalle de la tarea
+                    </div>
+
+
+                    <p
+                      className="
+              whitespace-pre-line
+              text-sm
+              text-slate-700
+            "
+                    >
+                      {s.comentario}
+                    </p>
+
+                  </div>
+
+                  {/* =========================================
+    NOTA DEL CAMBIO DE ESTADO
+========================================= */}
+
+                  {s.notaEstado && (
+
+                    <div
+                      className={`
+      mt-2
+      rounded-lg
+      border
+      px-3
+      py-2
+
+      ${s.estado ===
+                          "COMPLETADA"
+                          ? "border-emerald-200 bg-emerald-50"
+                          : s.estado ===
+                            "CANCELADA"
+                            ? "border-rose-200 bg-rose-50"
+                            : "border-slate-200 bg-slate-50"
+                        }
+    `}
+                    >
+
+                      <div
+                        className={`
+        mb-1
+        text-[10px]
+        font-semibold
+        uppercase
+        tracking-wide
+
+        ${s.estado ===
+                            "COMPLETADA"
+                            ? "text-emerald-600"
+                            : s.estado ===
+                              "CANCELADA"
+                              ? "text-rose-600"
+                              : "text-slate-400"
+                          }
+      `}
+                      >
+
+                        {s.estado ===
+                          "COMPLETADA"
+                          ? "Nota de la tarea"
+                          : s.estado ===
+                            "CANCELADA"
+                            ? "Motivo de cancelación"
+                            : "Nota del estado"}
+
+                      </div>
+
+
+                      <p
+                        className="
+        whitespace-pre-line
+        text-sm
+        text-slate-700
+      "
+                      >
+                        {s.notaEstado}
+                      </p>
+
+                    </div>
+                  )}
+
+                  {/* =========================================
+            COMPLETADO AT
+        ========================================= */}
+
+                  {s.estado ===
+                    "COMPLETADA" &&
+                    s.completadoAt && (
+
+                      <div
+                        className="
+              mt-2
+              text-[10px]
+              text-emerald-600
+            "
+                      >
+                        Completada el{" "}
+                        {formatFechaHora(
+                          s.completadoAt
+                        )}
+                      </div>
+                    )}
+
+
+                  {/* =========================================
+            ACCIONES DE TAREA PENDIENTE
+        ========================================= */}
+
+                  {esPendiente && (
+
+                    <div
+                      className="
+              mt-3
+              flex
+              flex-wrap
+              justify-end
+              gap-2
+            "
+                    >
+
+                      <button
+                        type="button"
+
+                        disabled={
+                          actualizando
+                        }
+
+                        onClick={() =>
+                          solicitarCambioEstado(
+                            s.id,
+                            "CANCELADA"
+                          )
+                        }
+
+                        className="
+                rounded-lg
+                bg-slate-100
+                px-2.5
+                py-1.5
+                text-xs
+                font-medium
+                text-slate-600
+                transition
+                hover:bg-slate-200
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+                      >
+                        Cancelar
+                      </button>
+
+
+                      <button
+                        type="button"
+
+                        disabled={
+                          actualizando
+                        }
+
+                        onClick={() =>
+                          solicitarCambioEstado(
+                            s.id,
+                            "COMPLETADA"
+                          )
+                        }
+
+                        className="
+                inline-flex
+                items-center
+                gap-1
+                rounded-lg
+                bg-emerald-50
+                px-2.5
+                py-1.5
+                text-xs
+                font-medium
+                text-emerald-700
+                transition
+                hover:bg-emerald-100
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+                      >
+
+                        <CheckCircleOutlined />
+
+                        {actualizando
+                          ? "Guardando..."
+                          : "Marcar completada"}
+
+                      </button>
+
+                    </div>
+                  )}
+
+                </div>
+              );
+            }
+          )
         )}
+
+        <AntdModal
+          open={
+            cambioEstadoPendiente !==
+            null
+          }
+
+          title={
+            cambioEstadoPendiente
+              ?.estado ===
+              "COMPLETADA"
+              ? "Completar tarea"
+              : "Cancelar tarea"
+          }
+
+          okText={
+            cambioEstadoPendiente
+              ?.estado ===
+              "COMPLETADA"
+              ? "Marcar completada"
+              : "Cancelar tarea"
+          }
+
+          cancelText="Volver"
+
+          confirmLoading={
+            actualizandoSeguimientoId !==
+            null
+          }
+
+          okButtonProps={{
+            disabled:
+              notaEstado
+                .trim()
+                .length <
+              3,
+
+            danger:
+              cambioEstadoPendiente
+                ?.estado ===
+              "CANCELADA",
+          }}
+
+          onCancel={() => {
+            if (
+              actualizandoSeguimientoId !==
+              null
+            ) {
+              return;
+            }
+
+            setCambioEstadoPendiente(
+              null
+            );
+
+            setNotaEstado(
+              ""
+            );
+          }}
+
+          onOk={
+            confirmarCambioEstado
+          }
+        >
+
+          <p className="mb-2 text-sm text-slate-600">
+            {cambioEstadoPendiente
+              ?.estado ===
+              "COMPLETADA"
+              ? "Describe qué se realizó o cuál fue el resultado de esta tarea."
+              : "Indica por qué esta tarea fue cancelada."}
+          </p>
+
+
+          <Input.TextArea
+            rows={
+              4
+            }
+
+            maxLength={
+              1000
+            }
+
+            value={
+              notaEstado
+            }
+
+            onChange={(event) =>
+              setNotaEstado(
+                event.target.value
+              )
+            }
+
+            placeholder={
+              cambioEstadoPendiente
+                ?.estado ===
+                "COMPLETADA"
+                ? "Ej: Se llamó al cliente. Confirmó recepción de la cotización y pidió retomar contacto el lunes."
+                : "Ej: La visita se canceló porque el cliente solicitó reagendar para la próxima semana."
+            }
+          />
+
+
+          <div
+            className="
+      mt-1
+      text-right
+      text-[10px]
+      text-slate-400
+    "
+          >
+            {notaEstado.length} / 1000
+          </div>
+
+        </AntdModal>
+
       </div>
+
     </section>
   );
 }
@@ -1904,12 +3569,66 @@ function HistorialSection({ oportunidad }: { oportunidad: OportunidadDetalle }) 
             color: e.etapaNueva === "GANADA" ? "green" : e.etapaNueva === "PERDIDA" ? "red" : e.etapaNueva === "POSTERGADA" ? "orange" : "blue",
             children: (
               <div>
-                <div className="text-sm text-slate-700">
-                  {e.etapaAnterior ? getEtapaLabel(e.etapaAnterior) : "Creación"} → <strong>{getEtapaLabel(e.etapaNueva)}</strong>
+
+                <div
+                  className="
+        text-sm
+        text-slate-700
+      "
+                >
+                  {e.etapaAnterior
+                    ? getEtapaLabel(
+                      e.etapaAnterior
+                    )
+                    : "Creación"}
+
+                  {" → "}
+
+                  <strong>
+                    {getEtapaLabel(
+                      e.etapaNueva
+                    )}
+                  </strong>
                 </div>
-                <div className="text-xs text-slate-400">
-                  {e.actor?.nombre ?? "Sistema"} · {formatFechaHora(e.createdAt)}
+
+
+                {e.nota && (
+                  <div
+                    className="
+          mt-1.5
+          rounded-lg
+          border
+          border-slate-200
+          bg-slate-50
+          px-3
+          py-2
+          text-xs
+          text-slate-600
+          whitespace-pre-line
+        "
+                  >
+                    {e.nota}
+                  </div>
+                )}
+
+
+                <div
+                  className="
+        mt-1
+        text-xs
+        text-slate-400
+      "
+                >
+                  {e.actor?.nombre ??
+                    "Sistema"}
+
+                  {" · "}
+
+                  {formatFechaHora(
+                    e.createdAt
+                  )}
                 </div>
+
               </div>
             ),
           }))}
