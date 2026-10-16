@@ -155,6 +155,83 @@ function EstadoBadge({ estado }: { estado: string }) {
     );
 }
 
+function EstadoPagoBadge({
+    estado,
+}: {
+    estado?: string | null;
+}) {
+
+    const value =
+        String(
+            estado ??
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+
+    if (
+        value ===
+        "CONFIRMADA"
+    ) {
+
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+
+                <CheckCircleOutlined />
+
+                Pagada
+
+            </span>
+        );
+    }
+
+
+    if (
+        value ===
+        "VENCIDA"
+    ) {
+
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700 ring-1 ring-red-200">
+
+                <CloseCircleOutlined />
+
+                Vencida
+
+            </span>
+        );
+    }
+
+
+    if (
+        value ===
+        "PENDIENTE"
+    ) {
+
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+
+                <ClockCircleOutlined />
+
+                Por vencer
+
+            </span>
+        );
+    }
+
+
+    return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200">
+
+            <FileTextOutlined />
+
+            Sin estado
+
+        </span>
+    );
+}
+
 function formatFechaHoraChile(
     value: string | Date | null | undefined
 ) {
@@ -425,16 +502,16 @@ function AutomatizacionCobranzaCell({
         <div className="min-w-0">
             <span
                 className={`
-                    inline-flex
-                    items-center
-                    gap-1
-                    rounded-full
-                    px-2.5
-                    py-1
-                    text-[10px]
-                    font-bold
-                    ${styles.className}
-                `}
+                        inline-flex
+                        items-center
+                        gap-1
+                        rounded-full
+                        px-2.5
+                        py-1
+                        text-[10px]
+                        font-bold
+                        ${styles.className}
+                    `}
             >
                 {styles.icon}
 
@@ -607,16 +684,16 @@ function EnvioFacturaCell({
         <div className="min-w-0">
             <span
                 className={`
-                    inline-flex
-                    items-center
-                    gap-1
-                    rounded-full
-                    px-2.5
-                    py-1
-                    text-[10px]
-                    font-bold
-                    ${className}
-                `}
+                        inline-flex
+                        items-center
+                        gap-1
+                        rounded-full
+                        px-2.5
+                        py-1
+                        text-[10px]
+                        font-bold
+                        ${className}
+                    `}
             >
                 {icon}
 
@@ -702,16 +779,24 @@ const DocumentosRcvTable: React.FC<Props> = ({
     mode = "rcv",
 }) => {
     const totalColumnas =
-        9 +
-        (mode === "cobranza"
-            ? 3
-            : 0) +
-        (mode === "facturacion"
-            ? 1
-            : 0) +
-        (renderRowActions
-            ? 1
-            : 0);
+        mode === "facturacion"
+            ? 9 +
+            (
+                renderRowActions
+                    ? 1
+                    : 0
+            )
+            : 9 +
+            (
+                mode === "cobranza"
+                    ? 3
+                    : 0
+            ) +
+            (
+                renderRowActions
+                    ? 1
+                    : 0
+            );
     return (
         <div className="overflow-hidden rounded-3xl border border-cyan-200 bg-white shadow-sm">
             <div className="border-b border-cyan-100 bg-white p-4 sm:p-5">
@@ -747,8 +832,8 @@ const DocumentosRcvTable: React.FC<Props> = ({
                 </div>
             </div>
 
-            {/* Mobile cards */}
-            <div className="divide-y divide-slate-100 md:hidden">
+            {/* Mobile / tablet / notebook compacto */}
+            <div className="divide-y divide-slate-100 xl:hidden">
                 {documentosFiltrados.map((doc, index) => {
                     const nombre = getValue(doc, [
                         "Razon Social",
@@ -776,6 +861,25 @@ const DocumentosRcvTable: React.FC<Props> = ({
 
                     const folio = getValue(doc, ["Folio", "folio"]);
                     const tipoDoc = getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"]);
+                    const estadoSii =
+                        getEstadoRcv(
+                            doc,
+                            mode
+                        );
+
+
+                    const estadoPago =
+                        String(
+                            getValue(
+                                doc,
+                                [
+                                    "estadoPago",
+                                    "EstadoPago",
+                                    "estado_pago",
+                                ],
+                                ""
+                            )
+                        );
                     const fecha = formatFechaVista(
                         getValue(doc, [
                             "Fecha Docto",
@@ -804,7 +908,41 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                             Folio {folio}
                                         </span>
 
-                                        <EstadoBadge estado={getEstadoRcv(doc, mode)} />
+                                        <div className="flex flex-wrap items-center gap-2">
+
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[9px] font-bold uppercase text-slate-400">
+                                                    SII
+                                                </span>
+
+                                                <EstadoBadge
+                                                    estado={
+                                                        estadoSii
+                                                    }
+                                                />
+                                            </div>
+
+
+                                            {mode ===
+                                                "facturacion" && (
+
+                                                    <div className="flex items-center gap-1">
+
+                                                        <span className="text-[9px] font-bold uppercase text-slate-400">
+                                                            Pago
+                                                        </span>
+
+                                                        <EstadoPagoBadge
+                                                            estado={
+                                                                estadoPago
+                                                            }
+                                                        />
+
+                                                    </div>
+
+                                                )}
+
+                                        </div>
                                     </div>
 
                                     <p className="mt-2 truncate text-sm font-bold text-slate-900">
@@ -826,17 +964,40 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                     </p>
 
                                     {mode === "facturacion" && (
-                                        <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50/40 p-3">
-                                            <p className="mb-2 text-[9px] font-bold uppercase tracking-wide text-cyan-700">
-                                                Envío de factura
-                                            </p>
 
-                                            <EnvioFacturaCell
-                                                doc={
-                                                    doc
-                                                }
-                                            />
+                                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+
+                                            <div className="rounded-xl border border-cyan-100 bg-cyan-50/40 p-3">
+
+                                                <p className="mb-2 text-[9px] font-bold uppercase tracking-wide text-cyan-700">
+                                                    Envío de factura
+                                                </p>
+
+                                                <EnvioFacturaCell
+                                                    doc={
+                                                        doc
+                                                    }
+                                                />
+
+                                            </div>
+
+
+                                            <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+
+                                                <p className="mb-2 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+                                                    Cobranza
+                                                </p>
+
+                                                <AutomatizacionCobranzaCell
+                                                    doc={
+                                                        doc
+                                                    }
+                                                />
+
+                                            </div>
+
                                         </div>
+
                                     )}
 
                                     {mode === "cobranza" && (
@@ -952,26 +1113,36 @@ const DocumentosRcvTable: React.FC<Props> = ({
                 )}
             </div>
 
-            {/* Desktop table */}
-            <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1350px] table-fixed text-left text-[11px]">
+            {/* Tabla completa */}
+            <div className="hidden w-full overflow-hidden xl:block">
+                <table
+                    className="
+            w-full
+            table-fixed
+            text-left
+            text-[10px]
+
+            lg:text-[10.5px]
+            xl:text-[11px]
+        "
+                >
                     <thead className="border-y border-cyan-100 bg-cyan-50/70 text-[9px] uppercase tracking-wide text-slate-500">
                         <tr>
                             <th className="w-[4%] px-2 py-3">
                                 Tipo
                             </th>
 
-                            <th className="w-[20%] px-2 py-3">
+                            <th className="w-[18%] px-2 py-3">
                                 {activeTab === "ventas"
                                     ? "Cliente"
                                     : "Proveedor"}
                             </th>
 
-                            <th className="w-[9%] px-2 py-3">
+                            <th className="w-[7%] px-2 py-3">
                                 RUT
                             </th>
 
-                            <th className="w-[6%] px-2 py-3">
+                            <th className="w-[5%] px-2 py-3">
                                 Folio
                             </th>
 
@@ -979,14 +1150,24 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                 Fecha
                             </th>
 
-                            <th className="w-[8%] px-2 py-3">
-                                Estado
-                            </th>
+                            {mode === "facturacion" ? (
 
-                            {mode === "facturacion" && (
-                                <th className="w-[22%] px-2 py-3">
-                                    Envío factura
+                                <>
+                                    <th className="w-[13%] px-2 py-3">
+                                        Estados
+                                    </th>
+
+                                    <th className="w-[22%] px-2 py-3">
+                                        Gestión
+                                    </th>
+                                </>
+
+                            ) : (
+
+                                <th className="w-[8%] px-2 py-3">
+                                    Estado SII
                                 </th>
+
                             )}
 
                             {mode === "cobranza" && (
@@ -1005,15 +1186,23 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                 </>
                             )}
 
-                            <th className="w-[8%] px-2 py-3 text-center">
-                                Neto
+                            <th className="w-[11%] px-2 py-3 text-right">
+                                {mode === "facturacion"
+                                    ? "Neto / IVA"
+                                    : "Neto"}
                             </th>
 
-                            <th className="w-[7%] px-2 py-3 text-center">
-                                IVA
-                            </th>
 
-                            <th className="w-[8%] px-2 py-3 text-center">
+                            {mode !== "facturacion" && (
+
+                                <th className="w-[7%] px-2 py-3 text-center">
+                                    IVA
+                                </th>
+
+                            )}
+
+
+                            <th className="w-[11%] px-2 py-3 text-right">
                                 Total
                             </th>
 
@@ -1051,9 +1240,46 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                 "rutReceptor",
                             ]);
 
-                            const folio = getValue(doc, ["Folio", "folio"]);
-                            const tipoDoc = getValue(doc, ["Tipo Doc", "tipoDoc", "tipoDTE"]);
-                            const estado = getEstadoRcv(doc, mode);
+                            const folio =
+                                getValue(
+                                    doc,
+                                    [
+                                        "Folio",
+                                        "folio",
+                                    ]
+                                );
+
+
+                            const tipoDoc =
+                                getValue(
+                                    doc,
+                                    [
+                                        "Tipo Doc",
+                                        "tipoDoc",
+                                        "tipoDTE",
+                                    ]
+                                );
+
+
+                            const estadoSii =
+                                getEstadoRcv(
+                                    doc,
+                                    mode
+                                );
+
+
+                            const estadoPago =
+                                String(
+                                    getValue(
+                                        doc,
+                                        [
+                                            "estadoPago",
+                                            "EstadoPago",
+                                            "estado_pago",
+                                        ],
+                                        ""
+                                    )
+                                );
 
                             const fechaVencimiento =
                                 doc?.fechaVencimientoCobranza ??
@@ -1128,18 +1354,105 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         )}
                                     </td>
 
-                                    <td className="truncate px-4 py-3">
-                                        <EstadoBadge estado={estado} />
-                                    </td>
+                                    {mode === "facturacion" ? (
 
-                                    {mode === "facturacion" && (
+                                        <>
+                                            {/* ============================================
+                ESTADOS
+            ============================================ */}
+
+                                            <td className="px-3 py-3">
+
+                                                <div className="space-y-2">
+
+                                                    <div className="flex items-center gap-2">
+
+                                                        <span className="w-9 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+                                                            SII
+                                                        </span>
+
+                                                        <EstadoBadge
+                                                            estado={
+                                                                estadoSii
+                                                            }
+                                                        />
+
+                                                    </div>
+
+
+                                                    <div className="flex items-center gap-2">
+
+                                                        <span className="w-9 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+                                                            Pago
+                                                        </span>
+
+                                                        <EstadoPagoBadge
+                                                            estado={
+                                                                estadoPago
+                                                            }
+                                                        />
+
+                                                    </div>
+
+                                                </div>
+
+                                            </td>
+
+
+                                            {/* ============================================
+                GESTIÓN
+            ============================================ */}
+
+                                            <td className="px-3 py-3 align-top">
+
+                                                <div className="space-y-3">
+
+                                                    <div>
+
+                                                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                                                            Envío factura
+                                                        </p>
+
+                                                        <EnvioFacturaCell
+                                                            doc={
+                                                                doc
+                                                            }
+                                                        />
+
+                                                    </div>
+
+
+                                                    <div className="border-t border-slate-100 pt-2">
+
+                                                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                                                            Cobranza
+                                                        </p>
+
+                                                        <AutomatizacionCobranzaCell
+                                                            doc={
+                                                                doc
+                                                            }
+                                                        />
+
+                                                    </div>
+
+                                                </div>
+
+                                            </td>
+                                        </>
+
+                                    ) : (
+
                                         <td className="px-3 py-3">
-                                            <EnvioFacturaCell
-                                                doc={
-                                                    doc
+
+                                            <EstadoBadge
+                                                estado={
+                                                    estadoSii
                                                 }
                                             />
+
                                         </td>
+
                                     )}
 
                                     {mode === "cobranza" && (
@@ -1173,10 +1486,10 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                             <td className="whitespace-nowrap px-3 py-3">
                                                 <span
                                                     className={`
-                    text-xs
-                    font-bold
-                    ${situacionCobranza.className}
-                `}
+                        text-xs
+                        font-bold
+                        ${situacionCobranza.className}
+                    `}
                                                 >
                                                     {situacionCobranza.label}
                                                 </span>
@@ -1190,33 +1503,77 @@ const DocumentosRcvTable: React.FC<Props> = ({
                                         </>
                                     )}
 
-                                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
-                                        {formatCLP(
-                                            getValue(
-                                                doc,
-                                                ["Monto Neto", "montoNeto"],
-                                                0
-                                            )
+                                    <td className="whitespace-nowrap px-3 py-3 text-right">
+
+                                        <div className="font-semibold text-slate-700">
+
+                                            {formatCLP(
+                                                getValue(
+                                                    doc,
+                                                    [
+                                                        "Monto Neto",
+                                                        "montoNeto",
+                                                    ],
+                                                    0
+                                                )
+                                            )}
+
+                                        </div>
+
+
+                                        {mode === "facturacion" && (
+
+                                            <div className="mt-1 text-[10px] text-slate-400">
+
+                                                IVA:{" "}
+
+                                                <span className="font-medium text-slate-500">
+
+                                                    {formatCLP(
+                                                        getValue(
+                                                            doc,
+                                                            [
+                                                                "Monto IVA",
+                                                                "Monto Iva",
+                                                                "Monto IVA Recuperable",
+                                                                "montoIva",
+                                                                "montoIVA",
+                                                            ],
+                                                            0
+                                                        )
+                                                    )}
+
+                                                </span>
+
+                                            </div>
+
                                         )}
+
                                     </td>
 
-                                    <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
-                                        {formatCLP(
-                                            getValue(
-                                                doc,
-                                                [
-                                                    "Monto IVA",
-                                                    "Monto Iva",
-                                                    "Monto IVA Recuperable",
-                                                    "montoIva",
-                                                    "montoIVA",
-                                                ],
-                                                0
-                                            )
-                                        )}
-                                    </td>
+                                    {mode !== "facturacion" && (
 
-                                    <td className="whitespace-nowrap px-3 py-3 text-center font-bold text-slate-700">
+                                        <td className="whitespace-nowrap px-3 py-3 text-center text-slate-600">
+
+                                            {formatCLP(
+                                                getValue(
+                                                    doc,
+                                                    [
+                                                        "Monto IVA",
+                                                        "Monto Iva",
+                                                        "Monto IVA Recuperable",
+                                                        "montoIva",
+                                                        "montoIVA",
+                                                    ],
+                                                    0
+                                                )
+                                            )}
+
+                                        </td>
+
+                                    )}
+
+                                    <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-slate-900">
                                         {formatCLP(
                                             getValue(
                                                 doc,

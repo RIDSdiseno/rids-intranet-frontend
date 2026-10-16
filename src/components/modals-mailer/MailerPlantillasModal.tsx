@@ -29,6 +29,7 @@ import {
 import type {
     PlantillaCorreo,
     PlantillaCorreoDetalle,
+    UsoPlantillaCorreo
 } from "./mailer.types";
 
 import MailerPlantillaFormModal
@@ -40,6 +41,9 @@ import MailerPlantillaPreviewModal
 
 type Props = {
     open: boolean;
+
+    uso:
+    UsoPlantillaCorreo;
 
     selectedId:
     number |
@@ -61,6 +65,7 @@ export default function MailerPlantillasModal({
     selectedId,
     onClose,
     onSelect,
+    uso
 }: Props) {
 
     const [
@@ -137,7 +142,9 @@ export default function MailerPlantillasModal({
             );
 
             const data =
-                await getPlantillasCorreo();
+                await getPlantillasCorreo(
+                    uso
+                );
 
             setPlantillas(
                 data
@@ -180,6 +187,7 @@ export default function MailerPlantillasModal({
         },
         [
             open,
+            uso,
         ]
     );
 
@@ -385,11 +393,15 @@ export default function MailerPlantillasModal({
                         <div>
 
                             <h3 className="text-lg font-black text-slate-900">
-                                Plantillas del Mailer
+                                {uso === "FIRMA"
+                                    ? "Firmas del Mailer"
+                                    : "Plantillas del Mailer"}
                             </h3>
 
                             <p className="text-xs text-slate-400">
-                                Crea, consulta, edita, elimina y selecciona plantillas reutilizables.
+                                {uso === "FIRMA"
+                                    ? "Administra firmas y pies de correo reutilizables."
+                                    : "Crea, consulta, edita, elimina y selecciona plantillas reutilizables."}
                             </p>
 
                         </div>
@@ -476,7 +488,9 @@ export default function MailerPlantillasModal({
                         >
                             <PlusOutlined />
 
-                            Nueva plantilla
+                            {uso === "FIRMA"
+                                ? "Nueva firma"
+                                : "Nueva plantilla"}
                         </button>
 
                     </div>
@@ -489,7 +503,9 @@ export default function MailerPlantillasModal({
                         {loading ? (
 
                             <div className="py-16 text-center text-sm text-slate-400">
-                                Cargando plantillas...
+                                {uso === "FIRMA"
+                                    ? "Cargando firmas..."
+                                    : "Cargando plantillas..."}
                             </div>
 
                         ) : filtered.length ===
@@ -498,11 +514,15 @@ export default function MailerPlantillasModal({
                             <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center">
 
                                 <p className="font-semibold text-slate-600">
-                                    No hay plantillas
+                                    {uso === "FIRMA"
+                                        ? "No hay firmas"
+                                        : "No hay plantillas"}
                                 </p>
 
                                 <p className="mt-1 text-xs text-slate-400">
-                                    Crea la primera plantilla para comenzar.
+                                    {uso === "FIRMA"
+                                        ? "Crea la primera firma para comenzar."
+                                        : "Crea la primera plantilla para comenzar."}
                                 </p>
 
                             </div>
@@ -709,9 +729,15 @@ export default function MailerPlantillasModal({
                 open={
                     formOpen
                 }
+
+                uso={
+                    uso
+                }
+
                 plantilla={
                     editing
                 }
+
                 onClose={
                     () => {
 
@@ -724,6 +750,7 @@ export default function MailerPlantillasModal({
                         );
                     }
                 }
+
                 onSaved={
                     async (
                         plantilla

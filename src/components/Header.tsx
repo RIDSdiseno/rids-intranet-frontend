@@ -437,8 +437,34 @@ const NAV: NavEntry[] = [
   },*/
 ];
 
-function isActivePath(pathname: string, to: string) {
-  return pathname === to || pathname.startsWith(`${to}/`);
+function isActivePath(
+  pathname: string,
+  to: string
+) {
+
+  /*
+   * /facturas es padre de varias rutas:
+   *
+   * /facturas/cobranza
+   * /facturas/receptores
+   * /facturas/receptores-cobranza
+   *
+   * Por eso debe coincidir únicamente
+   * cuando estamos exactamente en /facturas.
+   */
+  if (
+    to === FACTURAS_BASEAPI_PATH
+  ) {
+    return pathname === FACTURAS_BASEAPI_PATH;
+  }
+
+
+  return (
+    pathname === to ||
+    pathname.startsWith(
+      `${to}/`
+    )
+  );
 }
 
 function safeParseUser(): StoredUser | null {
@@ -566,20 +592,40 @@ const Header = () => {
 
       visitas:
         current.visitas ||
-        isActivePath(pathname, CALENDARIO_PATH) ||
-        isActivePath(pathname, VISITAS_PATH),
+        isActivePath(
+          pathname,
+          CALENDARIO_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          VISITAS_PATH
+        ),
 
       "finanzas-facturacion":
         current["finanzas-facturacion"] ||
-        isActivePath(pathname, FACTURAS_BASEAPI_PATH) ||
-        isActivePath(pathname, RECEPTORES_FACTURACION_PATH),
+        isActivePath(
+          pathname,
+          FACTURAS_BASEAPI_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          RECEPTORES_FACTURACION_PATH
+        ),
 
       "finanzas-cobranza":
         current["finanzas-cobranza"] ||
-        isActivePath(pathname, COBRANZA_PATH) ||
-        isActivePath(pathname, RECEPTORES_COBRANZA_PATH),
+        isActivePath(
+          pathname,
+          COBRANZA_PATH
+        ) ||
+        isActivePath(
+          pathname,
+          RECEPTORES_COBRANZA_PATH
+        ),
     }));
-  }, [pathname]);
+  }, [
+    pathname,
+  ]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
