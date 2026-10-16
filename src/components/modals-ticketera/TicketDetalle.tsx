@@ -68,6 +68,8 @@ type TicketDetail = {
     priority: string;
     createdAt?: string;
     updatedAt?: string;
+    slaCycleNumber?: number;
+    lastReopenedAt?: string | null;
     fromEmail?: string;
     empresa?: { nombre: string };
     requester?: { nombre: string; email?: string };
@@ -1578,15 +1580,20 @@ Soporte Técnico`
                                         )}
                                     </div>
 
-                                    <div>
-                                        <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
-                                            Creado
-                                        </div>
-                                        <div className="text-gray-600">
-                                            {formatDateTime(ticketDetalle.createdAt)}
-                                        </div>
-                                    </div>
+                                    {ticketDetalle.lastReopenedAt &&
+                                        (ticketDetalle.slaCycleNumber ?? 1) > 1 && (
+                                            <div>
+                                                <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+                                                    Última reapertura
+                                                </div>
 
+                                                <div className="text-gray-600">
+                                                    {formatDateTime(
+                                                        ticketDetalle.lastReopenedAt
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     {/* Estado — selector para internos, texto para CLIENTE */}
                                     <div>
                                         <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">

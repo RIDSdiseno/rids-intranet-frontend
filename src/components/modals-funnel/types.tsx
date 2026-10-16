@@ -142,6 +142,46 @@ export interface AuditLogItem {
   actorId: number | null;
 }
 
+export interface MercadoPublicoOrigenResumen {
+  id: number;
+
+  codigoExterno: string;
+
+  nombre: string;
+
+  descripcion: string | null;
+
+  organismoNombre: string;
+
+  organismoRut: string | null;
+
+  unidadNombre: string | null;
+
+  unidadRegion: string | null;
+
+  unidadComuna: string | null;
+
+  fechaPublicacion: string | null;
+
+  fechaCierre: string | null;
+
+  montoEstimado: string | number | null;
+
+  score: number;
+
+  nivelAfinidad:
+  | "BAJA"
+  | "MEDIA"
+  | "ALTA"
+  | "MUY_ALTA";
+
+  estado:
+  | "NUEVA"
+  | "INTERESANTE"
+  | "DESCARTADA"
+  | "CONVERTIDA";
+}
+
 export interface OportunidadDetalle extends OportunidadFunnelItemBase {
   entidadId: number | null;
   entidad: (EntidadResumen & { correo?: string | null; telefono?: string | null }) | null;
@@ -182,6 +222,7 @@ export interface OportunidadDetalle extends OportunidadFunnelItemBase {
   historialEtapas: HistorialEtapaItem[];
   cotizaciones: CotizacionVinculada[];
   auditoria: AuditLogItem[];
+  mercadoPublicoOrigen: MercadoPublicoOrigenResumen | null;
 }
 
 // Campos base compartidos entre el resumen del funnel y el detalle

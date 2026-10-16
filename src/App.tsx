@@ -328,6 +328,7 @@ export default function App() {
                 <RoleRoute
                   allowedRoles={[
                     "ADMINISTRACION",
+                    "VENTAS"
                   ]}
                 />
               }
@@ -364,7 +365,7 @@ export default function App() {
             </Route>
 
             {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
-            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION"]} />}>
+            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION","VENTAS"]} />}>
               <Route path="/conciliacion-rcv" element={<ConciliacionRcvPage />} />
             </Route>
 

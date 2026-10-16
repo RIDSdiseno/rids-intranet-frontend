@@ -872,23 +872,22 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                     }`}
                                                             >
 
-                                                                {/* DESCRIPCIÓN */}
+                                                                {/* NOMBRE */}
                                                                 <td className="px-3 py-4 w-[160px] max-w-[160px]">
                                                                     <input
                                                                         value={item.nombre || ""}
                                                                         title={item.nombre || ""}
                                                                         readOnly={item.tipo === ItemTipoGestioo.PRODUCTO}
                                                                         onChange={(e) =>
-                                                                            handleItemChange(index, "nombre", e.target.value)
+                                                                            handleItemChange(
+                                                                                index,
+                                                                                "nombre",
+                                                                                e.target.value
+                                                                            )
                                                                         }
                                                                         className="w-full border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-sm truncate"
                                                                         placeholder="Nombre del ítem"
                                                                     />
-                                                                    {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
-                                                                        <div className="text-m text-slate-500 mt-1 truncate">
-                                                                            Costo: {formatearPrecio(precioCosto, moneda, tasa)}
-                                                                        </div>
-                                                                    )}
                                                                 </td>
 
                                                                 {/* CANTIDAD */}
@@ -938,7 +937,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
 
                                                                 {/* PRECIO UNITARIO */}
                                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <div className="flex flex-col items-center space-y-1">
+                                                                    <div className="flex flex-col items-center gap-1">
 
                                                                         <input
                                                                             type="number"
@@ -946,12 +945,10 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             step={0.01}
                                                                             inputMode="decimal"
                                                                             readOnly={
-                                                                                item.tipo ===
-                                                                                ItemTipoGestioo.PRODUCTO
+                                                                                item.tipo === ItemTipoGestioo.PRODUCTO
                                                                             }
                                                                             disabled={
-                                                                                item.tipo ===
-                                                                                ItemTipoGestioo.SERVICIO
+                                                                                item.tipo === ItemTipoGestioo.SERVICIO
                                                                             }
                                                                             value={
                                                                                 item.precio === null ||
@@ -961,8 +958,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             }
                                                                             onChange={(e) => {
                                                                                 const value =
-                                                                                    e.currentTarget
-                                                                                        .valueAsNumber;
+                                                                                    e.currentTarget.valueAsNumber;
 
                                                                                 handleItemChange(
                                                                                     index,
@@ -973,17 +969,16 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                                 );
                                                                             }}
                                                                             className={`
-        w-24 min-w-[90px]
-        px-3 py-2.5
-        border border-slate-200
-        rounded-lg text-right
-        text-sm transition-all
-        ${item.tipo ===
-                                                                                    ItemTipoGestioo.SERVICIO
+                w-24 min-w-[90px]
+                px-3 py-2.5
+                border border-slate-200
+                rounded-lg text-right
+                text-sm transition-all
+                ${item.tipo === ItemTipoGestioo.SERVICIO
                                                                                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                                                                                     : "bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
                                                                                 }
-    `}
+            `}
                                                                             placeholder={
                                                                                 moneda === "USD"
                                                                                     ? "US$"
@@ -991,14 +986,26 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
                                                                             }
                                                                         />
 
-                                                                        {/* Precio en CLP formateado debajo */}
-                                                                        <div className="text-m text-slate-500">
+                                                                        {/* PRECIO DE VENTA FORMATEADO */}
+                                                                        <div className="text-xs text-slate-500">
                                                                             {formatearPrecio(
                                                                                 valores.base / (item.cantidad || 1),
                                                                                 moneda,
                                                                                 tasa
                                                                             )}
                                                                         </div>
+
+                                                                        {/* COSTO ORIGINAL */}
+                                                                        {item.tipo === ItemTipoGestioo.PRODUCTO && precioCosto > 0 && (
+                                                                            <div className="text-[11px] text-slate-400 whitespace-nowrap">
+                                                                                Costo:{" "}
+                                                                                {formatearPrecio(
+                                                                                    precioCosto,
+                                                                                    moneda,
+                                                                                    tasa
+                                                                                )}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </td>
 

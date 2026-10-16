@@ -13,6 +13,26 @@ import { useApi } from "./UseApi";
 
 const MAX_DESCRIPCION_PRODUCTO = 150;
 
+const formatearNumeroCLPInput = (
+    valor: number | string | null | undefined
+) => {
+    const numero = Number(valor) || 0;
+
+    if (numero <= 0) {
+        return "";
+    }
+
+    return Math.round(numero).toLocaleString("es-CL");
+};
+
+const parsearNumeroCLPInput = (valor: string) => {
+    const limpio = valor
+        .replace(/\./g, "")
+        .replace(/[^\d]/g, "");
+
+    return Number(limpio) || 0;
+};
+
 //  Props del modal de edición de producto
 interface EditProductoModalProps {
     show: boolean;
@@ -457,81 +477,148 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                inputMode="decimal"
-                                value={
-                                    formData.precio === 0
-                                        ? ""
-                                        : formData.precio
-                                }
-                                onChange={(e) => {
-                                    /*
-                                     * Recupera el valor numérico decimal
-                                     * aceptado por el input.
-                                     */
-                                    const value =
-                                        e.currentTarget.valueAsNumber;
 
-                                    handlePrecioChange(
-                                        Number.isNaN(value)
-                                            ? 0
-                                            : value
-                                    );
-                                }}
-                                placeholder="Costo"
-                                className="border rounded-xl px-3 py-2"
-                            />
+                            {/* COSTO */}
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={formatearNumeroCLPInput(
+                                        formData.precio
+                                    )}
+                                    onChange={(e) => {
+                                        const value =
+                                            parsearNumeroCLPInput(
+                                                e.target.value
+                                            );
 
-                            <input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                inputMode="decimal"
-                                value={
-                                    formData.porcGanancia === 0
-                                        ? ""
-                                        : formData.porcGanancia
-                                }
-                                onChange={(e) => {
-                                    const value =
-                                        e.currentTarget.valueAsNumber;
+                                        handlePrecioChange(value);
+                                    }}
+                                    placeholder="Costo"
+                                    className="border rounded-xl px-3 py-2"
+                                />
 
-                                    handlePorcGananciaChange(
-                                        Number.isNaN(value)
-                                            ? 0
-                                            : value
-                                    );
-                                }}
-                                placeholder="% Ganancia"
-                                className="border rounded-xl px-3 py-2"
-                            />
+                                <div className="text-xs font-semibold text-slate-600">
+                                    Costo neto:{" "}
+                                    <span className="text-slate-700">
+                                        $
+                                        {Number(
+                                            formData.precio || 0
+                                        ).toLocaleString("es-CL", {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    </span>
+                                </div>
+                            </div>
 
-                            <input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                inputMode="decimal"
-                                value={
-                                    formData.precioTotal === 0
-                                        ? ""
-                                        : formData.precioTotal
-                                }
-                                onChange={(e) => {
-                                    const value =
-                                        e.currentTarget.valueAsNumber;
 
-                                    handlePrecioTotalChange(
-                                        Number.isNaN(value)
-                                            ? 0
-                                            : value
-                                    );
-                                }}
-                                placeholder="Precio venta"
-                                className="border rounded-xl px-3 py-2 font-semibold text-emerald-700"
-                            />
+                            {/* MARGEN */}
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={99.99}
+                                    step={0.01}
+                                    inputMode="decimal"
+                                    value={
+                                        formData.porcGanancia === 0
+                                            ? ""
+                                            : formData.porcGanancia
+                                    }
+                                    onChange={(e) => {
+                                        const value =
+                                            e.currentTarget.valueAsNumber;
+
+                                        const margen =
+                                            Number.isNaN(value)
+                                                ? 0
+                                                : Math.min(
+                                                    99.99,
+                                                    Math.max(0, value)
+                                                );
+
+                                        handlePorcGananciaChange(
+                                            margen
+                                        );
+                                    }}
+                                    placeholder="% Margen"
+                                    className="border rounded-xl px-3 py-2"
+                                />
+
+                                <div className="text-xs font-semibold text-slate-600">
+                                    Margen aplicado:{" "}
+                                    <span className="text-cyan-700">
+                                        {Number(
+                                            formData.porcGanancia || 0
+                                        ).toLocaleString("es-CL", {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
+                                        })}%
+                                    </span>
+
+                                    <div className="mt-1 text-emerald-600">
+                                        Ganancia: $
+                                        {Math.max(
+                                            0,
+                                            Number(
+                                                formData.precioTotal || 0
+                                            ) -
+                                            Number(
+                                                formData.precio || 0
+                                            )
+                                        ).toLocaleString("es-CL", {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            {/* PRECIO DE VENTA */}
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={formatearNumeroCLPInput(
+                                        formData.precioTotal
+                                    )}
+                                    onChange={(e) => {
+                                        const value =
+                                            parsearNumeroCLPInput(
+                                                e.target.value
+                                            );
+
+                                        handlePrecioTotalChange(
+                                            value
+                                        );
+                                    }}
+                                    placeholder="Precio venta"
+                                    className="
+                border
+                rounded-xl
+                px-3
+                py-2
+                font-semibold
+                text-emerald-700
+            "
+                                />
+
+                                <div className="text-xs font-semibold text-slate-600">
+                                    Precio final:{" "}
+                                    <span className="text-emerald-700">
+                                        $
+                                        {Number(
+                                            formData.precioTotal || 0
+                                        ).toLocaleString("es-CL", {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    </span>
+                                </div>
+                            </div>
+
                         </div>
 
                         {(precioInvalido || precioVentaInvalido) && (

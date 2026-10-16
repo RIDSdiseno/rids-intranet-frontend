@@ -9,6 +9,7 @@ import {
   FunnelBoard,
   FunnelCalendar,
   FunnelDashboard,
+  MercadoPublicoProspeccion,
   OportunidadDrawer,
   OportunidadFormModal,
 } from "../components/modals-funnel";
@@ -42,7 +43,12 @@ export default function Funnel() {
     desactivarOportunidad,
   } = useOportunidadesFunnel();
 
-  const [vista, setVista] = useState<"funnel" | "calendario" | "dashboard">("funnel");
+  const [vista, setVista] = useState<
+    | "funnel"
+    | "mercado-publico"
+    | "calendario"
+    | "dashboard"
+  >("funnel");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<string | undefined>(undefined);
   const [formOpen, setFormOpen] = useState(false);
@@ -107,139 +113,257 @@ export default function Funnel() {
 
   return (
     <App>
-    <div className="p-4 md:p-6">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Funnel de oportunidades</h1>
-          <p className="text-sm text-slate-500">
-            Seguimiento comercial de oportunidades de venta, desde el primer contacto hasta el cierre.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-            <button
-              onClick={() => setVista("funnel")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                vista === "funnel" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Funnel
-            </button>
-            <button
-              onClick={() => setVista("calendario")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                vista === "calendario" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Calendario
-            </button>
-            <button
-              onClick={() => setVista("dashboard")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                vista === "dashboard" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Dashboard
-            </button>
+      <div className="p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-800">Funnel de oportunidades</h1>
+            <p className="text-sm text-slate-500">
+              Seguimiento comercial de oportunidades de venta, desde el primer contacto hasta el cierre.
+            </p>
           </div>
-          <button
-            onClick={abrirCreacion}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition"
-          >
-            <PlusOutlined /> Nueva oportunidad
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-1">
+
+              <button
+                onClick={() => setVista("funnel")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${vista === "funnel"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                Funnel
+              </button>
+
+
+              <button
+                onClick={() => setVista("mercado-publico")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${vista === "mercado-publico"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                Mercado Público
+              </button>
+
+
+              <button
+                onClick={() => setVista("calendario")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${vista === "calendario"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                Calendario
+              </button>
+
+
+              <button
+                onClick={() => setVista("dashboard")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${vista === "dashboard"
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                Dashboard
+              </button>
+
+            </div>
+            {vista !== "mercado-publico" && (
+
+              <button
+                onClick={abrirCreacion}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
+              >
+                <PlusOutlined />
+
+                Nueva oportunidad
+              </button>
+
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Buscar por título, cliente o código..."
-          className="w-64"
-          value={filtros.texto ?? ""}
-          onChange={(e) => setFiltros((f) => ({ ...f, texto: e.target.value || undefined }))}
-        />
-        <Select
-          allowClear
-          placeholder="Prioridad"
-          className="w-36"
-          value={filtros.prioridad}
-          onChange={(value) => setFiltros((f) => ({ ...f, prioridad: value }))}
-          options={Object.values(PrioridadOportunidadVenta).map((p) => ({
-            value: p,
-            label: getPrioridadLabel(p),
-          }))}
-        />
-      </div>
+        {vista === "funnel" && (
 
-      {vista === "funnel" ? (
-        <FunnelBoard
-          funnel={funnel}
-          loading={loadingFunnel}
-          error={errorFunnel}
-          onRetry={fetchFunnel}
-          onSelectOportunidad={(item) => abrirDrawer(item)}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+
+            <Input
+              allowClear
+              prefix={
+                <SearchOutlined className="text-slate-400" />
+              }
+              placeholder="Buscar por título, cliente o código..."
+              className="w-64"
+              value={filtros.texto ?? ""}
+              onChange={(e) =>
+                setFiltros((f) => ({
+                  ...f,
+                  texto:
+                    e.target.value ||
+                    undefined,
+                }))
+              }
+            />
+
+
+            <Select
+              allowClear
+              placeholder="Prioridad"
+              className="w-36"
+              value={filtros.prioridad}
+              onChange={(value) =>
+                setFiltros((f) => ({
+                  ...f,
+                  prioridad:
+                    value,
+                }))
+              }
+              options={Object.values(
+                PrioridadOportunidadVenta
+              ).map((p) => ({
+                value: p,
+                label:
+                  getPrioridadLabel(p),
+              }))}
+            />
+
+          </div>
+
+        )}
+
+        {vista === "funnel" ? (
+
+          <FunnelBoard
+            funnel={funnel}
+            loading={loadingFunnel}
+            error={errorFunnel}
+            onRetry={fetchFunnel}
+            onSelectOportunidad={(item) =>
+              abrirDrawer(item)
+            }
+            onCambiarEtapa={(id, etapa) =>
+              cambiarEtapa(
+                id,
+                {
+                  etapa,
+                }
+              )
+            }
+            onReordenar={reordenar}
+            onRequiereCierre={abrirCierre}
+            onBloqueoCotizacion={
+              abrirPorBloqueoCotizacion
+            }
+          />
+
+        ) : vista === "mercado-publico" ? (
+
+          <MercadoPublicoProspeccion
+            onConvertida={
+              async (
+                oportunidadVentaId
+              ) => {
+
+                /*
+                 * Actualiza inmediatamente
+                 * el Kanban.
+                 */
+                await fetchFunnel();
+
+
+                /*
+                 * Cambiamos automáticamente
+                 * hacia el Funnel.
+                 */
+                setVista(
+                  "funnel"
+                );
+
+
+                /*
+                 * Abrimos el drawer de la
+                 * oportunidad recién creada.
+                 */
+                setDrawerTab(
+                  undefined
+                );
+
+                setDrawerOpen(
+                  true
+                );
+
+                await fetchDetalle(
+                  oportunidadVentaId
+                );
+              }
+            }
+          />
+
+        ) : vista === "calendario" ? (
+
+          <FunnelCalendar
+            funnel={funnel}
+            loading={loadingFunnel}
+            onSelectOportunidad={(item) =>
+              abrirDrawer(item)
+            }
+          />
+
+        ) : (
+
+          <FunnelDashboard />
+
+        )}
+
+        <OportunidadDrawer
+          open={drawerOpen}
+          loading={loadingDetalle}
+          oportunidad={detalle}
+          scrollTo={drawerTab}
+          onClose={cerrarDrawer}
+          onSubmitEditar={editarOportunidad}
+          onCrearSeguimiento={crearSeguimiento}
+          onVincularCotizacion={vincularCotizacion}
+          onDesvincularCotizacion={desvincularCotizacion}
+          onDesactivar={desactivarOportunidad}
           onCambiarEtapa={(id, etapa) => cambiarEtapa(id, { etapa })}
-          onReordenar={reordenar}
           onRequiereCierre={abrirCierre}
-          onBloqueoCotizacion={abrirPorBloqueoCotizacion}
+          onAbrirCrearCotizacion={abrirCrearCotizacion}
         />
-      ) : vista === "calendario" ? (
-        <FunnelCalendar funnel={funnel} loading={loadingFunnel} onSelectOportunidad={(item) => abrirDrawer(item)} />
-      ) : (
-        <FunnelDashboard />
-      )}
 
-      <OportunidadDrawer
-        open={drawerOpen}
-        loading={loadingDetalle}
-        oportunidad={detalle}
-        scrollTo={drawerTab}
-        onClose={cerrarDrawer}
-        onSubmitEditar={editarOportunidad}
-        onCrearSeguimiento={crearSeguimiento}
-        onVincularCotizacion={vincularCotizacion}
-        onDesvincularCotizacion={desvincularCotizacion}
-        onDesactivar={desactivarOportunidad}
-        onCambiarEtapa={(id, etapa) => cambiarEtapa(id, { etapa })}
-        onRequiereCierre={abrirCierre}
-        onAbrirCrearCotizacion={abrirCrearCotizacion}
-      />
+        <OportunidadFormModal
+          open={formOpen}
+          onClose={() => setFormOpen(false)}
+          onSubmitCrear={crearOportunidad}
+          onSuccess={(resultado) => {
+            // El modal ya se cierra solo (ver OportunidadFormModal.tsx); aquí solo abrimos su detalle.
+            setDrawerOpen(true);
+            fetchDetalle(resultado.id);
+          }}
+        />
 
-      <OportunidadFormModal
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSubmitCrear={crearOportunidad}
-        onSuccess={(resultado) => {
-          // El modal ya se cierra solo (ver OportunidadFormModal.tsx); aquí solo abrimos su detalle.
-          setDrawerOpen(true);
-          fetchDetalle(resultado.id);
-        }}
-      />
+        <CierreOportunidadModal
+          open={cierreOpen}
+          tipo={cierreTipo}
+          oportunidad={oportunidadCierre}
+          onClose={() => setCierreOpen(false)}
+          onConfirm={(id, payload) => cambiarEtapa(id, payload, { optimista: false })}
+          onSuccess={() => {
+            if (detalle && oportunidadCierre && detalle.id === oportunidadCierre.id) {
+              fetchDetalle(oportunidadCierre.id);
+            }
+          }}
+        />
 
-      <CierreOportunidadModal
-        open={cierreOpen}
-        tipo={cierreTipo}
-        oportunidad={oportunidadCierre}
-        onClose={() => setCierreOpen(false)}
-        onConfirm={(id, payload) => cambiarEtapa(id, payload, { optimista: false })}
-        onSuccess={() => {
-          if (detalle && oportunidadCierre && detalle.id === oportunidadCierre.id) {
-            fetchDetalle(oportunidadCierre.id);
+        <CrearCotizacionModal
+          open={crearCotizacionOpen}
+          oportunidad={oportunidadParaCotizacion}
+          onClose={() => setCrearCotizacionOpen(false)}
+          onCotizacionCreada={(cotizacionId) =>
+            oportunidadParaCotizacion ? vincularCotizacion(oportunidadParaCotizacion.id, cotizacionId) : Promise.resolve()
           }
-        }}
-      />
-
-      <CrearCotizacionModal
-        open={crearCotizacionOpen}
-        oportunidad={oportunidadParaCotizacion}
-        onClose={() => setCrearCotizacionOpen(false)}
-        onCotizacionCreada={(cotizacionId) =>
-          oportunidadParaCotizacion ? vincularCotizacion(oportunidadParaCotizacion.id, cotizacionId) : Promise.resolve()
-        }
-      />
-    </div>
+        />
+      </div>
     </App>
   );
 }

@@ -655,14 +655,29 @@ const Header = () => {
 
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
-  const canAccessFinanzas = userRole === "ADMINISTRACION";
+  const canAccessFinanzas =
+    userRole === "ADMINISTRACION" ||
+    userRole === "VENTAS";
 
-  const canAccessCobranza = userRole === "ADMINISTRACION";
 
-  const canAccessConciliacion = userRole === "ADMINISTRACION";
+  const canAccessCobranza =
+    userRole === "ADMINISTRACION" ||
+    userRole === "VENTAS";
 
-  const canAccessReceptoresFacturacion = userRole === "ADMINISTRACION";
-  const canAccessReceptoresCobranza = userRole === "ADMINISTRACION";
+
+  const canAccessConciliacion =
+    userRole === "ADMINISTRACION" ||
+    userRole === "VENTAS";
+
+
+  const canAccessReceptoresFacturacion =
+    userRole === "ADMINISTRACION" ||
+    userRole === "VENTAS";
+
+
+  const canAccessReceptoresCobranza =
+    userRole === "ADMINISTRACION" ||
+    userRole === "VENTAS";
 
   const canAccessFunnel =
     userRole === "ADMIN" || userRole === "ADMINISTRACION" || userRole === "VENTAS";

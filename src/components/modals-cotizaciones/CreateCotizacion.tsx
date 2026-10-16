@@ -353,13 +353,26 @@ const CreateCotizacionModal: React.FC<CreateCotizacionModalProps> = ({
                     />
                 </td>
 
-                {/* PRECIO BASE */}
+                {/* PRECIO UNITARIO */}
                 <td className="px-3 py-2 text-center border-r border-cyan-100">
-                    <div className="text-sm">
-                        {formatearPrecio(
-                            item.precio,
-                            formData.moneda,
-                            formData.tasaCambio
+                    <div className="flex flex-col items-center gap-1">
+                        <div className="text-sm font-medium text-slate-800">
+                            {formatearPrecio(
+                                item.precio,
+                                formData.moneda,
+                                formData.tasaCambio
+                            )}
+                        </div>
+
+                        {item.tipo === ItemTipoGestioo.PRODUCTO && costoCLP > 0 && (
+                            <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                                Costo:{" "}
+                                {formatearPrecio(
+                                    costoCLP,
+                                    formData.moneda,
+                                    formData.tasaCambio
+                                )}
+                            </div>
                         )}
                     </div>
                 </td>

@@ -315,8 +315,11 @@ export const calcularTotales = (
 };
 
 /**
- * Calcula el precio final aplicando
- * un porcentaje de ganancia.
+ * Calcula el precio de venta usando margen
+ * sobre el precio de venta.
+ *
+ * Fórmula:
+ * Precio Venta = Costo / (1 - Margen / 100)
  */
 export const calcularPrecioTotal = (
   precio: number,
@@ -325,23 +328,49 @@ export const calcularPrecioTotal = (
   const costo =
     normalizarCLP(precio);
 
-  const porcentaje =
+  const margen =
     normalizarCLP(porcGanancia);
 
   if (costo <= 0) {
     return 0;
   }
 
+  if (margen <= 0) {
+    return redondearDecimal(
+      costo,
+      2
+    );
+  }
+
+  /*
+   * Un margen sobre venta no puede ser
+   * igual o superior al 100%.
+   */
+  const margenSeguro =
+    Math.min(
+      margen,
+      99.99
+    );
+
+  const precioVenta =
+    costo /
+    (
+      1 -
+      margenSeguro / 100
+    );
+
   return redondearDecimal(
-    costo *
-    (1 + porcentaje / 100),
+    precioVenta,
     2
   );
 };
 
 /**
- * Calcula el porcentaje de ganancia a partir
- * del costo y el precio de venta.
+ * Calcula el margen porcentual sobre
+ * el precio de venta.
+ *
+ * Fórmula:
+ * Margen = ((Venta - Costo) / Venta) * 100
  */
 export const calcularPorcGanancia = (
   precio: number,
@@ -350,18 +379,32 @@ export const calcularPorcGanancia = (
   const costo =
     normalizarCLP(precio);
 
-  const total =
+  const venta =
     normalizarCLP(precioTotal);
 
-  if (costo <= 0) {
+  if (
+    costo <= 0 ||
+    venta <= 0
+  ) {
     return 0;
   }
 
-  return redondearDecimal(
+  /*
+   * Actualmente el sistema no trabaja
+   * con márgenes negativos.
+   */
+  if (venta <= costo) {
+    return 0;
+  }
+
+  const margen =
     (
-      (total - costo) /
-      costo
-    ) * 100,
+      (venta - costo) /
+      venta
+    ) * 100;
+
+  return redondearDecimal(
+    margen,
     2
   );
 };

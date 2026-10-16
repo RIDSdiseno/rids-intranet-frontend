@@ -3,7 +3,15 @@
 // — igual en forma y tamaño al de OportunidadFormModal — no un panel lateral.
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { motion } from "framer-motion";
-import { App, Tag, Select, DatePicker, InputNumber, Input, Timeline, Modal as AntdModal } from "antd";
+import {
+  App,
+  Tag,
+  Select,
+  DatePicker,
+  InputNumber,
+  Input,
+  Timeline,
+} from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -16,6 +24,8 @@ import {
   PauseCircleOutlined,
   SwapOutlined,
   UserSwitchOutlined,
+  BankOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import { http } from "../../service/http";
@@ -155,8 +165,8 @@ function estadoCamposDesdeOportunidad(oportunidad: OportunidadDetalle) {
     fechaEnvioPropuesta: oportunidad.fechaEnvioPropuesta
       ? dayjs(oportunidad.fechaEnvioPropuesta)
       : oportunidad.fechaComprometidaEnvio
-      ? dayjs(oportunidad.fechaComprometidaEnvio)
-      : null,
+        ? dayjs(oportunidad.fechaComprometidaEnvio)
+        : null,
     fechaVencimientoPropuesta: oportunidad.fechaVencimientoPropuesta
       ? dayjs(oportunidad.fechaVencimientoPropuesta)
       : null,
@@ -183,7 +193,10 @@ export default function OportunidadDrawer({
   onAbrirCrearCotizacion,
   scrollTo,
 }: OportunidadDrawerProps) {
-  const { notification } = App.useApp();
+  const {
+    notification,
+    modal,
+  } = App.useApp();
   const [modo, setModo] = useState<ModoDrawer>("lectura");
   const [hayCambiosSinGuardar, setHayCambiosSinGuardar] = useState(false);
   const [detalleAbierto, setDetalleAbierto] = useState(false);
@@ -219,21 +232,50 @@ export default function OportunidadDrawer({
   }, [open, oportunidad?.id, oportunidad?.etapa, oportunidad?.cotizaciones.length, notification]);
 
   function solicitarCierre() {
-    if (modo === "edicion" && hayCambiosSinGuardar) {
-      AntdModal.confirm({
-        title: "Descartar cambios",
-        content: "Tienes cambios sin guardar en esta oportunidad. ¿Deseas descartarlos y cerrar?",
-        okText: "Descartar y cerrar",
-        okButtonProps: { danger: true },
-        cancelText: "Seguir editando",
-        onOk: () => {
-          setModo("lectura");
-          setHayCambiosSinGuardar(false);
-          onClose();
+
+    if (
+      modo === "edicion" &&
+      hayCambiosSinGuardar
+    ) {
+
+      modal.confirm({
+
+        title:
+          "Descartar cambios",
+
+        content:
+          "Tienes cambios sin guardar en esta oportunidad. ¿Deseas descartarlos y cerrar?",
+
+        okText:
+          "Descartar y cerrar",
+
+        okButtonProps: {
+          danger:
+            true,
         },
+
+        cancelText:
+          "Seguir editando",
+
+        onOk:
+          () => {
+
+            setModo(
+              "lectura"
+            );
+
+            setHayCambiosSinGuardar(
+              false
+            );
+
+            onClose();
+          },
       });
+
       return;
     }
+
+
     onClose();
   }
 
@@ -251,26 +293,78 @@ export default function OportunidadDrawer({
     seguimientoTextareaRef.current?.focus();
   }
 
-  async function handleDesactivar() {
-    if (!oportunidad) return;
-    AntdModal.confirm({
-      title: "Desactivar oportunidad",
-      content: `¿Confirmas desactivar "${oportunidad.codigo} · ${oportunidad.titulo}"? Podrás seguir consultándola, pero dejará de aparecer en el funnel.`,
-      okText: "Desactivar",
-      okButtonProps: { danger: true },
-      cancelText: "Cancelar",
-      onOk: async () => {
-        try {
-          await onDesactivar(oportunidad.id);
-          notification.success({ message: "Oportunidad desactivada", description: oportunidad.codigo });
-          onClose();
-        } catch (err) {
-          notification.error({
-            message: "No se pudo desactivar la oportunidad",
-            description: getOportunidadErrorMessage(err, "Ocurrió un error inesperado."),
-          });
-        }
+  function handleDesactivar() {
+
+    if (
+      !oportunidad
+    ) {
+      return;
+    }
+
+
+    const oportunidadActual =
+      oportunidad;
+
+
+    modal.confirm({
+
+      title:
+        "Desactivar oportunidad",
+
+      content:
+        `¿Confirmas desactivar "${oportunidadActual.codigo} · ${oportunidadActual.titulo}"? Podrás seguir consultándola, pero dejará de aparecer en el funnel.`,
+
+      okText:
+        "Desactivar",
+
+      cancelText:
+        "Cancelar",
+
+      okButtonProps: {
+        danger:
+          true,
       },
+
+      onOk:
+        async () => {
+
+          try {
+
+            await onDesactivar(
+              oportunidadActual.id
+            );
+
+
+            notification.success({
+              message:
+                "Oportunidad desactivada",
+
+              description:
+                oportunidadActual.codigo,
+            });
+
+
+            onClose();
+
+          } catch (
+          err
+          ) {
+
+            notification.error({
+              message:
+                "No se pudo desactivar la oportunidad",
+
+              description:
+                getOportunidadErrorMessage(
+                  err,
+                  "Ocurrió un error inesperado."
+                ),
+            });
+
+
+            throw err;
+          }
+        },
     });
   }
 
@@ -299,207 +393,473 @@ export default function OportunidadDrawer({
           {loading || !oportunidad ? (
             <div className="p-6 text-slate-500">Cargando detalle…</div>
           ) : (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${getEtapaBadgeClass(oportunidad.etapa)}`}>
-              {getEtapaLabel(oportunidad.etapa)}
-            </span>
-            <Tag color={getPrioridadTagColor(oportunidad.prioridad)}>{getPrioridadLabel(oportunidad.prioridad)}</Tag>
-            {!oportunidad.activo && <Tag color="default">Inactiva</Tag>}
-            {modo === "edicion" && <Tag color="processing">Editando</Tag>}
-          </div>
-
-          {modo === "edicion" ? (
-            <OportunidadForm
-              oportunidad={oportunidad}
-              onSubmitEditar={onSubmitEditar}
-              onSuccess={() => {
-                setModo("lectura");
-                setHayCambiosSinGuardar(false);
-              }}
-              onCancel={cancelarEdicion}
-              onDirtyChange={setHayCambiosSinGuardar}
-            />
-          ) : (
-            <>
-              {oportunidad.etapa === "PERDIDA" && oportunidad.motivoPerdida && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  <div className="font-semibold">Motivo de perdida</div>
-                  <div className="mt-1">{oportunidad.motivoPerdida}</div>
-                </div>
-              )}
-
-              {oportunidad.etapa === "POSTERGADA" && (oportunidad.motivoPostergacion || oportunidad.fechaReactivacion) && (
-                <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
-                  <div className="font-semibold">Oportunidad postergada</div>
-                  {oportunidad.motivoPostergacion && <div className="mt-1">{oportunidad.motivoPostergacion}</div>}
-                  {oportunidad.fechaReactivacion && <div className="mt-1 text-xs">Reactivar: {formatFecha(oportunidad.fechaReactivacion)}</div>}
-                </div>
-              )}
-
-              {/* Detalle: tabla compacta de 2 columnas por fila (estilo Beck), no cajas espaciosas.
-                  Solo lo esencial va siempre visible; el resto queda detrás de "Ver más detalles". */}
-              <TablaResumen
-                ocultarProximaAccion={["NEGOCIACION", "GANADA", "PERDIDA", "POSTERGADA"].includes(oportunidad.etapa)}
-                onVerDetalle={() => setDetalleAbierto(true)}
-                filasEsenciales={[
-                  ["Empresa / Entidad", oportunidad.entidad?.nombre],
-                  ["Valor estimado", formatMonto(oportunidad.montoEstimado, oportunidad.moneda)],
-                  ["Responsable", oportunidad.responsable?.nombre],
-                  ["Proyecto", oportunidad.proyecto],
-                  ["Nombre de contacto", oportunidad.contactoNombre],
-                  ["Correo", oportunidad.contactoEmail],
-                  ["Teléfono", oportunidad.contactoTelefono],
-                  [
-                    "Probabilidad de cierre",
-                    oportunidad.probabilidadCierre != null ? `${oportunidad.probabilidadCierre}%` : undefined,
-                  ],
-                  [
-                    "Fecha probable de cierre",
-                    oportunidad.fechaProbableCierre ? formatFecha(oportunidad.fechaProbableCierre) : undefined,
-                  ],
-                  ["Próxima acción", oportunidad.proximaAccion],
-                  [
-                    "Fecha próxima acción",
-                    oportunidad.fechaProximaAccion ? formatFecha(oportunidad.fechaProximaAccion) : undefined,
-                  ],
-                ]}
-                filasDetalle={filasDetalleAvanzado(oportunidad)}
-              />
-
-              {detalleAbierto && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
-                  >
-                    <div className="p-6">
-                      <h3 className="text-lg font-bold text-slate-800 mb-1">Más detalles</h3>
-                      <p className="text-xs text-slate-500 mb-4">
-                        {oportunidad.codigo} · {oportunidad.titulo}
-                      </p>
-                      <button
-                        onClick={() => setDetalleAbierto(false)}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
-                        aria-label="Cerrar"
-                      >
-                        ✕
-                      </button>
-
-                      <TablaResumen
-                        ocultarProximaAccion={false}
-                        onVerDetalle={() => {}}
-                        filasEsenciales={filasDetalleAvanzado(oportunidad)}
-                        filasDetalle={[]}
-                      />
-
-                      {oportunidad.objeciones && (
-                        <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                          <span className="font-medium text-slate-600">Objeciones: </span>
-                          <span className="whitespace-pre-line text-slate-700">{oportunidad.objeciones}</span>
-                        </div>
-                      )}
-
-                      {oportunidad.contrapropuestas && (
-                        <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                          <span className="font-medium text-slate-600">Contrapropuestas: </span>
-                          <span className="whitespace-pre-line text-slate-700">{oportunidad.contrapropuestas}</span>
-                        </div>
-                      )}
-
-                      {oportunidad.ajustesSolicitados && (
-                        <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                          <span className="font-medium text-slate-600">Ajustes solicitados: </span>
-                          <span className="whitespace-pre-line text-slate-700">{oportunidad.ajustesSolicitados}</span>
-                        </div>
-                      )}
-
-                      <div className="mt-6 flex justify-end">
-                        <button
-                          onClick={() => setDetalleAbierto(false)}
-                          className="px-4 py-2 rounded-lg text-sm bg-cyan-600 text-white hover:bg-cyan-700 transition"
-                        >
-                          Cerrar
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-
-              {oportunidad.observaciones && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-600">Observaciones: </span>
-                  <span className="whitespace-pre-line text-slate-700">{oportunidad.observaciones}</span>
-                </div>
-              )}
-
-              {oportunidad.informacionPendiente && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-600">Información pendiente: </span>
-                  <span className="whitespace-pre-line text-slate-700">{oportunidad.informacionPendiente}</span>
-                </div>
-              )}
-
-              {oportunidad.condicionesEspeciales && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-600">Condiciones especiales: </span>
-                  <span className="whitespace-pre-line text-slate-700">{oportunidad.condicionesEspeciales}</span>
-                </div>
-              )}
-
-              {oportunidad.comentariosInternos && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-600">Comentarios internos: </span>
-                  <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosInternos}</span>
-                </div>
-              )}
-
-              {oportunidad.comentariosCliente && (
-                <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-600">Comentarios del cliente: </span>
-                  <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosCliente}</span>
-                </div>
-              )}
-
-              {/* Acciones — visibles inmediatamente debajo de la tabla */}
-              <AccionesSection
-                oportunidad={oportunidad}
-                onEditar={() => setModo("edicion")}
-                onDesactivar={handleDesactivar}
-                onIrACotizaciones={irACotizaciones}
-                onIrASeguimientos={irASeguimientos}
-                onSubmitEditar={onSubmitEditar}
-                onCambiarEtapa={onCambiarEtapa}
-                onRequiereCierre={onRequiereCierre}
-              />
-
-              {/* 1. Cotizaciones vinculadas */}
-              <div ref={cotizacionesRef}>
-                <CotizacionesSection
-                  oportunidad={oportunidad}
-                  onVincular={onVincularCotizacion}
-                  onDesvincular={onDesvincularCotizacion}
-                  onCrearCotizacion={() => onAbrirCrearCotizacion(oportunidad)}
-                />
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getEtapaBadgeClass(oportunidad.etapa)}`}>
+                  {getEtapaLabel(oportunidad.etapa)}
+                </span>
+                <Tag color={getPrioridadTagColor(oportunidad.prioridad)}>{getPrioridadLabel(oportunidad.prioridad)}</Tag>
+                {!oportunidad.activo && <Tag color="default">Inactiva</Tag>}
+                {modo === "edicion" && <Tag color="processing">Editando</Tag>}
               </div>
 
-              {/* 2. Seguimientos */}
-              <SeguimientosSection
-                oportunidad={oportunidad}
-                onCrearSeguimiento={onCrearSeguimiento}
-                textareaRef={seguimientoTextareaRef}
+              <MercadoPublicoOrigenCard
+                oportunidad={
+                  oportunidad
+                }
               />
 
-              {/* 3. Historial de etapas */}
-              <HistorialSection oportunidad={oportunidad} />
-            </>
-          )}
-        </div>
+              {modo === "edicion" ? (
+                <OportunidadForm
+                  oportunidad={oportunidad}
+                  onSubmitEditar={onSubmitEditar}
+                  onSuccess={() => {
+                    setModo("lectura");
+                    setHayCambiosSinGuardar(false);
+                  }}
+                  onCancel={cancelarEdicion}
+                  onDirtyChange={setHayCambiosSinGuardar}
+                />
+              ) : (
+                <>
+                  {oportunidad.etapa === "PERDIDA" && oportunidad.motivoPerdida && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                      <div className="font-semibold">Motivo de perdida</div>
+                      <div className="mt-1">{oportunidad.motivoPerdida}</div>
+                    </div>
+                  )}
+
+                  {oportunidad.etapa === "POSTERGADA" && (oportunidad.motivoPostergacion || oportunidad.fechaReactivacion) && (
+                    <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+                      <div className="font-semibold">Oportunidad postergada</div>
+                      {oportunidad.motivoPostergacion && <div className="mt-1">{oportunidad.motivoPostergacion}</div>}
+                      {oportunidad.fechaReactivacion && <div className="mt-1 text-xs">Reactivar: {formatFecha(oportunidad.fechaReactivacion)}</div>}
+                    </div>
+                  )}
+
+                  {/* Detalle: tabla compacta de 2 columnas por fila (estilo Beck), no cajas espaciosas.
+                  Solo lo esencial va siempre visible; el resto queda detrás de "Ver más detalles". */}
+                  <TablaResumen
+                    ocultarProximaAccion={["NEGOCIACION", "GANADA", "PERDIDA", "POSTERGADA"].includes(oportunidad.etapa)}
+                    onVerDetalle={() => setDetalleAbierto(true)}
+                    filasEsenciales={[
+                      ["Empresa / Entidad", oportunidad.entidad?.nombre],
+                      ["Valor estimado", formatMonto(oportunidad.montoEstimado, oportunidad.moneda)],
+                      ["Responsable", oportunidad.responsable?.nombre],
+                      ["Proyecto", oportunidad.proyecto],
+                      ["Nombre de contacto", oportunidad.contactoNombre],
+                      ["Correo", oportunidad.contactoEmail],
+                      ["Teléfono", oportunidad.contactoTelefono],
+                      [
+                        "Probabilidad de cierre",
+                        oportunidad.probabilidadCierre != null ? `${oportunidad.probabilidadCierre}%` : undefined,
+                      ],
+                      [
+                        "Fecha probable de cierre",
+                        oportunidad.fechaProbableCierre ? formatFecha(oportunidad.fechaProbableCierre) : undefined,
+                      ],
+                      ["Próxima acción", oportunidad.proximaAccion],
+                      [
+                        "Fecha próxima acción",
+                        oportunidad.fechaProximaAccion ? formatFecha(oportunidad.fechaProximaAccion) : undefined,
+                      ],
+                    ]}
+                    filasDetalle={filasDetalleAvanzado(oportunidad)}
+                  />
+
+                  {detalleAbierto && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+                      <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto"
+                      >
+                        <div className="p-6">
+                          <h3 className="text-lg font-bold text-slate-800 mb-1">Más detalles</h3>
+                          <p className="text-xs text-slate-500 mb-4">
+                            {oportunidad.codigo} · {oportunidad.titulo}
+                          </p>
+                          <button
+                            onClick={() => setDetalleAbierto(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"
+                            aria-label="Cerrar"
+                          >
+                            ✕
+                          </button>
+
+                          <TablaResumen
+                            ocultarProximaAccion={false}
+                            onVerDetalle={() => { }}
+                            filasEsenciales={filasDetalleAvanzado(oportunidad)}
+                            filasDetalle={[]}
+                          />
+
+                          {oportunidad.objeciones && (
+                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                              <span className="font-medium text-slate-600">Objeciones: </span>
+                              <span className="whitespace-pre-line text-slate-700">{oportunidad.objeciones}</span>
+                            </div>
+                          )}
+
+                          {oportunidad.contrapropuestas && (
+                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                              <span className="font-medium text-slate-600">Contrapropuestas: </span>
+                              <span className="whitespace-pre-line text-slate-700">{oportunidad.contrapropuestas}</span>
+                            </div>
+                          )}
+
+                          {oportunidad.ajustesSolicitados && (
+                            <div className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                              <span className="font-medium text-slate-600">Ajustes solicitados: </span>
+                              <span className="whitespace-pre-line text-slate-700">{oportunidad.ajustesSolicitados}</span>
+                            </div>
+                          )}
+
+                          <div className="mt-6 flex justify-end">
+                            <button
+                              onClick={() => setDetalleAbierto(false)}
+                              className="px-4 py-2 rounded-lg text-sm bg-cyan-600 text-white hover:bg-cyan-700 transition"
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {oportunidad.observaciones && (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-600">Observaciones: </span>
+                      <span className="whitespace-pre-line text-slate-700">{oportunidad.observaciones}</span>
+                    </div>
+                  )}
+
+                  {oportunidad.informacionPendiente && (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-600">Información pendiente: </span>
+                      <span className="whitespace-pre-line text-slate-700">{oportunidad.informacionPendiente}</span>
+                    </div>
+                  )}
+
+                  {oportunidad.condicionesEspeciales && (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-600">Condiciones especiales: </span>
+                      <span className="whitespace-pre-line text-slate-700">{oportunidad.condicionesEspeciales}</span>
+                    </div>
+                  )}
+
+                  {oportunidad.comentariosInternos && (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-600">Comentarios internos: </span>
+                      <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosInternos}</span>
+                    </div>
+                  )}
+
+                  {oportunidad.comentariosCliente && (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-600">Comentarios del cliente: </span>
+                      <span className="whitespace-pre-line text-slate-700">{oportunidad.comentariosCliente}</span>
+                    </div>
+                  )}
+
+                  {/* Acciones — visibles inmediatamente debajo de la tabla */}
+                  <AccionesSection
+                    oportunidad={oportunidad}
+                    onEditar={() => setModo("edicion")}
+                    onDesactivar={handleDesactivar}
+                    onIrACotizaciones={irACotizaciones}
+                    onIrASeguimientos={irASeguimientos}
+                    onSubmitEditar={onSubmitEditar}
+                    onCambiarEtapa={onCambiarEtapa}
+                    onRequiereCierre={onRequiereCierre}
+                  />
+
+                  {/* 1. Cotizaciones vinculadas */}
+                  <div ref={cotizacionesRef}>
+                    <CotizacionesSection
+                      oportunidad={oportunidad}
+                      onVincular={onVincularCotizacion}
+                      onDesvincular={onDesvincularCotizacion}
+                      onCrearCotizacion={() => onAbrirCrearCotizacion(oportunidad)}
+                    />
+                  </div>
+
+                  {/* 2. Seguimientos */}
+                  <SeguimientosSection
+                    oportunidad={oportunidad}
+                    onCrearSeguimiento={onCrearSeguimiento}
+                    textareaRef={seguimientoTextareaRef}
+                  />
+
+                  {/* 3. Historial de etapas */}
+                  <HistorialSection oportunidad={oportunidad} />
+                </>
+              )}
+            </div>
           )}
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function MercadoPublicoOrigenCard({
+  oportunidad,
+}: {
+  oportunidad: OportunidadDetalle;
+}) {
+
+  const origen =
+    oportunidad.mercadoPublicoOrigen;
+
+
+  if (
+    !origen
+  ) {
+    return null;
+  }
+
+
+  function getAfinidadClass(
+    nivel:
+      "BAJA" |
+      "MEDIA" |
+      "ALTA" |
+      "MUY_ALTA"
+  ) {
+
+    switch (
+    nivel
+    ) {
+
+      case "MUY_ALTA":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+
+      case "ALTA":
+        return "border-cyan-200 bg-cyan-50 text-cyan-700";
+
+      case "MEDIA":
+        return "border-amber-200 bg-amber-50 text-amber-700";
+
+      case "BAJA":
+      default:
+        return "border-slate-200 bg-slate-50 text-slate-600";
+    }
+  }
+
+
+  return (
+    <section
+      className="
+        overflow-hidden
+        rounded-xl
+        border
+        border-cyan-200
+        bg-cyan-50/40
+      "
+    >
+
+      <div
+        className="
+          flex
+          flex-col
+          gap-3
+          px-4
+          py-3
+          sm:flex-row
+          sm:items-center
+          sm:justify-between
+        "
+      >
+
+        <div className="min-w-0">
+
+          <div className="flex flex-wrap items-center gap-2">
+
+            <span
+              className="
+                inline-flex
+                items-center
+                gap-1.5
+                text-[10px]
+                font-black
+                uppercase
+                tracking-wide
+                text-cyan-700
+              "
+            >
+              <BankOutlined />
+
+              Origen Mercado Público
+            </span>
+
+
+            <span
+              className={`
+                rounded-full
+                border
+                px-2
+                py-0.5
+                text-[10px]
+                font-bold
+                ${getAfinidadClass(
+                origen.nivelAfinidad
+              )}
+              `}
+            >
+              Afinidad {origen.score}%
+            </span>
+
+          </div>
+
+
+          <div className="mt-2">
+
+            <p className="text-sm font-bold text-slate-800">
+              Licitación {origen.codigoExterno}
+            </p>
+
+
+            <p className="mt-0.5 text-xs font-medium text-slate-600">
+              {origen.organismoNombre}
+            </p>
+
+
+            {(origen.unidadComuna ||
+              origen.unidadRegion) && (
+
+                <p className="mt-0.5 text-[11px] text-slate-400">
+
+                  {[
+                    origen.unidadComuna,
+                    origen.unidadRegion,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+
+                </p>
+
+              )}
+
+          </div>
+
+        </div>
+
+
+        <div className="flex shrink-0 items-center gap-2">
+
+          <span
+            className="
+              rounded-lg
+              border
+              border-white
+              bg-white
+              px-2.5
+              py-1.5
+              text-xs
+              font-semibold
+              text-slate-600
+              shadow-sm
+            "
+          >
+            {origen.nivelAfinidad.replace(
+              "_",
+              " "
+            )}
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div
+        className="
+          grid
+          grid-cols-1
+          gap-px
+          border-t
+          border-cyan-100
+          bg-cyan-100
+          sm:grid-cols-3
+        "
+      >
+
+        <MercadoPublicoMiniDato
+          label="Publicación"
+          value={
+            origen.fechaPublicacion
+              ? formatFecha(
+                origen.fechaPublicacion
+              )
+              : "—"
+          }
+        />
+
+
+        <MercadoPublicoMiniDato
+          label="Cierre licitación"
+          value={
+            origen.fechaCierre
+              ? formatFecha(
+                origen.fechaCierre
+              )
+              : "—"
+          }
+        />
+
+
+        <MercadoPublicoMiniDato
+          label="Monto Mercado Público"
+          value={
+            origen.montoEstimado !==
+              null
+              ? formatMonto(
+                origen.montoEstimado,
+                "CLP"
+              )
+              : "—"
+          }
+        />
+
+      </div>
+
+    </section>
+  );
+}
+
+
+function MercadoPublicoMiniDato({
+  label,
+  value,
+}: {
+  label: string;
+
+  value:
+  string | number;
+}) {
+
+  return (
+    <div className="bg-white/80 px-4 py-2.5">
+
+      <p
+        className="
+          text-[9px]
+          font-bold
+          uppercase
+          tracking-wide
+          text-slate-400
+        "
+      >
+        {label}
+      </p>
+
+
+      <p className="mt-0.5 text-xs font-semibold text-slate-700">
+        {value}
+      </p>
+
     </div>
   );
 }
@@ -585,10 +945,10 @@ function AccionButton({
     tone === "danger"
       ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
       : tone === "success"
-      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-      : tone === "warning"
-      ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-      : "bg-slate-100 text-slate-700 hover:bg-slate-200";
+        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+        : tone === "warning"
+          ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+          : "bg-slate-100 text-slate-700 hover:bg-slate-200";
 
   return (
     <button
@@ -1235,7 +1595,10 @@ function CotizacionesSection({
   onDesvincular: (id: number, cotizacionId: number) => Promise<unknown>;
   onCrearCotizacion: () => void;
 }) {
-  const { notification } = App.useApp();
+  const {
+    notification,
+    modal,
+  } = App.useApp();
   const [buscando, setBuscando] = useState(false);
   const [opciones, setOpciones] = useState<{ value: number; label: string }[]>([]);
   const [seleccionada, setSeleccionada] = useState<number | undefined>(undefined);
@@ -1289,24 +1652,65 @@ function CotizacionesSection({
     }
   }
 
-  function handleDesvincular(cotizacionId: number) {
-    AntdModal.confirm({
-      title: "Desvincular cotización",
-      content: `¿Confirmas desvincular la cotización #${cotizacionId} de esta oportunidad?`,
-      okText: "Desvincular",
-      okButtonProps: { danger: true },
-      cancelText: "Cancelar",
-      onOk: async () => {
-        try {
-          await onDesvincular(oportunidad.id, cotizacionId);
-          notification.success({ message: "Cotización desvinculada" });
-        } catch (err) {
-          notification.error({
-            message: "No se pudo desvincular la cotización",
-            description: getOportunidadErrorMessage(err, "Ocurrió un error inesperado."),
-          });
-        }
+  function handleDesvincular(
+    cotizacionId:
+      number
+  ) {
+
+    modal.confirm({
+
+      title:
+        "Desvincular cotización",
+
+      content:
+        `¿Confirmas desvincular la cotización #${cotizacionId} de esta oportunidad?`,
+
+      okText:
+        "Desvincular",
+
+      cancelText:
+        "Cancelar",
+
+      okButtonProps: {
+        danger:
+          true,
       },
+
+      onOk:
+        async () => {
+
+          try {
+
+            await onDesvincular(
+              oportunidad.id,
+              cotizacionId
+            );
+
+
+            notification.success({
+              message:
+                "Cotización desvinculada",
+            });
+
+          } catch (
+          err
+          ) {
+
+            notification.error({
+              message:
+                "No se pudo desvincular la cotización",
+
+              description:
+                getOportunidadErrorMessage(
+                  err,
+                  "Ocurrió un error inesperado."
+                ),
+            });
+
+
+            throw err;
+          }
+        },
     });
   }
 

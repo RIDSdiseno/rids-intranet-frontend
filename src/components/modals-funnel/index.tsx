@@ -7,3 +7,5 @@ export { default as OportunidadFormModal } from "./OportunidadFormModal";
 export { default as OportunidadForm } from "./OportunidadForm";
 export { default as CierreOportunidadModal } from "./CierreOportunidadModal";
 export { default as CrearCotizacionModal } from "./CrearCotizacionModal";
+
+export { default as MercadoPublicoProspeccion, } from "./mercado-publico/MercadoPublicoProspeccion";
