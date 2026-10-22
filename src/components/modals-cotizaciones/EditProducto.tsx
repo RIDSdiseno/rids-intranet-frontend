@@ -11,6 +11,10 @@ import {
 import { calcularPrecioTotal, calcularPorcGanancia } from "./utils";
 import { useApi } from "./UseApi";
 
+import {
+    Tooltip,
+} from "antd";
+
 const MAX_DESCRIPCION_PRODUCTO = 150;
 
 const formatearNumeroCLPInput = (
@@ -475,6 +479,82 @@ const EditProductoModal: React.FC<EditProductoModalProps> = ({
                             <PercentageOutlined />
                             Cálculo de precios
                         </h3>
+
+                        <Tooltip
+                            placement="bottomLeft"
+
+                            getPopupContainer={(triggerNode) =>
+                                triggerNode.parentElement ??
+                                document.body
+                            }
+
+                            title={
+                                <div className="max-w-[320px] text-xs leading-relaxed">
+
+                                    <div className="font-semibold">
+                                        ¿Cómo se calcula el margen?
+                                    </div>
+
+                                    <div className="mt-1">
+                                        El margen corresponde al porcentaje de ganancia
+                                        contenido dentro del precio final de venta.
+                                    </div>
+
+                                    <div className="mt-2">
+                                        <span className="font-semibold">
+                                            Precio de venta =
+                                        </span>
+
+                                        {" "}
+
+                                        Costo ÷ (1 - Margen / 100)
+                                    </div>
+
+                                    <div className="mt-2">
+                                        <span className="font-semibold">
+                                            Ganancia =
+                                        </span>
+
+                                        {" "}
+
+                                        Precio de venta - Costo
+                                    </div>
+
+                                    <div className="mt-2 text-slate-300">
+                                        Ejemplo: con un costo de $100.000 y un margen
+                                        de 30%, el precio de venta es aproximadamente
+                                        $142.857 y la ganancia es $42.857.
+                                    </div>
+
+                                    <div className="mt-2 text-amber-200">
+                                        Margen no es lo mismo que sumar un 30% al costo.
+                                        Si se sumara 30% al costo, el precio sería
+                                        $130.000, pero el margen real sería menor.
+                                    </div>
+
+                                </div>
+                            }
+                        >
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                className="
+            inline-flex
+            cursor-help
+            items-center
+            gap-1
+            text-xs
+            font-medium
+            text-cyan-700
+            transition
+            hover:text-cyan-900
+        "
+                            >
+                                <InfoCircleOutlined />
+
+                                ¿Cómo se calcula el margen?
+                            </span>
+                        </Tooltip>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 

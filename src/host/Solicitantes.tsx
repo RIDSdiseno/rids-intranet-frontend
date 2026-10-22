@@ -14,8 +14,12 @@ import {
   CheckCircleFilled,
   ExclamationCircleFilled,
   InfoCircleFilled,
-  DownloadOutlined
+  DownloadOutlined,
+  InfoCircleOutlined
 } from "@ant-design/icons";
+
+import { Tooltip } from "antd";
+
 import { AnimatePresence, motion } from "framer-motion";
 import SyncGoogleModal from "../components/modals-solicitantes/SyncGoogleModal";
 
@@ -89,6 +93,15 @@ type LicenciaFiltro =
   "con" |
   "sin";
 
+type SolicitanteOrderBy =
+  | "empresa"
+  | "nombre"
+  | "rut"
+  | "equipos"
+  | "cuenta"
+  | "licencias"
+  | "id";
+
 type ListParams = {
   page?: number;
 
@@ -101,9 +114,7 @@ type ListParams = {
   null;
 
   orderBy?:
-  "empresa" |
-  "nombre" |
-  "id";
+  SolicitanteOrderBy;
 
   orderDir?:
   "asc" |
@@ -195,6 +206,67 @@ type CheckEmailResponse = {
     empresa?: Empresa | null;
   } | null;
 };
+
+type CardTitleWithInfoProps = {
+  title: string;
+  description: string;
+};
+
+function CardTitleWithInfo({
+  title,
+  description,
+}: CardTitleWithInfoProps) {
+
+  return (
+    <div className="flex items-center gap-1.5">
+
+      <span className="text-sm text-gray-500">
+        {title}
+      </span>
+
+      <Tooltip
+        title={
+          <div className="max-w-[240px] text-xs leading-relaxed">
+            {description}
+          </div>
+        }
+        placement="top"
+        trigger={[
+          "hover",
+          "click",
+        ]}
+      >
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label={`Información sobre ${title}`}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+          }}
+          className="
+            inline-flex
+            h-4
+            w-4
+            cursor-help
+            items-center
+            justify-center
+            rounded-full
+            text-slate-400
+            transition
+            hover:bg-slate-100
+            hover:text-slate-600
+          "
+        >
+          <InfoCircleOutlined />
+        </span>
+      </Tooltip>
+
+    </div>
+  );
+}
 
 function cleanRut(value: string) {
   return value
@@ -583,8 +655,27 @@ export default function SolicitantesPage() {
   });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [orderBy, setOrderBy] = useState<"empresa" | "nombre" | "id">("empresa");
-  const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
+  const [
+    orderBy,
+    setOrderBy,
+  ] =
+    useState<
+      SolicitanteOrderBy
+    >(
+      "empresa"
+    );
+
+
+  const [
+    orderDir,
+    setOrderDir,
+  ] =
+    useState<
+      "asc" |
+      "desc"
+    >(
+      "asc"
+    );
 
   const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
 
@@ -1731,6 +1822,31 @@ export default function SolicitantesPage() {
     msEmpresaSeleccionada?.dominios ??
     [];
 
+  const getRowIndex = (
+    index:
+      number
+  ): number => {
+
+    const currentPage =
+      list?.page ??
+      page;
+
+    const currentPageSize =
+      list?.pageSize ??
+      pageSize;
+
+
+    return (
+      (
+        currentPage -
+        1
+      ) *
+      currentPageSize
+    ) +
+      index +
+      1;
+  };
+
   /* ======================= RENDER ======================= */
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-white to-cyan-50">
@@ -1862,22 +1978,112 @@ export default function SolicitantesPage() {
               {/* Orden */}
               <div className="md:col-span-2">
                 <select
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  className="
+    w-full
+    rounded-2xl
+    border
+    border-cyan-200/70
+    bg-white/90
+    px-3
+    py-2.5
+    text-sm
+    text-slate-900
+    focus:outline-none
+    focus:ring-2
+    focus:ring-cyan-500/30
+  "
                   value={`${orderBy}:${orderDir}`}
                   onChange={(e) => {
-                    const [ob, od] = e.target.value.split(":") as ["empresa" | "nombre" | "id", "asc" | "desc"];
-                    setOrderBy(ob);
-                    setOrderDir(od);
-                    setPage(1);
+
+                    const [
+                      ob,
+                      od,
+                    ] =
+                      e.target.value.split(
+                        ":"
+                      ) as [
+                        SolicitanteOrderBy,
+                        "asc" | "desc"
+                      ];
+
+
+                    setOrderBy(
+                      ob
+                    );
+
+                    setOrderDir(
+                      od
+                    );
+
+                    setPage(
+                      1
+                    );
                   }}
                   aria-label="Ordenar"
                 >
-                  <option value="empresa:asc">Empresa A→Z</option>
-                  <option value="empresa:desc">Empresa Z→A</option>
-                  <option value="nombre:asc">Nombre A→Z</option>
-                  <option value="nombre:desc">Nombre Z→A</option>
-                  <option value="id:asc">ID ↑</option>
-                  <option value="id:desc">ID ↓</option>
+
+                  <option value="empresa:asc">
+                    Empresa A → Z
+                  </option>
+
+                  <option value="empresa:desc">
+                    Empresa Z → A
+                  </option>
+
+
+                  <option value="nombre:asc">
+                    Nombre A → Z
+                  </option>
+
+                  <option value="nombre:desc">
+                    Nombre Z → A
+                  </option>
+
+
+                  <option value="rut:asc">
+                    RUT ascendente
+                  </option>
+
+                  <option value="rut:desc">
+                    RUT descendente
+                  </option>
+
+
+                  <option value="equipos:asc">
+                    Equipos: menor a mayor
+                  </option>
+
+                  <option value="equipos:desc">
+                    Equipos: mayor a menor
+                  </option>
+
+
+                  <option value="licencias:asc">
+                    Licencias: menor a mayor
+                  </option>
+
+                  <option value="licencias:desc">
+                    Licencias: mayor a menor
+                  </option>
+
+
+                  <option value="cuenta:asc">
+                    Cuenta A → Z
+                  </option>
+
+                  <option value="cuenta:desc">
+                    Cuenta Z → A
+                  </option>
+
+
+                  <option value="id:asc">
+                    ID ascendente
+                  </option>
+
+                  <option value="id:desc">
+                    ID descendente
+                  </option>
+
                 </select>
               </div>
 
@@ -2089,11 +2295,18 @@ export default function SolicitantesPage() {
                 ===================================== */}
 
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">
-                  {activeTab === "inactivos"
-                    ? "Solicitantes inactivos"
-                    : "Solicitantes activos"}
-                </div>
+                <CardTitleWithInfo
+                  title={
+                    activeTab === "inactivos"
+                      ? "Solicitantes inactivos"
+                      : "Solicitantes activos"
+                  }
+                  description={
+                    activeTab === "inactivos"
+                      ? "Cantidad de solicitantes inactivos que coinciden con los filtros aplicados. Incluye a los solicitantes creados manualmente y a traves de la sincronización con el servicio de licencias correspondiente"
+                      : "Cantidad de solicitantes activos que coinciden con la empresa, búsqueda y filtros actuales. Incluye a los solicitantes creados manualmente y a traves de la sincronización con el servicio de licencias correspondiente"
+                  }
+                />
 
                 <div className="mt-1 text-2xl font-semibold">
                   {metrics?.solicitantes ?? 0}
@@ -2108,63 +2321,45 @@ export default function SolicitantesPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setLicenciaFiltro(
-                      previous =>
-                        previous === "con"
-                          ? "todos"
-                          : "con"
+                    setLicenciaFiltro((previous) =>
+                      previous === "con"
+                        ? "todos"
+                        : "con"
                     );
 
                     setPage(1);
                   }}
                   className={clsx(
                     `
-                                cursor-pointer
-                                rounded-2xl
-                                border
-                                bg-white
-                                p-4
-                                text-left
-                                shadow-sm
-                                transition
-                                hover:border-indigo-300
-                                hover:bg-indigo-50/40
-                                active:scale-[0.99]
-                            `,
-
+        cursor-pointer
+        rounded-2xl
+        border
+        bg-white
+        p-4
+        text-left
+        shadow-sm
+        transition
+        hover:border-indigo-300
+        hover:bg-indigo-50/40
+        active:scale-[0.99]
+      `,
                     licenciaFiltro === "con"
                       ? `
-                                    border-indigo-400
-                                    bg-indigo-50/60
-                                    ring-2
-                                    ring-indigo-200
-                                `
+            border-indigo-400
+            bg-indigo-50/60
+            ring-2
+            ring-indigo-200
+          `
                       : ""
                   )}
                 >
-                  <div className="text-sm text-gray-500">
-                    Con licencia
-                  </div>
+                  <CardTitleWithInfo
+                    title="Con licencia"
+                    description="Solicitantes activos que tienen al menos una licencia Microsoft 365 asignada, identificada mediante la sincronización con Microsoft 365."
+                  />
 
-                  <div
-                    className="
-                                mt-1
-                                text-2xl
-                                font-semibold
-                                text-indigo-600
-                            "
-                  >
+                  <div className="mt-1 text-2xl font-semibold text-indigo-600">
                     {metrics?.conLicencia ?? 0}
-                  </div>
-
-                  <div
-                    className="
-                                mt-1
-                                text-xs
-                                text-slate-500
-                            "
-                  >
-                    Solicitantes activos con Microsoft 365
                   </div>
                 </button>
               )}
@@ -2174,9 +2369,10 @@ export default function SolicitantesPage() {
                 ===================================== */}
 
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">
-                  Empresas
-                </div>
+                <CardTitleWithInfo
+                  title="Empresas"
+                  description="Número de empresas distintas asociadas a los solicitantes que coinciden con los filtros actuales."
+                />
 
                 <div className="mt-1 text-2xl font-semibold">
                   {metrics?.empresas ?? 0}
@@ -2188,9 +2384,10 @@ export default function SolicitantesPage() {
                 ===================================== */}
 
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">
-                  Equipos
-                </div>
+                <CardTitleWithInfo
+                  title="Equipos"
+                  description="Total de equipos activos asociados a los solicitantes que coinciden con los filtros actuales."
+                />
 
                 <div className="mt-1 text-2xl font-semibold">
                   {metrics?.equipos ?? 0}
@@ -2202,9 +2399,10 @@ export default function SolicitantesPage() {
                 ===================================== */}
 
               <div className="rounded-2xl border bg-white p-4 shadow-sm">
-                <div className="text-sm text-gray-500">
-                  Inactivos actuales
-                </div>
+                <CardTitleWithInfo
+                  title="Inactivos actuales"
+                  description="Cantidad de solicitantes actualmente desactivados o eliminados lógicamente, ya sea mediante sincronización con Microsoft 365, Google Workspace o por gestión manual."
+                />
 
                 <div className="mt-1 text-2xl font-semibold text-rose-600">
                   {metrics?.inactivos ?? 0}
@@ -2242,73 +2440,79 @@ export default function SolicitantesPage() {
               </AnimatePresence>
               <AnimatePresence>
                 {!loading &&
-                  list?.items?.map((r) => {
-                    const empresaNombre = r.empresa?.nombre ?? "—";
-                    return (
-                      <motion.article
-                        key={r.id_solicitante}
-                        layout
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md"
-                      >
-                        <header className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-xs text-slate-500">#{r.id_solicitante}</div>
-                            <button className="text-base font-semibold text-cyan-700 hover:underline" onClick={() => setDetailId(r.id_solicitante)} title="Ver detalle">
-                              {r.nombre}
-                            </button>
-                            <p className="text-xs text-slate-600 mt-0.5">{empresaNombre}</p>
+                  list?.items?.map(
+                    (
+                      r,
+                      index
+                    ) => {
+                      const empresaNombre = r.empresa?.nombre ?? "—";
+                      return (
+                        <motion.article
+                          key={r.id_solicitante}
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="rounded-2xl border border-cyan-200 bg-white p-4 transition hover:shadow-md"
+                        >
+                          <header className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-xs text-slate-500">
+                                N° {getRowIndex(index)}
+                              </div>
+                              <button className="text-base font-semibold text-cyan-700 hover:underline" onClick={() => setDetailId(r.id_solicitante)} title="Ver detalle">
+                                {r.nombre}
+                              </button>
+                              <p className="text-xs text-slate-600 mt-0.5">{empresaNombre}</p>
+                            </div>
+                            <AccountBadge type={r.accountType} />
+                          </header>
+
+                          <p className="text-sm text-slate-700 mt-2">
+                            <span className="text-slate-500">Email:</span> {r.email ?? "—"}
+                          </p>
+
+                          <p className="text-sm text-slate-700 mt-1">
+                            <span className="text-slate-500">Teléfono:</span> {r.telefono ?? "—"}
+                          </p>
+
+                          <div className="mt-3 flex items-center gap-2">
+                            <BadgeCount count={r.equipos?.length ?? 0} />
+                            <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
                           </div>
-                          <AccountBadge type={r.accountType} />
-                        </header>
 
-                        <p className="text-sm text-slate-700 mt-2">
-                          <span className="text-slate-500">Email:</span> {r.email ?? "—"}
-                        </p>
+                          <div className="flex gap-2">
+                            <button
+                              className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
+                              onClick={() => setDetailId(r.id_solicitante)}
+                              aria-label={`Ver detalle de ${r.nombre}`}
+                            >
+                              Detalle
+                            </button>
 
-                        <p className="text-sm text-slate-700 mt-1">
-                          <span className="text-slate-500">Teléfono:</span> {r.telefono ?? "—"}
-                        </p>
+                            {activeTab === "listado" && (
+                              <>
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                                  onClick={() => openEdit(r)}
+                                  aria-label={`Editar solicitante ${r.nombre}`}
+                                >
+                                  <EditOutlined /> Editar
+                                </button>
 
-                        <div className="mt-3 flex items-center gap-2">
-                          <BadgeCount count={r.equipos?.length ?? 0} />
-                          <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button
-                            className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
-                            onClick={() => setDetailId(r.id_solicitante)}
-                            aria-label={`Ver detalle de ${r.nombre}`}
-                          >
-                            Detalle
-                          </button>
-
-                          {activeTab === "listado" && (
-                            <>
-                              <button
-                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
-                                onClick={() => openEdit(r)}
-                                aria-label={`Editar solicitante ${r.nombre}`}
-                              >
-                                <EditOutlined /> Editar
-                              </button>
-
-                              <button
-                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
-                                onClick={() => void removeRow(r)}
-                                aria-label={`Eliminar solicitante ${r.nombre}`}
-                              >
-                                <DeleteOutlined /> Eliminar
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </motion.article>
-                    );
-                  })}
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                                  onClick={() => void removeRow(r)}
+                                  aria-label={`Eliminar solicitante ${r.nombre}`}
+                                >
+                                  <DeleteOutlined /> Eliminar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </motion.article>
+                      );
+                    })}
               </AnimatePresence>
             </section>
 
@@ -2318,7 +2522,17 @@ export default function SolicitantesPage() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gradient-to-r from-cyan-50 to-indigo-50 text-slate-800 border-b border-cyan-200 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 w-16 text-left font-semibold">ID</th>
+                      <th
+                        className="
+    w-16
+    px-4
+    py-3
+    text-left
+    font-semibold
+  "
+                      >
+                        N°
+                      </th>
                       <th className="px-4 py-3 text-left font-semibold">Nombre</th>
                       <th className="px-4 py-3 text-left">RUT</th>
                       <th className="px-4 py-3 text-left font-semibold">Empresa</th>
@@ -2373,87 +2587,95 @@ export default function SolicitantesPage() {
                       )}
 
                       {!loading &&
-                        list?.items?.map((r) => (
-                          <motion.tr
-                            key={r.id_solicitante}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
-                          >
-                            <td className="px-4 py-3">{r.id_solicitante}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                className="text-left text-cyan-700 hover:underline"
-                                onClick={() => setDetailId(r.id_solicitante)}
-                                title="Ver detalle"
-                                aria-label={`Ver detalle de ${r.nombre}`}
-                              >
-                                {r.nombre}
-                              </button>
-                              <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
-                              <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
-                            </td>
-                            <td className="px-4 py-3">
-                              {r.rut ? (
-                                <span className="font-medium text-slate-700">
-                                  {r.rut}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {r.empresa?.nombre ? (
-                                <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
-                                  {r.empresa.nombre}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <BadgeCount count={r.equipos?.length ?? 0} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <AccountBadge type={r.accountType} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-2">
+                        list?.items?.map(
+                          (
+                            r,
+                            index
+                          ) => (
+                            <motion.tr
+                              key={r.id_solicitante}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -6 }}
+                              className="border-t border-cyan-100 transition-colors odd:bg-white even:bg-slate-50/40 hover:bg-cyan-50/60"
+                            >
+                              <td className="px-4 py-3 font-medium text-slate-500">
+                                {getRowIndex(
+                                  index
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
                                 <button
-                                  className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
+                                  className="text-left text-cyan-700 hover:underline"
                                   onClick={() => setDetailId(r.id_solicitante)}
+                                  title="Ver detalle"
                                   aria-label={`Ver detalle de ${r.nombre}`}
                                 >
-                                  Detalle
+                                  {r.nombre}
                                 </button>
-
-                                {activeTab === "listado" && (
-                                  <>
-                                    <button
-                                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
-                                      onClick={() => openEdit(r)}
-                                      aria-label={`Editar solicitante ${r.nombre}`}
-                                    >
-                                      <EditOutlined /> Editar
-                                    </button>
-
-                                    <button
-                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
-                                      onClick={() => void removeRow(r)}
-                                      aria-label={`Eliminar solicitante ${r.nombre}`}
-                                    >
-                                      <DeleteOutlined /> Eliminar
-                                    </button>
-                                  </>
+                                <div className="text-xs text-slate-500">{r.email ?? "—"}</div>
+                                <div className="text-xs text-slate-500">{r.telefono ?? "—"}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                {r.rut ? (
+                                  <span className="font-medium text-slate-700">
+                                    {r.rut}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
                                 )}
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))}
+                              </td>
+                              <td className="px-4 py-3">
+                                {r.empresa?.nombre ? (
+                                  <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
+                                    {r.empresa.nombre}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <BadgeCount count={r.equipos?.length ?? 0} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <AccountBadge type={r.accountType} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <MsLicensesTag count={r.msLicensesCount} title={licTooltip(r)} />
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-2">
+                                  <button
+                                    className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 text-cyan-700 px-2 py-1 hover:bg-cyan-50 transition"
+                                    onClick={() => setDetailId(r.id_solicitante)}
+                                    aria-label={`Ver detalle de ${r.nombre}`}
+                                  >
+                                    Detalle
+                                  </button>
+
+                                  {activeTab === "listado" && (
+                                    <>
+                                      <button
+                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 text-emerald-700 px-2 py-1 hover:bg-emerald-50 transition"
+                                        onClick={() => openEdit(r)}
+                                        aria-label={`Editar solicitante ${r.nombre}`}
+                                      >
+                                        <EditOutlined /> Editar
+                                      </button>
+
+                                      <button
+                                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 text-rose-700 px-2 py-1 hover:bg-rose-50 transition"
+                                        onClick={() => void removeRow(r)}
+                                        aria-label={`Eliminar solicitante ${r.nombre}`}
+                                      >
+                                        <DeleteOutlined /> Eliminar
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
                     </tbody>
                   </AnimatePresence>
                 </table>
