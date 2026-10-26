@@ -298,6 +298,9 @@ export interface FichaEmpresaModalProps {
     contactos?: any[];
     onUpdated?: () => void;
     canEdit?: boolean;
+
+    canViewEntidadRelation?: boolean;
+    canManageEntidadRelation?: boolean;
 }
 
 /* =====================================================

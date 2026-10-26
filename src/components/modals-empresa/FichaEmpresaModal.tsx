@@ -8,6 +8,7 @@ import FichaTecnicaTab from "./tabs/FichaTecnicaTab";
 import SucursalTab from "./tabs/SucursalTab";
 import ServidoresTab from "./tabs/ServidoresTab";
 import RedesTab from "./tabs/RedesTab";
+import EmpresaEntidadTab from "./tabs/EmpresaEntidadTab";
 
 /* NUEVO */
 import SuscripcionesContratosTab
@@ -29,6 +30,8 @@ const FichaEmpresaModal: React.FC<
   loading,
   onUpdated,
   canEdit = true,
+  canViewEntidadRelation = false,
+  canManageEntidadRelation = false,
 }) => {
     const [activeTab, setActiveTab] =
       React.useState("ficha");
@@ -135,6 +138,10 @@ const FichaEmpresaModal: React.FC<
       canEdit &&
       localData?.empresa?.isActive !== false;
 
+    const canManageEntidadRelationLocal =
+      canManageEntidadRelation &&
+      localData?.empresa?.isActive !== false;
+
     if (!open) {
       return null;
     }
@@ -211,6 +218,34 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
+                ...(canViewEntidadRelation
+                  ? [
+                    {
+                      key: "relacion-comercial",
+                      label: "Relación comercial",
+                      children: (
+                        <EmpresaEntidadTab
+                          key={
+                            localData.empresa.id_empresa
+                          }
+
+                          empresaId={
+                            localData.empresa.id_empresa
+                          }
+
+                          empresaNombre={
+                            localData.empresa.nombre
+                          }
+
+                          canManage={
+                            canManageEntidadRelationLocal
+                          }
+                        />
+                      ),
+                    },
+                  ]
+                  : []),
 
                 /* =====================================================
                    SUSCRIPCIONES Y CONTRATOS

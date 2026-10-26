@@ -1073,12 +1073,25 @@ const EmpresasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [refreshing, setRefreshing] = useState<boolean>(false);
+
   const {
     isCliente,
     isAdminLike,
+    isVentas,
   } = useAuth();
 
-  const canEditEmpresa = !isCliente;
+
+  const canEditEmpresa =
+    !isCliente;
+
+
+  const canViewEntidadRelation =
+    isAdminLike ||
+    isVentas;
+
+
+  const canManageEntidadRelation =
+    isAdminLike;
 
   const canManageEmpresaStatus = isAdminLike;
   const [activeTab, setActiveTab] = useState<EmpresaTab>("overview");
@@ -2387,14 +2400,77 @@ const EmpresasPage: React.FC = () => {
         }
       />
       <FichaEmpresaModal
-        open={fichaOpen} onClose={() => setFichaOpen(false)} loading={fichaLoading}
-        empresa={fichaData?.empresa ?? null} ficha={fichaData?.ficha ?? null} checklist={fichaData?.checklist ?? null}
-        detalleEmpresa={fichaData?.empresa?.detalleEmpresa ?? null} contactos={fichaData?.contactos ?? []}
+        open={
+          fichaOpen
+        }
+
+        onClose={
+          () =>
+            setFichaOpen(
+              false
+            )
+        }
+
+        loading={
+          fichaLoading
+        }
+
+        empresa={
+          fichaData?.empresa ??
+          null
+        }
+
+        ficha={
+          fichaData?.ficha ??
+          null
+        }
+
+        checklist={
+          fichaData?.checklist ??
+          null
+        }
+
+        detalleEmpresa={
+          fichaData
+            ?.empresa
+            ?.detalleEmpresa ??
+          null
+        }
+
+        contactos={
+          fichaData?.contactos ??
+          []
+        }
+
         canEdit={
           canEditEmpresa &&
-          fichaData?.empresa?.isActive !== false
+          fichaData?.empresa?.isActive !==
+          false
         }
-        onUpdated={() => { if (fichaData?.empresa?.id_empresa) refreshEmpresaCompleta(fichaData.empresa.id_empresa); }}
+
+        canViewEntidadRelation={
+          canViewEntidadRelation
+        }
+
+        canManageEntidadRelation={
+          canManageEntidadRelation
+        }
+
+        onUpdated={
+          () => {
+            if (
+              fichaData
+                ?.empresa
+                ?.id_empresa
+            ) {
+              void refreshEmpresaCompleta(
+                fichaData
+                  .empresa
+                  .id_empresa
+              );
+            }
+          }
+        }
       />
       <Modal
         open={statusModalOpen}
