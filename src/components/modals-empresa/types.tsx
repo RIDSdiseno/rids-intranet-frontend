@@ -138,11 +138,24 @@ export interface FichaTecnicaEmpresa {
 /* ================= RED SUCURSAL ================= */
 
 export interface RedSucursal {
+    id: number;
+    sucursalId: number;
+
     wifiNombre?: string | null;
     claveWifi?: string | null;
     ipRed?: string | null;
     gateway?: string | null;
     observaciones?: string | null;
+}
+
+export interface RedSucursalForm {
+    id?: number;
+
+    wifiNombre?: string;
+    claveWifi?: string;
+    ipRed?: string;
+    gateway?: string;
+    observaciones?: string;
 }
 
 /* ================= EQUIPOS / SOLICITANTES ================= */
@@ -343,6 +356,26 @@ export interface Sucursal {
     latitud?: number | null;
     longitud?: number | null;
     telefono?: string | null;
+
     responsableSucursals: ResponsableSucursal[];
-    redSucursal?: RedSucursal | null;
+
+    redSucursales?: RedSucursal[];
+}
+
+export interface SucursalFormValues {
+    nombre: string;
+    direccion?: string;
+    latitud?: number | null;
+    longitud?: number | null;
+    telefono?: string;
+
+    responsableSucursals?: Array<{
+        id?: number;
+        nombre: string;
+        cargo?: string;
+        email?: string;
+        telefono?: string;
+    }>;
+
+    redesWifi?: RedSucursalForm[];
 }

@@ -29,6 +29,7 @@ const CotizacionesPage = lazy(() => import("./host/Cotizaciones"));
 const FunnelPage = lazy(() => import("./host/Funnel"));
 const CotizacionesEnviadasPage = lazy(() => import("./components/modals-cotizaciones/coizaciones-enviadas/CotizacionesEnviadas"));
 const MailerPage = lazy(() => import("./host/Mailer"));
+const ProteccionDatosPage = lazy(() => import("./host/ProteccionDatos"),);
 const CobranzaPage = lazy(() => import("./host/Cobranza"));
 const ClientesPage = lazy(() => import("./host/ClientesGestiooPage"));
 const ProductosPage = lazy(() => import("./host/ProductosCotiPage"));
@@ -270,6 +271,8 @@ export default function App() {
               <Route path="/clientes-externos" element={<ClientesExtPage />} />
             </Route>
 
+            <Route path="/proteccion-datos" element={<ProteccionDatosPage />} />
+
             {/* ── Supervisión Mapa Técnicos ────────────────────────────── */}
             <Route element={<MapaTecnicosRoute />}>
               <Route path="/mapa-tecnicos" element={<MapaTecnicosPage />} />
@@ -365,7 +368,7 @@ export default function App() {
             </Route>
 
             {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
-            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION","VENTAS"]} />}>
+            <Route element={<RoleRoute allowedRoles={["ADMINISTRACION", "VENTAS"]} />}>
               <Route path="/conciliacion-rcv" element={<ConciliacionRcvPage />} />
             </Route>
 

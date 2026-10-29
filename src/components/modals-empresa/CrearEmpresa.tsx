@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { http } from "../../service/http";
+import { api } from "../../api/api";
 
 interface Props {
   open: boolean;
@@ -54,43 +54,149 @@ const CrearEmpresaModal: React.FC<Props> = ({
     setEmail("");
   };
 
-  const handleSubmit = async () => {
-    setError(null);
+  const handleSubmit =
+    async () => {
 
-    if (!nombre.trim()) {
-      setError("El nombre es obligatorio");
-      return;
-    }
+      setError(
+        null
+      );
 
-    try {
-      setLoading(true);
+      /* =========================================
+         NOMBRE
+         ========================================= */
 
-      const body: any = {
-        nombre: nombre.trim(),
-        dominios: parseDominios(dominios),
-      };
+      if (
+        !nombre.trim()
+      ) {
+        setError(
+          "El nombre es obligatorio"
+        );
 
-      if (rut && direccion && telefono && email) {
-        body.rut = rut;
-        body.direccion = direccion;
-        body.telefono = telefono;
-        body.email = email;
+        return;
       }
 
-      await http.post("/empresas", body);
+      /* =========================================
+         DOMINIOS
+         ========================================= */
 
-      onCreated();
-      resetForm();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.error ||
-        err.message ||
-        "Error al crear empresa"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      const dominiosNormalizados =
+        parseDominios(
+          dominios
+        );
+
+      if (
+        dominiosNormalizados.length ===
+        0
+      ) {
+        setError(
+          "Debes ingresar al menos un dominio"
+        );
+
+        return;
+      }
+
+      /* =========================================
+         DETALLE EMPRESA
+         ========================================= */
+
+      const rutNormalizado =
+        rut.trim();
+
+      const direccionNormalizada =
+        direccion.trim();
+
+      const telefonoNormalizado =
+        telefono.trim();
+
+      const emailNormalizado =
+        email.trim();
+
+      /*
+       * Dirección, teléfono y email pertenecen
+       * a DetalleEmpresa.
+       *
+       * Como DetalleEmpresa requiere RUT,
+       * no permitimos esos datos sin RUT.
+       */
+      const tieneDetalleSinRut =
+        Boolean(
+          direccionNormalizada ||
+          telefonoNormalizado ||
+          emailNormalizado
+        ) &&
+        !rutNormalizado;
+
+      if (
+        tieneDetalleSinRut
+      ) {
+        setError(
+          "Debes ingresar el RUT para registrar dirección, teléfono o email"
+        );
+
+        return;
+      }
+
+      try {
+
+        setLoading(
+          true
+        );
+
+        const body = {
+          nombre:
+            nombre.trim(),
+
+          dominios:
+            dominiosNormalizados,
+
+          rut:
+            rutNormalizado ||
+            null,
+
+          direccion:
+            direccionNormalizada ||
+            null,
+
+          telefono:
+            telefonoNormalizado ||
+            null,
+
+          email:
+            emailNormalizado ||
+            null,
+        };
+
+        await api.post(
+          "/empresas",
+          body
+        );
+
+        onCreated();
+
+        resetForm();
+
+      } catch (
+      err: any
+      ) {
+
+        setError(
+          err.response
+            ?.data
+            ?.error ||
+          err.response
+            ?.data
+            ?.message ||
+          err.message ||
+          "Error al crear empresa"
+        );
+
+      } finally {
+
+        setLoading(
+          false
+        );
+      }
+    };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -113,14 +219,14 @@ const CrearEmpresaModal: React.FC<Props> = ({
 
           <div>
             <input
-              placeholder="Dominios de correo. Ej: empresa.cl, otrodominio.cl"
+              placeholder="Dominios de correo * Ej: empresa.cl, otrodominio.cl"
               value={dominios}
               onChange={(e) => setDominios(e.target.value)}
               className="w-full border rounded-xl px-3 py-2"
             />
 
             <p className="mt-1 text-xs text-slate-500">
-              Separa varios dominios con coma. No incluyas @.
+              Debes ingresar al menos un dominio. Separa varios dominios con coma y no incluyas @.
             </p>
           </div>
 

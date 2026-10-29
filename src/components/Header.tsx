@@ -38,6 +38,7 @@ import {
   Contact,
   MailCheck,
   FileUser,
+  ShieldCheck
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
@@ -61,6 +62,7 @@ const ADICIONALES_PATH = "/equipos-adicionales";
 const ORDENESTALLER = "/ordenes-taller";
 const COTIZACIONES = "/Cotizaciones";
 const MAILER_PATH = "/rids/mailer";
+const PROTECCION_DATOS_PATH = "/proteccion-datos";
 const EMPRESAS_PATH = "/empresas";
 const REPORTES_PATH = "/reportes";
 //const TICKETS_PATH = "/tickets";
@@ -317,8 +319,9 @@ const NAV: NavEntry[] = [
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Correos Masivos", to: MAILER_PATH, icon: <Mails size={20} /> },
+      { label: "Protección de datos", to: PROTECCION_DATOS_PATH, icon: <ShieldCheck size={20} />, },
     ],
-    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ADICIONALES_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, HELPDESK_PATH],
+    match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ADICIONALES_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, PROTECCION_DATOS_PATH, HELPDESK_PATH],
   },
   {
     type: "group",
@@ -699,6 +702,10 @@ const Header = () => {
   const canAccessGestionTecnicosClientes =
     userRole === "ADMIN" || userRole === "ADMINISTRACION";
 
+  const canAccessProteccionDatos =
+    userRole === "ADMIN" ||
+    userRole === "ADMINISTRACION";
+
   const canAccessMapaTecnicos = canViewMapaTecnicos(user);
 
   const canAccessFinanzas =
@@ -947,6 +954,67 @@ const Header = () => {
         }
 
         if (
+          entry.type ===
+          "group" &&
+          entry.label ===
+          "RIDS"
+        ) {
+          const items =
+            entry.items
+              .map(
+                (
+                  item,
+                ): NavItem | null => {
+
+                  if (
+                    isNavLinkItem(
+                      item,
+                    )
+                  ) {
+                    if (
+                      item.to ===
+                      PROTECCION_DATOS_PATH &&
+                      !canAccessProteccionDatos
+                    ) {
+                      return null;
+                    }
+
+                    return item;
+                  }
+
+                  return item;
+                },
+              )
+              .filter(
+                (
+                  item,
+                ): item is NavItem =>
+                  item !==
+                  null,
+              );
+
+          return {
+            ...entry,
+
+            items,
+
+            match:
+              items.flatMap(
+                (
+                  item,
+                ) =>
+                  isNavLinkItem(
+                    item,
+                  )
+                    ? [
+                      item.to,
+                    ]
+                    : item.match,
+              ),
+          };
+        }
+
+        if (
           entry.type === "group" &&
           entry.label === "Administración Oportunidades"
         ) {
@@ -1036,6 +1104,7 @@ const Header = () => {
     canAccessFunnel,
     canAccessReceptoresFacturacion,
     canAccessReceptoresCobranza,
+    canAccessProteccionDatos,
   ]);
 
   /*

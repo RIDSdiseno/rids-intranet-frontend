@@ -456,26 +456,6 @@ export default function Mailer() {
   // =================================================
 
   const [
-    usarFirmaTecnico,
-    setUsarFirmaTecnico,
-  ] =
-    useState(
-      true
-    );
-
-  const [
-    firmaTecnicoId,
-    setFirmaTecnicoId,
-  ] =
-    useState<
-      number |
-      null
-    >(
-      null
-    );
-
-
-  const [
     firmaRemitente,
     setFirmaRemitente,
   ] =
@@ -869,11 +849,7 @@ export default function Mailer() {
 
   const loadFirmaRemitente =
     useCallback(
-      async (
-        tecnicoId?:
-          number |
-          null
-      ) => {
+      async () => {
 
         try {
 
@@ -883,9 +859,7 @@ export default function Mailer() {
 
 
           const firma =
-            await getFirmaRemitente(
-              tecnicoId
-            );
+            await getFirmaRemitente();
 
 
           setFirmaRemitente(
@@ -921,12 +895,10 @@ export default function Mailer() {
       () => {
 
         if (
-          !usarFirmaTecnico ||
           !firmaRemitente?.html
         ) {
           return fullHtml;
         }
-
 
         return fullHtml.replace(
           "</body>",
@@ -936,7 +908,6 @@ export default function Mailer() {
       },
       [
         fullHtml,
-        usarFirmaTecnico,
         firmaRemitente,
       ]
     );
@@ -961,9 +932,7 @@ export default function Mailer() {
             undefined
         );
 
-      void loadFirmaRemitente(
-        null
-      )
+      void loadFirmaRemitente()
         .catch(
           () =>
             undefined
@@ -973,28 +942,6 @@ export default function Mailer() {
     [
       loadEmpresas,
       loadTecnicos,
-      loadFirmaRemitente,
-    ]
-  );
-
-  useEffect(
-    () => {
-
-      if (
-        !usarFirmaTecnico
-      ) {
-        return;
-      }
-
-
-      void loadFirmaRemitente(
-        firmaTecnicoId
-      );
-
-    },
-    [
-      usarFirmaTecnico,
-      firmaTecnicoId,
       loadFirmaRemitente,
     ]
   );
@@ -1032,9 +979,7 @@ export default function Mailer() {
 
         loadTecnicos(),
 
-        loadFirmaRemitente(
-          firmaTecnicoId
-        ),
+        loadFirmaRemitente(),
 
       ]);
     };
@@ -1311,14 +1256,6 @@ export default function Mailer() {
       editorRef.current.innerHTML =
         DEFAULT_CONTENT;
     }
-
-    setUsarFirmaTecnico(
-      true
-    );
-
-    setFirmaTecnicoId(
-      null
-    );
 
   }
 
@@ -2071,15 +2008,6 @@ export default function Mailer() {
             plantillaId:
               plantillaSeleccionada.id,
 
-            usarFirmaTecnico,
-
-            ...(usarFirmaTecnico &&
-              firmaTecnicoId !== null
-              ? {
-                firmaTecnicoId,
-              }
-              : {}),
-
             attachments,
           });
 
@@ -2152,15 +2080,6 @@ export default function Mailer() {
             subject.trim(),
 
           bodyHtml,
-
-          usarFirmaTecnico,
-
-          ...(usarFirmaTecnico &&
-            firmaTecnicoId !== null
-            ? {
-              firmaTecnicoId,
-            }
-            : {}),
 
           attachments,
         });
@@ -4004,18 +3923,17 @@ export default function Mailer() {
                                 plantillaPreview
                               }
 
-                              {usarFirmaTecnico &&
-                                firmaRemitente?.html && (
+                              {firmaRemitente?.html && (
 
-                                  <div
-                                    className="mt-6 border-t border-slate-100 pt-5"
-                                    dangerouslySetInnerHTML={{
-                                      __html:
-                                        firmaRemitente.html,
-                                    }}
-                                  />
+                                <div
+                                  className="mt-6 border-t border-slate-100 pt-5"
+                                  dangerouslySetInnerHTML={{
+                                    __html:
+                                      firmaRemitente.html,
+                                  }}
+                                />
 
-                                )}
+                              )}
 
                             </div>
 
@@ -4140,11 +4058,7 @@ export default function Mailer() {
                   )}
 
                 {/* =================================================
-    FIRMA DEL REMITENTE
-================================================= */}
-
-                {/* =================================================
-    FIRMA DEL CORREO
+    FIRMA CORPORATIVA
 ================================================= */}
 
                 <div>
@@ -4154,233 +4068,107 @@ export default function Mailer() {
                   </label>
 
 
-                  <div
-                    className={
-                      `rounded-2xl border p-4 transition ${usarFirmaTecnico
-                        ? "border-emerald-200 bg-emerald-50/50"
-                        : "border-slate-200 bg-slate-50"
-                      }`
-                    }
-                  >
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
 
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
 
-                      <div className="flex items-start gap-3">
-
-                        <div
-                          className={
-                            `flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${usarFirmaTecnico
-                              ? "bg-emerald-100 text-emerald-600"
-                              : "bg-slate-100 text-slate-400"
-                            }`
-                          }
-                        >
-                          <UserOutlined />
-                        </div>
-
-
-                        <div>
-
-                          <p className="text-sm font-bold text-slate-800">
-                            Incluir firma
-                          </p>
-
-                          <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
-                            Puedes utilizar tu firma o seleccionar la firma
-                            de otro técnico para este envío.
-                          </p>
-
-                        </div>
-
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                        <UserOutlined />
                       </div>
 
 
-                      <label className="relative inline-flex cursor-pointer items-center">
+                      <div className="flex-1">
 
-                        <input
-                          type="checkbox"
-                          checked={
-                            usarFirmaTecnico
-                          }
-                          onChange={
-                            (
-                              event
-                            ) =>
-                              setUsarFirmaTecnico(
-                                event.target.checked
-                              )
-                          }
-                          disabled={
-                            isSending
-                          }
-                          className="peer sr-only"
-                        />
+                        <p className="text-sm font-bold text-slate-800">
+                          Firma corporativa
+                        </p>
 
-                        <div className="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-emerald-500 peer-disabled:opacity-50">
-
-                          <div
-                            className={
-                              `mt-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${usarFirmaTecnico
-                                ? "translate-x-[22px]"
-                                : "translate-x-0.5"
-                              }`
-                            }
-                          />
-
-                        </div>
-
-                      </label>
-
-                    </div>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Todos los correos masivos utilizan automáticamente
+                          la firma de Soporte RIDS.
+                        </p>
 
 
-                    {usarFirmaTecnico && (
+                        <div className="mt-4">
 
-                      <div className="mt-4 space-y-3">
+                          {loadingFirmaRemitente ? (
 
-                        <div>
+                            <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-xs text-slate-400">
+                              Cargando firma de Soporte RIDS...
+                            </div>
 
-                          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                            Firmar como
-                          </label>
+                          ) : firmaRemitente ? (
 
+                            <div className="rounded-xl border border-emerald-100 bg-white p-4">
 
-                          <select
-                            value={
-                              firmaTecnicoId ??
-                              ""
-                            }
-                            onChange={
-                              (
-                                event
-                              ) => {
+                              {firmaRemitente.tecnico && (
 
-                                const value =
-                                  event.target.value;
+                                <div className="mb-3">
 
-
-                                setFirmaTecnicoId(
-                                  value
-                                    ? Number(
-                                      value
-                                    )
-                                    : null
-                                );
-                              }
-                            }
-                            disabled={
-                              isSending ||
-                              loadingFirmaRemitente
-                            }
-                            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 disabled:opacity-60"
-                          >
-
-                            <option value="">
-                              Usuario autenticado
-                            </option>
-
-
-                            {tecnicos
-                              .filter(
-                                (
-                                  tecnico
-                                ) =>
-                                  isValidEmail(
-                                    tecnico.email
-                                  )
-                              )
-                              .map(
-                                (
-                                  tecnico
-                                ) => (
-
-                                  <option
-                                    key={
-                                      tecnico.id_tecnico
+                                  <p className="text-sm font-bold text-slate-800">
+                                    {
+                                      firmaRemitente
+                                        .tecnico
+                                        .nombre ??
+                                      "Soporte RIDS"
                                     }
-                                    value={
-                                      tecnico.id_tecnico
+                                  </p>
+
+                                  <p className="text-xs text-slate-400">
+                                    {
+                                      [
+                                        firmaRemitente
+                                          .tecnico
+                                          .cargo,
+
+                                        firmaRemitente
+                                          .tecnico
+                                          .area,
+
+                                        firmaRemitente
+                                          .tecnico
+                                          .email,
+                                      ]
+                                        .filter(
+                                          Boolean
+                                        )
+                                        .join(
+                                          " · "
+                                        )
                                     }
-                                  >
-                                    {tecnico.nombre}
+                                  </p>
 
-                                    {tecnico.email
-                                      ? ` · ${tecnico.email}`
-                                      : ""}
-                                  </option>
+                                </div>
 
-                                )
                               )}
 
-                          </select>
+
+                              <div
+                                dangerouslySetInnerHTML={{
+                                  __html:
+                                    firmaRemitente.html,
+                                }}
+                              />
+
+                            </div>
+
+                          ) : (
+
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+
+                              <p className="text-xs text-red-700">
+                                No fue posible cargar la firma de Soporte RIDS.
+                              </p>
+
+                            </div>
+
+                          )}
 
                         </div>
 
-
-                        {loadingFirmaRemitente ? (
-
-                          <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-xs text-slate-400">
-                            Cargando firma...
-                          </div>
-
-                        ) : firmaRemitente ? (
-
-                          <div className="rounded-xl border border-emerald-100 bg-white p-4">
-
-                            {firmaRemitente.tecnico && (
-
-                              <div className="mb-3">
-
-                                <p className="text-sm font-bold text-slate-800">
-                                  {firmaRemitente.tecnico.nombre ??
-                                    "Sin nombre"}
-                                </p>
-
-                                <p className="text-xs text-slate-400">
-                                  {
-                                    [
-                                      firmaRemitente.tecnico.cargo,
-                                      firmaRemitente.tecnico.area,
-                                      firmaRemitente.tecnico.email,
-                                    ]
-                                      .filter(
-                                        Boolean
-                                      )
-                                      .join(
-                                        " · "
-                                      )
-                                  }
-                                </p>
-
-                              </div>
-
-                            )}
-
-
-                            <div
-                              dangerouslySetInnerHTML={{
-                                __html:
-                                  firmaRemitente.html,
-                              }}
-                            />
-
-                          </div>
-
-                        ) : (
-
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-
-                            <p className="text-xs text-amber-700">
-                              No fue posible cargar la firma seleccionada.
-                            </p>
-
-                          </div>
-
-                        )}
-
                       </div>
 
-                    )}
+                    </div>
 
                   </div>
 

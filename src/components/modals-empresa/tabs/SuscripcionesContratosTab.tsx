@@ -1,3 +1,4 @@
+// src/components/modals-empresa/tabs/SuscripcionesContratosTab.tsx
 import {
     useCallback,
     useEffect,
@@ -216,6 +217,33 @@ export default function SuscripcionesContratosTab({
                             item.activo &&
                             item.moneda ===
                             "CLP"
+                    )
+                    .reduce(
+                        (
+                            total,
+                            item
+                        ) =>
+                            total +
+                            Number(
+                                item.costoMensual ??
+                                0
+                            ),
+                        0
+                    ),
+            [
+                items,
+            ]
+        );
+
+    const totalMensualUsd =
+        useMemo(
+            () =>
+                items
+                    .filter(
+                        item =>
+                            item.activo &&
+                            item.moneda ===
+                            "USD"
                     )
                     .reduce(
                         (
@@ -463,45 +491,37 @@ export default function SuscripcionesContratosTab({
     }
 
     function formatCurrency(
-        item:
-            SuscripcionContrato
+        item: SuscripcionContrato
     ) {
         if (
-            item.costoMensual ===
-            null
+            item.costoMensual === null
         ) {
             return "—";
         }
 
-        return new Intl
-            .NumberFormat(
-                "es-CL",
-                {
-                    style:
-                        "currency",
+        return new Intl.NumberFormat(
+            "es-CL",
+            {
+                style: "currency",
 
-                    currency:
-                        item.moneda ===
-                            "CLP" ||
-                            item.moneda ===
-                            "USD" ||
-                            item.moneda ===
-                            "EUR"
-                            ? item.moneda
-                            : "CLP",
+                currency:
+                    item.moneda === "CLP" ||
+                        item.moneda === "USD" ||
+                        item.moneda === "EUR"
+                        ? item.moneda
+                        : "CLP",
 
-                    maximumFractionDigits:
-                        item.moneda ===
-                            "CLP"
-                            ? 0
-                            : 2,
-                }
+                minimumFractionDigits:
+                    0,
+
+                maximumFractionDigits:
+                    2,
+            }
+        ).format(
+            Number(
+                item.costoMensual
             )
-            .format(
-                Number(
-                    item.costoMensual
-                )
-            );
+        );
     }
 
     function formatDate(
@@ -566,7 +586,7 @@ export default function SuscripcionesContratosTab({
                 </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-xl border p-4 dark:border-gray-800">
                     <div className="text-sm text-gray-500">
                         Suscripciones
@@ -610,14 +630,45 @@ export default function SuscripcionesContratosTab({
                                     currency:
                                         "CLP",
 
-                                    maximumFractionDigits:
-                                        0,
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 2,
                                 }
                             ).format(
                                 totalMensualClp
                             )
                         }
                     </div>
+                </div>
+
+                <div className="rounded-xl border p-4 dark:border-gray-800">
+
+                    <div className="text-sm text-gray-500">
+                        Costo mensual USD
+                    </div>
+
+                    <div className="mt-1 text-xl font-semibold">
+                        {
+                            new Intl.NumberFormat(
+                                "es-CL",
+                                {
+                                    style:
+                                        "currency",
+
+                                    currency:
+                                        "USD",
+
+                                    minimumFractionDigits:
+                                        0,
+
+                                    maximumFractionDigits:
+                                        2,
+                                }
+                            ).format(
+                                totalMensualUsd
+                            )
+                        }
+                    </div>
+
                 </div>
             </div>
 

@@ -16,7 +16,6 @@ import {
     Select
 } from "antd";
 import {
-    EditOutlined,
     SaveOutlined,
     UserOutlined,
     EnvironmentOutlined,
@@ -30,7 +29,10 @@ import {
     StarFilled
 } from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
-import { http } from "../../../service/http"; // ajusta ruta
+
+import {
+    api
+} from "../../../api/api"
 
 const { Text } = Typography;
 
@@ -67,20 +69,77 @@ const FichaTab: React.FC<FichaTabProps> = ({
     const [saving, setSaving] = useState(false);
     const [form] = Form.useForm();
 
-    useEffect(() => {
-        if (!ficha) return;
-        form.setFieldsValue({
-            razonSocial: empresa.razonSocial,
-            dominios: Array.isArray(empresa.dominios)
-                ? empresa.dominios.join(", ")
-                : "",
-            rut: detalleEmpresa?.rut,
-            direccion: detalleEmpresa?.direccion ?? "",
-            direcciones: Array.isArray(detalleEmpresa?.direcciones) ? detalleEmpresa.direcciones : [],
-            condicionesComerciales: ficha?.condicionesComerciales,
-            contactos: contactos ?? [],
-        });
-    }, [empresa, ficha, detalleEmpresa, contactos, form]);
+    useEffect(
+        () => {
+
+            if (
+                !ficha
+            ) {
+                return;
+            }
+
+            form.setFieldsValue({
+                razonSocial:
+                    empresa.razonSocial ??
+                    "",
+
+                dominios:
+                    Array.isArray(
+                        empresa.dominios
+                    )
+                        ? empresa.dominios.join(
+                            ", "
+                        )
+                        : "",
+
+                rut:
+                    detalleEmpresa
+                        ?.rut ??
+                    "",
+
+                direccion:
+                    detalleEmpresa
+                        ?.direccion ??
+                    "",
+
+                telefono:
+                    detalleEmpresa
+                        ?.telefono ??
+                    "",
+
+                email:
+                    detalleEmpresa
+                        ?.email ??
+                    "",
+
+                direcciones:
+                    Array.isArray(
+                        detalleEmpresa
+                            ?.direcciones
+                    )
+                        ? detalleEmpresa
+                            .direcciones
+                        : [],
+
+                condicionesComerciales:
+                    ficha
+                        ?.condicionesComerciales ??
+                    "",
+
+                contactos:
+                    contactos ??
+                    [],
+            });
+
+        },
+        [
+            empresa,
+            ficha,
+            detalleEmpresa,
+            contactos,
+            form,
+        ]
+    );
 
     if (!ficha) {
         return <div className="p-6 text-slate-500 text-sm">Cargando ficha de la empresa…</div>;
@@ -95,12 +154,12 @@ const FichaTab: React.FC<FichaTabProps> = ({
             const values = await form.validateFields();
             setSaving(true);
 
-            await http.put(`/empresas/${empresa.id_empresa}`, {
+            await api.put(`/empresas/${empresa.id_empresa}`, {
                 nombre: empresa.nombre,
                 dominios: parseDominios(values.dominios),
             });
 
-            await http.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
+            await api.put(`/ficha-empresa/${empresa.id_empresa}/ficha`, {
                 razonSocial: values.razonSocial,
                 rut: values.rut,
                 direccion: values.direccion,

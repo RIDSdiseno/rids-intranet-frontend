@@ -126,12 +126,6 @@ export type EnviarMasivoPayload = {
     plantillaId?:
     number;
 
-    usarFirmaTecnico?:
-    boolean;
-
-    firmaTecnicoId?:
-    number;
-
     attachments?:
     MailerAttachment[];
 };

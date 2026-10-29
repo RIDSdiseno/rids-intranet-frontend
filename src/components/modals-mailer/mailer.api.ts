@@ -251,26 +251,14 @@ export async function eliminarPlantillaCorreo(
 // FIRMA REMITENTE
 // =====================================================
 
-export async function getFirmaRemitente(
-    tecnicoId?:
-        number |
-        null
-): Promise<FirmaRemitenteMailer> {
+export async function getFirmaRemitente():
+    Promise<FirmaRemitenteMailer> {
 
     const {
         data,
     } =
         await api.get(
-            "/correo/firma-remitente",
-            {
-                params:
-                    tecnicoId !== undefined &&
-                        tecnicoId !== null
-                        ? {
-                            tecnicoId,
-                        }
-                        : undefined,
-            }
+            "/correo/firma-remitente"
         );
 
     return data.firma;

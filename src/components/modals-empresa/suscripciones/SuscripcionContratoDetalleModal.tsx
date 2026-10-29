@@ -143,50 +143,30 @@ function formatCurrency(
 
 
     if (
-
         moneda ===
-
         "CLP"
-
     ) {
-
         return new Intl
-
             .NumberFormat(
-
                 "es-CL",
-
                 {
-
                     style:
-
                         "currency",
 
-
-
                     currency:
-
                         "CLP",
 
-
-
-                    maximumFractionDigits:
-
+                    minimumFractionDigits:
                         0,
 
+                    maximumFractionDigits:
+                        2,
                 }
-
             )
-
             .format(
-
                 numero
-
             );
-
     }
-
-
 
     if (
 

@@ -171,33 +171,124 @@ function formatearMontoInput(
 }
 
 function parsearMontoInput(
-    value:
-        string
+    value: string
 ): number | null {
-    const limpio =
-        value
-            .replace(
-                /\./g,
-                ""
-            )
-            .replace(
-                /,/g,
-                "."
-            )
-            .replace(
-                /[^\d.]/g,
-                ""
-            );
 
-    if (
-        !limpio
-    ) {
+    let limpio =
+        value
+            .trim()
+            .replace(/\s/g, "")
+            .replace(/[^\d.,]/g, "");
+
+    if (!limpio) {
         return null;
+    }
+
+    const lastComma =
+        limpio.lastIndexOf(",");
+
+    const lastDot =
+        limpio.lastIndexOf(".");
+
+    let normalizado =
+        limpio;
+
+    /*
+     * Tiene punto y coma.
+     *
+     * Se considera separador decimal
+     * el último de los dos.
+     *
+     * 1.250,50 -> 1250.50
+     * 1,250.50 -> 1250.50
+     */
+    if (
+        lastComma >= 0 &&
+        lastDot >= 0
+    ) {
+        if (
+            lastComma >
+            lastDot
+        ) {
+            normalizado =
+                limpio
+                    .replace(/\./g, "")
+                    .replace(",", ".");
+        } else {
+            normalizado =
+                limpio.replace(
+                    /,/g,
+                    ""
+                );
+        }
+    }
+
+    /*
+     * Solo coma.
+     *
+     * 15,90   -> 15.90
+     * 1,250   -> 1250
+     * 1250,50 -> 1250.50
+     */
+    else if (
+        lastComma >= 0
+    ) {
+        const decimales =
+            limpio.length -
+            lastComma -
+            1;
+
+        if (
+            decimales >= 1 &&
+            decimales <= 2
+        ) {
+            normalizado =
+                limpio.replace(
+                    ",",
+                    "."
+                );
+        } else {
+            normalizado =
+                limpio.replace(
+                    /,/g,
+                    ""
+                );
+        }
+    }
+
+    /*
+     * Solo punto.
+     *
+     * 15.90   -> 15.90
+     * 1.250   -> 1250
+     * 1250.50 -> 1250.50
+     */
+    else if (
+        lastDot >= 0
+    ) {
+        const decimales =
+            limpio.length -
+            lastDot -
+            1;
+
+        if (
+            decimales >= 1 &&
+            decimales <= 2
+        ) {
+            normalizado =
+                limpio;
+        } else {
+            normalizado =
+                limpio.replace(
+                    /\./g,
+                    ""
+                );
+        }
     }
 
     const numero =
         Number(
-            limpio
+            normalizado
         );
 
     return Number.isFinite(
@@ -230,6 +321,14 @@ export default function SuscripcionContratoModal({
             SuscripcionContratoPayload
         >(
             EMPTY_FORM
+        );
+
+    const [
+        costoMensualInput,
+        setCostoMensualInput,
+    ] =
+        useState<string>(
+            ""
         );
 
     const [
@@ -266,15 +365,32 @@ export default function SuscripcionContratoModal({
                 null
             );
 
-            if (
-                !suscripcion
-            ) {
+            if (!suscripcion) {
+
                 setForm({
                     ...EMPTY_FORM,
                 });
 
+                setCostoMensualInput(
+                    ""
+                );
+
                 return;
             }
+
+            const costoMensual =
+                suscripcion.costoMensual !==
+                    null
+                    ? Number(
+                        suscripcion.costoMensual
+                    )
+                    : null;
+
+            setCostoMensualInput(
+                formatearMontoInput(
+                    costoMensual
+                )
+            );
 
             setForm({
                 proveedor:
@@ -289,13 +405,7 @@ export default function SuscripcionContratoModal({
                 cantidadLicencias:
                     suscripcion.cantidadLicencias,
 
-                costoMensual:
-                    suscripcion.costoMensual !==
-                        null
-                        ? Number(
-                            suscripcion.costoMensual
-                        )
-                        : null,
+                costoMensual,
 
                 moneda:
                     suscripcion.moneda ||
@@ -1169,20 +1279,43 @@ export default function SuscripcionContratoModal({
 
                                         <input
                                             type="text"
+
                                             inputMode="decimal"
+
                                             className={
                                                 inputClass
                                             }
+
                                             value={
-                                                formatearMontoInput(
-                                                    form.costoMensual
-                                                )
+                                                costoMensualInput
                                             }
+
                                             onChange={
                                                 e => {
+
+                                                    /*
+                                                     * Permitimos temporalmente:
+                                                     *
+                                                     * 1500
+                                                     * 1500,50
+                                                     * 1500.50
+                                                     * 1.500,50
+                                                     * 1,500.50
+                                                     */
+                                                    const texto =
+                                                        e.target.value
+                                                            .replace(
+                                                                /[^\d.,]/g,
+                                                                ""
+                                                            );
+
+                                                    setCostoMensualInput(
+                                                        texto
+                                                    );
+
                                                     const valor =
                                                         parsearMontoInput(
-                                                            e.target.value
+                                                            texto
                                                         );
 
                                                     update(
@@ -1191,11 +1324,27 @@ export default function SuscripcionContratoModal({
                                                     );
                                                 }
                                             }
+
+                                            onBlur={
+                                                () => {
+                                                    setCostoMensualInput(
+                                                        formatearMontoInput(
+                                                            form.costoMensual
+                                                        )
+                                                    );
+                                                }
+                                            }
+
                                             disabled={
                                                 saving
                                             }
-                                            placeholder="0"
+
+                                            placeholder="Ej: 1250,50 o 1250.50"
                                         />
+
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Puedes ingresar decimales con coma o punto.
+                                        </p>
                                     </div>
 
                                     <div>
