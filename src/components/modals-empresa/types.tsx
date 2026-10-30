@@ -135,6 +135,51 @@ export interface FichaTecnicaEmpresa {
     ultimaRestauracion?: string | Date | null;
 }
 
+/* ================= ISP / CONECTIVIDAD EMPRESA ================= */
+
+export interface EmpresaISP {
+    id: number;
+    empresaId: number;
+
+    operador?: string | null;
+    telefono?: string | null;
+    servicio?: string | null;
+    numeroTicket?: string | null;
+
+    wifiNombre?: string | null;
+    wifiClaveRef?: string | null;
+
+    ipRed: string[];
+
+    esPrincipal: boolean;
+
+    sucursalId?: number | null;
+
+    sucursal?: {
+        id_sucursal: number;
+        nombre: string;
+        direccion?: string | null;
+    } | null;
+
+    createdAt?: string | Date;
+    updatedAt?: string | Date;
+}
+
+export interface EmpresaISPFormValues {
+    operador?: string;
+    telefono?: string;
+    servicio?: string;
+    numeroTicket?: string;
+
+    wifiNombre?: string;
+    wifiClaveRef?: string;
+
+    ipRed: string[];
+
+    esPrincipal?: boolean;
+    sucursalId?: number | null;
+}
+
 /* ================= RED SUCURSAL ================= */
 
 export interface RedSucursal {
