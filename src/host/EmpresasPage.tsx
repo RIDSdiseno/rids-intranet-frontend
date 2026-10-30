@@ -19,7 +19,7 @@ import {
   PlayCircleOutlined,
 } from "@ant-design/icons";
 
-import { Modal } from "antd";
+import { Modal, Tooltip as AntTooltip, } from "antd";
 
 import { motion } from "framer-motion";
 
@@ -63,8 +63,78 @@ import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
 
 /* ====================== Tipos de página ====================== */
+
+type FaltanteFichaEmpresa = {
+  campo:
+  string;
+
+  label:
+  string;
+
+  registro?:
+  string;
+};
+
+type CompletitudSeccionFicha = {
+  key:
+  string;
+
+  label:
+  string;
+
+  obligatoria:
+  boolean;
+
+  estado:
+  | "COMPLETA"
+  | "INCOMPLETA"
+  | "SIN_DATOS"
+  | "NO_APLICA";
+
+  porcentaje:
+  number;
+
+  totalCampos:
+  number;
+
+  camposCompletos:
+  number;
+
+  faltantes:
+  FaltanteFichaEmpresa[];
+};
+
+type CompletitudFichaEmpresa = {
+  estado:
+  | "COMPLETA"
+  | "INCOMPLETA";
+
+  porcentaje:
+  number;
+
+  totalSecciones:
+  number;
+
+  seccionesCompletas:
+  number;
+
+  seccionesIncompletas:
+  number;
+
+  totalFaltantes:
+  number;
+
+  secciones:
+  CompletitudSeccionFicha[];
+};
+
 interface Empresa extends EmpresaLite {
-  estadisticas: EstadisticasEmpresa;
+  estadisticas:
+  EstadisticasEmpresa;
+
+  completitudFicha?:
+  CompletitudFichaEmpresa |
+  null;
 }
 
 type EmpresaDashboardData = {
@@ -163,6 +233,173 @@ function normalizeDetalleEmpresa(input: unknown): DetalleEmpresa | undefined {
   };
 }
 
+function normalizeCompletitudFicha(
+  input:
+    unknown
+): CompletitudFichaEmpresa | null {
+
+  if (
+    !isRecord(
+      input
+    )
+  ) {
+    return null;
+  }
+
+  const estado =
+    input.estado ===
+      "COMPLETA" ||
+      input.estado ===
+      "INCOMPLETA"
+      ? input.estado
+      : "INCOMPLETA";
+
+  const secciones: CompletitudSeccionFicha[] =
+    Array.isArray(
+      input.secciones
+    )
+      ? input.secciones
+        .filter(
+          isRecord
+        )
+        .map(
+          (
+            seccion
+          ): CompletitudSeccionFicha => {
+
+            const estadoSeccion:
+              CompletitudSeccionFicha["estado"] =
+              seccion.estado ===
+                "COMPLETA" ||
+                seccion.estado ===
+                "INCOMPLETA" ||
+                seccion.estado ===
+                "SIN_DATOS" ||
+                seccion.estado ===
+                "NO_APLICA"
+                ? seccion.estado
+                : "INCOMPLETA";
+
+            const faltantes:
+              FaltanteFichaEmpresa[] =
+              Array.isArray(
+                seccion.faltantes
+              )
+                ? seccion.faltantes
+                  .filter(
+                    isRecord
+                  )
+                  .map(
+                    (
+                      faltante
+                    ): FaltanteFichaEmpresa => ({
+                      campo:
+                        asStringOr(
+                          faltante.campo,
+                          ""
+                        ),
+
+                      label:
+                        asStringOr(
+                          faltante.label,
+                          ""
+                        ),
+
+                      ...(
+                        typeof faltante.registro ===
+                          "string"
+                          ? {
+                            registro:
+                              faltante.registro,
+                          }
+                          : {}
+                      ),
+                    })
+                  )
+                : [];
+
+            return {
+              key:
+                asStringOr(
+                  seccion.key,
+                  ""
+                ),
+
+              label:
+                asStringOr(
+                  seccion.label,
+                  ""
+                ),
+
+              obligatoria:
+                Boolean(
+                  seccion.obligatoria
+                ),
+
+              estado:
+                estadoSeccion,
+
+              porcentaje:
+                asNumberOr(
+                  seccion.porcentaje,
+                  0
+                ),
+
+              totalCampos:
+                asNumberOr(
+                  seccion.totalCampos,
+                  0
+                ),
+
+              camposCompletos:
+                asNumberOr(
+                  seccion.camposCompletos,
+                  0
+                ),
+
+              faltantes,
+            };
+          }
+        )
+      : [];
+
+  return {
+    estado,
+
+    porcentaje:
+      asNumberOr(
+        input.porcentaje,
+        0
+      ),
+
+    totalSecciones:
+      asNumberOr(
+        input.totalSecciones,
+        0
+      ),
+
+    seccionesCompletas:
+      asNumberOr(
+        input.seccionesCompletas,
+        0
+      ),
+
+    seccionesIncompletas:
+      asNumberOr(
+        input.seccionesIncompletas,
+        0
+      ),
+
+    totalFaltantes:
+      asNumberOr(
+        input.totalFaltantes,
+        0
+      ),
+
+    secciones,
+  };
+}
+
 function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
   const id = asNumberOr(e.id_empresa, NaN);
@@ -196,6 +433,11 @@ function normalizeEmpresa(input: unknown): Empresa {
       typeof e.deactivatedAt === "string"
         ? e.deactivatedAt
         : null,
+
+    completitudFicha:
+      normalizeCompletitudFicha(
+        e.completitudFicha
+      ),
   };
 }
 
@@ -460,18 +702,321 @@ const DeltaBadge: React.FC<{ curr: number; prev?: number; unit?: string }> = ({ 
 };
 
 /* ====================== SaludBadge ====================== */
-const SaludBadge: React.FC<{ nivel: "ok" | "warn" | "alert" }> = ({ nivel }) => {
-  const cfg = {
-    ok: { label: "OK", cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <CheckCircleOutlined /> },
-    warn: { label: "Atención", cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <ClockCircleOutlined /> },
-    alert: { label: "Alerta", cls: "bg-rose-50 text-rose-700 border-rose-200", icon: <WarningOutlined /> },
-  }[nivel];
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>
-      {cfg.icon} {cfg.label}
-    </span>
-  );
+type SaludBadgeProps = {
+  nivel:
+  | "ok"
+  | "warn"
+  | "alert";
+
+  visitasPendientes?: number;
+
+  trabajosPendientes?: number;
 };
+
+const SaludBadge: React.FC<
+  SaludBadgeProps
+> = ({
+  nivel,
+  visitasPendientes = 0,
+  trabajosPendientes = 0,
+}) => {
+
+    const totalPendientes =
+      visitasPendientes +
+      trabajosPendientes;
+
+    const cfg = {
+      ok: {
+        label:
+          "OK",
+
+        cls:
+          "bg-emerald-50 text-emerald-700 border-emerald-200",
+
+        icon:
+          <CheckCircleOutlined />,
+      },
+
+      warn: {
+        label:
+          "Atención",
+
+        cls:
+          "bg-amber-50 text-amber-700 border-amber-200",
+
+        icon:
+          <ClockCircleOutlined />,
+      },
+
+      alert: {
+        label:
+          "Alerta",
+
+        cls:
+          "bg-rose-50 text-rose-700 border-rose-200",
+
+        icon:
+          <WarningOutlined />,
+      },
+    }[nivel];
+
+    const descripcionNivel =
+      nivel === "alert"
+        ? "Esta empresa tiene más de 5 pendientes."
+        : nivel === "warn"
+          ? "Esta empresa tiene entre 1 y 5 pendientes."
+          : "Esta empresa no registra pendientes.";
+
+    const tooltipContent = (
+      <div className="space-y-1 text-xs">
+        <div className="font-semibold">
+          {descripcionNivel}
+        </div>
+
+        <div>
+          Visitas pendientes:{" "}
+          <strong>
+            {visitasPendientes}
+          </strong>
+        </div>
+
+        <div>
+          Trabajos pendientes:{" "}
+          <strong>
+            {trabajosPendientes}
+          </strong>
+        </div>
+
+        <div className="border-t border-white/20 pt-1">
+          Total pendientes:{" "}
+          <strong>
+            {totalPendientes}
+          </strong>
+        </div>
+      </div>
+    );
+
+    return (
+      <AntTooltip
+        title={
+          tooltipContent
+        }
+        placement="top"
+      >
+        <span
+          className={`
+          inline-flex
+          cursor-help
+          items-center
+          gap-1
+          rounded-full
+          border
+          px-2
+          py-0.5
+          text-xs
+          font-medium
+          ${cfg.cls}
+        `}
+        >
+          {cfg.icon}
+
+          {cfg.label}
+        </span>
+      </AntTooltip>
+    );
+  };
+
+type FichaCompletitudBadgeProps = {
+  completitud:
+  CompletitudFichaEmpresa;
+};
+
+const FichaCompletitudBadge:
+  React.FC<
+    FichaCompletitudBadgeProps
+  > = ({
+    completitud,
+  }) => {
+
+    const completa =
+      completitud.estado ===
+      "COMPLETA";
+
+    const seccionesConProblemas =
+      completitud.secciones.filter(
+        seccion =>
+          seccion.obligatoria &&
+          seccion.estado !==
+          "COMPLETA"
+      );
+
+    const sucursales =
+      completitud.secciones.find(
+        seccion =>
+          seccion.key ===
+          "sucursales"
+      );
+
+    const tooltipContent = (
+      <div className="max-w-sm space-y-3 text-xs">
+        <div>
+          <div className="font-semibold">
+            {completa
+              ? "Ficha completa"
+              : "Ficha incompleta"}
+          </div>
+
+          <div className="mt-0.5 text-white/80">
+            {
+              completitud
+                .porcentaje
+            }
+            % de completitud
+            {" · "}
+            {
+              completitud
+                .totalFaltantes
+            }{" "}
+            dato
+            {
+              completitud
+                .totalFaltantes !==
+                1
+                ? "s"
+                : ""
+            }{" "}
+            faltante
+            {
+              completitud
+                .totalFaltantes !==
+                1
+                ? "s"
+                : ""
+            }
+          </div>
+        </div>
+
+        {seccionesConProblemas.map(
+          seccion => (
+            <div
+              key={
+                seccion.key
+              }
+              className="border-t border-white/20 pt-2"
+            >
+              <div className="font-semibold">
+                {
+                  seccion.label
+                }{" "}
+                ·{" "}
+                {
+                  seccion.porcentaje
+                }
+                %
+              </div>
+
+              <div className="mt-1 space-y-0.5">
+                {seccion.faltantes
+                  .slice(
+                    0,
+                    6
+                  )
+                  .map(
+                    (
+                      faltante,
+                      index
+                    ) => (
+                      <div
+                        key={`${faltante.campo}-${index}`}
+                      >
+                        •{" "}
+                        {faltante.registro
+                          ? `${faltante.registro}: `
+                          : ""}
+                        {
+                          faltante.label
+                        }
+                      </div>
+                    )
+                  )}
+
+                {seccion
+                  .faltantes
+                  .length >
+                  6 && (
+                    <div className="text-white/70">
+                      +{" "}
+                      {seccion
+                        .faltantes
+                        .length -
+                        6}{" "}
+                      faltantes más
+                    </div>
+                  )}
+              </div>
+            </div>
+          )
+        )}
+
+        {sucursales && (
+          <div className="border-t border-white/20 pt-2 text-white/75">
+            Sucursales:{" "}
+            {sucursales.estado ===
+              "COMPLETA"
+              ? "completa"
+              : sucursales.estado ===
+                "SIN_DATOS"
+                ? "sin registros"
+                : "con datos incompletos"}
+            {" · "}
+            sección opcional
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <AntTooltip
+        title={
+          tooltipContent
+        }
+        placement="top"
+      >
+        <span
+          className={`
+            inline-flex
+            cursor-help
+            items-center
+            gap-1
+            rounded-full
+            border
+            px-2
+            py-0.5
+            text-xs
+            font-medium
+            ${completa
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-violet-200 bg-violet-50 text-violet-700"
+            }
+          `}
+        >
+          {completa
+            ? (
+              <CheckCircleOutlined />
+            )
+            : (
+              <WarningOutlined />
+            )}
+
+          Ficha{" "}
+          {
+            completitud.porcentaje
+          }
+          %
+        </span>
+      </AntTooltip>
+    );
+  };
 
 /* ====================== Tipos soporte mensual ====================== */
 type SoporteMensualRow = {
@@ -2100,6 +2645,56 @@ const EmpresasPage: React.FC = () => {
             <motion.div className="bg-white rounded-xl shadow-md p-6 border border-slate-100"
               initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
               <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div
+                  className="
+    mt-4
+    flex
+    flex-wrap
+    items-center
+    gap-x-5
+    gap-y-2
+    rounded-lg
+    border
+    border-slate-200
+    bg-slate-50/70
+    px-4
+    py-2.5
+    text-xs
+    text-slate-500
+  "
+                >
+                  <span className="font-medium text-slate-600">
+                    Estado de pendientes:
+                  </span>
+
+                  <span className="inline-flex items-center gap-1.5">
+                    <ClockCircleOutlined className="text-amber-500" />
+
+                    <span>
+                      <strong className="font-medium text-amber-700">
+                        Atención
+                      </strong>
+                      {" "}
+                      1 a 5 pendientes
+                    </span>
+                  </span>
+
+                  <span className="inline-flex items-center gap-1.5">
+                    <WarningOutlined className="text-rose-500" />
+
+                    <span>
+                      <strong className="font-medium text-rose-700">
+                        Alerta
+                      </strong>
+                      {" "}
+                      más de 5 pendientes
+                    </span>
+                  </span>
+
+                  <span className="text-slate-400">
+                    Se consideran visitas y trabajos pendientes.
+                  </span>
+                </div>
                 <h2 className="text-lg font-semibold text-slate-900">Lista de Empresas</h2>
                 <div className="flex items-center gap-3 flex-wrap">
                   {!isCliente && canManageEmpresaStatus && (
@@ -2190,9 +2785,9 @@ const EmpresasPage: React.FC = () => {
                   filteredEmpresas.map((empresa, index) => (
                     <motion.div key={empresa.id_empresa}
                       className={`
-  flex items-center justify-between
-  p-4
-  border rounded-lg
+                      flex items-center justify-between
+                      p-4
+                      border rounded-lg
   transition-all duration-300
   group
   ${empresa.isActive
@@ -2238,9 +2833,56 @@ const EmpresasPage: React.FC = () => {
                             <span className="text-sm text-slate-500">
                               • {empresa.estadisticas.totalSolicitantes} solicitantes • {empresa.estadisticas.totalEquipos} equipos
                             </span>
-                            {((empresa.estadisticas.visitasPendientes ?? 0) + (empresa.estadisticas.trabajosPendientes ?? 0)) > 0 && (
-                              <SaludBadge nivel={((empresa.estadisticas.visitasPendientes ?? 0) + (empresa.estadisticas.trabajosPendientes ?? 0)) > 5 ? "alert" : "warn"} />
+                            {empresa.completitudFicha && (
+                              <FichaCompletitudBadge
+                                completitud={
+                                  empresa.completitudFicha
+                                }
+                              />
                             )}
+                            {(
+                              (
+                                empresa.estadisticas
+                                  .visitasPendientes ??
+                                0
+                              ) +
+                              (
+                                empresa.estadisticas
+                                  .trabajosPendientes ??
+                                0
+                              )
+                            ) > 0 && (
+                                <SaludBadge
+                                  nivel={
+                                    (
+                                      (
+                                        empresa.estadisticas
+                                          .visitasPendientes ??
+                                        0
+                                      ) +
+                                      (
+                                        empresa.estadisticas
+                                          .trabajosPendientes ??
+                                        0
+                                      )
+                                    ) > 5
+                                      ? "alert"
+                                      : "warn"
+                                  }
+
+                                  visitasPendientes={
+                                    empresa.estadisticas
+                                      .visitasPendientes ??
+                                    0
+                                  }
+
+                                  trabajosPendientes={
+                                    empresa.estadisticas
+                                      .trabajosPendientes ??
+                                    0
+                                  }
+                                />
+                              )}
                           </div>
                           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
                             <p><span className="font-medium text-slate-600">RUT:</span> {empresa.detalleEmpresa?.rut || "Sin RUT"}</p>
