@@ -49,6 +49,7 @@ const TecnicosPage = lazy(() => import("./host/TecnicosPage"));
 const LoginPage = lazy(() => import("./host/login"));
 const ForgotPasswordPage = lazy(() => import("./host/ForgotPassword"));
 const ResetPasswordPage = lazy(() => import("./host/ResetPassword"));
+const FichaLeypdPublicaPage = lazy(() => import("./host/FichaLeypdPublicaPage"));
 
 const ClientesExtPage = lazy(() => import("./host/ClientesExt"));
 
@@ -56,25 +57,13 @@ const FinanzasDashboardsPage = lazy(() => import("./host/FinanzasDashboard"));
 const FinanzasClientesPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/FinanzasClientes"));
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
-const ReceptoresFacturacionPage =
-  lazy(
-    () =>
-      import(
-        "./components/modals-facturasBaseapi/receptores-facturacion/ReceptoresFacturacionPage"
-      )
-  );
-
-const ReceptoresCobranzaPage =
-  lazy(
-    () =>
-      import(
-        "./components/modals-facturasBaseapi/receptores-cobranza/ReceptoresCobranzaPage"
-      )
-  );
-
+const ReceptoresFacturacionPage = lazy(() => import("./components/modals-facturasBaseapi/receptores-facturacion/ReceptoresFacturacionPage"));
+const ReceptoresCobranzaPage = lazy(() => import("./components/modals-facturasBaseapi/receptores-cobranza/ReceptoresCobranzaPage"));
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
 const EntregasPage = lazy(() => import("./host/EntregasPage"));
+
+const LeypdPage = lazy(() => import("./host/LeypdPage"));
 
 /* =========================
    Auth helpers
@@ -136,32 +125,6 @@ function MapaTecnicosRoute() {
 
   return <Outlet />;
 }
-
-// Acceso exclusivo por email — módulo Cobranza
-// const COBRANZA_EMAILS = ["carenas@rids.cl", "dbravo@rids.cl", "igonzalez@rids.cl"];
-
-/*
-const USUARIOS_GESTION_TECNICOS_CLIENTES = [
-  "dbravo@rids.cl",
-  "carenas@rids.cl",
-  "igonzalez@rids.cl",
-  "rcalsin@rids.cl",
-  "mahumada@rids.cl",
-]; */
-
-/*
-function GestionTecnicosClientesRoute() {
-  const email = getUserEmail();
-
-  const autorizado =
-    !!email && USUARIOS_GESTION_TECNICOS_CLIENTES.includes(email);
-
-  if (!autorizado) {
-    return <Navigate to="/home" replace />;
-  }
-
-  return <Outlet />;
-} */
 
 function getRootRedirect(): string {
   const rol = String(getUserRol() ?? "").toUpperCase().trim();
@@ -248,6 +211,8 @@ export default function App() {
         <Route path="/login" element={<Suspense fallback={<div>Cargando...</div>}><LoginPage /></Suspense>} />
         <Route path="/forgot-password" element={<Suspense fallback={<div>Cargando...</div>}><ForgotPasswordPage /></Suspense>} />
         <Route path="/reset-password" element={<Suspense fallback={<div>Cargando...</div>}><ResetPasswordPage /></Suspense>} />
+        <Route path="/ficha-leypd/:token" element={<Suspense fallback={<div className="p-6">Cargando...</div>}>   <FichaLeypdPublicaPage />   </Suspense>} />
+
 
         <Route path="/" element={<Navigate to={getRootRedirect()} replace />} />
 
@@ -264,6 +229,7 @@ export default function App() {
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/bitacora-tecnico" element={<BitacoraTecnicoPage />} />
+              <Route path="/leypd" element={<LeypdPage />} />
             </Route>
 
             {/* ── Solo ADMIN y ADMINISTRACION ──────────────────────────── */}

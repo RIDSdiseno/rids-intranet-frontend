@@ -3964,45 +3964,33 @@ html.a11y-theme-dark .receptor-contacto-email.text-xs.text-slate-500 {
 
 /* ── Filtros AutoComplete ─────────────────────────────────────────────── */
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-selector {
+html.a11y-theme-dark .agenda-filters .ant-select-selector {
   background-color: var(--color-surface-2) !important;
   border-color: var(--color-surface-3) !important;
   color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-selection-search-input {
+html.a11y-theme-dark .agenda-filters .ant-select-selection-search-input {
   background: transparent !important;
   color: var(--color-text-primary) !important;
   caret-color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-selection-search-input::placeholder {
+html.a11y-theme-dark .agenda-filters .ant-select-selection-search-input::placeholder {
   color: var(--color-text-muted) !important;
   opacity: 1 !important;
 }
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-selection-placeholder {
+html.a11y-theme-dark .agenda-filters .ant-select-selection-placeholder {
   color: var(--color-text-muted) !important;
   opacity: 1 !important;
 }
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-selection-item {
+html.a11y-theme-dark .agenda-filters .ant-select-selection-item {
   color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-filters
-  .ant-select-clear {
+html.a11y-theme-dark .agenda-filters .ant-select-clear {
   background-color: var(--color-surface-2) !important;
   color: var(--color-text-muted) !important;
 }
@@ -4010,79 +3998,48 @@ html.a11y-theme-dark
 
 /* ── FullCalendar ────────────────────────────────────────────────────── */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-view-harness,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-view,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-scrollgrid {
+html.a11y-theme-dark .agenda-calendar-compact,
+html.a11y-theme-dark .agenda-calendar-compact .fc,
+html.a11y-theme-dark .agenda-calendar-compact .fc-view-harness,
+html.a11y-theme-dark .agenda-calendar-compact .fc-view,
+html.a11y-theme-dark .agenda-calendar-compact .fc-scrollgrid {
   background-color: var(--color-surface) !important;
   color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-theme-standard
-  td,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-theme-standard
-  th,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-theme-standard
-  .fc-scrollgrid {
+html.a11y-theme-dark .agenda-calendar-compact .fc-theme-standard td,
+html.a11y-theme-dark .agenda-calendar-compact .fc-theme-standard th,
+html.a11y-theme-dark .agenda-calendar-compact .fc-theme-standard .fc-scrollgrid {
   border-color: var(--color-border) !important;
 }
 
 
 /* Cabecera días */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-col-header-cell {
+html.a11y-theme-dark .agenda-calendar-compact .fc-col-header-cell {
   background-color: var(--color-surface-2) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-col-header-cell-cushion {
+html.a11y-theme-dark .agenda-calendar-compact .fc-col-header-cell-cushion {
   color: var(--color-text-secondary) !important;
 }
 
 
 /* Días */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-daygrid-day {
+html.a11y-theme-dark .agenda-calendar-compact .fc-daygrid-day {
   background-color: var(--color-surface) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-daygrid-day:hover {
+html.a11y-theme-dark .agenda-calendar-compact .fc-daygrid-day:hover {
   background-color: var(--color-surface-2) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-daygrid-day-number {
+html.a11y-theme-dark .agenda-calendar-compact .fc-daygrid-day-number {
   color: var(--color-text-secondary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-day-other
-  .fc-daygrid-day-number {
+html.a11y-theme-dark .agenda-calendar-compact .fc-day-other .fc-daygrid-day-number {
   color: var(--color-text-muted) !important;
   opacity: 0.55;
 }
@@ -4090,21 +4047,14 @@ html.a11y-theme-dark
 
 /* Hoy */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-day-today {
-  background-color: rgba(
-    34,
-    211,
-    238,
-    0.07
-  ) !important;
+html.a11y-theme-dark .agenda-calendar-compact .fc-day-today {
+  background-color: rgba(34,
+      211,
+      238,
+      0.07) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-day-today
-  .fc-daygrid-day-number {
+html.a11y-theme-dark .agenda-calendar-compact .fc-day-today .fc-daygrid-day-number {
   color: var(--color-accent) !important;
   font-weight: 700;
 }
@@ -4112,31 +4062,23 @@ html.a11y-theme-dark
 
 /* Toolbar */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-toolbar-title {
+html.a11y-theme-dark .agenda-calendar-compact .fc-toolbar-title {
   color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-button {
+html.a11y-theme-dark .agenda-calendar-compact .fc-button {
   background-color: var(--color-surface-2) !important;
   border-color: var(--color-border) !important;
   color: var(--color-text-primary) !important;
   box-shadow: none !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-button:hover:not(:disabled) {
+html.a11y-theme-dark .agenda-calendar-compact .fc-button:hover:not(:disabled) {
   background-color: var(--color-surface-3) !important;
   border-color: var(--color-accent) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-button-primary:not(:disabled).fc-button-active {
+html.a11y-theme-dark .agenda-calendar-compact .fc-button-primary:not(:disabled).fc-button-active {
   background-color: var(--color-accent) !important;
   border-color: var(--color-accent) !important;
   color: #020617 !important;
@@ -4145,9 +4087,7 @@ html.a11y-theme-dark
 
 /* Más eventos */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-more-link {
+html.a11y-theme-dark .agenda-calendar-compact .fc-more-link {
   color: var(--color-accent) !important;
   background-color: var(--color-surface-2) !important;
   border-radius: 4px;
@@ -4157,9 +4097,7 @@ html.a11y-theme-dark
 
 /* Popover */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-popover {
+html.a11y-theme-dark .agenda-calendar-compact .fc-popover {
   background-color: var(--color-surface) !important;
   border-color: var(--color-border) !important;
   color: var(--color-text-primary) !important;
@@ -4167,34 +4105,193 @@ html.a11y-theme-dark
     0 8px 32px rgba(0, 0, 0, 0.5) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-popover-header {
+html.a11y-theme-dark .agenda-calendar-compact .fc-popover-header {
   background-color: var(--color-surface-2) !important;
   color: var(--color-text-primary) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-popover-body {
+html.a11y-theme-dark .agenda-calendar-compact .fc-popover-body {
   background-color: var(--color-surface) !important;
 }
 
 
 /* Semana / Día */
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-timegrid-slot,
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-timegrid-axis {
+html.a11y-theme-dark .agenda-calendar-compact .fc-timegrid-slot,
+html.a11y-theme-dark .agenda-calendar-compact .fc-timegrid-axis {
   background-color: var(--color-surface) !important;
   border-color: var(--color-border-light) !important;
 }
 
-html.a11y-theme-dark
-  .agenda-calendar-compact
-  .fc-timegrid-slot-label-cushion {
+html.a11y-theme-dark .agenda-calendar-compact .fc-timegrid-slot-label-cushion {
   color: var(--color-text-muted) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LEY PD — FORMULARIO AGRUPADO
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* =====================================================
+   MODO CLARO
+===================================================== */
+
+.leypd-form-section {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.leypd-form-section-header {
+  background-color: rgba(248, 250, 252, 0.88);
+  border-color: #e2e8f0;
+}
+
+.leypd-form-section-number {
+  background-color: #ecfeff;
+  border-color: #a5f3fc;
+  color: #0e7490;
+}
+
+.leypd-form-section-count {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.leypd-form-section-progress {
+  background-color: #e2e8f0;
+}
+
+.leypd-form-section-progress-value {
+  background-color: #0891b2;
+}
+
+.leypd-form-field {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.leypd-form-field:hover {
+  border-color: #cbd5e1;
+}
+
+
+/* =====================================================
+   MODO OSCURO
+===================================================== */
+
+html.a11y-theme-dark .leypd-form-section {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+
+  box-shadow:
+    0 14px 32px -22px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+}
+
+html.a11y-theme-dark .leypd-form-section-header {
+  background:
+    linear-gradient(135deg,
+      rgba(30, 41, 59, 0.96),
+      rgba(15, 23, 42, 0.98)) !important;
+
+  border-color: #334155 !important;
+}
+
+html.a11y-theme-dark .leypd-form-section-number {
+  background-color: #164e63 !important;
+  border-color: #155e75 !important;
+  color: #67e8f9 !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html.a11y-theme-dark .leypd-form-section-count {
+  background-color: #020617 !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html.a11y-theme-dark .leypd-form-section-progress {
+  background-color: #334155 !important;
+}
+
+html.a11y-theme-dark .leypd-form-section-progress-value {
+  background:
+    linear-gradient(90deg,
+      #0891b2,
+      #22d3ee) !important;
+
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.18);
+}
+
+html.a11y-theme-dark .leypd-form-field {
+  background-color: #0b1220 !important;
+  border-color: #334155 !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.015);
+}
+
+html.a11y-theme-dark .leypd-form-field:hover {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+}
+
+
+/* =====================================================
+   TEXTOS DEL BLOQUE
+===================================================== */
+
+html.a11y-theme-dark .leypd-form-section-header h3 {
+  color: #f8fafc !important;
+}
+
+html.a11y-theme-dark .leypd-form-section-header p {
+  color: #94a3b8 !important;
+}
+
+html.a11y-theme-dark .leypd-form-field label {
+  color: #e2e8f0 !important;
+}
+
+html.a11y-theme-dark .leypd-form-field p {
+  color: #94a3b8 !important;
+}
+
+html.a11y-theme-dark .leypd-form-field>div>span:first-child {
+  color: #64748b !important;
+}
+
+
+/* =====================================================
+   INPUTS LEY PD
+===================================================== */
+
+html.a11y-theme-dark .leypd-form-field .ant-input,
+html.a11y-theme-dark .leypd-form-field .ant-input-affix-wrapper,
+html.a11y-theme-dark .leypd-form-field .ant-select-selector {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+html.a11y-theme-dark .leypd-form-field .ant-input:hover,
+html.a11y-theme-dark .leypd-form-field .ant-input-affix-wrapper:hover,
+html.a11y-theme-dark .leypd-form-field .ant-select:hover .ant-select-selector {
+  border-color: #64748b !important;
+}
+
+html.a11y-theme-dark .leypd-form-field .ant-input:focus,
+html.a11y-theme-dark .leypd-form-field .ant-input-focused,
+html.a11y-theme-dark .leypd-form-field .ant-select-focused .ant-select-selector {
+  border-color: #22d3ee !important;
+
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.12) !important;
+}
+
+html.a11y-theme-dark .leypd-form-field .ant-input::placeholder {
+  color: #64748b !important;
 }
