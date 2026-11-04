@@ -25,6 +25,12 @@ import LeypdEmpresaTable from "../components/modals-leypd/LeypdEmpresaTable";
 
 import LeypdEmpresaDrawer from "../components/modals-leypd/LeypdEmpresaDrawer";
 
+import LeypdVincularSharepointModal from "../components/modals-leypd/LeypdVincularSharepointModal";
+
+import {
+    useAuth,
+} from "../components/hooks/useAuth";
+
 import {
     getLeypd,
 } from "../components/modals-leypd/leypd.api";
@@ -41,6 +47,23 @@ const {
     Typography;
 
 export default function LeypdPage() {
+
+    /*
+    * Vincular carpetas: solo ADMIN y ADMINISTRACION
+    * (mismo criterio que el backend).
+    */
+    const {
+        isAdminLike,
+    } = useAuth();
+
+    const [
+        empresaVincular,
+        setEmpresaVincular,
+    ] =
+        useState<LeypdEmpresaListado | null>(
+            null
+        );
+
     const [
         data,
         setData,
@@ -330,8 +353,14 @@ export default function LeypdPage() {
                     loading={
                         loading
                     }
+                    puedeVincular={
+                        isAdminLike
+                    }
                     onOpenEmpresa={
                         handleOpenEmpresa
+                    }
+                    onVincularSharepoint={
+                        setEmpresaVincular
                     }
                 />
             </div>
@@ -362,6 +391,38 @@ export default function LeypdPage() {
                 onChanged={
                     handleEmpresaChanged
                 }
+            />
+
+            {/* =====================================================
+                VINCULAR SHAREPOINT DESDE LA TABLA
+            ===================================================== */}
+
+            <LeypdVincularSharepointModal
+                open={
+                    Boolean(
+                        empresaVincular
+                    )
+                }
+                empresaId={
+                    empresaVincular
+                        ?.empresaId ??
+                    null
+                }
+                empresaNombre={
+                    empresaVincular
+                        ?.empresaNombre ??
+                    null
+                }
+                onClose={() =>
+                    setEmpresaVincular(
+                        null
+                    )
+                }
+                onVinculado={async () => {
+                    await loadData(
+                        true
+                    );
+                }}
             />
         </>
     );

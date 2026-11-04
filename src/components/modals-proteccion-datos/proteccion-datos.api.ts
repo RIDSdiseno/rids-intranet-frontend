@@ -12,6 +12,7 @@ import type {
     DestinatariosCampaniaResponse,
     EstadoCampaniaProteccionDatos,
     EmpresaProteccionDatos,
+    OrigenCampaniaProteccionDatos,
     SolicitanteProteccionDatos,
     DocumentoCampoConsentimiento,
     HistorialConsentimientoResponse
@@ -33,6 +34,15 @@ export async function listarCampaniasProteccionDatos(
         number;
 
         take?:
+        number;
+
+        empresaId?:
+        number;
+
+        origen?:
+        OrigenCampaniaProteccionDatos;
+
+        leypdElementoNumero?:
         number;
     },
 ): Promise<CampaniasProteccionDatosResponse> {

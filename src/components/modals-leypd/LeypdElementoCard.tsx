@@ -3,11 +3,16 @@
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
+    DownOutlined,
     EditOutlined,
     ExclamationCircleOutlined,
+    ExportOutlined,
+    FileOutlined,
     FolderOpenOutlined,
+    FolderOutlined,
     LinkOutlined,
     SaveOutlined,
+    UpOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -40,13 +45,26 @@ import {
 
 import type {
     ActualizarElementoLeypdPayload,
+    ElementoSharepointLeypd,
     EstadoLeypd,
     LeypdElemento,
 } from "./leypd.types";
 
+import LeypdConsentimientosPanel from "./LeypdConsentimientosPanel";
+
 interface Props {
     empresaId: number;
     elemento: LeypdElemento;
+
+    empresaNombre?: string;
+
+    /**
+     * Estado de la carpeta del elemento en SharePoint.
+     * null = sin vincular o sin sincronizar.
+     */
+    sharepoint?:
+    ElementoSharepointLeypd | null;
+
 
     onSaved?: () =>
         void | Promise<void>;
@@ -92,8 +110,16 @@ function elementoToDraft(
 export default function LeypdElementoCard({
     empresaId,
     elemento,
+    empresaNombre,
+    sharepoint = null,
     onSaved,
 }: Props) {
+    const [
+        mostrarDocumentos,
+        setMostrarDocumentos,
+    ] =
+        useState(false);
+
     const [
         editing,
         setEditing,
@@ -426,15 +452,154 @@ export default function LeypdElementoCard({
                                 Carpeta
                             </div>
 
-                            <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-700">
                                 <FolderOpenOutlined />
 
-                                {
+                                {sharepoint?.existe &&
+                                    sharepoint.webUrl ? (
+                                    <a
+                                        href={sharepoint.webUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        {elemento.carpeta}{" "}
+                                        <ExportOutlined />
+                                    </a>
+                                ) : (
                                     elemento.carpeta
-                                }
+                                )}
+
+                                {sharepoint &&
+                                    !sharepoint.existe && (
+                                        <Tag color="red">
+                                            No encontrada
+                                        </Tag>
+                                    )}
                             </div>
                         </div>
                     </div>
+
+                    {/* =================================================
+                        DOCUMENTOS SHAREPOINT
+                    ================================================= */}
+
+                    {sharepoint?.existe && (
+                        <div
+                            className="
+                                leypd-sharepoint-docs
+                                mt-4
+                                rounded-xl
+                                border
+                                border-slate-200
+                                p-3
+                            "
+                        >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                        Documentos en SharePoint
+                                    </span>
+
+                                    <Tag>
+                                        {sharepoint.documentos.length}
+                                    </Tag>
+
+                                    {sharepoint.faltantes.length === 0 ? (
+                                        <Tag color="green">
+                                            Completo
+                                        </Tag>
+                                    ) : (
+                                        <Tag color="orange">
+                                            {sharepoint.faltantes.length} faltante
+                                            {sharepoint.faltantes.length === 1 ? "" : "s"}
+                                        </Tag>
+                                    )}
+                                </div>
+
+                                <Button
+                                    size="small"
+                                    type="text"
+                                    icon={
+                                        mostrarDocumentos
+                                            ? <UpOutlined />
+                                            : <DownOutlined />
+                                    }
+                                    onClick={() =>
+                                        setMostrarDocumentos(
+                                            (actual) => !actual
+                                        )
+                                    }
+                                >
+                                    {mostrarDocumentos
+                                        ? "Ocultar"
+                                        : "Ver documentos"}
+                                </Button>
+                            </div>
+
+                            {sharepoint.faltantes.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                    {sharepoint.faltantes.map(
+                                        (nombre) => (
+                                            <Tag
+                                                key={nombre}
+                                                color="orange"
+                                            >
+                                                Falta: {nombre}
+                                            </Tag>
+                                        )
+                                    )}
+                                </div>
+                            )}
+
+                            {mostrarDocumentos && (
+                                <div className="mt-3 divide-y divide-slate-100">
+                                    {sharepoint.documentos.length === 0 ? (
+                                        <div className="py-2 text-xs text-slate-500">
+                                            La carpeta está vacía.
+                                        </div>
+                                    ) : (
+                                        sharepoint.documentos.map(
+                                            (documento) => (
+                                                <div
+                                                    key={documento.webUrl}
+                                                    className="flex items-center justify-between gap-3 py-1.5 text-sm"
+                                                >
+                                                    <a
+                                                        href={documento.webUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="min-w-0 truncate"
+                                                    >
+                                                        {documento.esCarpeta
+                                                            ? <FolderOutlined />
+                                                            : <FileOutlined />}{" "}
+                                                        {documento.nombre}
+                                                    </a>
+
+                                                    <span className="shrink-0 text-xs text-slate-400">
+                                                        {documento.modificadoAt
+                                                            ? new Date(
+                                                                documento.modificadoAt
+                                                            ).toLocaleDateString(
+                                                                "es-CL"
+                                                            )
+                                                            : ""}
+                                                    </span>
+                                                </div>
+                                            )
+                                        )
+                                    )}
+
+                                    {sharepoint.opcionalesFaltantes.length > 0 && (
+                                        <div className="pt-2 text-xs text-slate-400">
+                                            Opcionales no encontrados:{" "}
+                                            {sharepoint.opcionalesFaltantes.join(", ")}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {elemento.observaciones && (
                         <div
@@ -475,6 +640,22 @@ export default function LeypdElementoCard({
                                 Elemento implementado
                             </div>
                         )}
+
+                    {/*
+                     * Elemento 04: resumen y gestión de campañas
+                     * de consentimiento (módulo Protección de Datos).
+                     * No modifica el estado del elemento.
+                     */}
+                    {elemento.numero === 4 && (
+                        <LeypdConsentimientosPanel
+                            empresaId={empresaId}
+                            {...(empresaNombre
+                                ? {
+                                    empresaNombre,
+                                }
+                                : {})}
+                        />
+                    )}
                 </>
             )}
 

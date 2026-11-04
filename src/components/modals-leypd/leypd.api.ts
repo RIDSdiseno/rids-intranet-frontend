@@ -14,6 +14,8 @@ import type {
     LeypdFichaInternaResponse,
     LeypdFichaPublicaResponse,
     LeypdListadoResponse,
+    ResumenConsentimientosLeypd,
+    LeypdSharepointResponse
 } from "./leypd.types";
 
 /* =====================================================
@@ -63,6 +65,70 @@ export async function updateLeypdElemento(
         await api.put(
             `/leypd/${empresaId}/elementos/${numero}`,
             payload
+        );
+
+    return data;
+}
+
+/* =====================================================
+   ELEMENTO 04 — CONSENTIMIENTOS
+===================================================== */
+
+export async function getLeypdConsentimientos(
+    empresaId: number
+) {
+    const {
+        data,
+    } =
+        await api.get<ResumenConsentimientosLeypd>(
+            `/leypd/${empresaId}/elementos/4/consentimientos`
+        );
+
+    return data;
+}
+
+/* =====================================================
+   SHAREPOINT
+===================================================== */
+
+export async function getLeypdSharepoint(
+    empresaId: number
+) {
+    const {
+        data,
+    } =
+        await api.get<LeypdSharepointResponse>(
+            `/leypd/${empresaId}/sharepoint`
+        );
+
+    return data;
+}
+
+export async function vincularLeypdSharepoint(
+    empresaId: number,
+    url: string
+) {
+    const {
+        data,
+    } =
+        await api.post<LeypdSharepointResponse>(
+            `/leypd/${empresaId}/sharepoint/vincular`,
+            {
+                url,
+            }
+        );
+
+    return data;
+}
+
+export async function sincronizarLeypdSharepoint(
+    empresaId: number
+) {
+    const {
+        data,
+    } =
+        await api.post<LeypdSharepointResponse>(
+            `/leypd/${empresaId}/sharepoint/sincronizar`
         );
 
     return data;

@@ -36,12 +36,20 @@ type Props = {
     (ids: number[]) => void;
 
     disabled?: boolean;
+
+    /**
+     * Si la campaña pertenece a una empresa (por ejemplo,
+     * campañas Ley PD), el selector queda fijo en ella.
+     */
+    empresaIdFijo?:
+    number | null;
 };
 
 export default function SelectorSolicitantesConsentimiento({
     value,
     onChange,
     disabled = false,
+    empresaIdFijo = null,
 }: Props) {
 
     const [
@@ -71,8 +79,27 @@ export default function SelectorSolicitantesConsentimiento({
         useState<
             number | null
         >(
-            null,
+            empresaIdFijo,
         );
+
+    /*
+     * Si cambia la empresa fija (otra campaña),
+     * sincronizamos el filtro.
+     */
+    useEffect(
+        () => {
+            if (
+                empresaIdFijo
+            ) {
+                setEmpresaId(
+                    empresaIdFijo,
+                );
+            }
+        },
+        [
+            empresaIdFijo,
+        ],
+    );
 
     const [
         search,
@@ -335,10 +362,15 @@ export default function SelectorSolicitantesConsentimiento({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 
                 <Select
-                    allowClear
+                    allowClear={
+                        !empresaIdFijo
+                    }
                     showSearch
                     disabled={
-                        disabled
+                        disabled ||
+                        Boolean(
+                            empresaIdFijo,
+                        )
                     }
                     placeholder="Todas las empresas"
                     value={

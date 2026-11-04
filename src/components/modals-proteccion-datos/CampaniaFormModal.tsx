@@ -184,6 +184,24 @@ const {
 } =
     Input;
 
+/**
+ * Contexto fijo para campañas creadas desde otro módulo
+ * (por ejemplo, el elemento 04 de Ley PD).
+ */
+export type ContextoCampaniaFormulario = {
+    empresaId:
+    number;
+
+    empresaNombre?:
+    string;
+
+    origen:
+    "LEYPD";
+
+    leypdElementoNumero:
+    number;
+};
+
 type Props = {
     open: boolean;
 
@@ -196,6 +214,10 @@ type Props = {
 
     onSaved:
     () => void;
+
+    contexto?:
+    ContextoCampaniaFormulario |
+    null;
 };
 
 type FormValues = {
@@ -226,7 +248,27 @@ export default function CampaniaFormModal({
     campania,
     onClose,
     onSaved,
+    contexto = null,
 }: Props) {
+
+    /*
+     * Primitivos para las dependencias del useEffect:
+     * el objeto contexto se recrea en cada render.
+     */
+    const contextoEmpresaId =
+        contexto?.empresaId ??
+        null;
+
+    const contextoEmpresaNombre =
+        contexto?.empresaNombre ??
+        null;
+
+    const esLeypd =
+        Boolean(
+            contexto,
+        ) ||
+        campania?.origen ===
+        "LEYPD";
 
     const [
         configuracion,
@@ -279,11 +321,19 @@ export default function CampaniaFormModal({
                 return;
             }
 
+            const nombreDefault =
+                contextoEmpresaId
+                    ? `Consentimiento Ley PD${contextoEmpresaNombre
+                        ? ` — ${contextoEmpresaNombre}`
+                        : ""
+                    }`
+                    : "";
+
             form.setFieldsValue({
                 nombre:
                     campania
                         ?.nombre ??
-                    "",
+                    nombreDefault,
 
                 descripcion:
                     campania
@@ -360,6 +410,8 @@ export default function CampaniaFormModal({
             open,
             campania,
             form,
+            contextoEmpresaId,
+            contextoEmpresaNombre,
         ],
     );
 
@@ -479,6 +531,19 @@ export default function CampaniaFormModal({
 
                     cuerpoCorreoHtml:
                         values.cuerpoCorreoHtml,
+
+                    ...(contexto
+                        ? {
+                            empresaId:
+                                contexto.empresaId,
+
+                            origen:
+                                contexto.origen,
+
+                            leypdElementoNumero:
+                                contexto.leypdElementoNumero,
+                        }
+                        : {}),
                 });
 
                 message.success(
@@ -557,7 +622,9 @@ export default function CampaniaFormModal({
             title={
                 campania
                     ? "Editar campaña"
-                    : "Nueva campaña de protección de datos"
+                    : contexto
+                        ? "Nueva campaña de consentimiento (Ley PD)"
+                        : "Nueva campaña de protección de datos"
             }
             footer={[
                 <Button
@@ -590,6 +657,19 @@ export default function CampaniaFormModal({
                 </Button>,
             ]}
         >
+
+            {esLeypd && (
+                <Alert
+                    className="mb-4"
+                    type="info"
+                    showIcon
+                    message="Campaña asociada a Ley PD"
+                    description={`Elemento 04 — Gestión del consentimiento${contextoEmpresaNombre
+                        ? ` · ${contextoEmpresaNombre}`
+                        : ""
+                        }. Solo podrá incluir destinatarios de esta empresa.`}
+                />
+            )}
 
             {!editable && (
                 <Alert

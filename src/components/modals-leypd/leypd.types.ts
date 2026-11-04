@@ -139,6 +139,26 @@ export interface LeypdEmpresaListado {
 
     ficha:
     LeypdFichaResumen;
+
+    sharepoint:
+    LeypdSharepointResumen;
+}
+
+export interface LeypdSharepointResumen {
+    vinculado: boolean;
+
+    carpetaWebUrl:
+    string | null;
+
+    sincronizadoAt:
+    string | null;
+
+    ultimoError:
+    string | null;
+
+    carpetasFaltantes: number;
+
+    documentosFaltantes: number;
 }
 
 export interface LeypdListadoResponse {
@@ -147,6 +167,7 @@ export interface LeypdListadoResponse {
         clientesCompletos: number;
         clientesSinIniciar: number;
         compromisosVencidos: number;
+        sharepointVinculadas: number;
         elementosImplementados: number;
     };
 
@@ -414,4 +435,92 @@ export interface EnviarFichaPublicaPayload {
         string,
         unknown
     >;
+}
+
+/* =====================================================
+   ELEMENTO 04 — CONSENTIMIENTOS
+===================================================== */
+
+export interface ResumenConsentimientosLeypd {
+    empresaId: number;
+
+    totales: {
+        campanias: number;
+        activas: number;
+        borradores: number;
+
+        destinatarios: number;
+
+        respondidos: number;
+        aceptados: number;
+        rechazados: number;
+        revocados: number;
+
+        pendientes: number;
+        erroresEnvio: number;
+        expirados: number;
+    };
+
+    campanias: Array<{
+        id: number;
+        nombre: string;
+
+        estado:
+        | "BORRADOR"
+        | "ACTIVA"
+        | "FINALIZADA"
+        | "CANCELADA";
+
+        versionDocumento: string;
+
+        fechaInicio: string | null;
+        fechaFin: string | null;
+        fechaEnvioInicial: string | null;
+
+        createdAt: string;
+
+        destinatarios: number;
+    }>;
+}
+
+/* =====================================================
+   SHAREPOINT
+===================================================== */
+
+export interface DocumentoSharepointLeypd {
+    nombre: string;
+    webUrl: string;
+    tamano: number | null;
+    modificadoAt: string | null;
+    esCarpeta: boolean;
+}
+
+export interface ElementoSharepointLeypd {
+    numero: number;
+    carpetaEsperada: string;
+    existe: boolean;
+    itemId: string | null;
+    webUrl: string | null;
+    documentos: DocumentoSharepointLeypd[];
+    faltantes: string[];
+    opcionalesFaltantes: string[];
+}
+
+export interface LeypdSharepointResponse {
+    vinculado: boolean;
+
+    carpeta: {
+        nombre: string;
+        webUrl: string;
+    } | null;
+
+    checklist: {
+        nombre: string | null;
+        webUrl: string;
+    } | null;
+
+    sincronizadoAt: string | null;
+    ultimoError: string | null;
+
+    elementos: ElementoSharepointLeypd[];
 }

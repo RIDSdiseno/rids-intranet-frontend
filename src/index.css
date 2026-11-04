@@ -4295,3 +4295,22 @@ html.a11y-theme-dark .leypd-form-field .ant-select-focused .ant-select-selector 
 html.a11y-theme-dark .leypd-form-field .ant-input::placeholder {
   color: #64748b !important;
 }
+
+html.a11y-theme-dark .leypd-consent-panel {
+  border-color: var(--color-border);
+}
+
+html.a11y-theme-dark .leypd-consent-stat {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+
+html.a11y-theme-dark .leypd-sharepoint-panel,
+html.a11y-theme-dark .leypd-sharepoint-docs {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+html.a11y-theme-dark .leypd-sharepoint-docs .divide-slate-100>* {
+  border-color: var(--color-border);
+}

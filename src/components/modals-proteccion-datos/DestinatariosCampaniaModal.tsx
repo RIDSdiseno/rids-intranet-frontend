@@ -533,6 +533,10 @@ export default function DestinatariosCampaniaModal({
                         disabled={
                             adding
                         }
+                        empresaIdFijo={
+                            campania?.empresaId ??
+                            null
+                        }
                     />
 
                     <div className="mt-4 flex justify-end">

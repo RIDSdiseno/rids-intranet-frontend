@@ -291,6 +291,14 @@ export default function FichaLeypdPublica({
                     }
                 )?.response?.status;
 
+            if (status === 429) {
+                message.warning(
+                    "Demasiadas solicitudes. Espera unos minutos e intenta nuevamente."
+                );
+
+                return true;
+            }
+
             /*
              * 409: la ficha ya fue enviada (por ejemplo,
              * desde otra pestaña). Recargamos para mostrar

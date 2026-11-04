@@ -20,18 +20,23 @@ import {
 import {
     useCallback,
     useEffect,
+    useMemo,
     useState,
 } from "react";
 
 import {
     getLeypdEmpresa,
+    getLeypdSharepoint,
 } from "./leypd.api";
 
 import LeypdElementosTab from "./LeypdElementosTab";
 import LeypdFichaTab from "./LeypdFichaTab";
+import LeypdSharepointPanel from "./LeypdSharepointPanel";
 
 import type {
+    ElementoSharepointLeypd,
     LeypdEmpresaDetalle,
+    LeypdSharepointResponse,
 } from "./leypd.types";
 
 interface Props {
@@ -59,36 +64,45 @@ export default function LeypdEmpresaDrawer({
     const [
         detalle,
         setDetalle,
-    ] =
-        useState<LeypdEmpresaDetalle | null>(
-            null
-        );
+    ] = useState<LeypdEmpresaDetalle | null>(
+        null
+    );
 
     const [
         loading,
         setLoading,
-    ] =
-        useState(
-            false
-        );
+    ] = useState(false);
 
     const [
         error,
         setError,
-    ] =
-        useState<
-            string | null
-        >(
-            null
-        );
+    ] = useState<string | null>(
+        null
+    );
 
     const [
         activeTab,
         setActiveTab,
-    ] =
-        useState(
-            "elementos"
-        );
+    ] = useState("elementos");
+
+    /* -------------------- SharePoint -------------------- */
+
+    const [
+        sharepoint,
+        setSharepoint,
+    ] = useState<LeypdSharepointResponse | null>(
+        null
+    );
+
+    const [
+        sharepointLoading,
+        setSharepointLoading,
+    ] = useState(false);
+
+    const [
+        sharepointError,
+        setSharepointError,
+    ] = useState(false);
 
     /* =====================================================
        LOAD
@@ -97,19 +111,12 @@ export default function LeypdEmpresaDrawer({
     const loadDetalle =
         useCallback(
             async () => {
-                if (
-                    !empresaId
-                ) {
+                if (!empresaId) {
                     return;
                 }
 
-                setLoading(
-                    true
-                );
-
-                setError(
-                    null
-                );
+                setLoading(true);
+                setError(null);
 
                 try {
                     const result =
@@ -117,12 +124,8 @@ export default function LeypdEmpresaDrawer({
                             empresaId
                         );
 
-                    setDetalle(
-                        result
-                    );
-                } catch (
-                err
-                ) {
+                    setDetalle(result);
+                } catch (err) {
                     console.error(
                         "[LEYPD] Error cargando detalle:",
                         err
@@ -136,15 +139,53 @@ export default function LeypdEmpresaDrawer({
                         "No se pudo cargar la empresa."
                     );
                 } finally {
-                    setLoading(
-                        false
-                    );
+                    setLoading(false);
                 }
             },
-            [
-                empresaId,
-            ]
+            [empresaId]
         );
+
+    /*
+     * SharePoint se carga por separado: si falla,
+     * el resto del drawer sigue funcionando.
+     */
+    const loadSharepoint =
+        useCallback(
+            async () => {
+                if (!empresaId) {
+                    return;
+                }
+
+                setSharepointLoading(true);
+                setSharepointError(false);
+
+                try {
+                    setSharepoint(
+                        await getLeypdSharepoint(
+                            empresaId
+                        )
+                    );
+                } catch (err) {
+                    console.error(
+                        "[LEYPD] Error cargando SharePoint:",
+                        err
+                    );
+
+                    setSharepointError(true);
+                } finally {
+                    setSharepointLoading(false);
+                }
+            },
+            [empresaId]
+        );
+
+    const recargarTodo =
+        async () => {
+            await Promise.all([
+                loadDetalle(),
+                loadSharepoint(),
+            ]);
+        };
 
     useEffect(
         () => {
@@ -152,29 +193,24 @@ export default function LeypdEmpresaDrawer({
                 open &&
                 empresaId
             ) {
-                setActiveTab(
-                    "elementos"
-                );
+                setActiveTab("elementos");
 
                 void loadDetalle();
+                void loadSharepoint();
             }
 
-            if (
-                !open
-            ) {
-                setDetalle(
-                    null
-                );
-
-                setError(
-                    null
-                );
+            if (!open) {
+                setDetalle(null);
+                setError(null);
+                setSharepoint(null);
+                setSharepointError(false);
             }
         },
         [
             open,
             empresaId,
             loadDetalle,
+            loadSharepoint,
         ]
     );
 
@@ -190,23 +226,51 @@ export default function LeypdEmpresaDrawer({
         };
 
     /* =====================================================
+       SHAREPOINT POR ELEMENTO
+    ===================================================== */
+
+    /*
+     * Solo se entrega a las cards si ya hubo una
+     * sincronización; si no, "existe: false" sería engañoso.
+     */
+    const sharepointPorNumero =
+        useMemo(
+            () => {
+                const mapa =
+                    new Map<number, ElementoSharepointLeypd>();
+
+                if (
+                    !sharepoint?.vinculado ||
+                    !sharepoint.sincronizadoAt
+                ) {
+                    return mapa;
+                }
+
+                for (const elemento of sharepoint.elementos) {
+                    mapa.set(
+                        elemento.numero,
+                        elemento
+                    );
+                }
+
+                return mapa;
+            },
+            [sharepoint]
+        );
+
+    /* =====================================================
        TITLE
     ===================================================== */
 
     const title =
-        detalle?.empresa
-            .nombre ??
+        detalle?.empresa.nombre ??
         empresaNombre ??
         "Empresa";
 
     return (
         <Drawer
-            open={
-                open
-            }
-            onClose={
-                onClose
-            }
+            open={open}
+            onClose={onClose}
             width="min(1000px, 94vw)"
             destroyOnClose
             title={
@@ -236,9 +300,7 @@ export default function LeypdEmpresaDrawer({
 
                     <div className="min-w-0">
                         <div className="truncate font-semibold">
-                            {
-                                title
-                            }
+                            {title}
                         </div>
 
                         <div className="text-xs font-normal text-slate-500">
@@ -249,17 +311,14 @@ export default function LeypdEmpresaDrawer({
             }
             extra={
                 <Button
-                    icon={
-                        <ReloadOutlined />
-                    }
+                    icon={<ReloadOutlined />}
                     loading={
-                        loading
+                        loading ||
+                        sharepointLoading
                     }
-                    disabled={
-                        !empresaId
-                    }
+                    disabled={!empresaId}
                     onClick={() =>
-                        void loadDetalle()
+                        void recargarTodo()
                     }
                 >
                     Actualizar
@@ -271,8 +330,7 @@ export default function LeypdEmpresaDrawer({
                 <Skeleton
                     active
                     paragraph={{
-                        rows:
-                            10,
+                        rows: 10,
                     }}
                 />
             ) : error ? (
@@ -280,9 +338,7 @@ export default function LeypdEmpresaDrawer({
                     type="error"
                     showIcon
                     message="No se pudo cargar el detalle"
-                    description={
-                        error
-                    }
+                    description={error}
                     action={
                         <Button
                             size="small"
@@ -322,45 +378,24 @@ export default function LeypdEmpresaDrawer({
                         >
                             <div>
                                 <div className="text-base font-semibold text-slate-800">
-                                    {
-                                        detalle
-                                            .empresa
-                                            .nombre
-                                    }
+                                    {detalle.empresa.nombre}
                                 </div>
 
-                                {detalle
-                                    .empresa
-                                    .razonSocial &&
-                                    detalle
-                                        .empresa
-                                        .razonSocial !==
-                                    detalle
-                                        .empresa
-                                        .nombre && (
+                                {detalle.empresa.razonSocial &&
+                                    detalle.empresa.razonSocial !==
+                                    detalle.empresa.nombre && (
                                         <div className="mt-1 text-xs text-slate-500">
-                                            {
-                                                detalle
-                                                    .empresa
-                                                    .razonSocial
-                                            }
+                                            {detalle.empresa.razonSocial}
                                         </div>
                                     )}
 
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {detalle
-                                        .resumen
-                                        .porcentaje ===
-                                        100 ? (
+                                    {detalle.resumen.porcentaje === 100 ? (
                                         <Tag color="green">
                                             Cumplimiento completo
                                         </Tag>
-                                    ) : detalle
-                                        .resumen
-                                        .sinIniciar ===
-                                        detalle
-                                            .resumen
-                                            .total ? (
+                                    ) : detalle.resumen.sinIniciar ===
+                                        detalle.resumen.total ? (
                                         <Tag>
                                             Sin iniciar
                                         </Tag>
@@ -370,25 +405,15 @@ export default function LeypdEmpresaDrawer({
                                         </Tag>
                                     )}
 
-                                    {detalle
-                                        .resumen
-                                        .vencidos >
-                                        0 && (
-                                            <Tag color="red">
-                                                {
-                                                    detalle
-                                                        .resumen
-                                                        .vencidos
-                                                }{" "}
-                                                vencido
-                                                {detalle
-                                                    .resumen
-                                                    .vencidos ===
-                                                    1
-                                                    ? ""
-                                                    : "s"}
-                                            </Tag>
-                                        )}
+                                    {detalle.resumen.vencidos > 0 && (
+                                        <Tag color="red">
+                                            {detalle.resumen.vencidos}{" "}
+                                            vencido
+                                            {detalle.resumen.vencidos === 1
+                                                ? ""
+                                                : "s"}
+                                        </Tag>
+                                    )}
                                 </div>
                             </div>
 
@@ -399,31 +424,16 @@ export default function LeypdEmpresaDrawer({
                                     </span>
 
                                     <span>
-                                        {
-                                            detalle
-                                                .resumen
-                                                .completados
-                                        }
+                                        {detalle.resumen.completados}
                                         /
-                                        {
-                                            detalle
-                                                .resumen
-                                                .total
-                                        }
+                                        {detalle.resumen.total}
                                     </span>
                                 </div>
 
                                 <Progress
-                                    percent={
-                                        detalle
-                                            .resumen
-                                            .porcentaje
-                                    }
+                                    percent={detalle.resumen.porcentaje}
                                     status={
-                                        detalle
-                                            .resumen
-                                            .porcentaje ===
-                                            100
+                                        detalle.resumen.porcentaje === 100
                                             ? "success"
                                             : "active"
                                     }
@@ -433,20 +443,38 @@ export default function LeypdEmpresaDrawer({
                     </div>
 
                     {/* =====================================================
+                        SHAREPOINT
+                    ===================================================== */}
+
+                    <LeypdSharepointPanel
+                        empresaId={detalle.empresa.id_empresa}
+                        empresaNombre={detalle.empresa.nombre}
+                        data={sharepoint}
+                        loading={sharepointLoading}
+                        error={sharepointError}
+                        onUpdated={(data) => {
+                            setSharepoint(data);
+
+                            /*
+                             * La tabla de empresas muestra el estado
+                             * SharePoint: la refrescamos.
+                             */
+                            void onChanged?.();
+                        }}
+
+                        onReload={loadSharepoint}
+                    />
+
+                    {/* =====================================================
                         TABS
                     ===================================================== */}
 
                     <Tabs
-                        activeKey={
-                            activeTab
-                        }
-                        onChange={
-                            setActiveTab
-                        }
+                        activeKey={activeTab}
+                        onChange={setActiveTab}
                         items={[
                             {
-                                key:
-                                    "elementos",
+                                key: "elementos",
 
                                 label: (
                                     <span>
@@ -457,24 +485,16 @@ export default function LeypdEmpresaDrawer({
 
                                 children: (
                                     <LeypdElementosTab
-                                        empresaId={
-                                            detalle
-                                                .empresa
-                                                .id_empresa
-                                        }
-                                        detalle={
-                                            detalle
-                                        }
-                                        onChanged={
-                                            handleChanged
-                                        }
+                                        empresaId={detalle.empresa.id_empresa}
+                                        detalle={detalle}
+                                        sharepointPorNumero={sharepointPorNumero}
+                                        onChanged={handleChanged}
                                     />
                                 ),
                             },
 
                             {
-                                key:
-                                    "ficha",
+                                key: "ficha",
 
                                 label: (
                                     <span>
@@ -485,14 +505,8 @@ export default function LeypdEmpresaDrawer({
 
                                 children: (
                                     <LeypdFichaTab
-                                        empresaId={
-                                            detalle
-                                                .empresa
-                                                .id_empresa
-                                        }
-                                        onChanged={
-                                            handleChanged
-                                        }
+                                        empresaId={detalle.empresa.id_empresa}
+                                        onChanged={handleChanged}
                                     />
                                 ),
                             },

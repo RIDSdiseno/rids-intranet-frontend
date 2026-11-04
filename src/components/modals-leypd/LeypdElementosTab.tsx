@@ -21,6 +21,7 @@ import {
 import LeypdElementoCard from "./LeypdElementoCard";
 
 import type {
+    ElementoSharepointLeypd,
     EstadoLeypd,
     LeypdEmpresaDetalle,
 } from "./leypd.types";
@@ -30,6 +31,13 @@ interface Props {
 
     detalle:
     LeypdEmpresaDetalle;
+
+    /**
+     * Estado de SharePoint por número de elemento.
+     * Vacío si la carpeta no está vinculada o sincronizada.
+     */
+    sharepointPorNumero?:
+    Map<number, ElementoSharepointLeypd>;
 
     onChanged:
     () => void | Promise<void>;
@@ -42,6 +50,7 @@ type FiltroEstado =
 export default function LeypdElementosTab({
     empresaId,
     detalle,
+    sharepointPorNumero,
     onChanged,
 }: Props) {
     const [
@@ -334,6 +343,18 @@ export default function LeypdElementosTab({
                                 }
                                 elemento={
                                     elemento
+                                }
+                                empresaNombre={
+                                    detalle.empresa
+                                        .razonSocial ??
+                                    detalle.empresa
+                                        .nombre
+                                }
+                                sharepoint={
+                                    sharepointPorNumero?.get(
+                                        elemento.numero
+                                    ) ??
+                                    null
                                 }
                                 onSaved={
                                     onChanged

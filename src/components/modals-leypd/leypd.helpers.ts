@@ -326,3 +326,30 @@ export function obtenerErroresCampoApi(
 
     return errores as Record<string, string>;
 }
+
+/* =====================================================
+   ERRORES API
+===================================================== */
+
+/**
+ * Mensaje del backend (`message`) o un texto por defecto.
+ */
+export function obtenerMensajeApiLeypd(
+    err: unknown,
+    fallback: string
+): string {
+    const response = (
+        err as {
+            response?: {
+                status?: number;
+                data?: { message?: string };
+            };
+        }
+    )?.response;
+
+    if (response?.status === 403) {
+        return "No tienes permisos para realizar esta acción.";
+    }
+
+    return response?.data?.message ?? fallback;
+}

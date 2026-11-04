@@ -64,6 +64,10 @@ export type RespuestaConsentimiento = {
     >;
 };
 
+export type OrigenCampaniaProteccionDatos =
+    | "GENERAL"
+    | "LEYPD";
+
 export type EstadoCampaniaProteccionDatos =
     | "BORRADOR"
     | "ACTIVA"
@@ -121,6 +125,15 @@ export type CampaniaProteccionDatos = {
     creadoPorId:
     number | null;
 
+    empresaId:
+    number | null;
+
+    origen:
+    OrigenCampaniaProteccionDatos;
+
+    leypdElementoNumero:
+    number | null;
+
     createdAt:
     string;
 
@@ -174,6 +187,15 @@ export type CrearCampaniaProteccionDatosPayload = {
      * Después debe obtenerse desde JWT.
      */
     creadoPorId?:
+    number | null;
+
+    empresaId?:
+    number | null;
+
+    origen?:
+    OrigenCampaniaProteccionDatos;
+
+    leypdElementoNumero?:
     number | null;
 };
 
