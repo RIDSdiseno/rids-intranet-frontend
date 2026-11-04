@@ -229,7 +229,45 @@ export async function getLeypdActualizacion(
     return data;
 }
 
-export async function getLeypdActualizacionActiva() {
+export async function getLeypdActualizacionUltima() {
+    const {
+        data,
+    } =
+        await api.get<{
+            actualizacion:
+            LeypdActualizacion | null;
+        }>(
+            "/leypd/actualizaciones/ultima"
+        );
+
+    return data.actualizacion;
+}
+
+export async function cancelLeypdActualizacion(
+    id: number
+) {
+    const {
+        data,
+    } =
+        await api.post<LeypdActualizacion>(
+            `/leypd/actualizaciones/${id}/cancelar`
+        );
+
+    return data;
+}
+
+export async function sincronizarTodasLeypdSharepoint() {
+    const {
+        data,
+    } =
+        await api.post<{ iniciada: boolean }>(
+            "/leypd/sharepoint/sincronizar-todas"
+        );
+
+    return data;
+}
+
+export async function getLeypdActualizacionActiva() { 
     const {
         data,
     } =

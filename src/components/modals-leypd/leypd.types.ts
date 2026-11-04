@@ -391,6 +391,11 @@ export interface LeypdActualizacion {
 
     updatedAt:
     string;
+
+    iniciadoPor?: {
+        id_tecnico: number;
+        nombre: string;
+    } | null;
 }
 
 /* =====================================================

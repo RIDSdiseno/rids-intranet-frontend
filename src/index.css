@@ -4314,3 +4314,8 @@ html.a11y-theme-dark .leypd-sharepoint-docs {
 html.a11y-theme-dark .leypd-sharepoint-docs .divide-slate-100>* {
   border-color: var(--color-border);
 }
+
+html.a11y-theme-dark .leypd-actualizacion-panel {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}

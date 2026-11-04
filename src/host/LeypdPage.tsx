@@ -27,12 +27,15 @@ import LeypdEmpresaDrawer from "../components/modals-leypd/LeypdEmpresaDrawer";
 
 import LeypdVincularSharepointModal from "../components/modals-leypd/LeypdVincularSharepointModal";
 
+import LeypdActualizacionPanel from "../components/modals-leypd/LeypdActualizacionPanel";
+
 import {
     useAuth,
 } from "../components/hooks/useAuth";
 
 import {
     getLeypd,
+    sincronizarTodasLeypdSharepoint
 } from "../components/modals-leypd/leypd.api";
 
 import type {
@@ -325,6 +328,42 @@ export default function LeypdPage() {
                                 Reintentar
                             </Button>
                         }
+                    />
+                )}
+
+                {/* =====================================================
+                    DOCUMENTACIÓN AUTOMÁTICA (WORKER)
+                ===================================================== */}
+
+                {isAdminLike && (
+                    <LeypdActualizacionPanel
+                        puedeGestionar={
+                            isAdminLike
+                        }
+                        onCompletado={async () => {
+                            /*
+                             * El worker subió documentos nuevos:
+                             * re-sincronizamos SharePoint en segundo plano
+                             * y refrescamos el listado un poco después.
+                             */
+                            try {
+                                await sincronizarTodasLeypdSharepoint();
+                            } catch (err) {
+                                console.error(
+                                    "[LEYPD] Sincronización masiva:",
+                                    err
+                                );
+                            }
+
+                            window.setTimeout(
+                                () => {
+                                    void loadData(
+                                        true
+                                    );
+                                },
+                                60_000
+                            );
+                        }}
                     />
                 )}
 
