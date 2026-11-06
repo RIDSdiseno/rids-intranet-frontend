@@ -205,12 +205,18 @@ export async function revokeLeypdFichaLink(
    ACTUALIZACIONES
 ===================================================== */
 
-export async function createLeypdActualizacion() {
+/** Sin empresaId = todas las empresas vinculadas. */
+export async function createLeypdActualizacion(
+    empresaId?: number
+) {
     const {
         data,
     } =
         await api.post<LeypdActualizacion>(
-            "/leypd/actualizaciones"
+            "/leypd/actualizaciones",
+            empresaId !== undefined
+                ? { empresaId }
+                : {}
         );
 
     return data;
@@ -267,7 +273,7 @@ export async function sincronizarTodasLeypdSharepoint() {
     return data;
 }
 
-export async function getLeypdActualizacionActiva() { 
+export async function getLeypdActualizacionActiva() {
     const {
         data,
     } =

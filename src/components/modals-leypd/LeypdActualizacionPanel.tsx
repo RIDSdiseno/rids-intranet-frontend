@@ -48,6 +48,12 @@ interface Props {
      */
     onCompletado?:
     () => void | Promise<void>;
+
+    /**
+    * Cambia cuando se encola un trabajo desde otro lugar
+    * (p. ej. el drawer de una empresa): recarga el panel.
+    */
+    version?: number;
 }
 
 const INTERVALO_MS = 5000;
@@ -67,6 +73,7 @@ function estaActiva(
 export default function LeypdActualizacionPanel({
     puedeGestionar,
     onCompletado,
+    version = 0,
 }: Props) {
     const [
         modal,
@@ -155,7 +162,9 @@ export default function LeypdActualizacionPanel({
         () => {
             void cargar();
         },
-        [cargar]
+        [cargar,
+            version,
+        ]
     );
 
     const activa =
@@ -234,19 +243,15 @@ export default function LeypdActualizacionPanel({
             });
         };
 
-    const cancelar =
-        async () => {
-            if (!job) {
-                return;
-            }
-
+    const ejecutarCancelacion =
+        async (
+            id: number
+        ) => {
             setCancelando(true);
 
             try {
-                setJob(
-                    await cancelLeypdActualizacion(
-                        job.id
-                    )
+                await cancelLeypdActualizacion(
+                    id
                 );
 
                 message.info(
@@ -259,18 +264,52 @@ export default function LeypdActualizacionPanel({
                         "No se pudo cancelar."
                     )
                 );
-
-                await cargar();
             } finally {
+                await cargar();
+
                 setCancelando(false);
             }
+        };
+
+    const cancelar =
+        () => {
+            if (!job) {
+                return;
+            }
+
+            if (job.estado !== "EJECUTANDO") {
+                void ejecutarCancelacion(
+                    job.id
+                );
+
+                return;
+            }
+
+            modal.confirm({
+                title:
+                    "Cancelar la actualización en curso",
+
+                content:
+                    "El worker terminará la empresa que está procesando y se detendrá. Lo ya subido a SharePoint se mantiene.",
+
+                okText:
+                    "Cancelar actualización",
+
+                cancelText:
+                    "Volver",
+
+                onOk: () =>
+                    ejecutarCancelacion(
+                        job.id
+                    ),
+            });
         };
 
     const verDetalleError =
         () => {
             modal.error({
                 title:
-                    "Detalle del error",
+                    "Detalle de errores",
 
                 width: 760,
 
@@ -323,9 +362,15 @@ export default function LeypdActualizacionPanel({
                         Documentación automática
 
                         {job?.estado === "COMPLETADO" && (
-                            <Tag color="green">
-                                Completada
-                            </Tag>
+                            job.error ? (
+                                <Tag color="orange">
+                                    Completada con errores
+                                </Tag>
+                            ) : (
+                                <Tag color="green">
+                                    Completada
+                                </Tag>
+                            )
                         )}
 
                         {job?.estado === "ERROR" && (
@@ -351,6 +396,13 @@ export default function LeypdActualizacionPanel({
                                 En ejecución
                             </Tag>
                         )}
+
+                        {job && (
+                            <Tag>
+                                {job.empresa?.nombre ??
+                                    "Todas las empresas"}
+                            </Tag>
+                        )}
                     </div>
 
                     {activa && job ? (
@@ -361,30 +413,35 @@ export default function LeypdActualizacionPanel({
                                 size="small"
                             />
 
-                            <div className="text-xs text-slate-500">
+                            <div className="max-h-40 overflow-auto whitespace-pre-line text-xs text-slate-500">
                                 {job.mensaje ??
                                     "Esperando al worker…"}
                             </div>
                         </div>
                     ) : (
                         <div className="mt-1 text-xs text-slate-500">
-                            {job
-                                ? `Última: ${formatLeypdDateTime(
-                                    job.terminadoAt ?? job.createdAt
-                                )}${job.iniciadoPor
-                                    ? ` · ${job.iniciadoPor.nombre}`
-                                    : ""
-                                }${job.mensaje
-                                    ? ` · ${job.mensaje}`
-                                    : ""
-                                }`
-                                : "Aún no se ha ejecutado desde el CRM."}
+                            <div>
+                                {job
+                                    ? `Última: ${formatLeypdDateTime(
+                                        job.terminadoAt ?? job.createdAt
+                                    )}${job.iniciadoPor
+                                        ? ` · ${job.iniciadoPor.nombre}`
+                                        : ""
+                                    }`
+                                    : "Aún no se ha ejecutado desde el CRM."}
+                            </div>
+
+                            {job?.mensaje && (
+                                <div className="mt-1 max-h-40 overflow-auto whitespace-pre-line">
+                                    {job.mensaje}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
                 <Space wrap>
-                    {job?.estado === "ERROR" && (
+                    {job?.error && !activa && (
                         <Button
                             danger
                             onClick={verDetalleError}
@@ -394,13 +451,11 @@ export default function LeypdActualizacionPanel({
                     )}
 
                     {puedeGestionar &&
-                        job?.estado === "PENDIENTE" && (
+                        activa && (
                             <Button
                                 icon={<StopOutlined />}
                                 loading={cancelando}
-                                onClick={() =>
-                                    void cancelar()
-                                }
+                                onClick={cancelar}
                             >
                                 Cancelar
                             </Button>

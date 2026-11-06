@@ -59,6 +59,12 @@ export default function LeypdPage() {
         isAdminLike,
     } = useAuth();
 
+    /** Sube cuando el drawer encola una actualización: recarga el panel. */
+    const [
+        versionActualizacion,
+        setVersionActualizacion,
+    ] = useState(0);
+
     const [
         empresaVincular,
         setEmpresaVincular,
@@ -340,6 +346,9 @@ export default function LeypdPage() {
                         puedeGestionar={
                             isAdminLike
                         }
+                        version={
+                            versionActualizacion
+                        }
                         onCompletado={async () => {
                             /*
                              * El worker subió documentos nuevos:
@@ -429,6 +438,14 @@ export default function LeypdPage() {
                 }
                 onChanged={
                     handleEmpresaChanged
+                }
+                puedeActualizar={
+                    isAdminLike
+                }
+                onActualizacionCreada={() =>
+                    setVersionActualizacion(
+                        (v) => v + 1
+                    )
                 }
             />
 

@@ -2,6 +2,7 @@
 
 import {
     CloudOutlined,
+    CloudSyncOutlined,
     ExportOutlined,
     FileExcelOutlined,
     LinkOutlined,
@@ -11,6 +12,7 @@ import {
 import {
     Alert,
     Button,
+    Modal,
     Skeleton,
     Space,
     Tag,
@@ -23,6 +25,7 @@ import {
 
 import {
     sincronizarLeypdSharepoint,
+    createLeypdActualizacion
 } from "./leypd.api";
 
 import {
@@ -53,6 +56,12 @@ interface Props {
 
     onReload:
     () => void | Promise<void>;
+
+    /** ADMIN / ADMINISTRACION: regenerar los documentos de esta empresa. */
+    puedeActualizar?: boolean;
+
+    onActualizacionCreada?:
+    () => void;
 }
 
 export default function LeypdSharepointPanel({
@@ -63,10 +72,22 @@ export default function LeypdSharepointPanel({
     error,
     onUpdated,
     onReload,
+    puedeActualizar = false,
+    onActualizacionCreada,
 }: Props) {
+    const [
+        modal,
+        modalContextHolder,
+    ] = Modal.useModal();
+
     const [
         sincronizando,
         setSincronizando,
+    ] = useState(false);
+
+    const [
+        actualizando,
+        setActualizando,
     ] = useState(false);
 
     const [
@@ -113,6 +134,48 @@ export default function LeypdSharepointPanel({
             } finally {
                 setSincronizando(false);
             }
+        };
+
+    const handleActualizarDocumentos =
+        () => {
+            modal.confirm({
+                title:
+                    "Actualizar documentación de esta empresa",
+
+                content:
+                    `Se regenerarán los documentos Ley PD de ${empresaNombre ?? "la empresa"} y se subirán a SharePoint. Los documentos editados por el equipo no se reemplazan.`,
+
+                okText:
+                    "Actualizar",
+
+                cancelText:
+                    "Cancelar",
+
+                onOk: async () => {
+                    setActualizando(true);
+
+                    try {
+                        await createLeypdActualizacion(
+                            empresaId
+                        );
+
+                        message.info(
+                            "Actualización encolada. El avance se ve en «Documentación automática»."
+                        );
+
+                        onActualizacionCreada?.();
+                    } catch (err) {
+                        message.error(
+                            obtenerMensajeApiLeypd(
+                                err,
+                                "No se pudo iniciar la actualización."
+                            )
+                        );
+                    } finally {
+                        setActualizando(false);
+                    }
+                },
+            });
         };
 
     /* =====================================================
@@ -236,6 +299,8 @@ export default function LeypdSharepointPanel({
         >
             {modalVincular}
 
+            {modalContextHolder}
+
             <div
                 className="
                     flex
@@ -313,6 +378,16 @@ export default function LeypdSharepointPanel({
                 </div>
 
                 <Space wrap>
+                    {puedeActualizar && (
+                        <Button
+                            icon={<CloudSyncOutlined />}
+                            loading={actualizando}
+                            onClick={handleActualizarDocumentos}
+                        >
+                            Actualizar documentos
+                        </Button>
+                    )}
+
                     <Button
                         icon={<SyncOutlined />}
                         loading={sincronizando}

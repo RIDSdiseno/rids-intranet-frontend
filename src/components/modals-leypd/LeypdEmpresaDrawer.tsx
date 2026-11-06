@@ -52,6 +52,12 @@ interface Props {
 
     onChanged?:
     () => void | Promise<void>;
+
+    /** ADMIN / ADMINISTRACION: botón "Actualizar documentos". */
+    puedeActualizar?: boolean;
+
+    onActualizacionCreada?:
+    () => void;
 }
 
 export default function LeypdEmpresaDrawer({
@@ -60,6 +66,8 @@ export default function LeypdEmpresaDrawer({
     empresaNombre,
     onClose,
     onChanged,
+    puedeActualizar = false,
+    onActualizacionCreada,
 }: Props) {
     const [
         detalle,
@@ -463,6 +471,10 @@ export default function LeypdEmpresaDrawer({
                         }}
 
                         onReload={loadSharepoint}
+                        puedeActualizar={puedeActualizar}
+                        onActualizacionCreada={() =>
+                            onActualizacionCreada?.()
+                        }
                     />
 
                     {/* =====================================================

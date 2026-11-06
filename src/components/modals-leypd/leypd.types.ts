@@ -396,6 +396,15 @@ export interface LeypdActualizacion {
         id_tecnico: number;
         nombre: string;
     } | null;
+
+    /** null = todas las empresas vinculadas. */
+    empresaId:
+    number | null;
+
+    empresa?: {
+        id_empresa: number;
+        nombre: string;
+    } | null;
 }
 
 /* =====================================================
