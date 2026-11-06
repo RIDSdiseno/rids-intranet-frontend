@@ -6,14 +6,17 @@ import {
 
 import axios from "axios";
 
+import dayjs, {
+    type Dayjs,
+} from "dayjs";
+
 import {
     Alert,
     Button,
-    Checkbox,
+    DatePicker,
     Form,
     Input,
     Modal,
-    Switch,
     Tabs,
     message,
 } from "antd";
@@ -45,9 +48,6 @@ const CONFIGURACION_DEFAULT:
 
     tituloFormulario:
         "Lectura y aceptación de la Política de datos personales",
-
-    descripcionFormulario:
-        "Tu respuesta quedará registrada junto con la fecha y hora.",
 
     textoBoton:
         "Firmar y enviar",
@@ -105,6 +105,45 @@ const CONFIGURACION_DEFAULT:
 
             obligatorio:
                 true,
+        },
+
+        {
+            key:
+                "huella_reloj_control",
+
+            tipo:
+                "RADIO",
+
+            label:
+                "Uso de mi huella digital en el reloj control",
+
+            descripcion:
+                "La huella digital es un dato personal sensible. Se utiliza solo para registrar tu ingreso y salida en el reloj control (control de asistencia), no se utiliza para otro fin ni la comparte, y se elimina al término de tu contrato, conservando solo los registros de asistencia que exige la ley.",
+
+            /*
+             * Hay que responder, pero se puede decir que no:
+             * el consentimiento para un dato sensible debe ser libre.
+             */
+            obligatorio:
+                true,
+
+            opciones: [
+                {
+                    value:
+                        "SI",
+
+                    label:
+                        "Autorizo firmar mi ingreso y salida con mi huella digital en el reloj control.",
+                },
+
+                {
+                    value:
+                        "NO",
+
+                    label:
+                        "No autorizo: registraré mi asistencia por otro medio.",
+                },
+            ],
         },
 
         {
@@ -241,7 +280,14 @@ type FormValues = {
 
     cuerpoCorreoHtml:
     string;
+
+    fechaFin?:
+    Dayjs |
+    null;
 };
+
+const DIAS_PLAZO_DEFAULT =
+    21;
 
 export default function CampaniaFormModal({
     open,
@@ -350,6 +396,18 @@ export default function CampaniaFormModal({
                         ?.versionDocumento ??
                     "1.0",
 
+                fechaFin:
+                    campania
+                        ? campania.fechaFin
+                            ? dayjs(
+                                campania.fechaFin,
+                            )
+                            : null
+                        : dayjs().add(
+                            DIAS_PLAZO_DEFAULT,
+                            "day",
+                        ),
+
                 contenidoHtml:
                     campania
                         ?.contenidoHtml ??
@@ -359,8 +417,7 @@ export default function CampaniaFormModal({
         </h2>
 
         <p>
-            Ingrese aquí la información que será presentada
-            al destinatario.
+            Ley 21.719. Tu respuesta queda registrada con tu correo corporativo, fecha y hora.
         </p>
     `,
 
@@ -485,6 +542,14 @@ export default function CampaniaFormModal({
                         versionDocumento:
                             values.versionDocumento,
 
+                        /* Fin del día elegido, en hora de Chile */
+                        fechaFin:
+                            values.fechaFin
+                                ? values.fechaFin
+                                    .endOf("day")
+                                    .toISOString()
+                                : null,
+
                         contenidoHtml:
                             values.contenidoHtml,
 
@@ -519,6 +584,14 @@ export default function CampaniaFormModal({
 
                     versionDocumento:
                         values.versionDocumento,
+
+                    /* Fin del día elegido, en hora de Chile */
+                    fechaFin:
+                        values.fechaFin
+                            ? values.fechaFin
+                                .endOf("day")
+                                .toISOString()
+                            : null,
 
                     contenidoHtml:
                         values.contenidoHtml,
@@ -758,6 +831,26 @@ export default function CampaniaFormModal({
                                         ]}
                                     >
                                         <Input />
+                                    </Form.Item>
+
+                                    <Form.Item
+                                        label="Plazo para responder"
+                                        name="fechaFin"
+                                        extra="Se muestra en el formulario del destinatario. Por defecto, 3 semanas desde hoy."
+                                    >
+                                        <DatePicker
+                                            className="w-full"
+                                            format="DD-MM-YYYY"
+                                            allowClear
+                                            disabledDate={(
+                                                fecha,
+                                            ) =>
+                                                fecha.isBefore(
+                                                    dayjs(),
+                                                    "day",
+                                                )
+                                            }
+                                        />
                                     </Form.Item>
 
                                 </div>,

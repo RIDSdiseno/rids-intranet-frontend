@@ -10,6 +10,8 @@ import {
 } from "antd";
 
 import {
+    ArrowDown,
+    ArrowUp,
     Pencil,
     Plus,
     Trash2,
@@ -153,6 +155,60 @@ export default function FormularioConsentimientoBuilder({
         setEditIndex(
             null,
         );
+    }
+
+    /**
+     * Sube (-1) o baja (+1) un campo. El orden de la lista
+     * es el orden en que se muestra en el formulario público.
+     */
+    function moverCampo(
+        index:
+            number,
+        delta:
+            -1 | 1,
+    ) {
+
+        const destino =
+            index +
+            delta;
+
+        if (
+            destino < 0 ||
+            destino >=
+            value.campos.length
+        ) {
+            return;
+        }
+
+        const campos =
+            [
+                ...value.campos,
+            ];
+
+        const [
+            campo,
+        ] =
+            campos.splice(
+                index,
+                1,
+            );
+
+        if (
+            !campo
+        ) {
+            return;
+        }
+
+        campos.splice(
+            destino,
+            0,
+            campo,
+        );
+
+        onChange({
+            ...value,
+            campos,
+        });
     }
 
     function eliminarCampo(
@@ -443,6 +499,51 @@ export default function FormularioConsentimientoBuilder({
                                             }
 
                                         </div>
+
+                                        <Button
+                                            type="text"
+                                            title="Subir"
+                                            disabled={
+                                                disabled ||
+                                                index === 0
+                                            }
+                                            icon={
+                                                <ArrowUp
+                                                    size={
+                                                        16
+                                                    }
+                                                />
+                                            }
+                                            onClick={() =>
+                                                moverCampo(
+                                                    index,
+                                                    -1,
+                                                )
+                                            }
+                                        />
+
+                                        <Button
+                                            type="text"
+                                            title="Bajar"
+                                            disabled={
+                                                disabled ||
+                                                index ===
+                                                value.campos.length - 1
+                                            }
+                                            icon={
+                                                <ArrowDown
+                                                    size={
+                                                        16
+                                                    }
+                                                />
+                                            }
+                                            onClick={() =>
+                                                moverCampo(
+                                                    index,
+                                                    1,
+                                                )
+                                            }
+                                        />
 
                                         <Button
                                             type="text"

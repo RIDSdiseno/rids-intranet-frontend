@@ -898,9 +898,12 @@ export default function DestinatariosCampaniaModal({
                                         {
                                             dateStyle:
                                                 "short",
-
                                             timeStyle:
                                                 "short",
+                                            hourCycle:
+                                                "h23",
+                                            timeZone:
+                                                "America/Santiago",
                                         },
                                     ).format(
                                         new Date(
@@ -931,9 +934,12 @@ export default function DestinatariosCampaniaModal({
                                         {
                                             dateStyle:
                                                 "short",
-
                                             timeStyle:
                                                 "short",
+                                            hourCycle:
+                                                "h23",
+                                            timeZone:
+                                                "America/Santiago",
                                         },
                                     ).format(
                                         new Date(
