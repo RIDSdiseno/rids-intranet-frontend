@@ -36,9 +36,36 @@ import {
 import type {
     CampoConsentimiento,
     DocumentoCampoConsentimiento,
+    DocumentoLeypdCampoConsentimiento,
 } from "./proteccion-datos.types";
 
 import axios from "axios";
+
+/*
+ * Documentos del catálogo Ley PD que se pueden asociar a un campo.
+ * Deben existir en el catálogo del backend (leypd-catalogo.ts).
+ */
+const DOCUMENTOS_LEYPD: DocumentoLeypdCampoConsentimiento[] = [
+    { elemento: 1, nombreBase: "Politica_Privacidad", titulo: "Política de Privacidad" },
+    { elemento: 2, nombreBase: "Politica_Cookies", titulo: "Política de Cookies" },
+    { elemento: 4, nombreBase: "Procedimiento_Consentimiento", titulo: "Procedimiento de Consentimiento" },
+        { elemento: 4, nombreBase: "Politica_Uso_TI_y_Datos", titulo: "Política de Uso de Recursos Tecnológicos y Tratamiento de Datos Personales" },
+    { elemento: 6, nombreBase: "Aviso_Legal", titulo: "Aviso Legal" },
+    { elemento: 6, nombreBase: "Clausulas_Informativas", titulo: "Cláusulas Informativas" },
+    { elemento: 8, nombreBase: "Estandar_Accesos_Administrativos", titulo: "Estándar de Accesos Administrativos" },
+    { elemento: 10, nombreBase: "Politica_Seguridad", titulo: "Política de Seguridad" },
+    { elemento: 11, nombreBase: "Protocolo_Vulneraciones", titulo: "Protocolo de Vulneraciones" },
+    { elemento: 12, nombreBase: "Procedimiento_Derechos_Titulares", titulo: "Procedimiento de Derechos de los Titulares" },
+    { elemento: 12, nombreBase: "Politica_Visitas", titulo: "Política de Visitas" },
+    { elemento: 13, nombreBase: "Clausula_Resguardo_Post_Contrato", titulo: "Cláusula de Resguardo Post Contrato" },
+];
+
+function claveDocumentoLeypd(
+    documento:
+        DocumentoLeypdCampoConsentimiento,
+): string {
+    return `${documento.elemento}|${documento.nombreBase}`;
+}
 
 type Props = {
     open: boolean;
@@ -96,6 +123,16 @@ export default function CampoConsentimientoModal({
     ] =
         useState<
             DocumentoCampoConsentimiento[]
+        >(
+            [],
+        );
+
+    const [
+        documentosLeypd,
+        setDocumentosLeypd,
+    ] =
+        useState<
+            DocumentoLeypdCampoConsentimiento[]
         >(
             [],
         );
@@ -178,6 +215,11 @@ export default function CampoConsentimientoModal({
 
             setDocumentos(
                 value?.documentos ??
+                [],
+            );
+
+            setDocumentosLeypd(
+                value?.documentosLeypd ??
                 [],
             );
         },
@@ -285,6 +327,15 @@ export default function CampoConsentimientoModal({
                                         .trim(),
                             }),
                         ),
+                }
+                : {}),
+
+            ...(values.tipo ===
+                "CHECKBOX" &&
+                documentosLeypd.length >
+                0
+                ? {
+                    documentosLeypd,
                 }
                 : {}),
         });
@@ -686,6 +737,59 @@ export default function CampoConsentimientoModal({
                                 showIcon
                                 message="Formato permitido: PDF"
                                 description="Tamaño máximo por archivo: 15 MB."
+                            />
+
+                            <div className="mb-1 mt-5 font-medium text-slate-800">
+                                Documentos de la carpeta LEYPD
+                            </div>
+
+                            <div className="mb-3 text-sm text-slate-500">
+                                Cada destinatario verá, en PDF, la versión de su propia empresa (la que está en SharePoint). Si su empresa aún no lo tiene, no se muestra.
+                            </div>
+
+                            <Select
+                                mode="multiple"
+                                className="w-full"
+                                placeholder="Selecciona documentos del catálogo Ley PD"
+                                value={documentosLeypd.map(
+                                    claveDocumentoLeypd,
+                                )}
+                                options={DOCUMENTOS_LEYPD.map(
+                                    (documento) => ({
+                                        value:
+                                            claveDocumentoLeypd(
+                                                documento,
+                                            ),
+
+                                        label:
+                                            `${String(documento.elemento).padStart(2, "0")} · ${documento.titulo}`,
+                                    }),
+                                )}
+                                onChange={(
+                                    claves: string[],
+                                ) =>
+                                    setDocumentosLeypd(
+                                        claves.flatMap(
+                                            (clave) => {
+                                                const documento =
+                                                    documentosLeypd.find(
+                                                        (d) =>
+                                                            claveDocumentoLeypd(d) ===
+                                                            clave,
+                                                    ) ??
+                                                    DOCUMENTOS_LEYPD.find(
+                                                        (d) =>
+                                                            claveDocumentoLeypd(d) ===
+                                                            clave,
+                                                    );
+
+                                                return documento
+                                                    ? [documento]
+                                                    : [];
+                                            },
+                                        ),
+                                    )
+                                }
                             />
 
                         </div>

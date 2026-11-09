@@ -127,6 +127,17 @@ export default function LeypdEmpresaTable({
         "TODOS"
     );
 
+    /* Paginación controlada: el tamaño elegido se respeta */
+    const [
+        page,
+        setPage,
+    ] = useState(1);
+
+    const [
+        pageSize,
+        setPageSize,
+    ] = useState(10);
+
     const totalVinculadas =
         useMemo(
             () =>
@@ -555,17 +566,23 @@ export default function LeypdEmpresaTable({
                         prefix={<SearchOutlined />}
                         placeholder="Buscar empresa..."
                         value={search}
-                        onChange={(event) =>
+                        onChange={(event) => {
                             setSearch(
                                 event.target.value
-                            )
-                        }
+                            );
+
+                            setPage(1);
+                        }}
                         className="w-full sm:w-64"
                     />
 
                     <Select<EstadoFiltro>
                         value={estado}
-                        onChange={setEstado}
+                        onChange={(value) => {
+                            setEstado(value);
+
+                            setPage(1);
+                        }}
                         className="w-52"
                         options={[
                             {
@@ -607,12 +624,35 @@ export default function LeypdEmpresaTable({
                 columns={columns}
                 dataSource={filtradas}
                 pagination={{
-                    pageSize: 10,
+                    /*
+                     * Si al recargar quedan menos empresas, no se queda
+                     * en una página que ya no existe.
+                     */
+                    current: Math.min(
+                        page,
+                        Math.max(
+                            1,
+                            Math.ceil(
+                                filtradas.length / pageSize
+                            )
+                        )
+                    ),
+                    pageSize,
                     showSizeChanger: true,
-                    pageSizeOptions: [10, 20, 50],
+                    pageSizeOptions: [10, 20, 50, 100],
 
-                    showTotal: (total) =>
-                        `${total} empresa${total === 1 ? "" : "s"}`,
+                    showTotal: (total, [desde, hasta]) =>
+                        `${desde}-${hasta} de ${total} empresa${total === 1 ? "" : "s"}`,
+
+                    onChange: (nuevaPagina, nuevoTamano) => {
+                        if (nuevoTamano !== pageSize) {
+                            setPageSize(nuevoTamano);
+                            setPage(1);
+                            return;
+                        }
+
+                        setPage(nuevaPagina);
+                    },
                 }}
                 scroll={{
                     x: 1350,

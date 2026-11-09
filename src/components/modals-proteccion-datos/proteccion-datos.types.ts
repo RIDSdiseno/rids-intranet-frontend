@@ -33,6 +33,21 @@ export type CampoConsentimiento = {
 
     documentos?:
     DocumentoCampoConsentimiento[];
+
+    /** Documentos de la carpeta LEYPD de la empresa de cada destinatario. */
+    documentosLeypd?:
+    DocumentoLeypdCampoConsentimiento[];
+};
+
+export type DocumentoLeypdCampoConsentimiento = {
+    elemento:
+    number;
+
+    nombreBase:
+    string;
+
+    titulo:
+    string;
 };
 
 export type ConfiguracionConsentimiento = {
@@ -205,6 +220,9 @@ export type CrearCampaniaProteccionDatosPayload = {
 
 export type ActualizarCampaniaProteccionDatosPayload = {
     nombre?: string;
+
+    empresaId?:
+    number | null;
 
     descripcion?:
     string | null;
@@ -392,7 +410,8 @@ export type TipoEventoConsentimiento =
     | "ACEPTADO"
     | "RECHAZADO"
     | "REVOCADO"
-    | "REENVIADO";
+    | "REENVIADO"
+    | "DOCUMENTO_ABIERTO";
 
 export type EventoConsentimiento = {
     id:
@@ -443,4 +462,45 @@ export type HistorialConsentimientoResponse = {
 
     eventos:
     EventoConsentimiento[];
+};
+
+/* =========================================================
+   RESUMEN POR EMPRESA
+   ========================================================= */
+
+export type ResumenCampaniaEmpresa = {
+    id: number;
+    nombre: string;
+    tituloDocumento: string;
+    versionDocumento: string;
+    estado: EstadoCampaniaProteccionDatos;
+    fechaEnvioInicial: string | null;
+    fechaFin: string | null;
+    createdAt: string;
+
+    /** Destinatarios de esta empresa en la campaña. */
+    destinatarios: number;
+    enviados: number;
+    aceptados: number;
+    rechazados: number;
+    revocados: number;
+    pendientes: number;
+    errores: number;
+    ultimoEnvio: string | null;
+};
+
+export type ResumenEmpresaProteccionDatos = {
+    empresaId: number | null;
+    empresaNombre: string;
+    campanias: number;
+    campaniasEnviadas: number;
+    destinatarios: number;
+    enviados: number;
+    aceptados: number;
+    rechazados: number;
+    revocados: number;
+    pendientes: number;
+    errores: number;
+    ultimoEnvio: string | null;
+    campaniasDetalle: ResumenCampaniaEmpresa[];
 };

@@ -2,7 +2,6 @@
 import {
     useCallback,
     useEffect,
-    useMemo,
     useState,
 } from "react";
 
@@ -12,12 +11,9 @@ import {
     Button,
     Card,
     Dropdown,
-    Empty,
     Input,
     Modal,
     Select,
-    Table,
-    Tag,
     message,
 } from "antd";
 
@@ -36,7 +32,8 @@ import {
     RefreshCw,
     ShieldCheck,
     Users,
-    Mail
+    Mail,
+    BellRing
 } from "lucide-react";
 
 import {
@@ -44,18 +41,21 @@ import {
     cancelarCampaniaProteccionDatos,
     finalizarCampaniaProteccionDatos,
     listarCampaniasProteccionDatos,
-    enviarCampaniaProteccionDatos
+    enviarCampaniaProteccionDatos,
+    enviarRecordatorioCampaniaProteccionDatos,
+    obtenerCampaniaProteccionDatos,
+    obtenerResumenEmpresasProteccionDatos,
 } from "../components/modals-proteccion-datos/proteccion-datos.api";
-
-import {
-    getEstadoCampaniaColor,
-    getEstadoCampaniaLabel,
-} from "../components/modals-proteccion-datos/proteccion-datos.helpers";
 
 import type {
     CampaniaProteccionDatos,
     EstadoCampaniaProteccionDatos,
+    ResumenEmpresaProteccionDatos,
 } from "../components/modals-proteccion-datos/proteccion-datos.types";
+
+import EmpresasProteccionDatosTabla, {
+    type FiltroCampaniasEmpresa,
+} from "../components/modals-proteccion-datos/EmpresasProteccionDatosTabla";
 
 import CampaniaFormModal
     from "../components/modals-proteccion-datos/CampaniaFormModal";
@@ -80,12 +80,13 @@ export default function ProteccionDatos() {
     ] =
         Modal.useModal();
 
+    /* Vista por empresa (según la empresa de cada destinatario) */
     const [
-        campanias,
-        setCampanias,
+        empresas,
+        setEmpresas,
     ] =
         useState<
-            CampaniaProteccionDatos[]
+            ResumenEmpresaProteccionDatos[]
         >(
             [],
         );
@@ -116,6 +117,44 @@ export default function ProteccionDatos() {
         >(
             undefined,
         );
+
+    /* Empresa preseleccionada al crear desde la fila de una empresa */
+    const [
+        empresaNueva,
+        setEmpresaNueva,
+    ] =
+        useState<
+            number |
+            null
+        >(
+            null,
+        );
+
+    const [
+        filtroCampanias,
+        setFiltroCampanias,
+    ] =
+        useState<FiltroCampaniasEmpresa>(
+            "TODAS",
+        );
+
+    const [
+        metricas,
+        setMetricas,
+    ] =
+        useState({
+            total:
+                0,
+
+            borradores:
+                0,
+
+            activas:
+                0,
+
+            finalizadas:
+                0,
+        });
 
     const [
         selected,
@@ -164,48 +203,71 @@ export default function ProteccionDatos() {
                         true,
                     );
 
-                    const params: {
-                        estado?:
-                        EstadoCampaniaProteccionDatos;
+                    /* KPIs: totales de campañas por estado (solo se usa "total") */
+                    const contar =
+                        async (
+                            estadoKpi?:
+                                EstadoCampaniaProteccionDatos,
+                        ) =>
+                            (
+                                await listarCampaniasProteccionDatos({
+                                    take:
+                                        1,
 
-                        search?:
-                        string;
+                                    ...(estadoKpi
+                                        ? {
+                                            estado:
+                                                estadoKpi,
+                                        }
+                                        : {}),
+                                })
+                            ).total;
 
-                        skip?:
-                        number;
+                    const [
+                        resumen,
+                        totalKpi,
+                        borradores,
+                        activas,
+                        finalizadas,
+                    ] =
+                        await Promise.all([
+                            obtenerResumenEmpresasProteccionDatos(
+                                estado
+                                    ? {
+                                        estado,
+                                    }
+                                    : undefined,
+                            ),
 
-                        take?:
-                        number;
-                    } = {
-                        skip:
-                            0,
+                            contar(),
 
-                        take:
-                            100,
-                    };
+                            contar(
+                                "BORRADOR",
+                            ),
 
-                    if (
-                        estado
-                    ) {
-                        params.estado =
-                            estado;
-                    }
+                            contar(
+                                "ACTIVA",
+                            ),
 
-                    if (
-                        search.trim()
-                    ) {
-                        params.search =
-                            search.trim();
-                    }
+                            contar(
+                                "FINALIZADA",
+                            ),
+                        ]);
 
-                    const data =
-                        await listarCampaniasProteccionDatos(
-                            params,
-                        );
-
-                    setCampanias(
-                        data.items,
+                    setEmpresas(
+                        resumen,
                     );
+
+                    setMetricas({
+                        total:
+                            totalKpi,
+
+                        borradores,
+
+                        activas,
+
+                        finalizadas,
+                    });
                 } catch (
                 error
                 ) {
@@ -221,7 +283,6 @@ export default function ProteccionDatos() {
             },
             [
                 estado,
-                search,
             ],
         );
 
@@ -244,48 +305,6 @@ export default function ProteccionDatos() {
             cargar,
         ],
     );
-
-    /* =====================================================
-       KPIs
-       ===================================================== */
-
-    const metricas =
-        useMemo(
-            () => ({
-                total:
-                    campanias.length,
-
-                borradores:
-                    campanias.filter(
-                        (
-                            item,
-                        ) =>
-                            item.estado ===
-                            "BORRADOR",
-                    ).length,
-
-                activas:
-                    campanias.filter(
-                        (
-                            item,
-                        ) =>
-                            item.estado ===
-                            "ACTIVA",
-                    ).length,
-
-                finalizadas:
-                    campanias.filter(
-                        (
-                            item,
-                        ) =>
-                            item.estado ===
-                            "FINALIZADA",
-                    ).length,
-            }),
-            [
-                campanias,
-            ],
-        );
 
     /* =====================================================
        ESTADOS
@@ -519,6 +538,73 @@ export default function ProteccionDatos() {
         });
     }
 
+    function recordar(
+        campania:
+            CampaniaProteccionDatos,
+    ) {
+        modal.confirm({
+            title:
+                "Enviar recordatorio",
+
+            content:
+                `Se enviará un recordatorio a quienes recibieron "${campania.nombre}" y aún no responden. Cada persona recibe un enlace nuevo (el del correo anterior deja de funcionar). Para recordar solo a algunas personas, usa "Destinatarios".`,
+
+            okText:
+                "Enviar recordatorio",
+
+            cancelText:
+                "Volver",
+
+            async onOk() {
+                try {
+                    const r =
+                        await enviarRecordatorioCampaniaProteccionDatos(
+                            campania.id,
+                        );
+
+                    const omitidos =
+                        r.omitidos > 0
+                            ? ` · ${r.omitidos} omitido(s): recibieron un correo hace poco`
+                            : "";
+
+                    if (
+                        r.errores ===
+                        0
+                    ) {
+                        messageApi.success({
+                            content:
+                                `${r.enviados} recordatorio(s) enviado(s)${omitidos}`,
+
+                            duration:
+                                5,
+                        });
+                    } else {
+                        messageApi.warning({
+                            content:
+                                `${r.enviados} enviado(s) y ${r.errores} con error${omitidos}`,
+
+                            duration:
+                                5,
+                        });
+                    }
+
+                    await cargar();
+                } catch (
+                error
+                ) {
+                    mostrarError(
+                        error,
+                        "No se pudo enviar el recordatorio",
+                    );
+
+                    return Promise.reject(
+                        error,
+                    );
+                }
+            },
+        });
+    }
+
     function cancelar(
         campania:
             CampaniaProteccionDatos,
@@ -581,7 +667,10 @@ export default function ProteccionDatos() {
 
     function menuCampania(
         campania:
-            CampaniaProteccionDatos,
+            Pick<
+                CampaniaProteccionDatos,
+                "estado"
+            >,
     ): MenuProps["items"] {
 
         const items:
@@ -673,6 +762,21 @@ export default function ProteccionDatos() {
 
                     icon:
                         <Mail
+                            size={
+                                16
+                            }
+                        />,
+                },
+
+                {
+                    key:
+                        "recordatorio",
+
+                    label:
+                        "Enviar recordatorio",
+
+                    icon:
+                        <BellRing
                             size={
                                 16
                             }
@@ -791,6 +895,14 @@ export default function ProteccionDatos() {
                 return;
             }
 
+            case "recordatorio": {
+                recordar(
+                    campania,
+                );
+
+                return;
+            }
+
             case "finalizar": {
                 finalizar(
                     campania,
@@ -809,6 +921,34 @@ export default function ProteccionDatos() {
 
             default:
                 return;
+        }
+    }
+
+    /**
+     * Acción desde la vista por empresa: la fila solo trae el resumen,
+     * así que se carga la campaña completa antes de abrir el modal.
+     */
+    async function accionDesdeResumen(
+        key: string,
+        campaniaId: number,
+    ) {
+        try {
+            const campania =
+                await obtenerCampaniaProteccionDatos(
+                    campaniaId,
+                );
+
+            handleMenuAction(
+                key,
+                campania,
+            );
+        } catch (
+        error
+        ) {
+            mostrarError(
+                error,
+                "No se pudo abrir la campaña",
+            );
         }
     }
 
@@ -878,6 +1018,10 @@ export default function ProteccionDatos() {
                             }
                             onClick={() => {
                                 setSelected(
+                                    null,
+                                );
+
+                                setEmpresaNueva(
                                     null,
                                 );
 
@@ -967,7 +1111,41 @@ export default function ProteccionDatos() {
                                 event.target.value,
                             )
                         }
-                        placeholder="Buscar campaña..."
+                        placeholder="Buscar empresa o campaña..."
+                    />
+
+                    <Select<FiltroCampaniasEmpresa>
+                        value={
+                            filtroCampanias
+                        }
+                        onChange={
+                            setFiltroCampanias
+                        }
+                        options={[
+                            {
+                                value:
+                                    "TODAS",
+
+                                label:
+                                    "Todas las empresas",
+                            },
+
+                            {
+                                value:
+                                    "CON",
+
+                                label:
+                                    "Con campañas",
+                            },
+
+                            {
+                                value:
+                                    "SIN",
+
+                                label:
+                                    "Sin campañas",
+                            },
+                        ]}
                     />
 
                     <Select
@@ -976,8 +1154,13 @@ export default function ProteccionDatos() {
                         value={
                             estado
                         }
-                        onChange={
-                            setEstado
+                        onChange={(
+                            value?:
+                                EstadoCampaniaProteccionDatos,
+                        ) =>
+                            setEstado(
+                                value,
+                            )
                         }
                         options={[
                             {
@@ -1017,204 +1200,74 @@ export default function ProteccionDatos() {
                 </div>
 
                 {/* =================================================
-                TABLA
+                EMPRESAS
                 ================================================= */}
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
 
-                    <Table
-                        rowKey="id"
+                    <EmpresasProteccionDatosTabla
+                        items={
+                            empresas
+                        }
+                        filtro={
+                            filtroCampanias
+                        }
+                        onCrearCampania={(
+                            empresaId,
+                        ) => {
+                            setSelected(
+                                null,
+                            );
+
+                            setEmpresaNueva(
+                                empresaId,
+                            );
+
+                            setFormOpen(
+                                true,
+                            );
+                        }}
                         loading={
                             loading
                         }
-                        dataSource={
-                            campanias
+                        search={
+                            search
                         }
-                        locale={{
-                            emptyText:
-                                <Empty
-                                    description="No hay campañas"
-                                />,
-                        }}
-                        scroll={{
-                            x:
-                                900,
-                        }}
-                        columns={[
-                            {
-                                title:
-                                    "Campaña",
-
-                                key:
-                                    "nombre",
-
-                                render: (
-                                    _,
-                                    row,
-                                ) => (
-                                    <div>
-                                        <div className="font-semibold text-slate-800">
-                                            {
-                                                row.nombre
-                                            }
-                                        </div>
-
-                                        <div className="mt-0.5 text-xs text-slate-500">
-                                            {
-                                                row.tituloDocumento
-                                            }
-                                        </div>
-                                    </div>
-                                ),
-                            },
-
-                            {
-                                title:
-                                    "Versión",
-
-                                dataIndex:
-                                    "versionDocumento",
-
-                                key:
-                                    "versionDocumento",
-
-                                width:
-                                    100,
-                            },
-
-                            {
-                                title:
-                                    "Estado",
-
-                                dataIndex:
-                                    "estado",
-
-                                key:
-                                    "estado",
-
-                                width:
-                                    130,
-
-                                render: (
-                                    value,
-                                ) => (
-                                    <Tag
-                                        color={
-                                            getEstadoCampaniaColor(
-                                                value,
-                                            )
-                                        }
-                                    >
-                                        {
-                                            getEstadoCampaniaLabel(
-                                                value,
-                                            )
-                                        }
-                                    </Tag>
-                                ),
-                            },
-
-                            {
-                                title:
-                                    "Destinatarios",
-
-                                key:
-                                    "destinatarios",
-
-                                width:
-                                    130,
-
-                                render: (
-                                    _,
-                                    row,
-                                ) =>
-                                    row
-                                        ._count
-                                        ?.destinatarios ??
-                                    0,
-                            },
-
-                            {
-                                title:
-                                    "Creada",
-
-                                dataIndex:
-                                    "createdAt",
-
-                                key:
-                                    "createdAt",
-
-                                width:
-                                    150,
-
-                                render: (
-                                    value:
-                                        string,
-                                ) =>
-                                    new Intl.DateTimeFormat(
-                                        "es-CL",
-                                        {
-                                            dateStyle:
-                                                "medium",
-                                        },
-                                    ).format(
-                                        new Date(
-                                            value,
+                        renderAcciones={(
+                            campania,
+                        ) => (
+                            <Dropdown
+                                trigger={[
+                                    "click",
+                                ]}
+                                menu={{
+                                    items:
+                                        menuCampania(
+                                            campania,
                                         ),
-                                    ),
-                            },
 
-                            {
-                                title:
-                                    "",
-
-                                key:
-                                    "acciones",
-
-                                width:
-                                    60,
-
-                                fixed:
-                                    "right",
-
-                                render: (
-                                    _,
-                                    row,
-                                ) => (
-                                    <Dropdown
-                                        trigger={[
-                                            "click",
-                                        ]}
-                                        menu={{
-                                            items:
-                                                menuCampania(
-                                                    row,
-                                                ),
-
-                                            onClick: ({
-                                                key,
-                                            }) => {
-                                                handleMenuAction(
-                                                    key,
-                                                    row,
-                                                );
-                                            },
-                                        }}
-                                    >
-                                        <Button
-                                            type="text"
-                                            icon={
-                                                <MoreHorizontal
-                                                    size={
-                                                        18
-                                                    }
-                                                />
+                                    onClick: ({
+                                        key,
+                                    }) => {
+                                        void accionDesdeResumen(
+                                            key,
+                                            campania.id,
+                                        );
+                                    },
+                                }}
+                            >
+                                <Button
+                                    type="text"
+                                    icon={
+                                        <MoreHorizontal
+                                            size={
+                                                18
                                             }
                                         />
-                                    </Dropdown>
-                                ),
-                            },
-                        ]}
+                                    }
+                                />
+                            </Dropdown>
+                        )}
                     />
 
                 </div>
@@ -1229,6 +1282,9 @@ export default function ProteccionDatos() {
                     }
                     campania={
                         selected
+                    }
+                    empresaIdInicial={
+                        empresaNueva
                     }
                     onClose={() => {
                         setFormOpen(

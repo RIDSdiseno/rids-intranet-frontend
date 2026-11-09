@@ -320,8 +320,28 @@ const NAV: NavEntry[] = [
       { label: "Tickets", to: HELPDESK_PATH, icon: <Headset size={20} /> },
       { label: "Mantenciones remotas", to: MANTENCIONES_REMOTAS_PATH, icon: <MonitorCog size={20} /> },
       { label: "Correos Masivos", to: MAILER_PATH, icon: <Mails size={20} /> },
-      { label: "Ley PD", to: LEYPD_PATH, icon: <ShieldCheck size={20} /> },
-      { label: "Protección de datos", to: PROTECCION_DATOS_PATH, icon: <ShieldCheck size={20} />, },
+      {
+        type: "submenu",
+        id: "proteccion-datos",
+        label: "Protección de datos",
+        icon: <ShieldCheck size={20} />,
+        match: [
+          LEYPD_PATH,
+          PROTECCION_DATOS_PATH,
+        ],
+        children: [
+          {
+            label: "Ley PD",
+            to: LEYPD_PATH,
+            icon: <FileText size={18} />,
+          },
+          {
+            label: "Consentimientos",
+            to: PROTECCION_DATOS_PATH,
+            icon: <MailCheck size={18} />,
+          },
+        ],
+      },
     ],
     match: [SOLICITANTES_PATH, VISITAS_PATH, EQUIPOS_PATH, ADICIONALES_PATH, MANTENCIONES_GENERALES_PATH, DASHBOARD_AGENTES_PATH, MANTENCIONES_REMOTAS_PATH, EMPRESAS_PATH, MAILER_PATH, PROTECCION_DATOS_PATH, LEYPD_PATH, HELPDESK_PATH],
   },
@@ -984,7 +1004,36 @@ const Header = () => {
                     return item;
                   }
 
-                  return item;
+                  /*
+                   * Submenú Protección de datos: Consentimientos
+                   * solo para roles con acceso.
+                   */
+                  const children =
+                    item.children.filter(
+                      (child) =>
+                        child.to !==
+                        PROTECCION_DATOS_PATH ||
+                        canAccessProteccionDatos,
+                    );
+
+                  if (
+                    children.length ===
+                    0
+                  ) {
+                    return null;
+                  }
+
+                  return {
+                    ...item,
+
+                    children,
+
+                    match:
+                      children.map(
+                        (child) =>
+                          child.to,
+                      ),
+                  };
                 },
               )
               .filter(

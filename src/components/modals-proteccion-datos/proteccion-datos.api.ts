@@ -15,7 +15,8 @@ import type {
     OrigenCampaniaProteccionDatos,
     SolicitanteProteccionDatos,
     DocumentoCampoConsentimiento,
-    HistorialConsentimientoResponse
+    HistorialConsentimientoResponse,
+    ResumenEmpresaProteccionDatos
 } from "./proteccion-datos.types";
 
 /* =========================================================
@@ -339,6 +340,38 @@ export async function enviarCampaniaProteccionDatos(
 }
 
 /* =========================================================
+   RECORDATORIO
+   ========================================================= */
+
+export type ResultadoRecordatorioCampania =
+    ResultadoEnvioCampania & {
+        /** Recibieron un correo hace muy poco: no se les reenvió. */
+        omitidos: number;
+    };
+
+/**
+ * Recordatorio a quienes recibieron el correo y no responden.
+ * Sin consentimientoIds: a todos los de la campaña.
+ */
+export async function enviarRecordatorioCampaniaProteccionDatos(
+    id: number,
+    consentimientoIds?: number[],
+): Promise<ResultadoRecordatorioCampania> {
+
+    const response =
+        await api.post(
+            `/proteccion-datos/campanias/${id}/recordatorio`,
+            consentimientoIds
+                ? {
+                    consentimientoIds,
+                }
+                : {},
+        );
+
+    return response.data.data;
+}
+
+/* =========================================================
    SUBIR DOCUMENTO PROTECCIÓN DE DATOS
    ========================================================= */
 
@@ -379,6 +412,28 @@ export async function listarEventosConsentimiento(
     const response =
         await api.get(
             `/proteccion-datos/campanias/${campaniaId}/destinatarios/${consentimientoId}/eventos`,
+        );
+
+    return response.data.data;
+}
+
+/* =========================================================
+   RESUMEN POR EMPRESA
+   ========================================================= */
+
+export async function obtenerResumenEmpresasProteccionDatos(
+    params?: {
+        estado?:
+        EstadoCampaniaProteccionDatos;
+    },
+): Promise<ResumenEmpresaProteccionDatos[]> {
+
+    const response =
+        await api.get(
+            "/proteccion-datos/empresas-resumen",
+            {
+                params,
+            },
         );
 
     return response.data.data;

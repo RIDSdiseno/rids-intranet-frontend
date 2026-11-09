@@ -24,7 +24,8 @@ import {
 import {
     Trash2,
     UserPlus,
-    Eye
+    Eye,
+    BellRing,
 } from "lucide-react";
 
 import SelectorSolicitantesConsentimiento
@@ -32,6 +33,7 @@ import SelectorSolicitantesConsentimiento
 
 import {
     agregarDestinatariosCampania,
+    enviarRecordatorioCampaniaProteccionDatos,
     listarDestinatariosCampania,
     quitarDestinatarioCampania,
 } from "./proteccion-datos.api";
@@ -470,6 +472,70 @@ export default function DestinatariosCampaniaModal({
 
             message.error(
                 "No se pudo eliminar el destinatario",
+            );
+        }
+    }
+
+    async function handleRecordar(
+        consentimientoId: number,
+    ) {
+        if (
+            !campania
+        ) {
+            return;
+        }
+
+        try {
+            const r =
+                await enviarRecordatorioCampaniaProteccionDatos(
+                    campania.id,
+                    [
+                        consentimientoId,
+                    ],
+                );
+
+            if (
+                r.enviados > 0
+            ) {
+                message.success(
+                    "Recordatorio enviado",
+                );
+            } else if (
+                r.omitidos > 0
+            ) {
+                message.info(
+                    "Recibió un correo hace poco: espera antes de enviar otro recordatorio",
+                );
+            } else {
+                message.error(
+                    r.resultados[0]?.error ??
+                    "No se pudo enviar el recordatorio",
+                );
+            }
+
+            await cargar();
+
+            onChanged();
+        } catch (
+        error
+        ) {
+            if (
+                axios.isAxiosError(
+                    error,
+                )
+            ) {
+                message.error(
+                    error.response
+                        ?.data
+                        ?.error ??
+                    "No se pudo enviar el recordatorio",
+                );
+
+                return;
+            }
+
+            message.error(
+                "No se pudo enviar el recordatorio",
             );
         }
     }
@@ -1001,6 +1067,35 @@ export default function DestinatariosCampaniaModal({
                                             );
                                         }}
                                     />
+
+                                    {/* RECORDATORIO: enviado y sin responder */}
+
+                                    {campania?.estado === "ACTIVA" &&
+                                        row.estado === "ENVIADO" && (
+                                            <Popconfirm
+                                                title="Enviar recordatorio"
+                                                description="Recibirá un enlace nuevo; el del correo anterior deja de funcionar."
+                                                okText="Enviar"
+                                                cancelText="Cancelar"
+                                                onConfirm={() =>
+                                                    handleRecordar(
+                                                        row.id,
+                                                    )
+                                                }
+                                            >
+                                                <Button
+                                                    type="text"
+                                                    title="Enviar recordatorio"
+                                                    icon={
+                                                        <BellRing
+                                                            size={
+                                                                16
+                                                            }
+                                                        />
+                                                    }
+                                                />
+                                            </Popconfirm>
+                                        )}
 
                                     {/* ELIMINAR SOLO EN BORRADOR */}
 

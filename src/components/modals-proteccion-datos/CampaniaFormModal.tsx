@@ -17,6 +17,7 @@ import {
     Form,
     Input,
     Modal,
+    Select,
     Tabs,
     message,
 } from "antd";
@@ -24,11 +25,13 @@ import {
 import {
     actualizarCampaniaProteccionDatos,
     crearCampaniaProteccionDatos,
+    listarEmpresasProteccionDatos,
 } from "./proteccion-datos.api";
 
 import type {
     CampaniaProteccionDatos,
     ConfiguracionConsentimiento,
+    EmpresaProteccionDatos,
 } from "./proteccion-datos.types";
 
 import FormularioConsentimientoBuilder
@@ -88,6 +91,19 @@ const CONFIGURACION_DEFAULT:
 
             obligatorio:
                 true,
+
+            documentosLeypd: [
+                {
+                    elemento:
+                        1,
+
+                    nombreBase:
+                        "Politica_Privacidad",
+
+                    titulo:
+                        "Política de Privacidad",
+                },
+            ],
         },
 
         {
@@ -105,6 +121,19 @@ const CONFIGURACION_DEFAULT:
 
             obligatorio:
                 true,
+
+            documentosLeypd: [
+                {
+                    elemento:
+                        4,
+
+                    nombreBase:
+                        "Politica_Uso_TI_y_Datos",
+
+                    titulo:
+                        "Política de Uso de Recursos Tecnológicos y Tratamiento de Datos Personales",
+                },
+            ],
         },
 
         {
@@ -192,7 +221,7 @@ const CONFIGURACION_DEFAULT:
                 "Contacto después del término de mi relación",
 
             descripcion:
-                "Autorización opcional para contacto posterior.",
+                "Es voluntario: si lo autorizas, la empresa podrá contactarte en el correo o teléfono personal que indiques para informarte asuntos de tu relación laboral (certificados, cotizaciones previsionales, requerimientos legales). Puedes revocarlo en cualquier momento.",
 
             obligatorio:
                 false,
@@ -214,6 +243,26 @@ const CONFIGURACION_DEFAULT:
                         "No autorizo",
                 },
             ],
+        },
+
+        {
+            key:
+                "contacto_personal",
+
+            tipo:
+                "TEXT",
+
+            label:
+                "Correo o teléfono personal para contacto posterior",
+
+            descripcion:
+                "Complétalo solo si autorizaste el contacto posterior.",
+
+            obligatorio:
+                false,
+
+            placeholder:
+                "Ej.: nombre@gmail.com o +56 9 1234 5678",
         },
     ],
 };
@@ -257,9 +306,18 @@ type Props = {
     contexto?:
     ContextoCampaniaFormulario |
     null;
+
+    /** Empresa preseleccionada al crear (p. ej. desde la fila de una empresa). */
+    empresaIdInicial?:
+    number |
+    null;
 };
 
 type FormValues = {
+    empresaId?:
+    number |
+    null;
+
     nombre:
     string;
 
@@ -295,6 +353,7 @@ export default function CampaniaFormModal({
     onClose,
     onSaved,
     contexto = null,
+    empresaIdInicial = null,
 }: Props) {
 
     /*
@@ -348,6 +407,43 @@ export default function CampaniaFormModal({
             false,
         );
 
+    /* Empresas para asociar la campaña */
+    const [
+        empresas,
+        setEmpresas,
+    ] =
+        useState<
+            EmpresaProteccionDatos[]
+        >(
+            [],
+        );
+
+    useEffect(
+        () => {
+            if (
+                !open ||
+                empresas.length > 0
+            ) {
+                return;
+            }
+
+            listarEmpresasProteccionDatos()
+                .then(
+                    setEmpresas,
+                )
+                .catch(
+                    () =>
+                        message.error(
+                            "No se pudieron cargar las empresas",
+                        ),
+                );
+        },
+        [
+            open,
+            empresas.length,
+        ],
+    );
+
     const isEdit =
         Boolean(
             campania,
@@ -376,6 +472,12 @@ export default function CampaniaFormModal({
                     : "";
 
             form.setFieldsValue({
+                empresaId:
+                    campania
+                        ? campania.empresaId
+                        : contextoEmpresaId ??
+                        empresaIdInicial,
+
                 nombre:
                     campania
                         ?.nombre ??
@@ -417,7 +519,7 @@ export default function CampaniaFormModal({
         </h2>
 
         <p>
-            Ley 21.719. Tu respuesta queda registrada con tu correo corporativo, fecha y hora.
+                        Ley 21.719. Tu respuesta queda registrada con tu correo corporativo, fecha y hora · plazo hasta el {{plazo}}.
         </p>
     `,
 
@@ -469,6 +571,7 @@ export default function CampaniaFormModal({
             form,
             contextoEmpresaId,
             contextoEmpresaNombre,
+            empresaIdInicial,
         ],
     );
 
@@ -528,6 +631,16 @@ export default function CampaniaFormModal({
                 await actualizarCampaniaProteccionDatos(
                     campania.id,
                     {
+                        /* La empresa solo se cambia en borrador y en campañas generales */
+                        ...(editable &&
+                            !esLeypd
+                            ? {
+                                empresaId:
+                                    values.empresaId ??
+                                    null,
+                            }
+                            : {}),
+
                         nombre:
                             values.nombre,
 
@@ -616,7 +729,12 @@ export default function CampaniaFormModal({
                             leypdElementoNumero:
                                 contexto.leypdElementoNumero,
                         }
-                        : {}),
+                        : values.empresaId
+                            ? {
+                                empresaId:
+                                    values.empresaId,
+                            }
+                            : {}),
                 });
 
                 message.success(
@@ -775,6 +893,37 @@ export default function CampaniaFormModal({
 
                             children:
                                 <div className="grid grid-cols-1 gap-x-4 md:grid-cols-2">
+
+                                    <Form.Item
+                                        className="md:col-span-2"
+                                        label="Empresa"
+                                        name="empresaId"
+                                        extra={
+                                            esLeypd
+                                                ? "Campaña Ley PD: la empresa queda fija."
+                                                : "Ubica la campaña bajo esa empresa en el listado. Cada destinatario se cuenta en su propia empresa."
+                                        }
+                                    >
+                                        <Select
+                                            allowClear
+                                            showSearch
+                                            optionFilterProp="label"
+                                            placeholder="Sin empresa (campaña general)"
+                                            disabled={
+                                                !editable ||
+                                                esLeypd
+                                            }
+                                            options={empresas.map(
+                                                (e) => ({
+                                                    value:
+                                                        e.id_empresa,
+
+                                                    label:
+                                                        e.nombre,
+                                                }),
+                                            )}
+                                        />
+                                    </Form.Item>
 
                                     <Form.Item
                                         className="md:col-span-2"

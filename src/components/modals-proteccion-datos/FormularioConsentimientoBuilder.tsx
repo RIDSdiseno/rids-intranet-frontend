@@ -464,6 +464,31 @@ export default function FormularioConsentimientoBuilder({
                                                     </div>
                                                 )}
 
+                                            {campo.documentosLeypd &&
+                                                campo.documentosLeypd.length >
+                                                0 && (
+                                                    <div className="mt-3">
+
+                                                        <div className="mb-2 text-xs font-medium text-slate-500">
+                                                            Carpeta LEYPD de cada empresa
+                                                        </div>
+
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {campo.documentosLeypd.map(
+                                                                (documento) => (
+                                                                    <Tag
+                                                                        key={`${documento.elemento}-${documento.nombreBase}`}
+                                                                        color="blue"
+                                                                    >
+                                                                        {documento.titulo}
+                                                                    </Tag>
+                                                                ),
+                                                            )}
+                                                        </div>
+
+                                                    </div>
+                                                )}
+
                                             <div className="mt-2 font-mono text-xs text-slate-400">
                                                 {
                                                     campo.key
