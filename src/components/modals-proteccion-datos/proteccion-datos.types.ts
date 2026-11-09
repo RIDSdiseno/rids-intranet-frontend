@@ -411,7 +411,8 @@ export type TipoEventoConsentimiento =
     | "RECHAZADO"
     | "REVOCADO"
     | "REENVIADO"
-    | "DOCUMENTO_ABIERTO";
+    | "DOCUMENTO_ABIERTO"
+    | "COMPROBANTE_ENVIADO";;
 
 export type EventoConsentimiento = {
     id:

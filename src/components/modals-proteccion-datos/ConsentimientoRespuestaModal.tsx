@@ -266,6 +266,12 @@ export default function ConsentimientoRespuestaModal({
             case "REENVIADO":
                 return "Consentimiento reenviado";
 
+            case "DOCUMENTO_ABIERTO":
+                return "Documento abierto";
+
+            case "COMPROBANTE_ENVIADO":
+                return "Comprobante de firma enviado";
+
             default:
                 return tipo;
         }
@@ -295,6 +301,12 @@ export default function ConsentimientoRespuestaModal({
 
             case "FORMULARIO_ABIERTO":
                 return "cyan";
+
+            case "DOCUMENTO_ABIERTO":
+                return "cyan";
+
+            case "COMPROBANTE_ENVIADO":
+                return "#2f54eb";
 
             default:
                 return "gray";
@@ -530,6 +542,19 @@ export default function ConsentimientoRespuestaModal({
                                                                         )
                                                                     }
                                                                 </div>
+
+                                                                 {(evento.tipo ===
+                                                                    "COMPROBANTE_ENVIADO" ||
+                                                                    evento.detalle
+                                                                        ?.comprobante ===
+                                                                    true) && (
+                                                                        <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                                                            {evento.tipo ===
+                                                                                "COMPROBANTE_ENVIADO"
+                                                                                ? `Folio ${String(evento.detalle?.folio ?? "—")} · código ${String(evento.detalle?.codigo ?? "—")}`
+                                                                                : `Comprobante de firma: ${String(evento.detalle?.error ?? "error desconocido")}`}
+                                                                        </div>
+                                                                    )}
 
                                                                 {evento.tipo ===
                                                                     "REVOCADO" &&
