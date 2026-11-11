@@ -146,6 +146,11 @@ export interface EmpresaISP {
     servicio?: string | null;
     numeroTicket?: string | null;
 
+    codigoServicio?: string | null;
+    direccion?: string | null;
+    rut?: string | null;
+    telefonoSoporte?: string | null;
+
     wifiNombre?: string | null;
     wifiClaveRef?: string | null;
 
@@ -170,6 +175,11 @@ export interface EmpresaISPFormValues {
     telefono?: string;
     servicio?: string;
     numeroTicket?: string;
+
+    codigoServicio?: string;
+    direccion?: string;
+    rut?: string;
+    telefonoSoporte?: string;
 
     wifiNombre?: string;
     wifiClaveRef?: string;
@@ -423,4 +433,57 @@ export interface SucursalFormValues {
     }>;
 
     redesWifi?: RedSucursalForm[];
+}
+
+/* ================= TELEFONÍA ================= */
+
+export interface TelefoniaParlante {
+    id: number;
+    empresaId: number;
+
+    ubicacion?: string | null;
+    marcaModelo?: string | null;
+    anexo?: string | null;
+    macAddress?: string | null;
+    contrasenaAdmin?: string | null;
+    observaciones?: string | null;
+
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface TelefoniaUsuario {
+    id: number;
+    empresaId: number;
+
+    nombre: string;
+    anexo?: string | null;
+    contrasena?: string | null;
+
+    ipPrivada?: string | null;
+    puertoPrivado?: number | null;
+    ipPublica?: string | null;
+    puertoPublico?: number | null;
+
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface TelefoniaParlanteFormValues {
+    ubicacion?: string;
+    marcaModelo?: string;
+    anexo?: string;
+    macAddress?: string;
+    contrasenaAdmin?: string;
+    observaciones?: string;
+}
+
+export interface TelefoniaUsuarioFormValues {
+    nombre: string;
+    anexo?: string;
+    contrasena?: string;
+    ipPrivada?: string;
+    puertoPrivado?: number | null;
+    ipPublica?: string;
+    puertoPublico?: number | null;
 }

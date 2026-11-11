@@ -13,7 +13,8 @@ import {
     Divider,
     Tooltip,
     Typography,
-    Select
+    Select,
+    Alert
 } from "antd";
 import {
     SaveOutlined,
@@ -56,6 +57,45 @@ function parseDominios(value: unknown): string[] {
     return Array.from(new Set(dominios));
 }
 
+/** Mensaje del backend ({ error } o { message }) o el texto por defecto. */
+function obtenerMensajeError(
+    error: unknown,
+    fallback: string
+): string {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error
+    ) {
+        const data = (
+            error as {
+                response?: {
+                    data?: {
+                        error?: unknown;
+                        message?: unknown;
+                    };
+                };
+            }
+        ).response?.data;
+
+        if (
+            typeof data?.error === "string" &&
+            data.error.trim()
+        ) {
+            return data.error;
+        }
+
+        if (
+            typeof data?.message === "string" &&
+            data.message.trim()
+        ) {
+            return data.message;
+        }
+    }
+
+    return fallback;
+}
+
 const FichaTab: React.FC<FichaTabProps> = ({
     empresa,
     ficha,
@@ -67,7 +107,9 @@ const FichaTab: React.FC<FichaTabProps> = ({
 }) => {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
     const [form] = Form.useForm();
+    const [messageApi, contextHolder] = message.useMessage();
 
     useEffect(
         () => {
@@ -147,11 +189,12 @@ const FichaTab: React.FC<FichaTabProps> = ({
 
     const onSave = async () => {
         if (!canEdit) {
-            message.warning("No tienes permisos para editar esta ficha");
+            messageApi.warning("No tienes permisos para editar esta ficha");
             return;
         }
         try {
             const values = await form.validateFields();
+            setErrorGuardado(null);
             setSaving(true);
 
             await api.put(`/empresas/${empresa.id_empresa}`, {
@@ -168,11 +211,27 @@ const FichaTab: React.FC<FichaTabProps> = ({
                 contactos: values.contactos ?? [],
             });
 
-            message.success("Ficha actualizada correctamente");
+            messageApi.success("Ficha actualizada correctamente");
             setEditing(false);
             onUpdated?.();
-        } catch {
-            message.error("No se pudo guardar la ficha");
+        } catch (error) {
+            /* Validación del formulario: antd ya marca los campos con error */
+            if (
+                typeof error === "object" &&
+                error !== null &&
+                "errorFields" in error
+            ) {
+                return;
+            }
+
+            const texto =
+                obtenerMensajeError(
+                    error,
+                    "No se pudo guardar la ficha"
+                );
+
+            setErrorGuardado(texto);
+            messageApi.error(texto);
         } finally {
             setSaving(false);
         }
@@ -192,14 +251,14 @@ const FichaTab: React.FC<FichaTabProps> = ({
                     {!editing ? (
                         <Tooltip title="Editar ficha de empresa">
                             {canEdit && (
-                                <Button type="primary" onClick={() => setEditing(true)}>
+                                <Button type="primary" onClick={() => { setErrorGuardado(null); setEditing(true); }}>
                                     Editar
                                 </Button>
                             )}
                         </Tooltip>
                     ) : (
                         <div className="flex gap-2">
-                            <Button onClick={() => { setEditing(false); form.resetFields(); }}>
+                            <Button onClick={() => { setEditing(false); setErrorGuardado(null); form.resetFields(); }}>
                                 Cancelar
                             </Button>
                             <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={onSave}>
@@ -210,6 +269,7 @@ const FichaTab: React.FC<FichaTabProps> = ({
                 </Space>
             }
         >
+            {contextHolder}
             {!editing ? (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -373,6 +433,17 @@ const FichaTab: React.FC<FichaTabProps> = ({
                 </div>
             ) : (
                 <Form layout="vertical" form={form} className="space-y-6">
+                    {errorGuardado && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            closable
+                            message="No se pudo guardar la ficha"
+                            description={errorGuardado}
+                            onClose={() => setErrorGuardado(null)}
+                            className="mb-4"
+                        />
+                    )}
                     <Row gutter={16}>
                         <Col span={24} md={12}>
                             <Form.Item label={<span className="font-medium"><IdcardOutlined className="mr-2" />Razón social</span>} name="razonSocial">
@@ -394,6 +465,16 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 }
                                 name="dominios"
                                 tooltip="Separa varios dominios con coma. Ej: pini.cl, fiordoconsultores.cl"
+                                required
+                                rules={[
+                                    {
+                                        validator: async (_rule: unknown, value: unknown) => {
+                                            if (parseDominios(value).length === 0) {
+                                                throw new Error("Ingresa al menos un dominio");
+                                            }
+                                        },
+                                    },
+                                ]}
                             >
                                 <Input.TextArea
                                     rows={2}

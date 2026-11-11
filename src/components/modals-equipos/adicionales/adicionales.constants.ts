@@ -13,6 +13,9 @@ export const ADICIONAL_TIPOS = [
     "SWITCH",
     "UPS",
     "ROUTER",
+    "TELEFONO_IP",
+    "PARLANTE",
+    "ECOGRAFO",
     "OTRO",
 ] as const;
 
@@ -33,8 +36,26 @@ export const ADICIONAL_TIPO_LABEL: Record<
     SWITCH: "Switch",
     UPS: "UPS",
     ROUTER: "Router",
+    TELEFONO_IP: "Teléfono IP",
+    PARLANTE: "Parlante / Altavoz",
+    ECOGRAFO: "Ecógrafo",
     OTRO: "Otro",
 };
+
+/** Etiqueta legible; si el tipo no está en la lista (ej. uno antiguo), devuelve el valor tal cual. */
+export function getTipoAdicionalLabel(
+    tipo?: string | null
+): string {
+    const value =
+        String(tipo ?? "").trim();
+
+    return (
+        ADICIONAL_TIPO_LABEL[
+        value.toUpperCase() as TipoAdicional
+        ] ??
+        (value || "—")
+    );
+}
 
 export const ADICIONAL_ESTADOS: Array<{
     value: EstadoAdicional;

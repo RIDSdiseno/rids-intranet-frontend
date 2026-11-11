@@ -171,6 +171,18 @@ const IspTab: React.FC<Props> = ({
             numeroTicket:
                 isp.numeroTicket ?? "",
 
+            codigoServicio:
+                isp.codigoServicio ?? "",
+
+            direccion:
+                isp.direccion ?? "",
+
+            rut:
+                isp.rut ?? "",
+
+            telefonoSoporte:
+                isp.telefonoSoporte ?? "",
+
             wifiNombre:
                 isp.wifiNombre ?? "",
 
@@ -247,7 +259,13 @@ const IspTab: React.FC<Props> = ({
                     return;
                 }
 
+                /*
+                 * getFieldsValue(true) incluye los valores cargados sin
+                 * Form.Item visible (numeroTicket, wifiClaveRef), que
+                 * validateFields() omite y el backend dejaría en null.
+                 */
                 const payload = {
+                    ...form.getFieldsValue(true),
                     ...values,
                     ipRed,
                 };
@@ -341,6 +359,18 @@ const IspTab: React.FC<Props> = ({
 
                         numeroTicket:
                             isp.numeroTicket,
+
+                        codigoServicio:
+                            isp.codigoServicio,
+
+                        direccion:
+                            isp.direccion,
+
+                        rut:
+                            isp.rut,
+
+                        telefonoSoporte:
+                            isp.telefonoSoporte,
 
                         wifiNombre:
                             isp.wifiNombre,
@@ -559,6 +589,50 @@ const IspTab: React.FC<Props> = ({
                                     ?.nombre ||
                                     "Empresa (General)"}
                             </Col>
+
+                            <Col
+                                xs={24}
+                                md={12}
+                            >
+                                <b>
+                                    Código de servicio:
+                                </b>{" "}
+                                {isp.codigoServicio ||
+                                    "—"}
+                            </Col>
+
+                            <Col
+                                xs={24}
+                                md={12}
+                            >
+                                <b>
+                                    RUT:
+                                </b>{" "}
+                                {isp.rut ||
+                                    "—"}
+                            </Col>
+
+                            <Col
+                                xs={24}
+                                md={12}
+                            >
+                                <b>
+                                    Teléfono soporte:
+                                </b>{" "}
+                                {isp.telefonoSoporte ||
+                                    "—"}
+                            </Col>
+
+                            <Col
+                                xs={24}
+                                md={12}
+                            >
+                                <b>
+                                    Dirección:
+                                </b>{" "}
+                                {isp.direccion ||
+                                    "—"}
+                            </Col>
                         </Row>
                     </Card>
                 )
@@ -598,19 +672,41 @@ const IspTab: React.FC<Props> = ({
                         <Form.Item
                             name="operador"
                             label="Operador"
+                            tooltip="Empresa proveedora de internet (ej.: Entel, Movistar, GTD, Claro, Mundo)."
                         >
                             <Input />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="rut"
+                            label="RUT"
+                            tooltip="RUT del titular con el que está contratado el servicio. El ISP lo pide para validar al llamar a soporte."
+                        >
+                            <Input
+                                placeholder="Ej: 96.806.980-2"
+                                maxLength={20}
+                            />
                         </Form.Item>
 
                         <Form.Item
                             name="servicio"
                             label="Servicio"
+                            tooltip="Plan o tipo de servicio contratado (ej.: Fibra 600 Mbps, Internet dedicado, 4G de respaldo)."
                         >
                             <Input />
                         </Form.Item>
 
                         <Form.Item
+                            name="codigoServicio"
+                            label="Código de servicio"
+                            tooltip="Identificador del servicio en el ISP: código de servicio, N° de cliente o N° de contrato. Lo piden al reportar una falla."
+                        >
+                            <Input placeholder="Código o N° de cliente del ISP" />
+                        </Form.Item>
+
+                        <Form.Item
                             label="IP públicas"
+                            tooltip="IP públicas fijas asignadas por el ISP (máximo 5). Si la IP es dinámica, déjalo vacío."
                         >
                             <Form.List
                                 name="ipRed"
@@ -770,6 +866,7 @@ const IspTab: React.FC<Props> = ({
                         <Form.Item
                             name="wifiNombre"
                             label="WiFi"
+                            tooltip="Nombre (SSID) de la red inalámbrica principal. La clave no se registra aquí."
                         >
                             <Input />
                         </Form.Item>
@@ -777,13 +874,31 @@ const IspTab: React.FC<Props> = ({
                         <Form.Item
                             name="telefono"
                             label="Teléfono ISP"
+                            tooltip="Teléfono comercial o del ejecutivo de cuenta del ISP."
                         >
                             <Input />
                         </Form.Item>
 
                         <Form.Item
+                            name="telefonoSoporte"
+                            label="Teléfono soporte"
+                            tooltip="Mesa de ayuda o soporte técnico del ISP, para reportar caídas o lentitud."
+                        >
+                            <Input placeholder="Mesa de ayuda del ISP" />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="direccion"
+                            label="Dirección"
+                            tooltip="Dirección donde está instalado el servicio; puede ser distinta a la de la empresa."
+                        >
+                            <Input placeholder="Dirección donde está instalado el servicio" />
+                        </Form.Item>
+
+                        <Form.Item
                             name="sucursalId"
                             label="Sucursal"
+                            tooltip="Sucursal donde está el servicio. Vacío = red general de la empresa."
                         >
                             <Select
                                 allowClear
@@ -810,6 +925,7 @@ const IspTab: React.FC<Props> = ({
                         <Form.Item
                             name="esPrincipal"
                             label="¿Es principal?"
+                            tooltip="Red principal de la empresa. Solo puede haber una: al marcar esta, las demás dejan de ser principales."
                         >
                             <Select
                                 options={[

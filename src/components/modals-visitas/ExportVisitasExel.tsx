@@ -1,3 +1,4 @@
+// src/components/modals-visitas/ExportVisitasExel.tsx
 import React, { useMemo, useState } from "react";
 import XlsxPopulate from "xlsx-populate/browser/xlsx-populate";
 import {
@@ -574,6 +575,7 @@ async function fetchAllVisitasForExport(params: {
     empresaId: number | "";
     monthFilter: string;
     yearFilter: string;
+    statusFilter: string;
 }): Promise<VisitaRow[]> {
     const all: VisitaRow[] = [];
     let page = 1;
@@ -590,6 +592,7 @@ async function fetchAllVisitasForExport(params: {
         if (params.empresaId) url.searchParams.set("empresaId", String(params.empresaId));
         if (params.monthFilter) url.searchParams.set("month", params.monthFilter);
         if (params.yearFilter) url.searchParams.set("year", params.yearFilter);
+        if (params.statusFilter) url.searchParams.set("status", params.statusFilter);
 
         url.searchParams.set("_ts", String(Date.now()));
 
@@ -623,6 +626,7 @@ type Props = {
     empresaId: number | "";
     monthFilter: string;
     yearFilter: string;
+    statusFilter: string;
     tecnicos: TecnicoMini[];
     empresas: EmpresaMini[];
 };
@@ -636,6 +640,7 @@ export default function ExportVisitasExcelModal({
     empresaId,
     monthFilter,
     yearFilter,
+    statusFilter,
     tecnicos,
     empresas,
 }: Props) {
@@ -667,6 +672,18 @@ export default function ExportVisitasExcelModal({
         return "Sin periodo específico";
     }, [monthFilter, yearFilter]);
 
+    const estadoLabel = useMemo(() => {
+        const labels: Record<string, string> = {
+            PENDIENTE: "Pendiente",
+            COMPLETADA: "Completada",
+            CANCELADA: "Cancelada",
+        };
+
+        return statusFilter
+            ? labels[statusFilter] ?? statusFilter
+            : "Todos";
+    }, [statusFilter]);
+
     if (!open) return null;
 
     const downloadExcel = async () => {
@@ -686,6 +703,7 @@ export default function ExportVisitasExcelModal({
                 empresaId,
                 monthFilter,
                 yearFilter,
+                statusFilter,
             });
 
             const tplArrayBuf = await loadTemplateArrayBuffer();
@@ -748,6 +766,8 @@ export default function ExportVisitasExcelModal({
                 monthFilter && yearFilter
                     ? `${yearFilter}-${monthFilter}`
                     : new Date().toISOString().slice(0, 10);
+
+            const estadoFile = statusFilter ? `_${statusFilter}` : "";
 
             const fileName = `Visitas_${empresaFile}_${periodoFile}.xlsx`;
 
@@ -821,6 +841,11 @@ export default function ExportVisitasExcelModal({
                             <div className="flex justify-between gap-3">
                                 <span className="text-slate-500">Periodo</span>
                                 <span className="font-semibold text-slate-800">{periodoLabel}</span>
+                            </div>
+
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-500">Estado</span>
+                                <span className="font-semibold text-slate-800">{estadoLabel}</span>
                             </div>
 
                             <div className="flex justify-between gap-3">

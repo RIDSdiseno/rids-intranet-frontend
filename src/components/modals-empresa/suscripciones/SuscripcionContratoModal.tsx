@@ -23,6 +23,7 @@ import type {
 
 import {
     DatePicker,
+    Select,
 } from "antd";
 
 import dayjs from "dayjs";
@@ -92,6 +93,12 @@ const EMPTY_FORM:
 
     activo:
         true,
+
+    avisosActivos:
+        true,
+
+    correosAviso:
+        [],
 
     ejecutivosComerciales: [
         {
@@ -440,6 +447,14 @@ export default function SuscripcionContratoModal({
 
                 activo:
                     suscripcion.activo,
+
+                avisosActivos:
+                    suscripcion.avisosActivos ??
+                    true,
+
+                correosAviso:
+                    suscripcion.correosAviso ??
+                    [],
 
                 ejecutivosComerciales:
                     suscripcion
@@ -837,6 +852,35 @@ export default function SuscripcionContratoModal({
             }
         }
 
+        const correoAvisoInvalido =
+            form.correosAviso.find(
+                correo =>
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+                        correo
+                    )
+            );
+
+        if (
+            correoAvisoInvalido
+        ) {
+            setError(
+                `El correo de aviso "${correoAvisoInvalido}" no es válido.`
+            );
+
+            return;
+        }
+
+        if (
+            form.correosAviso.length >
+            10
+        ) {
+            setError(
+                "Puedes agregar hasta 10 correos de aviso."
+            );
+
+            return;
+        }
+
         try {
             setSaving(
                 true
@@ -870,6 +914,12 @@ export default function SuscripcionContratoModal({
             }
 
             await onSaved();
+
+            window.dispatchEvent(
+                new Event(
+                    "recordatorios:actualizar"
+                )
+            );
 
             onClose();
         } catch (
@@ -2072,6 +2122,136 @@ export default function SuscripcionContratoModal({
                                             )
                                         )
                                     }
+                                </div>
+                            </section>
+
+                            {/* =====================================
+                                AVISO DE VENCIMIENTO
+                            ===================================== */}
+
+                            <section
+                                className={
+                                    sectionClass
+                                }
+                            >
+                                <h3
+                                    className={
+                                        sectionTitleClass
+                                    }
+                                >
+                                    Aviso de vencimiento
+                                </h3>
+
+                                <label
+                                    className="
+                                        flex
+                                        cursor-pointer
+                                        items-center
+                                        gap-3
+                                    "
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            form.avisosActivos
+                                        }
+                                        onChange={
+                                            e =>
+                                                update(
+                                                    "avisosActivos",
+                                                    e.target.checked
+                                                )
+                                        }
+                                        disabled={
+                                            saving
+                                        }
+                                        className="
+                                            h-4
+                                            w-4
+                                            rounded
+                                        "
+                                    />
+
+                                    <div>
+                                        <div
+                                            className="
+                                                text-sm
+                                                font-medium
+                                                text-slate-900
+                                            "
+                                        >
+                                            Avisar vencimiento por correo
+                                        </div>
+
+                                        <div
+                                            className="
+                                                mt-0.5
+                                                text-xs
+                                                text-slate-500
+                                            "
+                                        >
+                                            Se avisa 30, 15, 7 y 1 día antes y el mismo día, por separado para la fecha de renovación y la de término. Solo para suscripciones activas.
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <div className="mt-4">
+                                    <label
+                                        className={
+                                            labelClass
+                                        }
+                                    >
+                                        Correos adicionales
+                                    </label>
+
+                                    <Select
+                                        mode="tags"
+                                        open={
+                                            false
+                                        }
+                                        suffixIcon={
+                                            null
+                                        }
+                                        tokenSeparators={[
+                                            ",",
+                                            ";",
+                                            " ",
+                                        ]}
+                                        value={
+                                            form.correosAviso
+                                        }
+                                        onChange={
+                                            (valores: string[]) =>
+                                                update(
+                                                    "correosAviso",
+                                                    [
+                                                        ...new Set(
+                                                            valores
+                                                                .map(
+                                                                    valor =>
+                                                                        valor
+                                                                            .trim()
+                                                                            .toLowerCase()
+                                                                )
+                                                                .filter(
+                                                                    Boolean
+                                                                )
+                                                        ),
+                                                    ]
+                                                )
+                                        }
+                                        placeholder="correo@empresa.cl (Enter para agregar)"
+                                        disabled={
+                                            saving ||
+                                            !form.avisosActivos
+                                        }
+                                        className="w-full"
+                                        size="large"
+                                    />
+
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Además de estos, el aviso llega siempre a la lista general de RIDS.
+                                    </p>
                                 </div>
                             </section>
 

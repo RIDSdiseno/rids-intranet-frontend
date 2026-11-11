@@ -11,7 +11,8 @@ export type OrigenRecordatorio =
     | "TICKET"
     | "COTIZACION"
     | "VISITA"
-    | "EQUIPO";
+    | "EQUIPO"
+    | "SUSCRIPCION";
 
 export interface Recordatorio {
     id: number;
@@ -31,6 +32,7 @@ export interface Recordatorio {
     equipoId?: number | null;
     mantencionId?: number | null;
     oportunidadId?: number | null;
+    suscripcionId?: number | null;
 
     leidoAt?: string | null;
     notificadoAt?: string | null;
@@ -70,6 +72,17 @@ export interface Recordatorio {
         serial?: string | null;
         marca: string;
         modelo: string;
+    } | null;
+
+    suscripcion?: {
+        id: number;
+        empresaId: number;
+        productoPlan: string;
+        fechaRenovacion: string | null;
+        fechaTermino: string | null;
+        empresa?: {
+            nombre: string;
+        } | null;
     } | null;
 }
 

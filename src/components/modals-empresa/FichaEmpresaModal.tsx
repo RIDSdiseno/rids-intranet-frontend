@@ -1,6 +1,7 @@
 // ./src/components/modals-empresa/FichaEmpresaModal.tsx
 import React from "react";
-import { Drawer, Tabs } from "antd";
+import { Button, Drawer, Tabs, message } from "antd";
+import { FilePdfOutlined } from "@ant-design/icons";
 
 import FichaTab from "./tabs/FichaTab";
 import ChecklistTab from "./tabs/ChecklistTab";
@@ -9,6 +10,9 @@ import SucursalTab from "./tabs/SucursalTab";
 import ServidoresTab from "./tabs/ServidoresTab";
 import RedesTab from "./tabs/RedesTab";
 import EmpresaEntidadTab from "./tabs/EmpresaEntidadTab";
+
+import TelefoniaTab from "./tabs/TelefoniaTab";
+import { useAuth } from "../hooks/useAuth";
 
 /* NUEVO */
 import SuscripcionesContratosTab
@@ -21,8 +25,23 @@ import type {
 
 import { http } from "../../service/http";
 
+/** Pestañas que se pueden abrir directamente (p. ej. desde la campana). */
+const TABS_FICHA = [
+  "ficha",
+  "suscripciones",
+  "checklist",
+  "tecnica",
+  "redes",
+  "sucursales",
+  "servidores",
+  "telefonia",
+];
+
 const FichaEmpresaModal: React.FC<
-  FichaEmpresaModalProps
+  FichaEmpresaModalProps & {
+    /** Pestaña con la que se abre la ficha. Por defecto "ficha". */
+    tabInicial?: string | undefined;
+  }
 > = ({
   open,
   onClose,
@@ -32,9 +51,76 @@ const FichaEmpresaModal: React.FC<
   canEdit = true,
   canViewEntidadRelation = false,
   canManageEntidadRelation = false,
+  tabInicial,
 }) => {
     const [activeTab, setActiveTab] =
       React.useState("ficha");
+
+    /* Telefonía guarda contraseñas: mismos roles que acepta el backend */
+    const { user } = useAuth();
+
+    const puedeVerTelefonia =
+      ["ADMIN", "ADMINISTRACION", "TECNICO"].includes(
+        String(user?.rol ?? "")
+      );
+
+    const [exportandoPdf, setExportandoPdf] =
+      React.useState(false);
+
+    const exportarPdf = async () => {
+      const empresaId =
+        localData?.empresa?.id_empresa ??
+        empresa?.id_empresa;
+
+      if (!empresaId) {
+        return;
+      }
+
+      setExportandoPdf(true);
+
+      try {
+        const res = await http.get(
+          `/ficha-empresa/${empresaId}/pdf`,
+          { responseType: "blob" }
+        );
+
+        /* Nombre que manda el backend; si CORS no expone el header, se arma aquí */
+        const disposition = String(
+          res.headers?.["content-disposition"] ?? ""
+        );
+
+        const nombreEmpresa = String(
+          localData?.empresa?.nombre ??
+          empresa?.nombre ??
+          empresaId
+        )
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "_");
+
+        const nombreArchivo =
+          /filename="([^"]+)"/.exec(disposition)?.[1] ??
+          `Ficha_${nombreEmpresa}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+        const url = URL.createObjectURL(
+          new Blob([res.data], { type: "application/pdf" })
+        );
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = nombreArchivo;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Error exportando ficha a PDF:", error);
+        message.error("No se pudo generar el PDF de la ficha");
+      } finally {
+        setExportandoPdf(false);
+      }
+    };
 
     const [localData, setLocalData] =
       React.useState<FichaEmpresaCompleta | null>(
@@ -95,6 +181,17 @@ const FichaEmpresaModal: React.FC<
       }
     }, [open]);
 
+    React.useEffect(() => {
+      if (
+        open &&
+        tabInicial &&
+        TABS_FICHA.includes(tabInicial) &&
+        (tabInicial !== "telefonia" || puedeVerTelefonia)
+      ) {
+        setActiveTab(tabInicial);
+      }
+    }, [open, tabInicial, puedeVerTelefonia]);
+
     const refetchFicha = async () => {
       if (!localData?.empresa) {
         return;
@@ -152,6 +249,16 @@ const FichaEmpresaModal: React.FC<
         onClose={onClose}
         width={1200}
         destroyOnClose={false}
+        extra={
+          <Button
+            icon={<FilePdfOutlined />}
+            loading={exportandoPdf}
+            disabled={!localData}
+            onClick={() => void exportarPdf()}
+          >
+            Exportar PDF
+          </Button>
+        }
         title={`Ficha Empresa · ${localData?.empresa?.nombre ??
           empresa?.nombre ??
           ""
@@ -315,6 +422,26 @@ const FichaEmpresaModal: React.FC<
                     />
                   ),
                 },
+
+                ...(puedeVerTelefonia
+                  ? [
+                    {
+                      key: "telefonia",
+                      label: "Telefonía",
+                      children: (
+                        <TelefoniaTab
+                          key={
+                            localData.empresa.id_empresa
+                          }
+                          empresaId={
+                            localData.empresa.id_empresa
+                          }
+                          canEdit={canEditLocal}
+                        />
+                      ),
+                    },
+                  ]
+                  : []),
 
                 {
                   key: "sucursales",

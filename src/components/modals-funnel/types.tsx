@@ -561,3 +561,33 @@ export interface EnviarInformeOportunidadResultado {
   messageId:
   string;
 }
+
+/* =========================================================
+   Documentos PDF de la oportunidad
+========================================================= */
+
+export type TipoDocumentoOportunidad =
+  | "PROPUESTA"
+  | "BASES"
+  | "ORDEN_COMPRA"
+  | "CONTRATO"
+  | "OTRO";
+
+export interface OportunidadDocumentoItem {
+  id: number;
+  oportunidadId: number;
+  tipo: TipoDocumentoOportunidad;
+  nombre: string;
+  descripcion: string | null;
+  mimeType: string;
+  bytes: number;
+  createdAt: string;
+  subidoPor: ResponsableResumen | null;
+}
+
+export interface DocumentoOportunidadUrl {
+  id: number;
+  nombre: string;
+  url: string;
+  expiresIn: number;
+}

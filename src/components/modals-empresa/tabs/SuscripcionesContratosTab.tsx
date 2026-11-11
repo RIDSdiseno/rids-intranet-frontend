@@ -524,6 +524,127 @@ export default function SuscripcionesContratosTab({
         );
     }
 
+    function badgeVencimiento(
+        item:
+            SuscripcionContrato
+    ) {
+        if (
+            !item.activo
+        ) {
+            return null;
+        }
+
+        const hoy =
+            new Date();
+
+        const hoyUtc =
+            Date.UTC(
+                hoy.getFullYear(),
+                hoy.getMonth(),
+                hoy.getDate()
+            );
+
+        const proxima =
+            [
+                {
+                    tipo:
+                        "Renovación",
+
+                    valor:
+                        item.fechaRenovacion,
+                },
+                {
+                    tipo:
+                        "Término",
+
+                    valor:
+                        item.fechaTermino,
+                },
+            ]
+                .filter(
+                    (
+                        fecha
+                    ): fecha is {
+                        tipo: string;
+                        valor: string;
+                    } =>
+                        Boolean(
+                            fecha.valor
+                        )
+                )
+                .map(
+                    fecha => ({
+                        tipo:
+                            fecha.tipo,
+
+                        dias:
+                            Math.round(
+                                (
+                                    Date.parse(
+                                        `${fecha.valor.slice(0, 10)}T00:00:00Z`
+                                    ) -
+                                    hoyUtc
+                                ) /
+                                86_400_000
+                            ),
+                    })
+                )
+                .filter(
+                    fecha =>
+                        fecha.dias <=
+                        30
+                )
+                .sort(
+                    (
+                        a,
+                        b
+                    ) =>
+                        a.dias -
+                        b.dias
+                )[0];
+
+        if (
+            !proxima
+        ) {
+            return null;
+        }
+
+        const {
+            tipo,
+            dias,
+        } =
+            proxima;
+
+        const texto =
+            dias < 0
+                ? `${tipo}: venció hace ${-dias} día${dias === -1 ? "" : "s"}`
+                : dias === 0
+                    ? `${tipo}: vence hoy`
+                    : `${tipo} en ${dias} día${dias === 1 ? "" : "s"}`;
+
+        const clase =
+            dias <= 0
+                ? "border-red-200 bg-red-50 text-red-700"
+                : dias <= 7
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-sky-200 bg-sky-50 text-sky-700";
+
+        return (
+            <span
+                title={
+                    item.avisosActivos
+                        ? "Se avisa por correo"
+                        : "Avisos por correo desactivados"
+                }
+                className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${clase}`}
+            >
+                {
+                    texto
+                }
+            </span>
+        );
+    }
+
     function formatDate(
         value:
             string | null
@@ -793,11 +914,15 @@ export default function SuscripcionesContratosTab({
                                                 </td>
 
                                                 <td className="px-4 py-3 text-center text-slate-700">
-                                                    <span className="inline-flex items-center justify-center gap-1.5">
-                                                        <CalendarClock size={15} />
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="inline-flex items-center justify-center gap-1.5">
+                                                            <CalendarClock size={15} />
 
-                                                        {formatDate(item.fechaRenovacion)}
-                                                    </span>
+                                                            {formatDate(item.fechaRenovacion)}
+                                                        </span>
+
+                                                        {badgeVencimiento(item)}
+                                                    </div>
                                                 </td>
 
                                                 <td className="px-4 py-3 text-center">

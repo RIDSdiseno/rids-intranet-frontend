@@ -17,6 +17,7 @@ import {
   MinusOutlined,
   StopOutlined,
   PlayCircleOutlined,
+  CalendarOutlined
 } from "@ant-design/icons";
 
 import { Modal, Tooltip as AntTooltip, } from "antd";
@@ -61,6 +62,7 @@ import ManualesTab from "../components/modals-empresa/ManualesPage";
 
 import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
+import { useSearchParams } from "react-router-dom";
 
 /* ====================== Tipos de página ====================== */
 
@@ -128,12 +130,57 @@ type CompletitudFichaEmpresa = {
   CompletitudSeccionFicha[];
 };
 
+type VencimientoSuscripcion = {
+  suscripcionId:
+  number;
+
+  productoPlan:
+  string;
+
+  fabricante:
+  string;
+
+  tipoFecha:
+  | "RENOVACION"
+  | "TERMINO";
+
+  /** YYYY-MM-DD */
+  fecha:
+  string;
+
+  /** Días que faltan; negativo = vencida hace N días. */
+  dias:
+  number;
+
+  avisosActivos:
+  boolean;
+};
+
+type ResumenVencimientosEmpresa = {
+  vencidas:
+  number;
+
+  porVencer:
+  number;
+
+  proxima:
+  VencimientoSuscripcion |
+  null;
+
+  items:
+  VencimientoSuscripcion[];
+};
+
 interface Empresa extends EmpresaLite {
   estadisticas:
   EstadisticasEmpresa;
 
   completitudFicha?:
   CompletitudFichaEmpresa |
+  null;
+
+  vencimientos?:
+  ResumenVencimientosEmpresa |
   null;
 }
 
@@ -400,6 +447,127 @@ function normalizeCompletitudFicha(
   };
 }
 
+function normalizeVencimiento(
+  input:
+    unknown
+): VencimientoSuscripcion | null {
+
+  if (
+    !isRecord(
+      input
+    )
+  ) {
+    return null;
+  }
+
+  const dias =
+    asNumberOr(
+      input.dias,
+      NaN
+    );
+
+  const fecha =
+    asStringOr(
+      input.fecha,
+      ""
+    );
+
+  if (
+    !Number.isFinite(
+      dias
+    ) ||
+    !fecha
+  ) {
+    return null;
+  }
+
+  return {
+    suscripcionId:
+      asNumberOr(
+        input.suscripcionId,
+        0
+      ),
+
+    productoPlan:
+      asStringOr(
+        input.productoPlan,
+        ""
+      ),
+
+    fabricante:
+      asStringOr(
+        input.fabricante,
+        ""
+      ),
+
+    tipoFecha:
+      input.tipoFecha ===
+        "TERMINO"
+        ? "TERMINO"
+        : "RENOVACION",
+
+    fecha,
+
+    dias,
+
+    avisosActivos:
+      input.avisosActivos !==
+      false,
+  };
+}
+
+function normalizeVencimientos(
+  input:
+    unknown
+): ResumenVencimientosEmpresa | null {
+
+  if (
+    !isRecord(
+      input
+    )
+  ) {
+    return null;
+  }
+
+  const items =
+    Array.isArray(
+      input.items
+    )
+      ? input.items
+        .map(
+          normalizeVencimiento
+        )
+        .filter(
+          (
+            item
+          ): item is VencimientoSuscripcion =>
+            item !==
+            null
+        )
+      : [];
+
+  return {
+    vencidas:
+      asNumberOr(
+        input.vencidas,
+        0
+      ),
+
+    porVencer:
+      asNumberOr(
+        input.porVencer,
+        0
+      ),
+
+    proxima:
+      normalizeVencimiento(
+        input.proxima
+      ),
+
+    items,
+  };
+}
+
 function normalizeEmpresa(input: unknown): Empresa {
   const e = isRecord(input) ? input : {};
   const id = asNumberOr(e.id_empresa, NaN);
@@ -437,6 +605,11 @@ function normalizeEmpresa(input: unknown): Empresa {
     completitudFicha:
       normalizeCompletitudFicha(
         e.completitudFicha
+      ),
+
+    vencimientos:
+      normalizeVencimientos(
+        e.vencimientos
       ),
   };
 }
@@ -1018,7 +1191,205 @@ const FichaCompletitudBadge:
     );
   };
 
+/* ====================== VencimientosBadge ====================== */
+function fechaCortaVencimiento(
+  clave:
+    string
+): string {
+
+  const [
+    anio,
+    mes,
+    dia,
+  ] =
+    clave.split(
+      "-"
+    );
+
+  return `${dia}-${mes}-${anio}`;
+}
+
+function textoVencimiento(
+  dias:
+    number
+): string {
+
+  if (
+    dias <
+    0
+  ) {
+    return dias ===
+      -1
+      ? "venció ayer"
+      : `venció hace ${-dias} días`;
+  }
+
+  if (
+    dias ===
+    0
+  ) {
+    return "vence hoy";
+  }
+
+  return dias ===
+    1
+    ? "vence mañana"
+    : `vence en ${dias} días`;
+}
+
+type VencimientosBadgeProps = {
+  resumen:
+  ResumenVencimientosEmpresa;
+};
+
+const VencimientosBadge:
+  React.FC<
+    VencimientosBadgeProps
+  > = ({
+    resumen,
+  }) => {
+
+    const {
+      vencidas,
+      porVencer,
+      proxima,
+      items,
+    } =
+      resumen;
+
+    if (
+      vencidas ===
+      0 &&
+      !proxima
+    ) {
+      return null;
+    }
+
+    const dias =
+      proxima?.dias ??
+      0;
+
+    const label =
+      vencidas >
+        0
+        ? `${vencidas} vencida${vencidas !== 1 ? "s" : ""}${porVencer > 0
+          ? ` · ${porVencer} por vencer`
+          : ""}`
+        : dias ===
+          0
+          ? "Vence hoy"
+          : dias ===
+            1
+            ? "Vence mañana"
+            : `Vence en ${dias} días`;
+
+    const cls =
+      vencidas >
+        0 ||
+        dias ===
+        0
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : dias <=
+          7
+          ? "border-amber-200 bg-amber-50 text-amber-700"
+          : "border-sky-200 bg-sky-50 text-sky-700";
+
+    const restantes =
+      vencidas +
+      porVencer -
+      items.length;
+
+    const tooltipContent = (
+      <div className="max-w-sm space-y-2 text-xs">
+        <div className="font-semibold">
+          Suscripciones y contratos
+        </div>
+
+        <div className="space-y-1.5">
+          {items.map(
+            item => (
+              <div
+                key={`${item.suscripcionId}-${item.tipoFecha}`}
+              >
+                <div>
+                  •{" "}
+                  <span className="font-medium">
+                    {
+                      item.productoPlan
+                    }
+                  </span>
+                  {item.fabricante
+                    ? ` (${item.fabricante})`
+                    : ""}
+                </div>
+
+                <div className="pl-3 text-white/75">
+                  {item.tipoFecha ===
+                    "RENOVACION"
+                    ? "Renovación"
+                    : "Término"}{" "}
+                  {fechaCortaVencimiento(
+                    item.fecha
+                  )}
+                  {" · "}
+                  {textoVencimiento(
+                    item.dias
+                  )}
+                  {!item.avisosActivos &&
+                    " · sin aviso por correo"}
+                </div>
+              </div>
+            )
+          )}
+
+          {restantes >
+            0 && (
+              <div className="text-white/70">
+                + {restantes} más
+              </div>
+            )}
+        </div>
+
+        <div className="border-t border-white/20 pt-1 text-white/75">
+          Vencidas y próximas a vencer (30 días). Se gestionan en la pestaña Suscripciones de la ficha.
+        </div>
+      </div>
+    );
+
+    return (
+      <AntTooltip
+        title={
+          tooltipContent
+        }
+        placement="top"
+      >
+        <span
+          className={`
+            inline-flex
+            cursor-help
+            items-center
+            gap-1
+            rounded-full
+            border
+            px-2
+            py-0.5
+            text-xs
+            font-medium
+            ${cls}
+          `}
+        >
+          <CalendarOutlined />
+
+          {
+            label
+          }
+        </span>
+      </AntTooltip>
+    );
+  };
+
 /* ====================== Tipos soporte mensual ====================== */
+
 type SoporteMensualRow = {
   empresaId: number;
   empresa: string;
@@ -1667,6 +2038,7 @@ const EmpresasPage: React.FC = () => {
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaError, setFichaError] = useState<string | null>(null);
   const [fichaData, setFichaData] = useState<FichaEmpresaCompleta | null>(null);
+  const [fichaTabInicial, setFichaTabInicial] = useState<string | undefined>(undefined);
   const [createEmpresaOpen, setCreateEmpresaOpen] = useState(false);
 
   const [estadoEmpresaFiltro, setEstadoEmpresaFiltro] =
@@ -1992,6 +2364,47 @@ const EmpresasPage: React.FC = () => {
     finally { setDetailsLoading(false); }
   };
 
+  /* ===================== INDICADORES DE UNA EMPRESA =====================
+   Ficha % y vencimientos de suscripciones, sin recargar toda la lista.
+*/
+  const refrescarIndicadoresEmpresa = async (
+    empresaId: number
+  ) => {
+    try {
+      const { data } = await http.get(
+        `/empresas/${empresaId}/indicadores`
+      );
+
+      const completitudFicha =
+        normalizeCompletitudFicha(
+          data?.data?.completitudFicha
+        );
+
+      const vencimientos =
+        normalizeVencimientos(
+          data?.data?.vencimientos
+        );
+
+      setEmpresas((prev) =>
+        prev.map((empresa) =>
+          empresa.id_empresa ===
+            empresaId
+            ? {
+              ...empresa,
+              completitudFicha,
+              vencimientos,
+            }
+            : empresa
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Error actualizando indicadores de la empresa:",
+        error
+      );
+    }
+  };
+
   /* ===================== FICHA ===================== */
   const refreshEmpresaCompleta = async (
     empresaId: number
@@ -2138,6 +2551,39 @@ const EmpresasPage: React.FC = () => {
       setFichaLoading(false);
     }
   };
+
+  /* ===================== ABRIR FICHA DESDE LA URL =====================
+    /empresas?fichaEmpresaId=ID (p. ej. desde la campana de recordatorios)
+ */
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const valor = searchParams.get("fichaEmpresaId");
+
+    if (!valor || loading) {
+      return;
+    }
+
+    const empresaId = Number(valor);
+
+    const empresa = empresas.find(
+      (item) => item.id_empresa === empresaId
+    );
+
+    if (empresa) {
+      setActiveTab("companies");
+      setFichaTabInicial(searchParams.get("fichaTab") ?? undefined);
+      void openFichaEmpresa(empresa);
+    }
+
+    /* Se quitan los parámetros para no reabrir la ficha al recargar */
+    const siguiente = new URLSearchParams(searchParams);
+    siguiente.delete("fichaEmpresaId");
+    siguiente.delete("fichaTab");
+    setSearchParams(siguiente, { replace: true });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, empresas, loading]);
 
   /* ===================== Derivados ===================== */
   const statsTotales = useMemo(
@@ -2801,7 +3247,7 @@ const EmpresasPage: React.FC = () => {
                           <BuildOutlined className="text-blue-700" />
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">{empresa.nombre}</h3>
                             <span
                               className={
@@ -2837,6 +3283,13 @@ const EmpresasPage: React.FC = () => {
                               <FichaCompletitudBadge
                                 completitud={
                                   empresa.completitudFicha
+                                }
+                              />
+                            )}
+                            {empresa.vencimientos && (
+                              <VencimientosBadge
+                                resumen={
+                                  empresa.vencimientos
                                 }
                               />
                             )}
@@ -3047,10 +3500,28 @@ const EmpresasPage: React.FC = () => {
         }
 
         onClose={
-          () =>
+          () => {
             setFichaOpen(
               false
-            )
+            );
+
+            setFichaTabInicial(
+              undefined
+            );
+
+            /* La ficha pudo cambiar suscripciones, contactos, checklist… */
+            if (
+              fichaData?.empresa?.id_empresa
+            ) {
+              void refrescarIndicadoresEmpresa(
+                fichaData.empresa.id_empresa
+              );
+            }
+          }
+        }
+
+        tabInicial={
+          fichaTabInicial
         }
 
         loading={

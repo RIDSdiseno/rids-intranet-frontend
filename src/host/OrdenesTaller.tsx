@@ -13,6 +13,7 @@ import {
     CloseCircleOutlined,
     EditOutlined,
     SwapOutlined,
+    HistoryOutlined
 } from "@ant-design/icons";
 import { MailOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
@@ -60,6 +61,7 @@ import { ModalOrden } from "../components/modals-gestioo/ModalOrden";
 import { ModalEditarEntidad } from "../components/modals-gestioo/ModalEditarEntidad";
 import { ModalPreviewOrden } from "../components/modals-gestioo/ModalPreviewOrden";
 import SendOrdenModal from "../components/modals-gestioo/SendOrdenModal";
+import { ModalHistorialOrden } from "../components/modals-gestioo/ModalHistorialOrden";
 
 import { http } from "../service/http";
 
@@ -362,6 +364,8 @@ const OrdenesTaller: React.FC = () => {
     const [previewOrden, setPreviewOrden] = useState<DetalleTrabajoGestioo | null>(null);
 
     const [showSendModal, setShowSendModal] = useState(false);
+    const [historialOrden, setHistorialOrden] =
+        useState<DetalleTrabajoGestioo | null>(null);
     const [sendOrdenSelected, setSendOrdenSelected] = useState<DetalleTrabajoGestioo | null>(null);
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -1453,6 +1457,14 @@ const OrdenesTaller: React.FC = () => {
                                                                     <EditOutlined />
                                                                 </button>
 
+                                                                <button
+                                                                    onClick={() => setHistorialOrden(o)}
+                                                                    className="rounded-lg border border-slate-200 bg-white text-slate-700 p-2 hover:bg-slate-50"
+                                                                    title="Historial de la orden"
+                                                                >
+                                                                    <HistoryOutlined />
+                                                                </button>
+
                                                                 {o.area !== "SALIDA" &&
                                                                     !existeSalidaParaGrupo(o) && (
                                                                         <button
@@ -1569,6 +1581,14 @@ const OrdenesTaller: React.FC = () => {
                         setPreviewOrden(null);
                     }}
                     onPrint={() => abrirModalImpresion(previewOrden)}
+                />
+            )}
+
+            {!isCliente && historialOrden && (
+                <ModalHistorialOrden
+                    ordenId={historialOrden.id}
+                    ordenNumero={historialOrden.ordenGrupoId ?? historialOrden.id}
+                    onClose={() => setHistorialOrden(null)}
                 />
             )}
 

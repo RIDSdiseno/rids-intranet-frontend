@@ -49,6 +49,7 @@ import type {
 import OportunidadForm from "./OportunidadForm";
 import EnviarInformeFunnelModal
   from "./EnviarInformeFunnelModal";
+import DocumentosOportunidad from "./DocumentosOportunidad";
 import {
   ETAPAS_SELECCIONABLES,
   formatFecha,
@@ -554,8 +555,12 @@ export default function OportunidadDrawer({
               ✕
             </button>
 
-            {loading || !oportunidad ? (
-              <div className="p-6 text-slate-500">Cargando detalle…</div>
+            {/* Solo la primera carga muestra el placeholder: un refresco del
+                detalle no debe desmontar las secciones (perderían su estado). */}
+            {!oportunidad ? (
+              <div className="p-6 text-slate-500">
+                {loading ? "Cargando detalle…" : "Sin datos"}
+              </div>
             ) : (
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -967,6 +972,12 @@ export default function OportunidadDrawer({
                         onCrearCotizacion={() => onAbrirCrearCotizacion(oportunidad)}
                       />
                     </div>
+
+                    {/* Documentos PDF */}
+                    <DocumentosOportunidad
+                      oportunidadId={oportunidad.id}
+                      activo={oportunidad.activo}
+                    />
 
                     {/* 2. Seguimientos */}
                     <SeguimientosSection

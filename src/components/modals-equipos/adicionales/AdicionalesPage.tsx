@@ -36,6 +36,11 @@ import type {
     OrigenAdicional,
 } from "./adicionales.types";
 
+import {
+    ADICIONAL_TIPOS,
+    getTipoAdicionalLabel,
+} from "./adicionales.constants";
+
 import CrearAdicionalModal from "./CrearAdicionalModal";
 import EditarAdicionalModal from "./EditarAdicionalModal";
 import AdicionalViewModal from "./AdicionalViewModal";
@@ -271,6 +276,27 @@ function getTipoAdicionalClass(
                 "border-emerald-200 " +
                 "bg-emerald-50 " +
                 "text-emerald-800"
+            );
+
+        case "TELEFONO_IP":
+            return (
+                "border-teal-200 " +
+                "bg-teal-50 " +
+                "text-teal-800"
+            );
+
+        case "PARLANTE":
+            return (
+                "border-pink-200 " +
+                "bg-pink-50 " +
+                "text-pink-800"
+            );
+
+        case "ECOGRAFO":
+            return (
+                "border-rose-200 " +
+                "bg-rose-50 " +
+                "text-rose-800"
             );
 
         case "OTRO":
@@ -1713,49 +1739,16 @@ const AdicionalesPage:
                                                     Todos los tipos
                                                 </option>
 
-                                                <option value="MONITOR">
-                                                    Monitor
-                                                </option>
-
-                                                <option value="IMPRESORA">
-                                                    Impresora
-                                                </option>
-
-                                                <option value="TECLADO">
-                                                    Teclado
-                                                </option>
-
-                                                <option value="MOUSE">
-                                                    Mouse
-                                                </option>
-
-                                                <option value="DOCK">
-                                                    Dock
-                                                </option>
-
-                                                <option value="CARGADOR">
-                                                    Cargador
-                                                </option>
-
-                                                <option value="CAMARA">
-                                                    Cámara
-                                                </option>
-
-                                                <option value="SWITCH">
-                                                    Switch
-                                                </option>
-
-                                                <option value="UPS">
-                                                    UPS
-                                                </option>
-
-                                                <option value="ROUTER">
-                                                    Router
-                                                </option>
-
-                                                <option value="OTRO">
-                                                    Otro
-                                                </option>
+                                                {ADICIONAL_TIPOS.map(
+                                                    (value) => (
+                                                        <option
+                                                            key={value}
+                                                            value={value}
+                                                        >
+                                                            {getTipoAdicionalLabel(value)}
+                                                        </option>
+                                                    )
+                                                )}
 
                                             </select>
 
@@ -1976,9 +1969,7 @@ const AdicionalesPage:
                                                 Tipo:
 
                                                 <strong className="truncate">
-                                                    {
-                                                        tipo
-                                                    }
+                                                    {getTipoAdicionalLabel(tipo)}
                                                 </strong>
 
                                                 <button
@@ -2206,9 +2197,7 @@ const AdicionalesPage:
                                                                 )
                                                             )}
                                                         >
-                                                            {
-                                                                row.tipo
-                                                            }
+                                                            {getTipoAdicionalLabel(row.tipo)}
                                                         </span>
                                                     </div>
 
@@ -2661,9 +2650,7 @@ const AdicionalesPage:
                                                                     )
                                                                 )}
                                                             >
-                                                                {
-                                                                    row.tipo
-                                                                }
+                                                                {getTipoAdicionalLabel(row.tipo)}
                                                             </span>
                                                         </td>
 

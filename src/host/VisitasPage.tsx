@@ -284,6 +284,8 @@ const VisitasPage: React.FC = () => {
   const [empresaId, setEmpresaId] = useState<number | "">("");
   const [monthFilter, setMonthFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] =
+    useState<"" | "PENDIENTE" | "COMPLETADA" | "CANCELADA">("");
 
   // paginación
   const [page, setPage] = useState(1);
@@ -436,6 +438,7 @@ const VisitasPage: React.FC = () => {
           empresaId: empresaId || undefined,
           month: monthFilter || undefined,
           year: yearFilter || undefined,
+          status: statusFilter || undefined,
           _ts: Date.now()
         }
       });
@@ -454,7 +457,7 @@ const VisitasPage: React.FC = () => {
     } finally {
       if (seq === reqSeqRef.current) setLoading(false);
     }
-  }, [page, qDebounced, tecnicoId, empresaId, monthFilter, yearFilter]);
+  }, [page, qDebounced, tecnicoId, empresaId, monthFilter, yearFilter, statusFilter]);
 
   const fetchResumenDia = useCallback(
     async (signal?: AbortSignal) => {
@@ -605,6 +608,7 @@ const VisitasPage: React.FC = () => {
     setEmpresaId("");
     setMonthFilter("");
     setYearFilter("");
+    setStatusFilter("");
     setPage(1);
   };
 
@@ -834,7 +838,7 @@ const VisitasPage: React.FC = () => {
             {activeTab === "lista" && (
               <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-3">
                 {/* Búsqueda */}
-                <div className="relative md:col-span-4">
+                <div className="relative md:col-span-3">
                   <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
                   <input
                     value={q}
@@ -857,7 +861,7 @@ const VisitasPage: React.FC = () => {
                 </div>
 
                 {/* Filtro técnico */}
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
                   <select
                     value={tecnicoId}
                     onChange={(e) => { const v = e.target.value; setTecnicoId(v ? Number(v) : ""); setPage(1); }}
@@ -888,6 +892,24 @@ const VisitasPage: React.FC = () => {
                     </select>
                   </div>
                 )}
+
+                {/* Filtro estado */}
+                <div className="md:col-span-2">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value as typeof statusFilter);
+                      setPage(1);
+                    }}
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                    aria-label="Filtrar por estado"
+                  >
+                    <option value="">Todos los estados</option>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="COMPLETADA">Completada</option>
+                    <option value="CANCELADA">Cancelada</option>
+                  </select>
+                </div>
 
                 {/* Filtro mes */}
                 <div className="md:col-span-1">
@@ -2212,6 +2234,7 @@ const VisitasPage: React.FC = () => {
         empresaId={empresaId}
         monthFilter={monthFilter}
         yearFilter={yearFilter}
+        statusFilter={statusFilter}
         tecnicos={tecnicos}
         empresas={empresas}
       />

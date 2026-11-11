@@ -99,6 +99,10 @@ export type SuscripcionContrato = {
     createdAt: string;
 
     updatedAt: string;
+
+    avisosActivos: boolean;
+
+    correosAviso: string[];
 };
 
 export type SuscripcionContratoPayload = {
@@ -147,6 +151,10 @@ export type SuscripcionContratoPayload = {
 
     contactosSoporte:
     SuscripcionContactoSoporte[];
+
+    avisosActivos: boolean;
+
+    correosAviso: string[];
 };
 
 export type ContratoPdfData = {
