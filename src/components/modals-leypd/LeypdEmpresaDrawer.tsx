@@ -1,6 +1,7 @@
 // src/components/modals-leypd/LeypdEmpresaDrawer.tsx
 
 import {
+    DownloadOutlined,
     FileTextOutlined,
     ReloadOutlined,
     SafetyCertificateOutlined,
@@ -12,9 +13,11 @@ import {
     Drawer,
     Progress,
     Skeleton,
+    Space,
     Tabs,
     Tag,
     message,
+    Tooltip
 } from "antd";
 
 import {
@@ -28,6 +31,10 @@ import {
     getLeypdEmpresa,
     getLeypdSharepoint,
 } from "./leypd.api";
+
+import {
+    api,
+} from "../../api/api";
 
 import LeypdElementosTab from "./LeypdElementosTab";
 import LeypdFichaTab from "./LeypdFichaTab";
@@ -111,6 +118,180 @@ export default function LeypdEmpresaDrawer({
         sharepointError,
         setSharepointError,
     ] = useState(false);
+
+    /* -------------------- PDF de la ficha -------------------- */
+
+    const [
+        descargandoPdf,
+        setDescargandoPdf,
+    ] = useState(false);
+
+    const descargarPdfFicha =
+        async () => {
+            if (!empresaId) {
+                return;
+            }
+
+            setDescargandoPdf(true);
+
+            try {
+                const { data } =
+                    await api.get<Blob>(
+                        `/leypd/${empresaId}/ficha/pdf`,
+                        {
+                            responseType:
+                                "blob",
+                        }
+                    );
+
+                const url =
+                    URL.createObjectURL(
+                        data
+                    );
+
+                const enlace =
+                    document.createElement(
+                        "a"
+                    );
+
+                enlace.href = url;
+                enlace.download =
+                    `Ficha_LeyPD_${(detalle?.empresa.nombre ?? "empresa")
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[^a-zA-Z0-9]+/g, "_")}.pdf`;
+
+                document.body.appendChild(
+                    enlace
+                );
+                enlace.click();
+                enlace.remove();
+
+                setTimeout(
+                    () =>
+                        URL.revokeObjectURL(
+                            url
+                        ),
+                    1000
+                );
+            } catch (err) {
+                console.error(
+                    "[LEYPD] Error descargando PDF de la ficha:",
+                    err
+                );
+
+                message.error(
+                    "No se pudo generar el PDF de la ficha."
+                );
+            } finally {
+                setDescargandoPdf(false);
+            }
+        };
+
+    /* -------------------- Expediente PDF (documentos unidos) -------------------- */
+
+    const [
+        descargandoExpediente,
+        setDescargandoExpediente,
+    ] = useState(false);
+
+    const descargarExpediente =
+        async () => {
+            if (!empresaId) {
+                return;
+            }
+
+            setDescargandoExpediente(true);
+
+            message.loading({
+                key: "leypd-expediente",
+                content:
+                    "Generando expediente: se convierten y unen los documentos de SharePoint (puede tardar un minuto)…",
+                duration: 0,
+            });
+
+            try {
+                const { data } =
+                    await api.get<Blob>(
+                        `/leypd/${empresaId}/expediente/pdf`,
+                        {
+                            responseType:
+                                "blob",
+                        }
+                    );
+
+                const url =
+                    URL.createObjectURL(
+                        data
+                    );
+
+                const enlace =
+                    document.createElement(
+                        "a"
+                    );
+
+                enlace.href = url;
+                enlace.download =
+                    `Expediente_LeyPD_${(detalle?.empresa.nombre ?? "empresa")
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[^a-zA-Z0-9]+/g, "_")}.pdf`;
+
+                document.body.appendChild(
+                    enlace
+                );
+                enlace.click();
+                enlace.remove();
+
+                setTimeout(
+                    () =>
+                        URL.revokeObjectURL(
+                            url
+                        ),
+                    1000
+                );
+
+                message.success({
+                    key: "leypd-expediente",
+                    content:
+                        "Expediente descargado. Revisa el índice: indica los documentos que no se incluyeron.",
+                });
+            } catch (err) {
+                console.error(
+                    "[LEYPD] Error descargando expediente:",
+                    err
+                );
+
+                /* Con responseType blob, el JSON de error llega como Blob */
+                let detalleError: string | null =
+                    null;
+
+                const cuerpo =
+                    (err as { response?: { data?: unknown } })
+                        .response?.data;
+
+                if (cuerpo instanceof Blob) {
+                    try {
+                        detalleError =
+                            (JSON.parse(
+                                await cuerpo.text()
+                            ) as { message?: string })
+                                .message ?? null;
+                    } catch {
+                        detalleError = null;
+                    }
+                }
+
+                message.error({
+                    key: "leypd-expediente",
+                    content:
+                        detalleError ??
+                        "No se pudo generar el expediente.",
+                });
+            } finally {
+                setDescargandoExpediente(false);
+            }
+        };
 
     /* =====================================================
        LOAD
@@ -484,6 +665,44 @@ export default function LeypdEmpresaDrawer({
                     <Tabs
                         activeKey={activeTab}
                         onChange={setActiveTab}
+                        tabBarExtraContent={
+                            <Space size={8}>
+                                {activeTab === "ficha" ? (
+                                    <Tooltip title="Incluye solo los datos guardados">
+                                        <Button
+                                            size="small"
+                                            icon={<DownloadOutlined />}
+                                            loading={descargandoPdf}
+                                            onClick={() =>
+                                                void descargarPdfFicha()
+                                            }
+                                        >
+                                            Descargar PDF
+                                        </Button>
+                                    </Tooltip>
+                                ) : null}
+
+                                <Tooltip
+                                    title={
+                                        sharepoint?.vinculado
+                                            ? "Uso interno: estado de los elementos, índice y todos los documentos del worker en un solo PDF"
+                                            : "Vincula la carpeta LEYPD de SharePoint primero"
+                                    }
+                                >
+                                    <Button
+                                        size="small"
+                                        icon={<FileTextOutlined />}
+                                        loading={descargandoExpediente}
+                                        disabled={!sharepoint?.vinculado}
+                                        onClick={() =>
+                                            void descargarExpediente()
+                                        }
+                                    >
+                                        Expediente PDF
+                                    </Button>
+                                </Tooltip>
+                            </Space>
+                        }
                         items={[
                             {
                                 key: "elementos",

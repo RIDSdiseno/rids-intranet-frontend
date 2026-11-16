@@ -697,6 +697,8 @@ export default function LeypdFichaTab({
                 values={form}
                 showMetadata
                 errors={fieldErrors}
+                contactos={data.contactos ?? []}
+                contactoEmpresa={data.contactoEmpresa ?? null}
                 onChange={setField}
             />
 

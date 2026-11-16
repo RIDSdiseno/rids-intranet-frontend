@@ -11,6 +11,8 @@ import ServidoresTab from "./tabs/ServidoresTab";
 import RedesTab from "./tabs/RedesTab";
 import EmpresaEntidadTab from "./tabs/EmpresaEntidadTab";
 
+import LogoEmpresa from "./LogoEmpresa";
+
 import TelefoniaTab from "./tabs/TelefoniaTab";
 import { useAuth } from "../hooks/useAuth";
 
@@ -293,6 +295,12 @@ const FichaEmpresaModal: React.FC<
                 )}
               </div>
             )}
+
+            <LogoEmpresa
+              key={localData.empresa.id_empresa}
+              empresaId={localData.empresa.id_empresa}
+              canEdit={canEditLocal}
+            />
 
             <Tabs
               activeKey={activeTab}

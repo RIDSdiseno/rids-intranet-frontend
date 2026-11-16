@@ -336,6 +336,29 @@ export interface LeypdFichaInternaResponse {
 
     campos:
     CampoFichaLeypd[];
+
+    /** Correo y teléfono de la empresa (ficha de empresa › Cliente). */
+    contactoEmpresa?:
+    ContactoEmpresaFichaLeypd | null;
+
+    /** Contactos de la ficha de empresa, principal primero. */
+    contactos?:
+    ContactoFichaLeypd[];
+}
+
+export interface ContactoFichaLeypd {
+    id: number;
+    nombre: string;
+    cargo: string;
+    email: string | null;
+    telefono: string | null;
+    principal: boolean;
+    sucursal: string | null;
+}
+
+export interface ContactoEmpresaFichaLeypd {
+    email: string | null;
+    telefono: string | null;
 }
 
 /* =====================================================

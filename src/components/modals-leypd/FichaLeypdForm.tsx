@@ -8,8 +8,14 @@ import {
 
 import type {
     CampoFichaLeypd,
+    ContactoEmpresaFichaLeypd,
+    ContactoFichaLeypd,
     DatosFichaLeypd,
 } from "./leypd.types";
+
+import SelectorContactoFichaLeypd, {
+    campoUsaSelectorContacto,
+} from "./SelectorContactoFichaLeypd";
 
 import {
     esValorVacioLeypd,
@@ -90,6 +96,13 @@ interface Props {
         string,
         string
     >;
+
+    contactos?:
+    ContactoFichaLeypd[];
+
+    contactoEmpresa?:
+    ContactoEmpresaFichaLeypd | null;
+
     onChange:
     (
         key: string,
@@ -104,6 +117,8 @@ export default function FichaLeypdForm({
     disabled = false,
     showMetadata = true,
     errors = {},
+    contactos,
+    contactoEmpresa = null,
     onChange,
 }: Props) {
     const renderControl =
@@ -778,6 +793,24 @@ export default function FichaLeypdForm({
                                                 {/* =========================
                                                 CONTROL
                                             ========================= */}
+
+                                                {contactos &&
+                                                    !disabled &&
+                                                    campoUsaSelectorContacto(
+                                                        campo.key
+                                                    ) && (
+                                                        <SelectorContactoFichaLeypd
+                                                            campoKey={campo.key}
+                                                            contactos={contactos}
+                                                            contactoEmpresa={contactoEmpresa}
+                                                            onSelect={(texto) =>
+                                                                onChange(
+                                                                    campo.key,
+                                                                    texto
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
 
                                                 {renderControl(
                                                     campo
