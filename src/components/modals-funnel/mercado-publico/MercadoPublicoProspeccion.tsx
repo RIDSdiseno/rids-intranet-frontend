@@ -33,6 +33,7 @@ import type {
     EstadoOportunidadMercadoPublico,
     MercadoPublicoMeta,
     MercadoPublicoOportunidad,
+    VigenciaMercadoPublico,
 } from "./mercado-publico.types";
 
 import MercadoPublicoDetalleDrawer
@@ -243,6 +244,67 @@ function getEstadoStyle(
 }
 
 
+/* Mismos códigos que CODIGOS_ESTADO_CERRADA del backend. */
+const CODIGOS_ESTADO_CERRADA: readonly number[] = [6, 7, 8, 18];
+
+
+function esCerrada(
+    oportunidad:
+        MercadoPublicoOportunidad
+): boolean {
+
+    if (
+        oportunidad.codigoEstado !==
+        null &&
+        CODIGOS_ESTADO_CERRADA.includes(
+            oportunidad.codigoEstado
+        )
+    ) {
+        return true;
+    }
+
+
+    if (
+        !oportunidad.fechaCierre
+    ) {
+        return false;
+    }
+
+
+    const cierre =
+        new Date(
+            oportunidad.fechaCierre
+        ).getTime();
+
+
+    return Number.isFinite(
+        cierre
+    ) &&
+        cierre <
+        Date.now();
+}
+
+
+/** "Adjudicada", "Desierta"… si Mercado Público lo informa; si no, "Cerrada". */
+function etiquetaCierre(
+    oportunidad:
+        MercadoPublicoOportunidad
+): string {
+
+    const estadoMP =
+        oportunidad
+            .estadoMercadoPublico
+            ?.trim();
+
+
+    return estadoMP &&
+        estadoMP.toLowerCase() !==
+        "publicada"
+        ? estadoMP
+        : "Cerrada";
+}
+
+
 export default function MercadoPublicoProspeccion({
     onConvertida,
 }: Props) {
@@ -344,7 +406,7 @@ export default function MercadoPublicoProspeccion({
             number |
             undefined
         >(
-            40
+            0
         );
 
 
@@ -354,6 +416,16 @@ export default function MercadoPublicoProspeccion({
     ] =
         useState(
             ""
+        );
+
+    const [
+        vigencia,
+        setVigencia,
+    ] =
+        useState<
+            VigenciaMercadoPublico
+        >(
+            "vigentes"
         );
 
 
@@ -471,6 +543,8 @@ export default function MercadoPublicoProspeccion({
                                 }
                                 : {}),
 
+                            vigencia,
+
                             page,
 
                             limit,
@@ -517,6 +591,7 @@ export default function MercadoPublicoProspeccion({
                 estado,
                 scoreMin,
                 region,
+                vigencia,
                 page,
                 limit,
                 message,
@@ -554,7 +629,14 @@ export default function MercadoPublicoProspeccion({
 
 
             message.success(
-                `Sincronización completada: ${resultado.nuevas} nuevas, ${resultado.actualizadas} actualizadas, ${resultado.omitidasExistentes} ya existentes y ${resultado.detallesConsultados} detalles consultados.`
+                `Sincronización completada: ${resultado.nuevas} nuevas, ${resultado.actualizadas} actualizadas, ${resultado.omitidasExistentes} ya existentes y ${resultado.descartadasScore} sin afinidad TI.` +
+                (
+                    resultado.omitidasPorLimite >
+                        0
+                        ? ` Quedan ${resultado.omitidasPorLimite} por revisar: vuelve a sincronizar.`
+                        : ""
+                ),
+                8
             );
 
 
@@ -966,6 +1048,48 @@ export default function MercadoPublicoProspeccion({
                 />
 
 
+                <Select<VigenciaMercadoPublico>
+                    className="w-full sm:w-36"
+                    value={
+                        vigencia
+                    }
+                    onChange={
+                        (
+                            value
+                        ) => {
+
+                            setVigencia(
+                                value
+                            );
+
+                            setPage(
+                                1
+                            );
+                        }
+                    }
+                    options={[
+                        {
+                            value:
+                                "vigentes",
+                            label:
+                                "Vigentes",
+                        },
+                        {
+                            value:
+                                "cerradas",
+                            label:
+                                "Cerradas",
+                        },
+                        {
+                            value:
+                                "todas",
+                            label:
+                                "Todas",
+                        },
+                    ]}
+                />
+
+
                 <Select
                     allowClear
                     placeholder="Estado"
@@ -1238,6 +1362,21 @@ export default function MercadoPublicoProspeccion({
                                                                     .estado
                                                             }
                                                         </span>
+
+
+                                                        {esCerrada(
+                                                            oportunidad
+                                                        ) && (
+
+                                                                <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-rose-700">
+                                                                    {
+                                                                        etiquetaCierre(
+                                                                            oportunidad
+                                                                        )
+                                                                    }
+                                                                </span>
+
+                                                            )}
 
                                                     </div>
 

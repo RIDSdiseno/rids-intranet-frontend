@@ -1,3 +1,4 @@
+// src/components/modals-funnel/mercado-publico/mercado-publico.types.ts
 export type EstadoOportunidadMercadoPublico =
     | "NUEVA"
     | "INTERESANTE"
@@ -130,7 +131,14 @@ export type MercadoPublicoListadoResponse = {
 };
 
 
+export type VigenciaMercadoPublico =
+    | "vigentes"
+    | "cerradas"
+    | "todas";
+
+
 export type MercadoPublicoFiltros = {
+    vigencia?: VigenciaMercadoPublico;
     texto?: string;
     estado?: EstadoOportunidadMercadoPublico;
     scoreMin?: number;

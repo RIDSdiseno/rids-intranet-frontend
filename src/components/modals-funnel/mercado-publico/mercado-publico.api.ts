@@ -58,6 +58,14 @@ export async function listarMercadoPublico(
 
 
     if (
+        filtros.vigencia
+    ) {
+        params.vigencia =
+            filtros.vigencia;
+    }
+
+
+    if (
         filtros.page !==
         undefined
     ) {
