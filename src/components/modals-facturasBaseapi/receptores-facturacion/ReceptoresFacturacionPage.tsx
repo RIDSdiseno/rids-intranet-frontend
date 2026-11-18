@@ -16,6 +16,7 @@ import {
     Search,
     Settings2,
     Plus,
+    DatabaseZap
 } from "lucide-react";
 
 import {
@@ -29,6 +30,9 @@ import ReceptorFacturacionModal
 
 import ReceptorCrearModal
     from "./ReceptorCrearModal";
+
+import SincronizarReceptoresCrmModal
+    from "../SincronizarReceptoresCrmModal";
 
 /* =========================================================
    HELPERS
@@ -196,6 +200,14 @@ export default function ReceptoresFacturacionPage() {
     const [
         crearModalOpen,
         setCrearModalOpen,
+    ] =
+        useState(
+            false
+        );
+
+    const [
+        syncCrmOpen,
+        setSyncCrmOpen,
     ] =
         useState(
             false
@@ -447,6 +459,41 @@ export default function ReceptoresFacturacionPage() {
                                 <Plus size={17} />
 
                                 Nuevo receptor
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    () =>
+                                        setSyncCrmOpen(
+                                            true
+                                        )
+                                }
+                                className="
+                                    inline-flex
+                                    min-h-11
+                                    w-full
+                                    items-center
+                                    justify-center
+                                    gap-2
+                                    rounded-xl
+                                    border
+                                    border-cyan-200
+                                    bg-white
+                                    px-4
+                                    py-2.5
+                                    text-sm
+                                    font-semibold
+                                    text-cyan-700
+                                    shadow-sm
+                                    transition
+                                    hover:bg-cyan-50
+                                    sm:w-auto
+                                "
+                            >
+                                <DatabaseZap size={17} />
+
+                                Sincronizar desde el CRM
                             </button>
 
                             <button
@@ -850,6 +897,25 @@ export default function ReceptoresFacturacionPage() {
                     </div>
                 </div>
             </div>
+
+            <SincronizarReceptoresCrmModal
+                open={
+                    syncCrmOpen
+                }
+                modulo="FACTURACION"
+                onClose={
+                    () =>
+                        setSyncCrmOpen(
+                            false
+                        )
+                }
+                onAplicado={
+                    async () => {
+                        await cargar();
+                    }
+                }
+            />
+
 
             <ReceptorCrearModal
                 open={

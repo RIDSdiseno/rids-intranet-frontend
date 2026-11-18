@@ -17,6 +17,7 @@ import {
     RefreshCw,
     Search,
     Settings2,
+    DatabaseZap
 } from "lucide-react";
 
 import {
@@ -30,6 +31,9 @@ import ReceptorCobranzaModal
 
 import ReceptorCobranzaCrearModal
     from "./ReceptorCobranzaCrearModal";
+
+import SincronizarReceptoresCrmModal
+    from "../SincronizarReceptoresCrmModal";
 
 /* =========================================================
    HELPERS
@@ -203,6 +207,14 @@ export default function ReceptoresCobranzaPage() {
     const [
         crearModalOpen,
         setCrearModalOpen,
+    ] =
+        useState(
+            false
+        );
+
+    const [
+        syncCrmOpen,
+        setSyncCrmOpen,
     ] =
         useState(
             false
@@ -483,6 +495,41 @@ export default function ReceptoresCobranzaPage() {
                                 />
 
                                 Nuevo receptor
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    () =>
+                                        setSyncCrmOpen(
+                                            true
+                                        )
+                                }
+                                className="
+                                    inline-flex
+                                    min-h-11
+                                    w-full
+                                    items-center
+                                    justify-center
+                                    gap-2
+                                    rounded-xl
+                                    border
+                                    border-cyan-200
+                                    bg-white
+                                    px-4
+                                    py-2.5
+                                    text-sm
+                                    font-semibold
+                                    text-cyan-700
+                                    shadow-sm
+                                    transition
+                                    hover:bg-cyan-50
+                                    sm:w-auto
+                                "
+                            >
+                                <DatabaseZap size={17} />
+
+                                Sincronizar desde el CRM
                             </button>
 
                             <button
@@ -931,6 +978,24 @@ export default function ReceptoresCobranzaPage() {
                     </div>
                 </div>
             </div>
+
+            <SincronizarReceptoresCrmModal
+                open={
+                    syncCrmOpen
+                }
+                modulo="COBRANZA"
+                onClose={
+                    () =>
+                        setSyncCrmOpen(
+                            false
+                        )
+                }
+                onAplicado={
+                    async () => {
+                        await cargar();
+                    }
+                }
+            />
 
             {/* CREAR */}
 

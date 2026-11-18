@@ -25,10 +25,12 @@ import {
     DatabaseOutlined,
     CommentOutlined,
     EyeInvisibleOutlined,
+    ImportOutlined
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { http } from "../../../service/http";  // ajusta ruta
+import { api } from "../../../api/api";  // ajusta ruta
+import CompletarDesdeCrmModal, { type VisitasCrmFichaTecnica } from "./CompletarDesdeCrmModal";
 
 dayjs.extend(utc);
 
@@ -49,22 +51,32 @@ const toDateInputValue = (date?: string | Date | null) => {
     return dayjs.utc(date).format("YYYY-MM-DD");
 };
 
+/* Última y próxima visita: vienen calculadas desde Visitas y Agenda (no se editan) */
+const textoUltimaVisita = (v?: VisitasCrmFichaTecnica | null) =>
+    v?.ultima ? `${v.ultima.fecha}${v.ultima.tecnico ? ` · ${v.ultima.tecnico}` : ""}` : null;
+
+const textoProximaVisita = (v?: VisitasCrmFichaTecnica | null) =>
+    v?.proxima
+        ? `${v.proxima.fecha}${v.proxima.hora ? ` ${v.proxima.hora}` : ""}` +
+        `${v.proxima.tecnicos.length ? ` · ${v.proxima.tecnicos.join(", ")}` : ""}`
+        : null;
+
 const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
     const [form] = Form.useForm();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeView, setActiveView] = useState<'view' | 'edit'>('view');
+    const [crmOpen, setCrmOpen] = useState(false);
+    const [valoresAntesCrm, setValoresAntesCrm] = useState<Record<string, unknown>>({});
 
     const loadFicha = async () => {
         try {
             setLoading(true);
-            const { data: json } = await http.get(`/ficha-empresa/${empresaId}/ficha-tecnica`);
+            const { data: json } = await api.get(`/ficha-empresa/${empresaId}/ficha-tecnica`);
             setData(json);
             form.setFieldsValue({
                 ...json,
-                fechaUltimaVisita: toDateInputValue(json.fechaUltimaVisita),
-                proximaVisitaProgramada: toDateInputValue(json.proximaVisitaProgramada),
                 ultimaRestauracion: toDateInputValue(json.ultimaRestauracion),
             });
         } catch {
@@ -85,7 +97,7 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
         try {
             const values = await form.validateFields();
             setSaving(true);
-            await http.put(`/ficha-empresa/${empresaId}/ficha-tecnica`, values);
+            await api.put(`/ficha-empresa/${empresaId}/ficha-tecnica`, values);
             message.success("Ficha técnica guardada exitosamente");
             setActiveView('view');
             loadFicha();
@@ -105,8 +117,8 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                 items: [
                     { label: "Técnico principal", value: data.tecnicoPrincipal, icon: <UserOutlined /> },
                     { label: "Técnicos de respaldo", value: data.tecnicosRespaldo, icon: <UserOutlined /> },
-                    { label: "Última visita", value: data.fechaUltimaVisita ? dayjs.utc(data.fechaUltimaVisita).format("DD-MM-YYYY") : null, icon: <CalendarOutlined /> },
-                    { label: "Próxima visita", value: data.proximaVisitaProgramada ? dayjs.utc(data.proximaVisitaProgramada).format("DD-MM-YYYY") : null, icon: <CalendarOutlined /> },
+                    { label: "Última visita", value: textoUltimaVisita(data.visitasCrm), icon: <CalendarOutlined /> },
+                    { label: "Próxima visita", value: textoProximaVisita(data.visitasCrm), icon: <CalendarOutlined /> },
                     { label: "Observaciones", value: data.observacionesVisita, icon: <CommentOutlined /> }
                 ]
             },
@@ -199,8 +211,16 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                 <Row gutter={16}>
                     <Col span={12}><Form.Item name="tecnicoPrincipal" label="Técnico responsable principal"><Input placeholder="Nombre del técnico principal" /></Form.Item></Col>
                     <Col span={12}><Form.Item name="tecnicosRespaldo" label="Técnicos de respaldo"><Input placeholder="Nombres de técnicos de respaldo" /></Form.Item></Col>
-                    <Col span={12}><Form.Item name="fechaUltimaVisita" label="Fecha última visita"><Input type="date" /></Form.Item></Col>
-                    <Col span={12}><Form.Item name="proximaVisitaProgramada" label="Próxima visita programada"><Input type="date" /></Form.Item></Col>
+                    <Col span={12}>
+                        <Form.Item label="Última visita" extra="Desde Visitas (completadas)">
+                            <Input value={textoUltimaVisita(data?.visitasCrm) ?? "Sin visitas completadas"} disabled />
+                        </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                        <Form.Item label="Próxima visita" extra="Desde la Agenda">
+                            <Input value={textoProximaVisita(data?.visitasCrm) ?? "Sin visitas agendadas"} disabled />
+                        </Form.Item>
+                    </Col>
                     <Col span={24}><Form.Item name="observacionesVisita" label="Observaciones de visita"><Input.TextArea rows={3} placeholder="Observaciones importantes..." /></Form.Item></Col>
                 </Row>
             </Card>
@@ -274,6 +294,19 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
                         </Tooltip>
                     ) : (
                         <>
+                            {canEdit && (
+                                <Tooltip title="Sugerir datos desde inventario, suscripciones, ISP, redes y visitas">
+                                    <Button
+                                        icon={<ImportOutlined />}
+                                        onClick={() => {
+                                            setValoresAntesCrm(form.getFieldsValue());
+                                            setCrmOpen(true);
+                                        }}
+                                    >
+                                        Completar desde el CRM
+                                    </Button>
+                                </Tooltip>
+                            )}
                             <Tooltip title="Cancelar edición">
                                 <Button onClick={() => { setActiveView('view'); form.resetFields(); }}>Cancelar</Button>
                             </Tooltip>
@@ -288,6 +321,19 @@ const FichaTecnicaTab: React.FC<Props> = ({ empresaId, canEdit = true }) => {
             }
         >
             {!loading && data && (activeView === "view" ? renderViewMode() : renderEditMode())}
+
+            <CompletarDesdeCrmModal
+                open={crmOpen}
+                empresaId={empresaId}
+                valoresActuales={valoresAntesCrm}
+                onAplicar={(valores) => {
+                    form.setFieldsValue(valores);
+                    message.success(
+                        `${Object.keys(valores).length} dato(s) copiados desde el CRM. Revisa y presiona «Guardar».`
+                    );
+                }}
+                onClose={() => setCrmOpen(false)}
+            />
         </Card>
     );
 };
