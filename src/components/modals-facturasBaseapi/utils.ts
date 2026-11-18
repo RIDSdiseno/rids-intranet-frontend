@@ -25,6 +25,21 @@ export const EMPRESAS_PDF: Record<EmpresaKey, EmpresaPDFConfig> = {
     },
 };
 
+/**
+ * Empresa emisora (rids | econnet) según el RUT del emisor del DTE.
+ * null si el RUT no corresponde a ninguna de las dos.
+ */
+export function empresaKeyPorRutEmisor(rut: unknown): EmpresaKey | null {
+    const limpio = String(rut ?? "").replace(/[^0-9kK]/g, "").toUpperCase();
+    if (!limpio) return null;
+
+    for (const key of Object.keys(EMPRESAS_PDF) as EmpresaKey[]) {
+        if (EMPRESAS_PDF[key].rut.replace(/[^0-9kK]/g, "").toUpperCase() === limpio) return key;
+    }
+
+    return null;
+}
+
 export function formatCLP(valor: any) {
     const numero = toCurrencyNumber(valor);
 
@@ -286,6 +301,13 @@ export function formatFechaPDF(value?: any) {
 
     if (/^\d{2}\/\d{2}\/\d{4}/.test(raw)) {
         return raw.slice(0, 10);
+    }
+
+    // Fecha de documento (YYYY-MM-DD o ISO a medianoche UTC): se toma el día tal cual.
+    // Con new Date() + toLocaleDateString, "2026-11-01T00:00:00.000Z" se mostraba como 31-10-2026 en Chile.
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+        return `${iso[3]}-${iso[2]}-${iso[1]}`;
     }
 
     const date = new Date(raw);

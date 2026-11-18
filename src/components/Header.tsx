@@ -76,6 +76,7 @@ const FACTURAS_BASEAPI_PATH = "/facturas";
 const CONCILIACION_PATH = "/conciliacion-rcv";
 const RECEPTORES_FACTURACION_PATH = "/facturas/receptores";
 const RECEPTORES_COBRANZA_PATH = "/facturas/receptores-cobranza";
+const CLIENTES_CXC_PATH = "/finanzas/clientes-cxc";
 
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
@@ -374,14 +375,9 @@ const NAV: NavEntry[] = [
         icon: <BarChart3 size={20} />,
       },
       {
-        label:
-          "Comportamiento clientes",
-
-        to:
-          FINANZAS_CLIENTES_PATH,
-
-        icon:
-          <FileUser size={20} />,
+        label: "Clientes",
+        to: CLIENTES_CXC_PATH,
+        icon: <Contact size={20} />,
       },
       {
         type: "submenu",
@@ -397,11 +393,6 @@ const NAV: NavEntry[] = [
             label: "Facturas",
             to: FACTURAS_BASEAPI_PATH,
             icon: <FileText size={18} />,
-          },
-          {
-            label: "Receptores facturación",
-            to: RECEPTORES_FACTURACION_PATH,
-            icon: <MailCheck size={18} />,
           },
         ],
       },
@@ -420,11 +411,6 @@ const NAV: NavEntry[] = [
             label: "Gestión cobranza",
             to: COBRANZA_PATH,
             icon: <FileSpreadsheet size={18} />,
-          },
-          {
-            label: "Receptores cobranza",
-            to: RECEPTORES_COBRANZA_PATH,
-            icon: <Contact size={18} />,
           },
         ],
       },

@@ -26,6 +26,7 @@ import {
 
 import FinanzasKpiCard from "../components/modals-facturasBaseapi/finanzas/FinanzasKpiCard";
 import FinanzasChart from "../components/modals-facturasBaseapi/finanzas/FinanzasChart";
+import FinanzasCxcPanel from "../components/modals-facturasBaseapi/finanzas/FinanzasCxcPanel";
 
 import type {
     EmpresaFinanzas,
@@ -200,6 +201,15 @@ const FinanzasDashboard:
                 "bruta"
             );
 
+        // «Actualizar» también recalcula las cuentas por cobrar (sin caché).
+        const [
+            refreshCxc,
+            setRefreshCxc,
+        ] =
+            useState(
+                0
+            );
+
         /* =====================================================
            FETCH
         ===================================================== */
@@ -326,69 +336,6 @@ const FinanzasDashboard:
                 ]
             );
 
-        /* =====================================================
-   NAVEGACIÓN A DOCUMENTOS
-===================================================== */
-
-        const irADocumentosPorEstado =
-            (
-                estadoPago:
-                    "PENDIENTE" |
-                    "VENCIDA"
-            ) => {
-
-                const params =
-                    new URLSearchParams();
-
-
-                params.set(
-                    "empresa",
-                    empresa
-                );
-
-
-                params.set(
-                    "ano",
-                    String(
-                        ano
-                    )
-                );
-
-
-                params.set(
-                    "estadoPago",
-                    estadoPago
-                );
-
-
-                if (
-                    mesSeleccionado
-                ) {
-
-                    params.set(
-                        "mes",
-                        String(
-                            mesSeleccionado
-                                .mes
-                        ).padStart(
-                            2,
-                            "0"
-                        )
-                    );
-
-                } else {
-
-                    params.set(
-                        "periodo",
-                        "anual"
-                    );
-                }
-
-                navigate(
-                    `/facturas?${params.toString()}`
-                );
-            };
-
         const mesesDisponibles =
             useMemo(
                 () =>
@@ -511,9 +458,12 @@ const FinanzasDashboard:
                                     <div className="flex items-end">
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                void cargarDashboard()
-                                            }
+                                            onClick={() => {
+                                                void cargarDashboard();
+                                                setRefreshCxc(
+                                                    (n) => n + 1
+                                                );
+                                            }}
                                             disabled={
                                                 loading
                                             }
@@ -585,6 +535,19 @@ const FinanzasDashboard:
                         </div>
                     )}
 
+                    {/* CUENTAS POR COBRAR (cartera actual, estilo Duemint) */}
+
+                    <FinanzasCxcPanel
+                        empresa={
+                            empresa
+                        }
+                        refreshToken={
+                            refreshCxc
+                        }
+                    />
+
+                    {/* EVOLUCIÓN ANUAL */}
+
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-slate-500">
                             {mesSeleccionado ? (
@@ -623,7 +586,7 @@ const FinanzasDashboard:
 
                     {/* KPIs */}
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 
                         <FinanzasKpiCard
                             label="Facturado"
@@ -671,87 +634,6 @@ const FinanzasDashboard:
                                 />
                             }
                             tone="cyan"
-                        />
-
-                        <FinanzasKpiCard
-                            label="Por vencer"
-                            onClick={
-                                () =>
-                                    irADocumentosPorEstado(
-                                        "PENDIENTE"
-                                    )
-                            }
-                            value={
-                                formatCLP(
-                                    mesSeleccionado
-                                        ? mesSeleccionado.porVencer
-                                        : resumen?.montoPorVencer ??
-                                        0
-                                )
-                            }
-                            helper={
-                                mesSeleccionado
-                                    ? `${mesSeleccionado.documentosPorVencer} documentos pendientes`
-                                    : `${resumen?.documentosPorVencer ?? 0} documentos pendientes`
-                            }
-                            icon={
-                                <Clock3
-                                    size={20}
-                                />
-                            }
-                            tone="amber"
-                        />
-
-                        <FinanzasKpiCard
-                            label="Vencido"
-                            onClick={
-                                () =>
-                                    irADocumentosPorEstado(
-                                        "VENCIDA"
-                                    )
-                            }
-                            value={
-                                formatCLP(
-                                    mesSeleccionado
-                                        ? mesSeleccionado.vencido
-                                        : resumen?.montoVencido ??
-                                        0
-                                )
-                            }
-                            helper={
-                                mesSeleccionado
-                                    ? `${mesSeleccionado.documentosVencidos} documentos vencidos`
-                                    : `${resumen?.documentosVencidos ?? 0} documentos vencidos`
-                            }
-                            icon={
-                                <TriangleAlert
-                                    size={20}
-                                />
-                            }
-                            tone="red"
-                        />
-
-                        <FinanzasKpiCard
-                            label="Pagado"
-                            value={
-                                formatCLP(
-                                    mesSeleccionado
-                                        ? mesSeleccionado.pagado
-                                        : resumen?.montoPagado ??
-                                        0
-                                )
-                            }
-                            helper={
-                                mesSeleccionado
-                                    ? `${mesSeleccionado.documentosPagados} documentos conciliados`
-                                    : `${resumen?.documentosPagados ?? 0} documentos conciliados`
-                            }
-                            icon={
-                                <CheckCircle2
-                                    size={20}
-                                />
-                            }
-                            tone="emerald"
                         />
 
                     </div>

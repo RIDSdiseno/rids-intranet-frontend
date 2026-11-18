@@ -26,6 +26,7 @@ import {
 
 import {
     EMPRESAS_PDF,
+    empresaKeyPorRutEmisor,
 } from "./utils";
 
 /** Extrae el bloque <TED>...</TED> completo (DD + FRMT) tal cual aparece en el XML firmado.
@@ -86,22 +87,33 @@ export async function generarPdfDocumentoSeleccionado(params: {
     blob: Blob;
     url: string;
     fileName: string;
+    empresa: EmpresaKey;
 }> {
     const autoDownload = params.autoDownload ?? true;
 
-    const { documento, detalleDte, activeTab, empresa } = params;
-
-    const empresaPdf = EMPRESAS_PDF[empresa];
-
-    if (!empresaPdf) {
-        throw new Error(`No existe configuración PDF para la empresa: ${empresa}`);
-    }
+    const { documento, detalleDte, activeTab } = params;
 
     const dteDocumento = getDocumentoDte(detalleDte);
 
     const xmlBase64 = getXmlBase64FromDteResponse(detalleDte);
     const xmlDecodificado = decodeBase64Utf8(xmlBase64);
     const dteVisual = parseDteXml(xmlDecodificado);
+
+    // El encabezado (logo, razón social, RUT) sale del EMISOR del DTE.
+    // Antes salía de la empresa seleccionada en pantalla y una factura de RIDS
+    // podía generarse con el encabezado de ECONNET (y al revés).
+    const empresaDte = empresaKeyPorRutEmisor(dteDocumento?.rut_emisor ?? dteVisual?.emisor?.rut);
+    const empresa: EmpresaKey = empresaDte ?? params.empresa;
+
+    if (empresaDte && empresaDte !== params.empresa) {
+        console.warn(`[PDF DTE] El documento es de ${empresaDte} y la pantalla está en ${params.empresa}: se usa ${empresaDte}.`);
+    }
+
+    const empresaPdf = EMPRESAS_PDF[empresa];
+
+    if (!empresaPdf) {
+        throw new Error(`No existe configuración PDF para la empresa: ${empresa}`);
+    }
 
     const itemsVisuales = getItemsVisualesParaPdf(detalleDte);
 
@@ -746,6 +758,7 @@ export async function generarPdfDocumentoSeleccionado(params: {
             blob,
             url,
             fileName: nombreArchivo,
+            empresa,
         };
     } finally {
         if (container.parentNode) {

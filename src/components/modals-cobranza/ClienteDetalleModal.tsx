@@ -1468,7 +1468,7 @@ const ClienteDetalleModal:
                     )
                         .toLowerCase();
 
-                const empresaPdf =
+                let empresaPdf =
                     EMPRESAS_PDF[
                     empresaKey as EmpresaKey
                     ] ??
@@ -1476,12 +1476,16 @@ const ClienteDetalleModal:
                     "econnet"
                     ];
 
-                const logoBase64 =
+                let logoBase64 =
                     empresaPdf.logo
                         ? await imageUrlToBase64(
                             empresaPdf.logo
                         )
                         : "";
+
+                // Empresas emisoras reales de los PDF adjuntos (según el DTE).
+                const empresasEmisoras =
+                    new Set<EmpresaKey>();
 
                 const attachments:
                     Array<{
@@ -1615,6 +1619,10 @@ const ClienteDetalleModal:
                                 observacion,
                             });
 
+                        empresasEmisoras.add(
+                            pdfResult.empresa
+                        );
+
                         const base64 =
                             await blobToBase64(
                                 pdfResult.blob
@@ -1641,6 +1649,37 @@ const ClienteDetalleModal:
                             error
                         );
                     }
+                }
+
+                // Un correo = una empresa emisora (logo, datos y firma del correo).
+                if (
+                    empresasEmisoras.size > 1
+                ) {
+                    throw new Error(
+                        "Las facturas pendientes son de distintas empresas emisoras (RIDS y ECONNET). Envíalas por separado."
+                    );
+                }
+
+                const [empresaEmisora] =
+                    Array.from(
+                        empresasEmisoras
+                    );
+
+                if (
+                    empresaEmisora &&
+                    empresaEmisora !== empresaKey
+                ) {
+                    empresaPdf =
+                        EMPRESAS_PDF[
+                        empresaEmisora
+                        ];
+
+                    logoBase64 =
+                        empresaPdf.logo
+                            ? await imageUrlToBase64(
+                                empresaPdf.logo
+                            )
+                            : "";
                 }
 
                 setProgreso(

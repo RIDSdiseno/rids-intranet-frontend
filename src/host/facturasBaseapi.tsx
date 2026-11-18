@@ -49,6 +49,8 @@ import DashboardCharts from "../components/modals-facturasBaseapi/DashboardChart
 
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
 
+import FacturasCxcTab from "../components/modals-facturasBaseapi/finanzas/FacturasCxcTab";
+
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -324,10 +326,13 @@ const FacturasBaseapi: React.FC = () => {
 
     const [mainTab, setMainTab] =
         useState<
+            "facturas" |
             "documentos" |
             "dashboard"
         >(
-            "documentos"
+            isCliente
+                ? "documentos"
+                : "facturas"
         );
 
     /* =====================================================
@@ -1462,7 +1467,9 @@ const FacturasBaseapi: React.FC = () => {
                                 </h1>
 
                                 <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                                    Registro de Compras y Ventas — datos en tiempo real desde el SII.
+                                    {mainTab === "facturas"
+                                        ? "Todas las facturas emitidas con su estado de cobro: vencidas, por vencer y pagadas."
+                                        : "Registro de Compras y Ventas — datos en tiempo real desde el SII."}
                                 </p>
                             </div>
 
@@ -1484,65 +1491,69 @@ const FacturasBaseapi: React.FC = () => {
                                     </p>
 
                                     <p className="mt-1 text-sm font-black text-slate-900">
-                                        {periodoLabel}
+                                        {mainTab === "facturas"
+                                            ? "Todos los periodos"
+                                            : periodoLabel}
                                     </p>
                                 </div>
 
-                                <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:items-center">
+                                {mainTab !== "facturas" && (
+                                    <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:items-center">
 
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            handleActualizar
-                                        }
-                                        disabled={
-                                            isBusy
-                                        }
-                                        title="Actualizar vista"
-                                        aria-label="Actualizar vista"
-                                        className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-11 sm:px-0"
-                                    >
-                                        <ReloadOutlined
-                                            className={
-                                                isBusy
-                                                    ? "animate-spin text-lg"
-                                                    : "text-lg"
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                handleActualizar
                                             }
-                                        />
-
-                                        <span className="sm:hidden">
-                                            Actualizar
-                                        </span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            handleConsultarSii
-                                        }
-                                        disabled={
-                                            isBusy
-                                        }
-                                        title="Consultar SII / BaseAPI"
-                                        aria-label="Consultar SII / BaseAPI"
-                                        className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-600 px-4 text-sm font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                                    >
-                                        <CloudSyncOutlined
-                                            className={
+                                            disabled={
                                                 isBusy
-                                                    ? "animate-pulse text-lg"
-                                                    : "text-lg"
                                             }
-                                        />
+                                            title="Actualizar vista"
+                                            aria-label="Actualizar vista"
+                                            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-11 sm:px-0"
+                                        >
+                                            <ReloadOutlined
+                                                className={
+                                                    isBusy
+                                                        ? "animate-spin text-lg"
+                                                        : "text-lg"
+                                                }
+                                            />
 
-                                        <span>
-                                            {isBusy
-                                                ? "Consultando..."
-                                                : "Consultar SII"}
-                                        </span>
-                                    </button>
+                                            <span className="sm:hidden">
+                                                Actualizar
+                                            </span>
+                                        </button>
 
-                                </div>
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                handleConsultarSii
+                                            }
+                                            disabled={
+                                                isBusy
+                                            }
+                                            title="Consultar SII / BaseAPI"
+                                            aria-label="Consultar SII / BaseAPI"
+                                            className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-600 px-4 text-sm font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                                        >
+                                            <CloudSyncOutlined
+                                                className={
+                                                    isBusy
+                                                        ? "animate-pulse text-lg"
+                                                        : "text-lg"
+                                                }
+                                            />
+
+                                            <span>
+                                                {isBusy
+                                                    ? "Consultando..."
+                                                    : "Consultar SII"}
+                                            </span>
+                                        </button>
+
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1556,10 +1567,16 @@ const FacturasBaseapi: React.FC = () => {
                         <div className="flex rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
 
                             {(
-                                [
-                                    "documentos",
-                                    "dashboard",
-                                ] as const
+                                isCliente
+                                    ? ([
+                                        "documentos",
+                                        "dashboard",
+                                    ] as const)
+                                    : ([
+                                        "facturas",
+                                        "documentos",
+                                        "dashboard",
+                                    ] as const)
                             ).map(
                                 (
                                     tab
@@ -1581,9 +1598,12 @@ const FacturasBaseapi: React.FC = () => {
                                             }`}
                                     >
                                         {tab ===
-                                            "documentos"
-                                            ? "Documentos RCV"
-                                            : "Dashboard RCV"}
+                                            "facturas"
+                                            ? "Facturas"
+                                            : tab ===
+                                                "documentos"
+                                                ? "Documentos RCV"
+                                                : "Dashboard RCV"}
                                     </button>
                                 )
                             )}
@@ -1591,10 +1611,12 @@ const FacturasBaseapi: React.FC = () => {
                         </div>
 
                         <p className="text-xs text-slate-500">
-                            {documentosFiltrados.length >
-                                0
-                                ? `${documentosFiltrados.length} documentos cargados para ${periodoLabel}`
-                                : "Selecciona filtros y consulta el periodo"}
+                            {mainTab === "facturas"
+                                ? "Filtra por fecha de emisión en el panel de la izquierda"
+                                : documentosFiltrados.length >
+                                    0
+                                    ? `${documentosFiltrados.length} documentos cargados para ${periodoLabel}`
+                                    : "Selecciona filtros y consulta el periodo"}
                         </p>
 
                     </div>
@@ -1622,235 +1644,248 @@ const FacturasBaseapi: React.FC = () => {
                     FILTROS
                 ================================================= */}
 
-                <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
+                {mainTab !== "facturas" && (
+                    <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
 
-                    <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
 
-                        <div>
-                            <h2 className="text-sm font-bold text-slate-900">
-                                Filtros de consulta
-                            </h2>
+                            <div>
+                                <h2 className="text-sm font-bold text-slate-900">
+                                    Filtros de consulta
+                                </h2>
 
-                            <p className="text-xs text-slate-500">
-                                Define el periodo, empresa y tipo de movimiento tributario.
-                            </p>
+                                <p className="text-xs text-slate-500">
+                                    Define el periodo, empresa y tipo de movimiento tributario.
+                                </p>
+                            </div>
+
+                            <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                {tipoLabel} ·{" "}
+                                {periodoLabel}
+                            </span>
+
                         </div>
 
-                        <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            {tipoLabel} ·{" "}
-                            {periodoLabel}
-                        </span>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
 
-                    </div>
+                            {/* TIPO RCV */}
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-
-                        {/* TIPO RCV */}
-
-                        <div>
-                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                                Tipo RCV
-                            </label>
-
-                            <select
-                                value={
-                                    activeTab
-                                }
-                                onChange={(
-                                    e
-                                ) =>
-                                    setActiveTab(
-                                        e
-                                            .target
-                                            .value as TabRCV
-                                    )
-                                }
-                                className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                            >
-                                <option value="ventas">
-                                    Ventas
-                                </option>
-
-                                {!isCliente && (
-                                    <option value="compras">
-                                        Compras
-                                    </option>
-                                )}
-                            </select>
-                        </div>
-
-                        {/* EMPRESA */}
-
-                        {!isCliente && (
                             <div>
                                 <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                                    Empresa
+                                    Tipo RCV
                                 </label>
 
                                 <select
                                     value={
-                                        empresa
+                                        activeTab
                                     }
                                     onChange={(
                                         e
                                     ) =>
-                                        setEmpresa(
+                                        setActiveTab(
                                             e
                                                 .target
-                                                .value as EmpresaKey
+                                                .value as TabRCV
                                         )
                                     }
                                     className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                                 >
-                                    <option value="econnet">
-                                        ECONNET
+                                    <option value="ventas">
+                                        Ventas
                                     </option>
 
-                                    <option value="rids">
-                                        RIDS
-                                    </option>
+                                    {!isCliente && (
+                                        <option value="compras">
+                                            Compras
+                                        </option>
+                                    )}
                                 </select>
                             </div>
-                        )}
 
-                        {/* MES */}
+                            {/* EMPRESA */}
 
-                        <div>
-                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                                Mes
-                            </label>
+                            {!isCliente && (
+                                <div>
+                                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                        Empresa
+                                    </label>
 
-                            <select
-                                value={
-                                    mes
-                                }
-                                onChange={(
-                                    e
-                                ) =>
-                                    setMes(
+                                    <select
+                                        value={
+                                            empresa
+                                        }
+                                        onChange={(
+                                            e
+                                        ) =>
+                                            setEmpresa(
+                                                e
+                                                    .target
+                                                    .value as EmpresaKey
+                                            )
+                                        }
+                                        className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                                    >
+                                        <option value="econnet">
+                                            ECONNET
+                                        </option>
+
+                                        <option value="rids">
+                                            RIDS
+                                        </option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* MES */}
+
+                            <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Mes
+                                </label>
+
+                                <select
+                                    value={
+                                        mes
+                                    }
+                                    onChange={(
                                         e
-                                            .target
-                                            .value
-                                    )
-                                }
-                                className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                            >
-                                {esAnual && (
+                                    ) =>
+                                        setMes(
+                                            e
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                                >
+                                    {esAnual && (
 
-                                    <option value="anual">
-                                        Año completo
-                                    </option>
+                                        <option value="anual">
+                                            Año completo
+                                        </option>
 
-                                )}
+                                    )}
 
-                                {MESES.map(
-                                    (
-                                        nombre,
-                                        index
-                                    ) => {
-                                        const value =
-                                            String(
-                                                index +
-                                                1
-                                            ).padStart(
-                                                2,
-                                                "0"
+                                    {MESES.map(
+                                        (
+                                            nombre,
+                                            index
+                                        ) => {
+                                            const value =
+                                                String(
+                                                    index +
+                                                    1
+                                                ).padStart(
+                                                    2,
+                                                    "0"
+                                                );
+
+                                            return (
+                                                <option
+                                                    key={
+                                                        value
+                                                    }
+                                                    value={
+                                                        value
+                                                    }
+                                                >
+                                                    {
+                                                        nombre
+                                                    }
+                                                </option>
                                             );
+                                        }
+                                    )}
+                                </select>
+                            </div>
 
-                                        return (
-                                            <option
-                                                key={
-                                                    value
-                                                }
-                                                value={
-                                                    value
-                                                }
-                                            >
-                                                {
-                                                    nombre
-                                                }
-                                            </option>
-                                        );
+                            {/* AÑO */}
+
+                            <div>
+                                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Año
+                                </label>
+
+                                <input
+                                    value={
+                                        ano
                                     }
-                                )}
-                            </select>
-                        </div>
-
-                        {/* AÑO */}
-
-                        <div>
-                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                                Año
-                            </label>
-
-                            <input
-                                value={
-                                    ano
-                                }
-                                onChange={(
-                                    e
-                                ) =>
-                                    setAno(
+                                    onChange={(
                                         e
-                                            .target
-                                            .value
-                                    )
-                                }
-                                className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                            />
-                        </div>
-
-                        {/* BOTONES */}
-
-                        <div className="flex items-end gap-2">
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handleActualizar
-                                }
-                                disabled={
-                                    isBusy
-                                }
-                                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                title="Mes actual: consulta BaseAPI. Meses anteriores: usa cache."
-                            >
-                                <ReloadOutlined
-                                    className={
-                                        isBusy
-                                            ? "animate-spin"
-                                            : ""
+                                    ) =>
+                                        setAno(
+                                            e
+                                                .target
+                                                .value
+                                        )
                                     }
+                                    className="h-10 w-full rounded-xl border border-cyan-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                                 />
+                            </div>
 
-                                {isBusy
-                                    ? "Consultando..."
-                                    : "Consultar"}
-                            </button>
+                            {/* BOTONES */}
 
-                            <button
-                                type="button"
-                                onClick={
-                                    handleConsultarSii
-                                }
-                                disabled={
-                                    isBusy
-                                }
-                                title="Forzar actualización desde SII/BaseAPI"
-                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-600 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <CloudSyncOutlined
-                                    className={
-                                        isBusy
-                                            ? "animate-pulse"
-                                            : ""
+                            <div className="flex items-end gap-2">
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        handleActualizar
                                     }
-                                />
-                            </button>
+                                    disabled={
+                                        isBusy
+                                    }
+                                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-white px-4 text-sm font-bold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title="Mes actual: consulta BaseAPI. Meses anteriores: usa cache."
+                                >
+                                    <ReloadOutlined
+                                        className={
+                                            isBusy
+                                                ? "animate-spin"
+                                                : ""
+                                        }
+                                    />
 
+                                    {isBusy
+                                        ? "Consultando..."
+                                        : "Consultar"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        handleConsultarSii
+                                    }
+                                    disabled={
+                                        isBusy
+                                    }
+                                    title="Forzar actualización desde SII/BaseAPI"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300 bg-cyan-600 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <CloudSyncOutlined
+                                        className={
+                                            isBusy
+                                                ? "animate-pulse"
+                                                : ""
+                                        }
+                                    />
+                                </button>
+
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
+
+                {/* =================================================
+                    TAB FACTURAS (cuentas por cobrar, Fase 2)
+                ================================================= */}
+
+                {mainTab === "facturas" && (
+                    <FacturasCxcTab
+                        empresa={empresa}
+                        onEmpresaChange={setEmpresa}
+                    />
+                )}
 
                 {/* =================================================
                     TAB DOCUMENTOS

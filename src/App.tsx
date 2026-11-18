@@ -57,8 +57,8 @@ const FinanzasDashboardsPage = lazy(() => import("./host/FinanzasDashboard"));
 const FinanzasClientesPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/FinanzasClientes"));
 const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
-const ReceptoresFacturacionPage = lazy(() => import("./components/modals-facturasBaseapi/receptores-facturacion/ReceptoresFacturacionPage"));
 const ReceptoresCobranzaPage = lazy(() => import("./components/modals-facturasBaseapi/receptores-cobranza/ReceptoresCobranzaPage"));
+const ClientesCxcPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/clientes/ClientesCxcPage"));
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
 const EntregasPage = lazy(() => import("./host/EntregasPage"));
@@ -302,12 +302,8 @@ export default function App() {
                 />
               }
             >
-              <Route
-                path="/finanzas/clientes"
-                element={
-                  <FinanzasClientesPage />
-                }
-              />
+              {/* «Comportamiento clientes» se reemplazó por el ícono de pago en Clientes */}
+              <Route path="/finanzas/clientes" element={<Navigate to="/finanzas/clientes-cxc" replace />} />
               {/* Cobranza */}
               <Route
                 path="/facturas/cobranza"
@@ -316,21 +312,15 @@ export default function App() {
                 }
               />
 
-              {/* Receptores de facturación */}
+              {/* Clientes (Fase 3a): reemplaza Receptores de facturación y de cobranza */}
               <Route
-                path="/facturas/receptores"
+                path="/finanzas/clientes-cxc"
                 element={
-                  <ReceptoresFacturacionPage />
+                  <ClientesCxcPage />
                 }
               />
-
-              {/* Receptores de cobranza */}
-              <Route
-                path="/facturas/receptores-cobranza"
-                element={
-                  <ReceptoresCobranzaPage />
-                }
-              />
+              <Route path="/facturas/receptores" element={<Navigate to="/finanzas/clientes-cxc" replace />} />
+              <Route path="/facturas/receptores-cobranza" element={<Navigate to="/finanzas/clientes-cxc" replace />} />
             </Route>
 
             {/* ── Conciliación RCV (solo Administración) ──────────────────── */}
