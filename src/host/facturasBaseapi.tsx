@@ -50,6 +50,9 @@ import DashboardCharts from "../components/modals-facturasBaseapi/DashboardChart
 import DocumentosRcvTable from "../components/modals-facturasBaseapi/DocumentosRcvTable";
 
 import FacturasCxcTab from "../components/modals-facturasBaseapi/finanzas/FacturasCxcTab";
+import ConciliacionBancariaPage from "../components/modals-facturasBaseapi/finanzas/banco/ConciliacionBancariaPage";
+
+import CobranzaAutomaticaPage from "../components/modals-facturasBaseapi/finanzas/cobranza/CobranzaAutomaticaPage";
 
 /* =========================================================
    HELPERS
@@ -327,13 +330,23 @@ const FacturasBaseapi: React.FC = () => {
     const [mainTab, setMainTab] =
         useState<
             "facturas" |
+            "banco" |
+            "cobranza" |
             "documentos" |
             "dashboard"
         >(
             isCliente
                 ? "documentos"
-                : "facturas"
+                : searchParams.get("tab") === "cobranza"
+                    ? "cobranza"
+                    : "facturas"
         );
+
+    /** Pestañas del módulo nuevo (todas las facturas, sin periodo del RCV). */
+    const esVistaCxc =
+        mainTab === "facturas" ||
+        mainTab === "banco" ||
+        mainTab === "cobranza";
 
     /* =====================================================
        DOCUMENTOS
@@ -1467,9 +1480,13 @@ const FacturasBaseapi: React.FC = () => {
                                 </h1>
 
                                 <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                                    {mainTab === "facturas"
-                                        ? "Todas las facturas emitidas con su estado de cobro: vencidas, por vencer y pagadas."
-                                        : "Registro de Compras y Ventas — datos en tiempo real desde el SII."}
+                                    {mainTab === "cobranza"
+                                        ? "Recordatorios de pago automáticos: lo que sale hoy y los próximos días, el historial y la configuración."
+                                        : mainTab === "banco"
+                                            ? "Pagos recibidos en el banco cruzados con las facturas: el sistema propone, tú confirmas."
+                                            : mainTab === "facturas"
+                                                ? "Todas las facturas emitidas con su estado de cobro: vencidas, por vencer y pagadas."
+                                                : "Registro de Compras y Ventas — datos en tiempo real desde el SII."}
                                 </p>
                             </div>
 
@@ -1491,13 +1508,13 @@ const FacturasBaseapi: React.FC = () => {
                                     </p>
 
                                     <p className="mt-1 text-sm font-black text-slate-900">
-                                        {mainTab === "facturas"
+                                        {esVistaCxc
                                             ? "Todos los periodos"
                                             : periodoLabel}
                                     </p>
                                 </div>
 
-                                {mainTab !== "facturas" && (
+                                {!esVistaCxc && (
                                     <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:flex sm:items-center">
 
                                         <button
@@ -1574,6 +1591,8 @@ const FacturasBaseapi: React.FC = () => {
                                     ] as const)
                                     : ([
                                         "facturas",
+                                        "banco",
+                                        "cobranza",
                                         "documentos",
                                         "dashboard",
                                     ] as const)
@@ -1600,10 +1619,14 @@ const FacturasBaseapi: React.FC = () => {
                                         {tab ===
                                             "facturas"
                                             ? "Facturas"
-                                            : tab ===
-                                                "documentos"
-                                                ? "Documentos RCV"
-                                                : "Dashboard RCV"}
+                                            : tab === "banco"
+                                                ? "Conciliación bancaria"
+                                                : tab === "cobranza"
+                                                    ? "Cobranza automática"
+                                                    : tab ===
+                                                        "documentos"
+                                                        ? "Documentos RCV"
+                                                        : "Dashboard RCV"}
                                     </button>
                                 )
                             )}
@@ -1611,12 +1634,16 @@ const FacturasBaseapi: React.FC = () => {
                         </div>
 
                         <p className="text-xs text-slate-500">
-                            {mainTab === "facturas"
-                                ? "Filtra por fecha de emisión en el panel de la izquierda"
-                                : documentosFiltrados.length >
-                                    0
-                                    ? `${documentosFiltrados.length} documentos cargados para ${periodoLabel}`
-                                    : "Selecciona filtros y consulta el periodo"}
+                            {mainTab === "cobranza"
+                                ? "Recordatorios por correo a los clientes"
+                                : mainTab === "banco"
+                                    ? "Carga la cartola de Itaú y confirma los cruces"
+                                    : mainTab === "facturas"
+                                        ? "Filtra por fecha de emisión en el panel de la izquierda"
+                                        : documentosFiltrados.length >
+                                            0
+                                            ? `${documentosFiltrados.length} documentos cargados para ${periodoLabel}`
+                                            : "Selecciona filtros y consulta el periodo"}
                         </p>
 
                     </div>
@@ -1644,7 +1671,7 @@ const FacturasBaseapi: React.FC = () => {
                     FILTROS
                 ================================================= */}
 
-                {mainTab !== "facturas" && (
+                {!esVistaCxc && (
                     <div className="rounded-3xl border border-cyan-200 bg-white p-4 shadow-sm sm:p-5">
 
                         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -1884,6 +1911,22 @@ const FacturasBaseapi: React.FC = () => {
                     <FacturasCxcTab
                         empresa={empresa}
                         onEmpresaChange={setEmpresa}
+                    />
+                )}
+
+                {mainTab === "banco" && (
+                    <ConciliacionBancariaPage
+                        embebido
+                        empresa={empresa}
+                        onEmpresaChange={setEmpresa}
+                    />
+                )}
+
+                {mainTab === "cobranza" && (
+                    <CobranzaAutomaticaPage
+                        empresa={empresa}
+                        onEmpresaChange={setEmpresa}
+                        puedeEditar={user?.rol === "ADMINISTRACION"}
                     />
                 )}
 

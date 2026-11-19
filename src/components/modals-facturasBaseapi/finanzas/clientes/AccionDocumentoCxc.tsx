@@ -15,9 +15,10 @@ import { generarPdfDocumentoSeleccionado } from "../../pdfDocumento";
 
 import EnviarDocumentoCxcModal from "../EnviarDocumentoCxcModal";
 import PagosDocumentoCxcModal from "../PagosDocumentoCxcModal";
+import ConciliarFacturaModal from "../banco/ConciliarFacturaModal";
 import type { DocumentoCxc, EmpresaCxc } from "../cxc.types";
 
-export type TipoAccionCxc = "detalle" | "pago" | "anular" | "factura" | "recordatorio";
+export type TipoAccionCxc = "detalle" | "pago" | "anular" | "factura" | "recordatorio" | "banco";
 
 export type AccionCxc = {
     tipo: TipoAccionCxc;
@@ -180,6 +181,10 @@ const AccionDocumentoCxc: React.FC<Props> = ({ accion, onClose, onCambio, onErro
                 pdfPreparadoNombre={pdfNombre}
             />
         );
+    }
+
+    if (tipo === "banco") {
+        return <ConciliarFacturaModal empresa={empresa} documento={doc} onClose={onClose} onConciliado={onCambio} />;
     }
 
     if (tipo === "pago") {

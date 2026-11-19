@@ -23,6 +23,7 @@ import {
     Trash2,
     Undo2,
     Wallet,
+    Landmark,
     X,
 } from "lucide-react";
 
@@ -473,6 +474,11 @@ const ClienteFichaModal: React.FC<Props> = ({ rut, onClose, onCambio, tabInicial
                                                                     {(abierto || (doc.estado === "PAGADO" && (doc.abonos ?? 0) > 0)) && (
                                                                         <Opcion icon={<Wallet size={14} />} onClick={() => abrirAccion("pago", doc)}>
                                                                             {abierto ? "Registrar pago o abono" : "Ver pagos"}
+                                                                        </Opcion>
+                                                                    )}
+                                                                    {doc.estado !== "COMPENSADO" && (
+                                                                        <Opcion icon={<Landmark size={14} />} onClick={() => abrirAccion("banco", doc)}>
+                                                                            Conciliar con banco
                                                                         </Opcion>
                                                                     )}
                                                                     {doc.estado === "PAGADO" && (doc.abonos ?? 0) === 0 && (

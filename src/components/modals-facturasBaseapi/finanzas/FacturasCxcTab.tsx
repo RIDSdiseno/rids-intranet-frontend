@@ -4,7 +4,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ConfigProvider, DatePicker, Pagination, Tooltip } from "antd";
+import { ConfigProvider, DatePicker, Dropdown, Pagination, Tooltip } from "antd";
 import esES from "antd/locale/es_ES";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/es";
@@ -23,6 +23,7 @@ import {
     BellRing,
     Undo2,
     Wallet,
+    Landmark,
     X,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ import { api } from "../../../api/api";
 import DetalleBaseApiModal from "../DetalleBaseApiModal";
 import EnviarDocumentoCxcModal from "./EnviarDocumentoCxcModal";
 import PagosDocumentoCxcModal from "./PagosDocumentoCxcModal";
+import ConciliarFacturaModal from "./banco/ConciliarFacturaModal";
 import { generarPdfDocumentoSeleccionado } from "../pdfDocumento";
 import type { EmpresaKey } from "../types";
 
@@ -189,6 +191,7 @@ const FacturasCxcTab: React.FC<Props> = ({ empresa, onEmpresaChange }) => {
     // Pagos y abonos (Fase 4a)
     const [docPagos, setDocPagos] = useState<DocumentoCxc | null>(null);
     const [cambioPagos, setCambioPagos] = useState<string | null>(null);
+    const [docBanco, setDocBanco] = useState<DocumentoCxc | null>(null);
     const [docAnular, setDocAnular] = useState<DocumentoCxc | null>(null);
     const [guardando, setGuardando] = useState(false);
 
@@ -671,62 +674,79 @@ const FacturasCxcTab: React.FC<Props> = ({ empresa, onEmpresaChange }) => {
                                                                 </Tooltip>
                                                             )}
                                                         </td>
-                                                        <td className="relative px-3 py-2 text-right">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setMenuAbierto((m) => (m === doc.key ? null : doc.key))}
-                                                                className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
-                                                                aria-label="Acciones"
+                                                        <td className="px-3 py-2 text-right">
+                                                            <Dropdown
+                                                                trigger={["click"]}
+                                                                placement="bottomRight"
+                                                                open={menuAbierto === doc.key}
+                                                                onOpenChange={(abrir) => setMenuAbierto(abrir ? doc.key : null)}
+                                                                popupRender={() => (
+                                                                    <div className="w-56 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-lg">
+                                                                        <MenuItem icon={<FileText size={14} />} onClick={() => void abrirDetalle(doc)}>
+                                                                            Ver detalle y PDF
+                                                                        </MenuItem>
+                                                                        {(abierto || (doc.estado === "PAGADO" && (doc.abonos ?? 0) > 0)) && (
+                                                                            <MenuItem icon={<Wallet size={14} />} onClick={() => abrirPagos(doc)}>
+                                                                                {abierto ? "Registrar pago o abono" : "Ver pagos"}
+                                                                            </MenuItem>
+                                                                        )}
+                                                                        {doc.estado !== "COMPENSADO" && (
+                                                                            <MenuItem
+                                                                                icon={<Landmark size={14} />}
+                                                                                onClick={() => {
+                                                                                    setMenuAbierto(null);
+                                                                                    setDocBanco(doc);
+                                                                                }}
+                                                                            >
+                                                                                Conciliar con banco
+                                                                            </MenuItem>
+                                                                        )}
+                                                                        {doc.estado === "PAGADO" && (doc.abonos ?? 0) === 0 && (
+                                                                            <MenuItem
+                                                                                icon={<Undo2 size={14} />}
+                                                                                onClick={() => {
+                                                                                    setMenuAbierto(null);
+                                                                                    setDocAnular(doc);
+                                                                                }}
+                                                                            >
+                                                                                Anular pago
+                                                                            </MenuItem>
+                                                                        )}
+                                                                        {doc.estado !== "COMPENSADO" && (
+                                                                            <MenuItem
+                                                                                icon={<Send size={14} />}
+                                                                                onClick={() => {
+                                                                                    setMenuAbierto(null);
+                                                                                    setEnvio({ tipo: "factura", doc });
+                                                                                }}
+                                                                            >
+                                                                                Reenviar factura
+                                                                            </MenuItem>
+                                                                        )}
+                                                                        {abierto && (
+                                                                            <MenuItem
+                                                                                icon={<BellRing size={14} />}
+                                                                                disabled={!doc.fechaVencimiento}
+                                                                                hint={doc.fechaVencimiento ? undefined : "Sin fecha de vencimiento"}
+                                                                                onClick={() => {
+                                                                                    setMenuAbierto(null);
+                                                                                    setEnvio({ tipo: "recordatorio", doc });
+                                                                                }}
+                                                                            >
+                                                                                Enviar recordatorio
+                                                                            </MenuItem>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             >
-                                                                <MoreVertical size={16} />
-                                                            </button>
-                                                            {menuAbierto === doc.key && (
-                                                                <div className="absolute right-3 top-9 z-20 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-lg">
-                                                                    <MenuItem icon={<FileText size={14} />} onClick={() => void abrirDetalle(doc)}>
-                                                                        Ver detalle y PDF
-                                                                    </MenuItem>
-                                                                    {(abierto || (doc.estado === "PAGADO" && (doc.abonos ?? 0) > 0)) && (
-                                                                        <MenuItem icon={<Wallet size={14} />} onClick={() => abrirPagos(doc)}>
-                                                                            {abierto ? "Registrar pago o abono" : "Ver pagos"}
-                                                                        </MenuItem>
-                                                                    )}
-                                                                    {doc.estado === "PAGADO" && (doc.abonos ?? 0) === 0 && (
-                                                                        <MenuItem
-                                                                            icon={<Undo2 size={14} />}
-                                                                            onClick={() => {
-                                                                                setMenuAbierto(null);
-                                                                                setDocAnular(doc);
-                                                                            }}
-                                                                        >
-                                                                            Anular pago
-                                                                        </MenuItem>
-                                                                    )}
-                                                                    {doc.estado !== "COMPENSADO" && (
-                                                                        <MenuItem
-                                                                            icon={<Send size={14} />}
-                                                                            onClick={() => {
-                                                                                setMenuAbierto(null);
-                                                                                setEnvio({ tipo: "factura", doc });
-                                                                            }}
-                                                                        >
-                                                                            Reenviar factura
-                                                                        </MenuItem>
-                                                                    )}
-                                                                    {abierto && (
-                                                                        <MenuItem
-                                                                            icon={<BellRing size={14} />}
-                                                                            disabled={!doc.fechaVencimiento}
-                                                                            hint={doc.fechaVencimiento ? undefined : "Sin fecha de vencimiento"}
-                                                                            onClick={() => {
-                                                                                setMenuAbierto(null);
-                                                                                setEnvio({ tipo: "recordatorio", doc });
-                                                                            }}
-                                                                        >
-                                                                            Enviar recordatorio
-                                                                        </MenuItem>
-                                                                    )}
-                                                                </div>
-                                                            )}
+                                                                <button
+                                                                    type="button"
+                                                                    className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"
+                                                                    aria-label="Acciones"
+                                                                >
+                                                                    <MoreVertical size={16} />
+                                                                </button>
+                                                            </Dropdown>
                                                         </td>
                                                     </tr>
                                                 );
@@ -824,6 +844,20 @@ const FacturasCxcTab: React.FC<Props> = ({ empresa, onEmpresaChange }) => {
                         pdfPreparando={pdfPreparando}
                         pdfPreparadoUrl={pdfUrl}
                         pdfPreparadoNombre={pdfNombre}
+                    />
+                )}
+
+                {/* CONCILIAR CON BANCO (Fase 4b) */}
+                {docBanco && (
+                    <ConciliarFacturaModal
+                        empresa={empresa}
+                        documento={docBanco}
+                        onClose={() => setDocBanco(null)}
+                        onConciliado={(texto: any) => {
+                            setDocBanco(null);
+                            setAviso({ tipo: "ok", texto });
+                            void cargar(true);
+                        }}
                     />
                 )}
 

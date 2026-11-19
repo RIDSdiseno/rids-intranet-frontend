@@ -36,6 +36,7 @@ import {
   Star,
   MonitorSpeaker,
   Contact,
+  Landmark,
   MailCheck,
   FileUser,
   ShieldCheck
@@ -77,6 +78,7 @@ const CONCILIACION_PATH = "/conciliacion-rcv";
 const RECEPTORES_FACTURACION_PATH = "/facturas/receptores";
 const RECEPTORES_COBRANZA_PATH = "/facturas/receptores-cobranza";
 const CLIENTES_CXC_PATH = "/finanzas/clientes-cxc";
+const CONCILIACION_BANCARIA_PATH = "/finanzas/conciliacion-bancaria";
 
 const CLIENTES_EXT_PATH = "/clientes-externos";
 const BITACORA_TECNICO_PATH = "/bitacora-tecnico";
@@ -397,6 +399,8 @@ const NAV: NavEntry[] = [
         ],
       },
 
+      /*
+
       {
         type: "submenu",
         id: "finanzas-cobranza",
@@ -413,13 +417,18 @@ const NAV: NavEntry[] = [
             icon: <FileSpreadsheet size={18} />,
           },
         ],
-      },
-
+      }, */
+      /*
       {
         label: "Conciliación",
         to: CONCILIACION_PATH,
         icon: <Handshake size={20} />,
       },
+      {
+        label: "Conciliación bancaria",
+        to: CONCILIACION_BANCARIA_PATH,
+        icon: <Landmark size={20} />,
+      }, */
     ],
 
     match: [

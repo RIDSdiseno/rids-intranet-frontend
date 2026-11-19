@@ -159,8 +159,9 @@ export type ClienteCxcFila = {
     porEmpresa: Record<EmpresaCxc, ResumenEmpresaCliente | null>;
     porCobrar: number;
     vencido: number;
+    totalContactos: number;
     maxDiasVencido: number;
-     puntualidad: {
+    puntualidad: {
         estado: EstadoPuntualidad;
         score: number | null;
         totalEvaluados: number;

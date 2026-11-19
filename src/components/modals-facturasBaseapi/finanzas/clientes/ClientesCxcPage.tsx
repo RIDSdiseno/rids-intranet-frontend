@@ -61,13 +61,18 @@ function rutValido(rut: string) {
     return dv === esperado;
 }
 
-type Filtro = "TODOS" | "CON_SALDO" | "VENCIDOS" | "SIN_CONTACTOS" | "SIN_AUTOMATICOS";
+type Filtro = "TODOS" | "CON_SALDO" | "VENCIDOS" | "SIN_CONTACTOS" | "SIN_MARCAR" | "SIN_AUTOMATICOS";
 
 const FILTROS: Array<{ id: Filtro; label: string; ayuda: string }> = [
     { id: "TODOS", label: "Todos", ayuda: "Todos los RUT con receptor o con facturas emitidas." },
     { id: "CON_SALDO", label: "Con saldo", ayuda: "Tienen facturas por cobrar en RIDS o ECONNET." },
     { id: "VENCIDOS", label: "Con vencidos", ayuda: "Tienen al menos una factura vencida." },
-    { id: "SIN_CONTACTOS", label: "Sin contactos", ayuda: "No tienen contactos para facturas ni para cobranza." },
+    { id: "SIN_CONTACTOS", label: "Sin contactos", ayuda: "No tienen ningún contacto registrado." },
+    {
+        id: "SIN_MARCAR",
+        label: "Sin marcar",
+        ayuda: "Tienen contactos, pero ninguno marcado para Facturas ni Cobranza (por ejemplo, los importados de Duemint). No reciben correos automáticos.",
+    },
     { id: "SIN_AUTOMATICOS", label: "Sin envíos automáticos", ayuda: "Con saldo, pero sin recordatorios automáticos de cobranza." },
 ];
 
@@ -189,7 +194,9 @@ const ClientesCxcPage: React.FC = () => {
             case "VENCIDOS":
                 return c.vencido > 0;
             case "SIN_CONTACTOS":
-                return c.facturacion.contactos === 0 && c.cobranza.contactos === 0;
+                return (c.totalContactos ?? 0) === 0;
+            case "SIN_MARCAR":
+                return (c.totalContactos ?? 0) > 0 && c.facturacion.contactos === 0 && c.cobranza.contactos === 0;
             case "SIN_AUTOMATICOS":
                 return c.porCobrar > 0 && !c.cobranza.recibe;
             default:

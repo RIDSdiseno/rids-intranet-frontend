@@ -59,6 +59,7 @@ const FacturasBaseapiPage = lazy(() => import("./host/facturasBaseapi"));
 const ConciliacionRcvPage = lazy(() => import("./host/ConciliacionRcv"));
 const ReceptoresCobranzaPage = lazy(() => import("./components/modals-facturasBaseapi/receptores-cobranza/ReceptoresCobranzaPage"));
 const ClientesCxcPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/clientes/ClientesCxcPage"));
+const ConciliacionBancariaPage = lazy(() => import("./components/modals-facturasBaseapi/finanzas/banco/ConciliacionBancariaPage"));
 const BitacoraTecnicoPage = lazy(() => import("./host/BitacoraTecnico"));
 const MapaTecnicosPage = lazy(() => import("./host/MapaTecnicosPage"));
 const EntregasPage = lazy(() => import("./host/EntregasPage"));
@@ -308,7 +309,7 @@ export default function App() {
               <Route
                 path="/facturas/cobranza"
                 element={
-                  <CobranzaPage />
+                  <Navigate to="/facturas?tab=cobranza" replace />
                 }
               />
 
@@ -317,6 +318,12 @@ export default function App() {
                 path="/finanzas/clientes-cxc"
                 element={
                   <ClientesCxcPage />
+                }
+              />
+              <Route
+                path="/finanzas/conciliacion-bancaria"
+                element={
+                  <ConciliacionBancariaPage />
                 }
               />
               <Route path="/facturas/receptores" element={<Navigate to="/finanzas/clientes-cxc" replace />} />
