@@ -18,9 +18,7 @@ import {
   ClipboardList,
   ReceiptText,
   Headset,
-  Handshake,
   FileText,
-  FileSpreadsheet,
   MapPin,
   Wrench,
   ChevronDown,
@@ -36,14 +34,13 @@ import {
   Star,
   MonitorSpeaker,
   Contact,
-  Landmark,
   MailCheck,
-  FileUser,
   ShieldCheck
 } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import { canViewMapaTecnicos } from "../utils/canViewMapaTecnicos";
+import SelectorEmpresaCliente from "./portal-cliente/SelectorEmpresaCliente";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -1395,6 +1392,9 @@ const Header = () => {
         </div>
 
         <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-4 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 sm:py-6">
+          {/* Grupos de empresas (G2a): cambiar de empresa dentro del grupo */}
+          {isCliente && !sidebarCollapsed && <SelectorEmpresaCliente />}
+
           {/* =====================================================
       MENÚ DE FAVORITOS
   ===================================================== */}

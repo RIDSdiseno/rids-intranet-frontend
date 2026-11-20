@@ -367,6 +367,15 @@ interface UseExportProps {
   onDataLoaded: (data: ReporteGeneralData) => void;
 }
 
+/** Blob → base64 (sin el prefijo data:). */
+const blobABase64 = (b: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve((r.result as string).split(",")[1] ?? "");
+    r.onerror = reject;
+    r.readAsDataURL(b);
+  });
+
 export const useExportReportes = ({
   empresaFiltro,
   selectedYear,
@@ -380,6 +389,31 @@ export const useExportReportes = ({
   obtenerDatosReporteGeneral,
   onDataLoaded,
 }: UseExportProps) => {
+  /*
+   * Guarda un Word en el historial (Supabase + SharePoint opcional).
+   * Devuelve un aviso si no se pudo guardar; la descarga ya ocurrió.
+   */
+  const guardarWordEnHistorial = async (
+    blob: Blob,
+    fileName: string,
+    tipo: "DOCX" | "DOCX_IA"
+  ): Promise<string | null> => {
+    try {
+      await http.post("/reportes-upload/upload-docx", {
+        fileName,
+        empresaId: Number(empresaFiltro),
+        empresa: empresaNombre,
+        periodo: periodoTexto || "Periodo",
+        tipo,
+        fileBase64: await blobABase64(blob),
+      });
+      return null;
+    } catch (e) {
+      console.error("No se pudo guardar el Word en el historial:", e);
+      return "El Word se descargó, pero no se pudo guardar en el historial.";
+    }
+  };
+
   const [exportStatus, setExportStatus] = useState<ExportStatus>({
     exporting: false,
     error: null,
@@ -793,7 +827,7 @@ export const useExportReportes = ({
         equiposDetalleReporte,
       } = await prepararReporteIABeta();
 
-      await buildAndDownloadReporteIABetaDocx({
+      const blobIA = await buildAndDownloadReporteIABetaDocx({
         payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
         empresaNombre,
         periodoTexto,
@@ -810,7 +844,14 @@ export const useExportReportes = ({
         headerLogoBytes,
       });
 
-      setExportStatus({ exporting: false, error: null });
+      // Guardar en el historial (no bloquea la descarga)
+      const avisoHistorial = await guardarWordEnHistorial(
+        blobIA,
+        buildReporteIABetaFileName(empresaNombre, periodoTexto),
+        "DOCX_IA"
+      );
+
+      setExportStatus({ exporting: false, error: avisoHistorial });
     } catch (e) {
       console.error(e);
 
@@ -1389,27 +1430,10 @@ export const useExportReportes = ({
       const blob = await Packer.toBlob(doc);
       saveAs(blob, fileName);
 
-      // Upload al backend
-      const blobToBase64 = (b: Blob): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onloadend = () => resolve((r.result as string).split(",")[1]);
-          r.onerror = reject;
-          r.readAsDataURL(b);
-        });
-      const base64Docx = await blobToBase64(blob);
+      // Guardar en el historial (Supabase + SharePoint opcional); no bloquea la descarga
+      const avisoHistorial = await guardarWordEnHistorial(blob, fileName, "DOCX");
 
-      // Sube a SharePoint + Supabase y crea UN registro
-      await http.post("/reportes-upload/upload-docx", {
-        fileName,
-        empresaId: Number(empresaFiltro),
-        empresa: empresaNombre,
-        periodo: periodoTexto || "Periodo",
-        tipo: "DOCX",
-        fileBase64: base64Docx,
-      });
-
-      setExportStatus({ exporting: false, error: null });
+      setExportStatus({ exporting: false, error: avisoHistorial });
     } catch (e) {
       console.error(e);
       setExportStatus({ exporting: false, error: "No se pudo generar el Word (DOCX)." });

@@ -74,6 +74,7 @@ const AsignarMovimientoModal: React.FC<Props> = ({ empresa, movimiento, onClose,
     const [busqueda, setBusqueda] = useState("");
     const [guardando, setGuardando] = useState(false);
     const [error, setError] = useState("");
+    const [avisarCliente, setAvisarCliente] = useState(true);
 
     useEffect(() => {
         api.get<DocumentosCxcResponse>("/baseapi/finanzas/cxc/documentos", { params: { empresa } })
@@ -130,7 +131,8 @@ const AsignarMovimientoModal: React.FC<Props> = ({ empresa, movimiento, onClose,
         try {
             await api.post(`/baseapi/finanzas/banco/movimientos/${movimiento.id}/confirmar`, {
                 empresa,
-                asignaciones: lineas.map((l) => ({ tipoDoc: l.tipoDoc, folio: l.folio, rutContraparte: l.rutContraparte, monto: l.monto })),
+                avisarCliente,
+                asignaciones: lineas.map
             });
             onConfirmado(
                 `Pago de ${movimiento.nombrePagador ?? movimiento.rutPagador ?? ""} (${formatCLP(movimiento.monto)}) conciliado con ${lineas
@@ -303,7 +305,11 @@ const AsignarMovimientoModal: React.FC<Props> = ({ empresa, movimiento, onClose,
                     <span className="text-[11px] text-slate-500">
                         Asignado {formatCLP(suma)} de {formatCLP(movimiento.monto)}. Las abiertas reciben un abono; las ya pagadas solo se vinculan.
                     </span>
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600" title="«Pago recibido» a los contactos de Cobranza de las facturas que queden pagadas.">
+                            <input type="checkbox" checked={avisarCliente} onChange={(e) => setAvisarCliente(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+                            Avisar al cliente
+                        </label>
                         <button type="button" onClick={onClose} disabled={guardando} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">
                             Cancelar
                         </button>

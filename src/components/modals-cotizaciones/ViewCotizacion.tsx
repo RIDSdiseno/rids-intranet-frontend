@@ -15,6 +15,7 @@ import {
     calcularValoresItem,
     formatearMontoFinal,
     redondearDecimal,
+    agruparItemsPorSeccion,
 } from "./utils";
 
 interface ViewCotizacionModalProps {
@@ -103,6 +104,34 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
 
     const items =
         cotizacion.items || [];
+
+    /*
+     * Secciones: los ítems se muestran agrupados (igual que en el PDF).
+     * Los ítems sin sección (cotizaciones antiguas) van primero, sin título.
+     */
+    const gruposSeccion =
+        agruparItemsPorSeccion(
+            items,
+            cotizacion.secciones
+        );
+
+    const itemsOrdenados =
+        gruposSeccion.flatMap(
+            (grupo) => grupo.items
+        );
+
+    const encabezadosSeccion =
+        new Map<number, (typeof gruposSeccion)[number]>();
+
+    {
+        let posicion = 0;
+        for (const grupo of gruposSeccion) {
+            if (grupo.seccion) {
+                encabezadosSeccion.set(posicion, grupo);
+            }
+            posicion += grupo.items.length;
+        }
+    }
 
 
     /* ============================================================
@@ -609,11 +638,13 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                             </td>
                                         </tr>
                                     ) : (
-                                        items.map(
+                                        itemsOrdenados.map(
                                             (
                                                 item,
                                                 index
                                             ) => {
+                                                const encabezado =
+                                                    encabezadosSeccion.get(index);
 
                                                 const valores =
                                                     calcularValoresItem(
@@ -652,39 +683,66 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                         ) * cantidad
                                                         : 0;
 
+
                                                 return (
-                                                    <tr
-                                                        key={item.id}
-                                                        className="
+                                                    <React.Fragment key={item.id}>
+                                                        {encabezado?.seccion && (
+                                                            <tr className="bg-cyan-50/60 border-t border-cyan-100">
+                                                                <td colSpan={9} className="px-4 py-2">
+                                                                    <div className="flex items-center justify-between gap-4">
+                                                                        <div className="min-w-0">
+                                                                            <div className="text-xs font-bold uppercase tracking-wide text-cyan-800">
+                                                                                {encabezado.seccion.nombre}
+                                                                            </div>
+                                                                            {encabezado.seccion.descripcion && (
+                                                                                <div className="text-xs text-slate-500">
+                                                                                    {encabezado.seccion.descripcion}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-xs font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+                                                                            Total sección:{" "}
+                                                                            {formatearPrecio(
+                                                                                calcularTotales(encabezado.items).total,
+                                                                                moneda,
+                                                                                tasa
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                        <tr
+                                                            className="
                                                             border-t
                                                             border-slate-50
                                                             hover:bg-slate-50
                                                             transition
                                                         "
-                                                    >
+                                                        >
 
-                                                        {/* # */}
-                                                        <td className="px-4 py-3 text-slate-400">
-                                                            {index + 1}
-                                                        </td>
+                                                            {/* # */}
+                                                            <td className="px-4 py-3 text-slate-400">
+                                                                {index + 1}
+                                                            </td>
 
 
-                                                        {/* PRODUCTO */}
-                                                        <td className="px-4 py-3">
-                                                            <div
-                                                                className="
+                                                            {/* PRODUCTO */}
+                                                            <td className="px-4 py-3">
+                                                                <div
+                                                                    className="
                                                                     font-medium
                                                                     text-slate-800
                                                                 "
-                                                            >
-                                                                {item.nombre || "—"}
-                                                            </div>
+                                                                >
+                                                                    {item.nombre || "—"}
+                                                                </div>
 
-                                                            {item.descripcion &&
-                                                                item.descripcion.trim() !==
-                                                                item.nombre?.trim() && (
-                                                                    <div
-                                                                        className="
+                                                                {item.descripcion &&
+                                                                    item.descripcion.trim() !==
+                                                                    item.nombre?.trim() && (
+                                                                        <div
+                                                                            className="
                                                                             text-xs
                                                                             text-slate-400
                                                                             mt-1
@@ -692,29 +750,29 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                             line-clamp-2
                                                                             break-words
                                                                         "
-                                                                    >
-                                                                        {item.descripcion}
-                                                                    </div>
-                                                                )}
-                                                        </td>
+                                                                        >
+                                                                            {item.descripcion}
+                                                                        </div>
+                                                                    )}
+                                                            </td>
 
 
-                                                        {/* CANTIDAD */}
-                                                        <td
-                                                            className="
+                                                            {/* CANTIDAD */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-center
                                                                 text-slate-600
                                                             "
-                                                        >
-                                                            {cantidad}
-                                                        </td>
+                                                            >
+                                                                {cantidad}
+                                                            </td>
 
 
-                                                        {/* COSTO */}
-                                                        <td
-                                                            className="
+                                                            {/* COSTO */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-right
@@ -722,23 +780,23 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                 text-slate-600
                                                                 tabular-nums
                                                             "
-                                                        >
-                                                            {item.tipo ===
-                                                                ItemTipoGestioo.PRODUCTO &&
-                                                                costo > 0
-                                                                ? formatearPrecio(
-                                                                    costo,
-                                                                    moneda,
-                                                                    tasa
-                                                                )
-                                                                : "—"
-                                                            }
-                                                        </td>
+                                                            >
+                                                                {item.tipo ===
+                                                                    ItemTipoGestioo.PRODUCTO &&
+                                                                    costo > 0
+                                                                    ? formatearPrecio(
+                                                                        costo,
+                                                                        moneda,
+                                                                        tasa
+                                                                    )
+                                                                    : "—"
+                                                                }
+                                                            </td>
 
 
-                                                        {/* PRECIO UNITARIO */}
-                                                        <td
-                                                            className="
+                                                            {/* PRECIO UNITARIO */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-right
@@ -747,80 +805,80 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                 text-slate-800
                                                                 tabular-nums
                                                             "
-                                                        >
-                                                            {formatearPrecio(
-                                                                precioVenta,
-                                                                moneda,
-                                                                tasa
-                                                            )}
-                                                        </td>
+                                                            >
+                                                                {formatearPrecio(
+                                                                    precioVenta,
+                                                                    moneda,
+                                                                    tasa
+                                                                )}
+                                                            </td>
 
 
-                                                        {/* MARGEN */}
-                                                        <td
-                                                            className="
+                                                            {/* MARGEN */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-center
                                                                 whitespace-nowrap
                                                             "
-                                                        >
-                                                            {item.tipo ===
-                                                                ItemTipoGestioo.PRODUCTO ? (
-                                                                <div
-                                                                    className="
+                                                            >
+                                                                {item.tipo ===
+                                                                    ItemTipoGestioo.PRODUCTO ? (
+                                                                    <div
+                                                                        className="
                                                                         flex
                                                                         flex-col
                                                                         items-center
                                                                     "
-                                                                >
-                                                                    <span
-                                                                        className="
+                                                                    >
+                                                                        <span
+                                                                            className="
                                                                             font-semibold
                                                                             text-emerald-600
                                                                         "
-                                                                    >
-                                                                        {redondearDecimal(
-                                                                            margen,
-                                                                            2
-                                                                        ).toLocaleString(
-                                                                            "es-CL",
-                                                                            {
-                                                                                minimumFractionDigits: 0,
-                                                                                maximumFractionDigits: 2,
-                                                                            }
-                                                                        )}
-                                                                        %
-                                                                    </span>
+                                                                        >
+                                                                            {redondearDecimal(
+                                                                                margen,
+                                                                                2
+                                                                            ).toLocaleString(
+                                                                                "es-CL",
+                                                                                {
+                                                                                    minimumFractionDigits: 0,
+                                                                                    maximumFractionDigits: 2,
+                                                                                }
+                                                                            )}
+                                                                            %
+                                                                        </span>
 
-                                                                    {gananciaItem > 0 && (
-                                                                        <span
-                                                                            className="
+                                                                        {gananciaItem > 0 && (
+                                                                            <span
+                                                                                className="
                                                                                 text-[11px]
                                                                                 text-emerald-500
                                                                                 mt-0.5
                                                                             "
-                                                                        >
-                                                                            +{" "}
-                                                                            {formatearPrecio(
-                                                                                gananciaItem,
-                                                                                moneda,
-                                                                                tasa
-                                                                            )}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-slate-300">
-                                                                    —
-                                                                </span>
-                                                            )}
-                                                        </td>
+                                                                            >
+                                                                                +{" "}
+                                                                                {formatearPrecio(
+                                                                                    gananciaItem,
+                                                                                    moneda,
+                                                                                    tasa
+                                                                                )}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-300">
+                                                                        —
+                                                                    </span>
+                                                                )}
+                                                            </td>
 
 
-                                                        {/* NETO */}
-                                                        <td
-                                                            className="
+                                                            {/* NETO */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-right
@@ -828,18 +886,18 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                 text-slate-700
                                                                 tabular-nums
                                                             "
-                                                        >
-                                                            {formatearPrecio(
-                                                                valores.neto,
-                                                                moneda,
-                                                                tasa
-                                                            )}
-                                                        </td>
+                                                            >
+                                                                {formatearPrecio(
+                                                                    valores.neto,
+                                                                    moneda,
+                                                                    tasa
+                                                                )}
+                                                            </td>
 
 
-                                                        {/* IVA */}
-                                                        <td
-                                                            className="
+                                                            {/* IVA */}
+                                                            <td
+                                                                className="
                                                                 px-3
                                                                 py-3
                                                                 text-right
@@ -847,22 +905,22 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                 text-slate-600
                                                                 tabular-nums
                                                             "
-                                                        >
-                                                            {item.tieneIVA &&
-                                                                valores.iva > 0
-                                                                ? formatearPrecio(
-                                                                    valores.iva,
-                                                                    moneda,
-                                                                    tasa
-                                                                )
-                                                                : "—"
-                                                            }
-                                                        </td>
+                                                            >
+                                                                {item.tieneIVA &&
+                                                                    valores.iva > 0
+                                                                    ? formatearPrecio(
+                                                                        valores.iva,
+                                                                        moneda,
+                                                                        tasa
+                                                                    )
+                                                                    : "—"
+                                                                }
+                                                            </td>
 
 
-                                                        {/* TOTAL */}
-                                                        <td
-                                                            className="
+                                                            {/* TOTAL */}
+                                                            <td
+                                                                className="
                                                                 px-4
                                                                 py-3
                                                                 text-right
@@ -871,15 +929,16 @@ const ViewCotizacionModal: React.FC<ViewCotizacionModalProps> = ({
                                                                 text-slate-900
                                                                 tabular-nums
                                                             "
-                                                        >
-                                                            {formatearPrecio(
-                                                                valores.total,
-                                                                moneda,
-                                                                tasa
-                                                            )}
-                                                        </td>
+                                                            >
+                                                                {formatearPrecio(
+                                                                    valores.total,
+                                                                    moneda,
+                                                                    tasa
+                                                                )}
+                                                            </td>
 
-                                                    </tr>
+                                                        </tr>
+                                                    </React.Fragment>
                                                 );
                                             }
                                         )

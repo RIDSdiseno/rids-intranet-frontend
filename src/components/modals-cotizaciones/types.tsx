@@ -73,7 +73,7 @@ export interface CotizacionItemGestioo {
   createdAt: string;
   tieneIVA?: boolean;
   sku?: string;
-  seccionId: number;
+  seccionId?: number | null;
   imagen?: string | null;
   precioOriginalCLP?: number;
   productoId?: number | null;
@@ -213,7 +213,7 @@ export interface FiltrosHistorial {
 export interface SeccionCotizacion {
   id: number;
   nombre: string;
-  descripcion?: string;
-  items: any[];
+  descripcion?: string | null;
+  items?: any[];
   orden: number;
 }

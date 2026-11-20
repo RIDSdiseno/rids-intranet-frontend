@@ -29,6 +29,7 @@ import { api } from "../api/api";
 type EmpresaOption = {
     id_empresa: number;
     nombre: string;
+    grupo?: { id: number; nombre: string } | null;
     detalleEmpresa?: {
         rut?: string | null;
     } | null;
@@ -41,9 +42,11 @@ type ClienteRow = {
     rol: string;
     status: boolean;
     empresaId?: number | null;
+    verTodoGrupo?: boolean;
     empresa?: {
         id_empresa: number;
         nombre: string;
+        grupo?: { id: number; nombre: string } | null;
         detalleEmpresa?: {
             rut?: string | null;
         } | null;
@@ -56,6 +59,7 @@ type ClienteFormValues = {
     password?: string;
     empresaId: number;
     status: boolean;
+    verTodoGrupo?: boolean;
 };
 
 function getErrorMessage(error: unknown) {
@@ -102,6 +106,11 @@ const Clientes: React.FC = () => {
     const [disabling, setDisabling] = useState(false);
 
     const [form] = Form.useForm<ClienteFormValues>();
+
+    /* G2a: el switch «Ver todo el grupo» solo aplica si la empresa elegida tiene grupo */
+    const empresaIdForm = Form.useWatch("empresaId", form);
+    const grupoEmpresaForm =
+        empresas.find((e) => e.id_empresa === empresaIdForm)?.grupo ?? null;
 
     const [pagination, setPagination] = useState({
         current: 1,
@@ -188,6 +197,7 @@ const Clientes: React.FC = () => {
 
         form.setFieldsValue({
             status: true,
+            verTodoGrupo: false,
         });
 
         setModalOpen(true);
@@ -201,6 +211,7 @@ const Clientes: React.FC = () => {
             email: row.email,
             empresaId: row.empresaId ?? undefined,
             status: row.status,
+            verTodoGrupo: Boolean(row.verTodoGrupo),
             password: "",
         });
 
@@ -225,6 +236,7 @@ const Clientes: React.FC = () => {
                     email: values.email,
                     empresaId: values.empresaId,
                     status: values.status,
+                    verTodoGrupo: Boolean(values.verTodoGrupo),
                     ...(values.password ? { password: values.password } : {}),
                 });
 
@@ -235,6 +247,7 @@ const Clientes: React.FC = () => {
                     email: values.email,
                     password: values.password,
                     empresaId: values.empresaId,
+                    verTodoGrupo: Boolean(values.verTodoGrupo),
                 });
 
                 message.success("Cliente creado correctamente");
@@ -308,6 +321,18 @@ const Clientes: React.FC = () => {
                     </div>
                 </div>
             ),
+        },
+        {
+            title: "Alcance",
+            key: "alcance",
+            render: (_, row) =>
+                row.verTodoGrupo && row.empresa?.grupo ? (
+                    <Tag color="purple">Todo el grupo: {row.empresa.grupo.nombre}</Tag>
+                ) : row.verTodoGrupo ? (
+                    <Tag color="orange">Todo el grupo (empresa sin grupo)</Tag>
+                ) : (
+                    <Tag>Su empresa</Tag>
+                ),
         },
         {
             title: "Rol",
@@ -585,6 +610,19 @@ const Clientes: React.FC = () => {
                         }
                     >
                         <Input.Password placeholder="Contraseña de acceso" />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Ver todo el grupo"
+                        name="verTodoGrupo"
+                        valuePropName="checked"
+                        extra={
+                            grupoEmpresaForm
+                                ? `Podrá cambiar entre las empresas activas del grupo «${grupoEmpresaForm.nombre}» en el portal.`
+                                : "La empresa asociada no pertenece a un grupo: el cliente solo verá su empresa."
+                        }
+                    >
+                        <Switch checkedChildren="Todo el grupo" unCheckedChildren="Su empresa" />
                     </Form.Item>
 
                     {editing && (

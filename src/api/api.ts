@@ -1,6 +1,10 @@
 // src/api/api.ts
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { notification } from "antd";
+import {
+    empresaClienteParaHeader,
+    restablecerEmpresaCliente,
+} from "../components/portal-cliente/empresaCliente";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -45,6 +49,13 @@ api.interceptors.request.use((config) => {
         config.headers.Authorization = `Bearer ${accessToken}`;
     }
 
+    /* Grupos de empresas (G2a): cliente viendo otra empresa de su grupo */
+    const empresaCliente = empresaClienteParaHeader();
+    if (empresaCliente !== null) {
+        config.headers = config.headers ?? {};
+        config.headers["X-Empresa-Id"] = String(empresaCliente);
+    }
+
     return config;
 });
 
@@ -55,6 +66,7 @@ type RetriableConfig = AxiosRequestConfig & { _retried?: boolean };
 
 interface ApiErrorResponse {
     error?: string;
+    code?: string;
 }
 
 /* ===============================
@@ -91,8 +103,18 @@ api.interceptors.response.use(
         }
 
         /* ===============================
-           ERROR 403
+                      ERROR 403
         =============================== */
+        /* G2a: la empresa elegida ya no está permitida → volver a la propia */
+        if (
+            error.response?.status === 403 &&
+            error.response.data?.code === "EMPRESA_NO_PERMITIDA" &&
+            restablecerEmpresaCliente()
+        ) {
+            window.location.reload();
+            return Promise.reject(error);
+        }
+
         if (error.response?.status === 403) {
             notification.warning({
                 message: "Acceso denegado",

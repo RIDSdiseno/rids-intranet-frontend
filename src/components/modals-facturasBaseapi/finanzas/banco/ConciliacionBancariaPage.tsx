@@ -91,6 +91,8 @@ const ConciliacionBancariaPage: React.FC<Props> = ({ embebido = false, empresa: 
     const [cargar, setCargar] = useState(false);
     const [editar, setEditar] = useState<MovimientoBanco | null>(null);
     const [ocupado, setOcupado] = useState<number | "perfectos" | null>(null);
+    /** «Pago recibido» a los clientes cuyas facturas queden pagadas al confirmar. */
+    const [avisarCliente, setAvisarCliente] = useState(true);
 
     const cargarMovimientos = useCallback(
         async (refrescar = false) => {
@@ -159,21 +161,23 @@ const ConciliacionBancariaPage: React.FC<Props> = ({ embebido = false, empresa: 
 
     const confirmarPropuesta = (m: MovimientoBanco) =>
         ejecutar(m.id, async () => {
-            await api.post(`/baseapi/finanzas/banco/movimientos/${m.id}/confirmar`, {
+            const r = await api.post<{ ok: boolean; data: { avisosEnviados?: number } }>(`/baseapi/finanzas/banco/movimientos/${m.id}/confirmar`, {
                 empresa,
+                avisarCliente,
                 asignaciones: (m.propuesta?.asignaciones ?? []).map((a) => ({ tipoDoc: a.tipoDoc, folio: a.folio, rutContraparte: a.rutContraparte, monto: a.monto })),
             });
-            return `Conciliado: ${m.nombrePagador ?? formatRut(m.rutPagador)} ${formatCLP(m.monto)}.`;
+            const avisos = r.data.data.avisosEnviados ?? 0;
+            return `Conciliado: ${m.nombrePagador ?? formatRut(m.rutPagador)} ${formatCLP(m.monto)}.${avisos ? ` Aviso de pago enviado (${avisos}).` : ""}`;
         });
 
     const confirmarPerfectos = () =>
         ejecutar("perfectos", async () => {
-            const r = await api.post<{ ok: boolean; data: { confirmados: number; errores: Array<{ id: number; error: string }> } }>(
+            const r = await api.post<{ ok: boolean; data: { confirmados: number; errores: Array<{ id: number; error: string }>; avisosEnviados?: number } }>(
                 "/baseapi/finanzas/banco/movimientos/confirmar-perfectos",
-                { empresa, ids: perfectos.map((m) => m.id) },
+                { empresa, ids: perfectos.map((m) => m.id), avisarCliente },
             );
-            const { confirmados, errores } = r.data.data;
-            return `${confirmados} pago(s) confirmados${errores.length ? `; ${errores.length} quedaron para revisar (${errores[0]?.error})` : ""}.`;
+            const { confirmados, errores, avisosEnviados } = r.data.data;
+            return `${confirmados} pago(s) confirmados${avisosEnviados ? ` · ${avisosEnviados} aviso(s) de pago enviados` : ""}${errores.length ? `; ${errores.length} quedaron para revisar (${errores[0]?.error})` : ""}.`;
         });
 
     const descartar = (m: MovimientoBanco, motivo: string) =>
@@ -344,12 +348,18 @@ const ConciliacionBancariaPage: React.FC<Props> = ({ embebido = false, empresa: 
                                         </button>
                                     </Tooltip>
                                 ))}
+                                <Tooltip title="Al confirmar, las facturas que queden pagadas envían «Pago recibido» a los contactos de Cobranza del cliente.">
+                                    <label className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                                        <input type="checkbox" checked={avisarCliente} onChange={(e) => setAvisarCliente(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+                                        Avisar a los clientes
+                                    </label>
+                                </Tooltip>
                                 <Tooltip title="Confirma todos los «Match perfecto» y «Ya pagada» pendientes con la propuesta del sistema.">
                                     <button
                                         type="button"
                                         onClick={() => void confirmarPerfectos()}
                                         disabled={perfectos.length === 0 || ocupado !== null}
-                                        className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
                                     >
                                         <CheckCheck size={14} /> {ocupado === "perfectos" ? "Confirmando..." : `Confirmar perfectos (${perfectos.length})`}
                                     </button>

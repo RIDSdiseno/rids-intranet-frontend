@@ -1,7 +1,8 @@
 // src/components/modals-cotizaciones/utils.tsx
 import type {
   CotizacionItemGestioo,
-  ItemCotizacionFrontend
+  ItemCotizacionFrontend,
+  SeccionCotizacion
 } from "./types";
 import { EstadoCotizacionGestioo, TipoCotizacionGestioo } from "./types";
 
@@ -936,4 +937,65 @@ export function formatearMontoFinal(
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })}`;
+}
+
+/* =========================================================
+   SECCIONES
+   Agrupa los ítems por sección, en el orden de la cotización.
+   - Primero el grupo «sin sección» (seccion = null): ítems con
+     seccionId null o que apuntan a una sección inexistente
+     (cotizaciones antiguas). Solo aparece si tiene ítems.
+   - Luego cada sección por `orden`. Con `incluirVacias`, también
+     las secciones sin ítems (útil para la edición).
+========================================================= */
+export interface GrupoSeccionCotizacion<T> {
+  seccion: SeccionCotizacion | null;
+  items: T[];
+}
+
+export function ordenarSecciones(
+  secciones: SeccionCotizacion[] | null | undefined
+): SeccionCotizacion[] {
+  return [...(secciones ?? [])].sort(
+    (a, b) => (a.orden ?? 0) - (b.orden ?? 0) || a.id - b.id
+  );
+}
+
+export function agruparItemsPorSeccion<T extends { seccionId?: number | null }>(
+  items: T[],
+  secciones: SeccionCotizacion[] | null | undefined,
+  incluirVacias = false
+): GrupoSeccionCotizacion<T>[] {
+  const ordenadas = ordenarSecciones(secciones);
+  const ids = new Set(ordenadas.map((s) => s.id));
+
+  const sinSeccion = items.filter(
+    (item) => item.seccionId == null || !ids.has(item.seccionId)
+  );
+
+  const grupos: GrupoSeccionCotizacion<T>[] = [];
+
+  if (sinSeccion.length > 0) {
+    grupos.push({ seccion: null, items: sinSeccion });
+  }
+
+  for (const seccion of ordenadas) {
+    const itemsSeccion = items.filter((item) => item.seccionId === seccion.id);
+    if (itemsSeccion.length > 0 || incluirVacias) {
+      grupos.push({ seccion, items: itemsSeccion });
+    }
+  }
+
+  return grupos;
+}
+
+/** ¿El ítem pertenece al grupo indicado? (null = grupo «sin sección») */
+export function itemEnSeccion(
+  item: { seccionId?: number | null },
+  seccionId: number | null,
+  secciones: SeccionCotizacion[] | null | undefined
+): boolean {
+  if (seccionId !== null) return item.seccionId === seccionId;
+  const ids = new Set((secciones ?? []).map((s) => s.id));
+  return item.seccionId == null || !ids.has(item.seccionId);
 }

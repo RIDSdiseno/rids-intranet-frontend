@@ -50,6 +50,7 @@ const ConciliarFacturaModal: React.FC<Props> = ({ empresa, documento, onClose, o
     const [busqueda, setBusqueda] = useState("");
     const [guardando, setGuardando] = useState<number | null>(null);
     const [repartir, setRepartir] = useState<MovimientoBanco | null>(null);
+    const [avisarCliente, setAvisarCliente] = useState(true);
 
     const pagada = documento.estado === "PAGADO";
     /** Lo que se puede asignar a esta factura: el saldo si está abierta, el monto − NC si ya está pagada (vínculo). */
@@ -139,6 +140,7 @@ const ConciliarFacturaModal: React.FC<Props> = ({ empresa, documento, onClose, o
         try {
             await api.post(`/baseapi/finanzas/banco/movimientos/${mov.id}/confirmar`, {
                 empresa,
+                avisarCliente,
                 asignaciones: [{ tipoDoc: documento.tipoDoc, folio: documento.folio, rutContraparte: documento.rutContraparte, monto: mov.monto }],
             });
             onConciliado(
@@ -194,6 +196,12 @@ const ConciliarFacturaModal: React.FC<Props> = ({ empresa, documento, onClose, o
                                 </>
                             )}
                         </div>
+                        {!pagada && (
+                            <label className="mt-2 flex items-center gap-1.5 font-semibold text-slate-600">
+                                <input type="checkbox" checked={avisarCliente} onChange={(e) => setAvisarCliente(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+                                Avisar al cliente si queda pagada («Pago recibido» a sus contactos de Cobranza)
+                            </label>
+                        )}
                     </div>
 
                     <div className="relative">

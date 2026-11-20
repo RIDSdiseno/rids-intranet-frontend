@@ -60,6 +60,8 @@ import EmpresasHistorial from "../components/modals-empresa/EmpresasHistorial";
 import EmpresasInventarioIA from "../components/modals-empresa/EmpresasInventarioIA";
 import ManualesTab from "../components/modals-empresa/ManualesPage";
 
+import GruposEmpresaModal from "../components/modals-empresa/grupos/GruposEmpresaModal";
+
 import { useAuth } from "../components/hooks/useAuth";
 import { http } from "../service/http";
 import { useSearchParams } from "react-router-dom";
@@ -611,6 +613,15 @@ function normalizeEmpresa(input: unknown): Empresa {
       normalizeVencimientos(
         e.vencimientos
       ),
+
+    grupo:
+      isRecord(e.grupo) &&
+        typeof e.grupo.id === "number"
+        ? {
+          id: e.grupo.id,
+          nombre: asStringOr(e.grupo.nombre, ""),
+        }
+        : null,
   };
 }
 
@@ -1992,19 +2003,19 @@ const EmpresasPage: React.FC = () => {
 
   const {
     isCliente,
+    isAdmin,
     isAdminLike,
     isVentas,
   } = useAuth();
 
+  const [gruposOpen, setGruposOpen] = useState(false);
 
   const canEditEmpresa =
     !isCliente;
 
-
   const canViewEntidadRelation =
     isAdminLike ||
     isVentas;
-
 
   const canManageEntidadRelation =
     isAdminLike;
@@ -2448,6 +2459,15 @@ const EmpresasPage: React.FC = () => {
           typeof data.empresa.deactivatedAt === "string"
             ? data.empresa.deactivatedAt
             : null,
+
+        grupo:
+          data.empresa.grupo &&
+            typeof data.empresa.grupo.id === "number"
+            ? {
+              id: data.empresa.grupo.id,
+              nombre: String(data.empresa.grupo.nombre ?? ""),
+            }
+            : null,
       };
 
       setFichaData({
@@ -2497,6 +2517,9 @@ const EmpresasPage: React.FC = () => {
 
               deactivatedAt:
                 empresaActualizada.deactivatedAt,
+
+              grupo:
+                empresaActualizada.grupo,
             }
             : empresa
         )
@@ -3198,6 +3221,25 @@ const EmpresasPage: React.FC = () => {
     "
                   />
 
+                  {isAdminLike && (
+                    <button
+                      type="button"
+                      onClick={() => setGruposOpen(true)}
+                      className="
+        inline-flex items-center gap-2
+        rounded-xl
+        border border-slate-200
+        bg-white
+        px-4 py-2
+        text-sm font-medium text-slate-700
+        hover:bg-slate-50
+        transition
+      "
+                    >
+                      Grupos
+                    </button>
+                  )}
+
                   {canManageEmpresaStatus && (
                     <button
                       type="button"
@@ -3249,6 +3291,11 @@ const EmpresasPage: React.FC = () => {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">{empresa.nombre}</h3>
+                            {empresa.grupo && (
+                              <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+                                Grupo: {empresa.grupo.nombre}
+                              </span>
+                            )}
                             <span
                               className={
                                 empresa.isActive
@@ -3645,6 +3692,13 @@ const EmpresasPage: React.FC = () => {
           </div>
         )}
       </Modal>
+      {isAdminLike && (
+        <GruposEmpresaModal
+          open={gruposOpen}
+          onClose={() => setGruposOpen(false)}
+          onChanged={() => fetchEmpresas(true)}
+        />
+      )}
       {createEmpresaOpen && (
         <CrearEmpresaModal open={createEmpresaOpen} onClose={() => setCreateEmpresaOpen(false)}
           onCreated={() => { setCreateEmpresaOpen(false); fetchEmpresas(); }} />

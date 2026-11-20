@@ -65,6 +65,7 @@ function hoyChile() {
 function etiquetaEtapa(tipo: string) {
     if (tipo === "VENCE_HOY") return "Vence hoy";
     if (tipo === "MANUAL") return "Manual";
+    if (tipo === "PAGO_RECIBIDO") return "Pago recibido";
     const porVencer = /^POR_VENCER_(\d+)_DIAS$/.exec(tipo);
     if (porVencer) return `Faltan ${porVencer[1]} días`;
     const vencida = /^VENCIDA_(\d+)_DIAS$/.exec(tipo);
@@ -76,6 +77,7 @@ function claseEtapa(tipo: string) {
     if (tipo.startsWith("VENCIDA_")) return "bg-red-50 text-red-700 ring-red-200";
     if (tipo === "VENCE_HOY") return "bg-amber-50 text-amber-700 ring-amber-200";
     if (tipo === "MANUAL") return "bg-slate-100 text-slate-600 ring-slate-200";
+    if (tipo === "PAGO_RECIBIDO") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
     return "bg-cyan-50 text-cyan-700 ring-cyan-200";
 }
 

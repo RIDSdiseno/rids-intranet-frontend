@@ -60,6 +60,8 @@ function etiquetaRecordatorio(tipo: string | null) {
             return "30 días vencida";
         case "MANUAL":
             return "Manual";
+        case "PAGO_RECIBIDO":
+            return "Pago recibido";
         default:
             return tipo ?? "";
     }

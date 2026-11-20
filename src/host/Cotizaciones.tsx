@@ -47,7 +47,8 @@ import type {
     FiltrosServicios,
     FiltrosHistorial,
     Toast,
-    CotizacionItemGestioo
+    CotizacionItemGestioo,
+    SeccionCotizacion
 } from "../components/modals-cotizaciones/types";
 import { notification } from 'antd';
 import { escapeHtml, formatCurrency, buildCotizacionHtml } from '../components/modals-cotizaciones/coizaciones-enviadas/emailTemplates';
@@ -261,6 +262,8 @@ const Cotizaciones: React.FC = () => {
     const [entidades, setEntidades] = useState<EntidadGestioo[]>([]);
     const [entidadParaEditar, setEntidadParaEditar] = useState<EntidadGestioo | null>(null);
     const [items, setItems] = useState<any[]>([]);
+    /* Sección activa en «Editar cotización» (null = «General (sin título)») */
+    const [seccionActivaEdicion, setSeccionActivaEdicion] = useState<number | null>(null);
     const [formData, setFormData] = useState<FormData>({
         tipoEntidad: "EMPRESA",
         origenEntidad: "",
@@ -2354,12 +2357,27 @@ const Cotizaciones: React.FC = () => {
             const moneda = cotCompleta.moneda || "CLP";
             const tasa = moneda === "USD" ? cotCompleta.tasaCambio ?? 1 : 1;
 
+            /*
+             * Secciones de la original (ids reales: al crear la copia el
+             * backend los trata como temporales). Sin secciones → una principal.
+             */
+            const seccionesOriginal: SeccionCotizacion[] =
+                Array.isArray(cotCompleta.secciones) && cotCompleta.secciones.length > 0
+                    ? cotCompleta.secciones
+                    : [{ id: 1, nombre: "Sección Principal", descripcion: "", items: [], orden: 0 }];
+
+            const idsSeccionesOriginal = new Set(seccionesOriginal.map((sec) => sec.id));
+            const primeraSeccionId = seccionesOriginal[0]!.id;
+
             const itemsNormalizados = cotCompleta.items.map((item: any) => {
                 const normalizado = normalizarItemCotizacion(item, moneda, tasa);
 
                 return {
                     ...normalizado,
-                    seccionId: item.seccionId || 1
+                    seccionId:
+                        item.seccionId != null && idsSeccionesOriginal.has(item.seccionId)
+                            ? item.seccionId
+                            : primeraSeccionId
                 };
             });
 
@@ -2373,14 +2391,8 @@ const Cotizaciones: React.FC = () => {
                 tasaCambio: tasa,
                 estadoCotizacion: EstadoCotizacionGestioo.BORRADOR,
                 comentariosCotizacion: comentarioCopia,
-                secciones: cotCompleta.secciones ?? [{
-                    id: 1,
-                    nombre: "Sección Principal",
-                    descripcion: "",
-                    items: [],
-                    orden: 0
-                }],
-                seccionActiva: 1,
+                secciones: seccionesOriginal,
+                seccionActiva: primeraSeccionId,
                 personaResponsable: cotCompleta.personaResponsable || "",
                 imagenFile: undefined,
                 imagen: cotCompleta.imagen || ""
@@ -2455,7 +2467,8 @@ const Cotizaciones: React.FC = () => {
                 personaResponsable:
                     selectedCotizacion.personaResponsable || null,
                 items: itemsNormalizados,
-                secciones: selectedCotizacion.secciones || [],
+                /* undefined = el backend no toca las secciones */
+                secciones: selectedCotizacion.secciones,
                 imagen: selectedCotizacion.imagen || null,
             };
 
@@ -2636,6 +2649,40 @@ const Cotizaciones: React.FC = () => {
 
     // === FUNCIONES PARA SERVICIOS ===
     const agregarServicio = (servicio: any) => {
+        /* En «Editar cotización»: a la sección activa de la cotización abierta */
+        if (showEditModal && selectedCotizacion) {
+            const itemEdicion: CotizacionItemGestioo = {
+                id: Number(`-9${Date.now()}`),
+                cotizacionId: selectedCotizacion.id,
+                tipo: ItemTipoGestioo.SERVICIO,
+                nombre: servicio.nombre,
+                descripcion: servicio.descripcion ?? "",
+                cantidad: 1,
+                precio: servicio.precio || 0,
+                precioOriginalCLP: servicio.precio || 0,
+                porcentaje: 0,
+                tieneIVA: false,
+                tieneDescuento: false,
+                seccionId: seccionActivaEdicion,
+                servicioId: servicio.id,
+                productoId: null,
+                createdAt: new Date().toISOString(),
+            };
+
+            const normalizado = normalizarItemCotizacion(
+                itemEdicion,
+                selectedCotizacion.moneda || "CLP",
+                selectedCotizacion.tasaCambio ?? 1
+            );
+
+            setSelectedCotizacion(prev =>
+                prev ? { ...prev, items: [...prev.items, normalizado] } : prev
+            );
+            setShowSelectorServicio(false);
+            showSuccess("Servicio agregado correctamente");
+            return;
+        }
+
         const newItem: CotizacionItemGestioo = {
             id: Date.now(),
             cotizacionId: 0,
@@ -2949,7 +2996,7 @@ const Cotizaciones: React.FC = () => {
                 tieneIVA: true,
                 tieneDescuento: false,
                 sku: productoReal.serie,
-                seccionId: 1,
+                seccionId: seccionActivaEdicion,
                 imagen: productoReal.imagen || null,
                 productoId: productoReal.id,
                 createdAt: new Date().toISOString(),
@@ -3153,9 +3200,7 @@ const Cotizaciones: React.FC = () => {
             setProductosCatalogo(prev => [...prev, productoCatalogo]);
 
             const seccionIdEdicion =
-                selectedCotizacion?.secciones?.[0]?.id ??
-                selectedCotizacion?.items?.[0]?.seccionId ??
-                1;
+                seccionActivaEdicion;
 
             const precioCostoProducto =
                 redondearDecimal(
@@ -4792,7 +4837,9 @@ const Cotizaciones: React.FC = () => {
                         onAbrirCrearEquipo={(item) => handleAbrirCrearEquipoDesdeItem(item, true)}
                         onVincularEquipo={handleVincularEquipoAItem}
                         onAbrirSeleccionEquipo={(item) => handleAbrirSeleccionEquipo(item, true)}
-
+                        seccionActiva={seccionActivaEdicion}
+                        onSeccionActivaChange={setSeccionActivaEdicion}
+                        entidades={entidades}
                     />)}
 
                 <SelectProductoModal

@@ -30,6 +30,8 @@ import {
     StarFilled
 } from "@ant-design/icons";
 import type { FichaTabProps } from "../types";
+import GrupoEmpresaSelector from "../grupos/GrupoEmpresaSelector";
+import { useAuth } from "../../hooks/useAuth";
 
 import {
     api
@@ -110,6 +112,8 @@ const FichaTab: React.FC<FichaTabProps> = ({
     const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
     const [form] = Form.useForm();
     const [messageApi, contextHolder] = message.useMessage();
+
+    const { isAdminLike } = useAuth();
 
     useEffect(
         () => {
@@ -307,6 +311,12 @@ const FichaTab: React.FC<FichaTabProps> = ({
                                 <p className="text-base font-semibold">—</p>
                             )}
                         </div>
+
+                        <GrupoEmpresaSelector
+                            empresaId={empresa.id_empresa}
+                            canEdit={isAdminLike}
+                            onChanged={() => onUpdated?.()}
+                        />
 
                         <div className="p-4 bg-gray-50 rounded md:col-span-2">
                             <div className="flex items-center mb-2">

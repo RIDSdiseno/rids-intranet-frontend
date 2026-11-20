@@ -393,6 +393,7 @@ export default function CrearCotizacionModal({ open, oportunidad, onClose, onCot
           porcGanancia: item.porcGanancia || null,
           imagen: item.imagen || null,
           equipoId: item.equipoId ?? null,
+          seccionId: item.seccionId ?? null,
         };
       });
 
@@ -409,6 +410,13 @@ export default function CrearCotizacionModal({ open, oportunidad, onClose, onCot
         moneda,
         tasaCambio: tasa,
         items: itemsParaEnviar,
+        /* Secciones: el backend las crea y vincula cada ítem por seccionId */
+        secciones: secciones.map((s, idx) => ({
+          id: s.id,
+          nombre: s.nombre,
+          descripcion: s.descripcion ?? "",
+          orden: idx,
+        })),
         comentariosCotizacion: comentario.trim() || null,
         personaResponsable: personaResponsable.trim() || null,
       };
@@ -571,9 +579,8 @@ export default function CrearCotizacionModal({ open, oportunidad, onClose, onCot
                               key={estado}
                               type="button"
                               onClick={() => setEstadoCotizacion(estado)}
-                              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all duration-200 ${
-                                isActive ? config.active : config.color
-                              }`}
+                              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all duration-200 ${isActive ? config.active : config.color
+                                }`}
                             >
                               {config.label}
                             </button>
@@ -634,9 +641,8 @@ export default function CrearCotizacionModal({ open, oportunidad, onClose, onCot
                     return (
                       <div
                         key={seccion.id}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors min-w-0 flex-shrink-0 ${
-                          isActive ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors min-w-0 flex-shrink-0 ${isActive ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
                         onClick={() => setSeccionActiva(seccion.id)}
                       >
                         <div className="flex flex-col min-w-0">
@@ -932,7 +938,7 @@ export default function CrearCotizacionModal({ open, oportunidad, onClose, onCot
         onFiltroChange={(filtro, value) => setFiltrosProductos((prev) => ({ ...prev, [filtro]: value }))}
         onLimpiarFiltros={() => setFiltrosProductos(FILTROS_VACIOS)}
         onAgregarProducto={agregarProducto}
-        onEliminarProducto={() => {}}
+        onEliminarProducto={() => { }}
         orden={ordenProducto}
         onOrdenChange={setOrdenProducto}
         categoriasDisponibles={categoriasDisponibles}

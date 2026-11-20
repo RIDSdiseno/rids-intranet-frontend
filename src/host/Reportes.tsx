@@ -14,7 +14,7 @@ import {
   MailOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { Input, message, DatePicker } from "antd";
+import { Input, message, DatePicker, Skeleton } from "antd";
 
 // Types
 import type { ReporteGeneralData, HistorialReporteRow } from "../components/modals-reportes/typesReportes";
@@ -24,7 +24,7 @@ import { useReportesData } from "../components/modals-reportes/UseReportesData";
 import { useExportReportes } from "../components/modals-reportes/UseExportReportes";
 
 // Components
-import { KPICards } from "../components/modals-reportes/KpiCards";
+import { VistaPreviaInforme } from "../components/modals-reportes/VistaPreviaInforme";
 import { WizardSelector } from "../components/modals-reportes/WizardSelector";
 import { PdfModal } from "../components/modals-reportes/PdfModal";
 import { ReporteExportView } from "../components/modals-reportes/ReportExportView";
@@ -326,11 +326,33 @@ const ReportesPage: React.FC = () => {
     setSelectedMonth("");
   };
 
+  const [cargandoPreview, setCargandoPreview] = useState(false);
+
   const previsualizarDatos = async () => {
-    const data = await obtenerDatosReporteGeneral(empresaFiltro, selectedYear, selectedMonth);
-    setDataPrev(data);
-    setShowPreview(true);
+    if (!canGenerate) {
+      message.warning("Selecciona empresa, año y mes");
+      return;
+    }
+
+    try {
+      setCargandoPreview(true);
+      setShowPreview(true);
+
+      const data = await obtenerDatosReporteGeneral(empresaFiltro, selectedYear, selectedMonth);
+      setDataPrev(data);
+    } catch (error) {
+      console.error("Error cargando la vista previa:", error);
+      message.error("No se pudieron cargar los datos de la vista previa.");
+      setShowPreview(false);
+    } finally {
+      setCargandoPreview(false);
+    }
   };
+
+  // Si cambia la empresa o el período, la vista previa anterior ya no corresponde
+  useEffect(() => {
+    setShowPreview(false);
+  }, [empresaFiltro, selectedYear, selectedMonth]);
 
   const abrirPDF = async () => {
     if (!canGenerate) {
@@ -388,6 +410,73 @@ const ReportesPage: React.FC = () => {
       );
     } finally {
       setGenerandoInformeIAEmail(false);
+    }
+  };
+
+  /* ── Historial: ver un Word guardado como PDF (se convierte al abrir) ── */
+  const [convirtiendoReporteId, setConvirtiendoReporteId] = useState<number | null>(null);
+
+  const verReporteHistorialPdf = async (item: HistorialReporteRow) => {
+    try {
+      setConvirtiendoReporteId(item.id);
+
+      const { data } = await http.get(`/reportes-upload/${item.id}/pdf`, {
+        responseType: "blob",
+      });
+
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+
+      setPdfUrl(URL.createObjectURL(new Blob([data], { type: "application/pdf" })));
+      setPdfFileName(item.nombreArchivo.replace(/\.docx$/i, ".pdf"));
+      setPdfModalOpen(true);
+    } catch (error: any) {
+      console.error("Error convirtiendo reporte a PDF:", error);
+
+      // Con responseType blob, el mensaje del backend viene como Blob
+      let texto = "No se pudo abrir el reporte como PDF.";
+      try {
+        const cuerpo = error?.response?.data;
+        if (cuerpo instanceof Blob) {
+          const json = JSON.parse(await cuerpo.text());
+          if (json?.message) texto = json.message;
+        }
+      } catch {
+        /* se mantiene el mensaje genérico */
+      }
+      message.error(texto);
+    } finally {
+      setConvirtiendoReporteId(null);
+    }
+  };
+
+  /* Versiones: el historial viene del más reciente al más antiguo */
+  const versionesHistorial = useMemo(() => {
+    const vistos = new Map<string, number>();
+    const info = new Map<number, { ultima: boolean; total: number }>();
+
+    for (const item of historialReportes) {
+      const clave = `${item.empresaId ?? item.empresaNombre}|${item.periodo}|${item.tipo}`;
+      vistos.set(clave, (vistos.get(clave) ?? 0) + 1);
+    }
+
+    const primeros = new Set<string>();
+    for (const item of historialReportes) {
+      const clave = `${item.empresaId ?? item.empresaNombre}|${item.periodo}|${item.tipo}`;
+      info.set(item.id, { ultima: !primeros.has(clave), total: vistos.get(clave) ?? 1 });
+      primeros.add(clave);
+    }
+
+    return info;
+  }, [historialReportes]);
+
+  const etiquetaTipoReporte = (tipo: string) => {
+    switch (tipo) {
+      case "DOCX": return "Word";
+      case "DOCX_IA": return "Word IA";
+      case "PDF": return "PDF";
+      default: return tipo;
     }
   };
 
@@ -636,16 +725,52 @@ const ReportesPage: React.FC = () => {
             onMonthChange={setSelectedMonth}
           />)}
 
+
         {/* ── Preview ── */}
-        {showPreview && dataPrev && (
+        {showPreview && (cargandoPreview || dataPrev) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8"
           >
-            <h3 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
-              <BarChartOutlined /> Vista Previa del Reporte
-            </h3>
-            <KPICards data={dataPrev} />
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <BarChartOutlined /> Vista Previa del Reporte
+              </h3>
+              {!cargandoPreview && (
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(false)}
+                  className="text-sm text-slate-500 hover:text-slate-800"
+                >
+                  Cerrar
+                </button>
+              )}
+            </div>
+
+            {cargandoPreview ? (
+              <div className="space-y-6">
+                <p className="text-sm text-slate-500 flex items-center gap-2">
+                  <LoadingOutlined className="animate-spin" />
+                  Cargando tickets, visitas, mantenciones e inventario del período…
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton.Button key={i} active block style={{ height: 72 }} />
+                  ))}
+                </div>
+                <Skeleton active paragraph={{ rows: 4 }} />
+                <Skeleton active paragraph={{ rows: 6 }} />
+              </div>
+            ) : (
+              dataPrev && (
+                <VistaPreviaInforme
+                  data={dataPrev}
+                  empresaNombre={empresaNombre}
+                  periodoTexto={periodoTexto}
+                  recomendaciones={recomendaciones}
+                />
+              )
+            )}
           </motion.div>
         )}
 
@@ -658,15 +783,22 @@ const ReportesPage: React.FC = () => {
             <div className="flex items-center justify-center gap-3 flex-wrap mb-4">
               <button
                 onClick={previsualizarDatos}
-                disabled={!canGenerate || exportStatus.exporting}
+                disabled={!canGenerate || exportStatus.exporting || cargandoPreview}
                 className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
-                <EyeOutlined className="mr-2" /> Previsualizar Datos
+                {cargandoPreview ? (
+                  <><LoadingOutlined className="animate-spin mr-2" />Cargando vista previa…</>
+                ) : (
+                  <><EyeOutlined className="mr-2" /> Previsualizar Datos</>
+                )}
               </button>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap">
               <button
-                onClick={exportDOCX}
+                onClick={async () => {
+                  await exportDOCX();
+                  void cargarHistorialReportes();
+                }}
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
@@ -676,7 +808,14 @@ const ReportesPage: React.FC = () => {
               </button>
 
               <button
-                onClick={exportDOCXIABeta}
+                onClick={async () => {
+                  try {
+                    await exportDOCXIABeta();
+                  } catch {
+                    /* el error ya queda en exportStatus.error */
+                  }
+                  void cargarHistorialReportes();
+                }}
                 disabled={!canGenerate || exportStatus.exporting}
                 className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
@@ -841,7 +980,24 @@ const ReportesPage: React.FC = () => {
 
                             <td className="px-4 py-3">{item.empresaNombre}</td>
                             <td className="px-4 py-3">{item.periodo}</td>
-                            <td className="px-4 py-3">{item.tipo}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-medium text-slate-800">
+                                  {etiquetaTipoReporte(item.tipo)}
+                                </span>
+                                {(versionesHistorial.get(item.id)?.total ?? 1) > 1 && (
+                                  <span
+                                    className={
+                                      versionesHistorial.get(item.id)?.ultima
+                                        ? "inline-flex w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                                        : "inline-flex w-fit rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500"
+                                    }
+                                  >
+                                    {versionesHistorial.get(item.id)?.ultima ? "Última versión" : "Versión anterior"}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
 
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
@@ -860,13 +1016,29 @@ const ReportesPage: React.FC = () => {
                                       Ver PDF
                                     </a>
                                   ) : (
-                                    <a
-                                      href={item.urlArchivo}
-                                      download={item.nombreArchivo}
-                                      className="inline-flex items-center rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
-                                    >
-                                      Descargar {item.tipo}
-                                    </a>
+                                    <>
+                                      {item.nombreArchivo.toLowerCase().endsWith(".docx") && (
+                                        <button
+                                          type="button"
+                                          onClick={() => void verReporteHistorialPdf(item)}
+                                          disabled={convirtiendoReporteId !== null}
+                                          className="inline-flex items-center rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                        >
+                                          {convirtiendoReporteId === item.id ? (
+                                            <><LoadingOutlined className="animate-spin mr-1" />Convirtiendo…</>
+                                          ) : (
+                                            "Ver PDF"
+                                          )}
+                                        </button>
+                                      )}
+                                      <a
+                                        href={item.urlArchivo}
+                                        download={item.nombreArchivo}
+                                        className="inline-flex items-center rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                                      >
+                                        Descargar {etiquetaTipoReporte(item.tipo)}
+                                      </a>
+                                    </>
                                   )
                                 ) : (
                                   <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-500">
@@ -877,7 +1049,18 @@ const ReportesPage: React.FC = () => {
                             </td>
 
                             <td className="px-4 py-3">{item.generadoPor || "—"}</td>
-                            <td className="px-4 py-3">{item.estado}</td>
+                            <td className="px-4 py-3">
+                              {item.estado === "SIN_SHAREPOINT" ? (
+                                <span
+                                  title="Guardado en la intranet, pero no se pudo subir a SharePoint"
+                                  className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                                >
+                                  Sin SharePoint
+                                </span>
+                              ) : (
+                                item.estado
+                              )}
+                            </td>
                           </tr>
                         ))}
                     </tbody>

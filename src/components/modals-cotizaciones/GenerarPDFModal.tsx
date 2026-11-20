@@ -36,6 +36,16 @@ interface GenerarPDFModalProps {
    Evita que html.a11y-theme-dark afecte la captura.
 ===================================================== */
 
+/** Escapa texto libre (nombre/descripción de sección) antes de insertarlo en el HTML del PDF. */
+function escaparHtmlPdf(valor: string): string {
+    return valor
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 const PDF_IFRAME_LIGHT_CSS = `
     html,
     body {
@@ -152,7 +162,113 @@ async function esperarImagenes(element: HTMLElement) {
         )
     );
 
+
     await new Promise((resolve) => window.setTimeout(resolve, 300));
+}
+
+/* =====================================================
+   PAGINACIÓN DEL PDF
+   html2canvas genera UNA imagen larga que luego se corta en
+   páginas A4; sin esto, el corte cae en cualquier parte y
+   parte filas por la mitad. Antes de capturar, se mide cada
+   bloque «no cortable» y, si cruza el borde de la página, se
+   empuja a la siguiente con un espaciador. En las tablas se
+   repite el encabezado de columnas en la nueva página.
+===================================================== */
+const PDF_ANCHO_PX = 874;          // ancho del iframe / captura
+const PDF_A4_ANCHO_PT = 595.28;    // jsPDF A4 portrait
+const PDF_A4_ALTO_PT = 841.89;
+const PDF_MARGEN_SUPERIOR_PX = 36; // aire al inicio de las páginas 2+
+const PDF_MARGEN_INFERIOR_PX = 28; // aire al final de cada página
+const PDF_ESPACIO_TRAS_TITULO_PX = 90; // título de sección + encabezado + 1 fila
+
+function paginarContenidoPdf(element: HTMLElement): void {
+    const doc = element.ownerDocument;
+    const altoPagina = (PDF_A4_ALTO_PT * PDF_ANCHO_PX) / PDF_A4_ANCHO_PT;
+    const altoUtil = altoPagina - PDF_MARGEN_SUPERIOR_PX - PDF_MARGEN_INFERIOR_PX;
+
+    const bloques = Array.from(
+        element.querySelectorAll<HTMLElement>(
+            "tbody > tr, tfoot > tr, .pdf-titulo-seccion, .avoid-break"
+        )
+    );
+
+    for (const bloque of bloques) {
+        const origen = element.getBoundingClientRect().top;
+        const rect = bloque.getBoundingClientRect();
+        const top = rect.top - origen;
+        const alto = rect.height;
+
+        // Más alto que una página: no se puede evitar el corte
+        if (alto <= 0 || alto > altoUtil) continue;
+
+        const pagina = Math.floor(top / altoPagina);
+        const inicioPagina = pagina * altoPagina;
+        const limite = inicioPagina + altoPagina - PDF_MARGEN_INFERIOR_PX;
+
+        const esTitulo = bloque.classList.contains("pdf-titulo-seccion");
+        const altoNecesario = esTitulo ? alto + PDF_ESPACIO_TRAS_TITULO_PX : alto;
+
+        let empuje = 0;
+
+        if (top + altoNecesario > limite) {
+            // No cabe: a la página siguiente, con margen superior
+            empuje = inicioPagina + altoPagina + PDF_MARGEN_SUPERIOR_PX - top;
+        } else if (pagina > 0 && top < inicioPagina + PDF_MARGEN_SUPERIOR_PX) {
+            // Quedó pegado al borde superior de una página 2+
+            empuje = inicioPagina + PDF_MARGEN_SUPERIOR_PX - top;
+        }
+
+        if (empuje <= 0) continue;
+
+        const tag = bloque.tagName.toLowerCase();
+
+        if (tag === "tr") {
+            const tabla = bloque.closest("table");
+            const columnas = Math.max(
+                1,
+                tabla?.tHead?.rows[0]?.cells.length ??
+                (bloque as HTMLTableRowElement).cells.length
+            );
+
+            const espaciador = doc.createElement("tr");
+            espaciador.className = "pdf-espaciador";
+            const celda = doc.createElement("td");
+            celda.colSpan = columnas;
+            celda.style.cssText = `height:${empuje}px;padding:0;border:none;background:#ffffff;`;
+            espaciador.appendChild(celda);
+            bloque.parentNode?.insertBefore(espaciador, bloque);
+
+            // Repetir encabezado de columnas (solo filas de detalle, no el total)
+            const enTbody = bloque.parentElement?.tagName.toLowerCase() === "tbody";
+            const encabezado = tabla?.tHead?.rows[0];
+
+            if (enTbody && encabezado) {
+                const copia = encabezado.cloneNode(true) as HTMLTableRowElement;
+                copia.classList.add("pdf-encabezado-repetido");
+
+                /*
+                 * Dentro de <tbody> el CSS del PDF fuerza fondo blanco
+                 * (`tbody tr { background: #fff !important }`): se fija el
+                 * gris del encabezado inline con !important para que gane.
+                 */
+                const pintarEncabezado = (el: HTMLElement) => {
+                    el.style.setProperty("background", "#e9ecef", "important");
+                    el.style.setProperty("background-color", "#e9ecef", "important");
+                    el.style.setProperty("color", "#111827", "important");
+                };
+
+                pintarEncabezado(copia);
+                Array.from(copia.cells).forEach(pintarEncabezado);
+                bloque.parentNode?.insertBefore(copia, bloque);
+            }
+        } else {
+            const espaciador = doc.createElement("div");
+            espaciador.className = "pdf-espaciador";
+            espaciador.style.cssText = `height:${empuje}px;`;
+            bloque.parentNode?.insertBefore(espaciador, bloque);
+        }
+    }
 }
 
 async function crearIframePdfCotizacion(html: string) {
@@ -821,6 +937,39 @@ const generarPDF = async (
             (a, b) => (a.orden || 0) - (b.orden || 0)
         );
 
+        /*
+         * Ítems sin sección (cotizaciones antiguas o sección eliminada):
+         * van primero, sin título, para que no se pierdan del PDF.
+         */
+        const idsSecciones = new Set(seccionesOrdenadas.map((sec) => sec.id));
+        const itemsSinSeccion = cot.items.filter(
+            (item) => item.seccionId == null || !idsSecciones.has(item.seccionId)
+        );
+
+        if (itemsSinSeccion.length > 0) {
+            const itemsSinSeccionHtml = (
+                await Promise.all(
+                    itemsSinSeccion.map(async (item) =>
+                        buildItemRow(item, calcularLineaItem(item))
+                    )
+                )
+            ).join("");
+
+            seccionesHtml += `
+                <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:30px;">
+                    ${colGroup}
+                    <thead>
+                        <tr style="background:#e9ecef;">
+                            ${theadCols}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsSinSeccionHtml}
+                    </tbody>
+                </table>
+            `;
+        }
+
         for (const seccion of seccionesOrdenadas) {
             const itemsSeccion = cot.items.filter(
                 (item) => item.seccionId === seccion.id
@@ -854,14 +1003,23 @@ const generarPDF = async (
                 )
             ).join("");
 
+            /*
+             * Encabezado de sección sobrio (grises del documento, sin azul):
+             * título en mayúsculas con línea inferior igual a la del encabezado.
+             */
+            const nombreSeccion = escaparHtmlPdf(seccion.nombre);
+            const descripcionSeccion = seccion.descripcion
+                ? escaparHtmlPdf(seccion.descripcion)
+                : "";
+
             seccionesHtml += `
-                <div style="margin-bottom:30px;">
-                    <div style="background:#f8f9fa;padding:10px 15px;border-radius:6px;margin-bottom:15px;border-left:4px solid #007bff;">
-                        <h3 style="margin:0;font-size:18px;font-weight:bold;color:#333;">
-                            ${seccion.nombre.toUpperCase()}
+                <div style="margin-bottom:28px;">
+                    <div class="pdf-titulo-seccion" style="padding:0 0 6px 0;margin-bottom:10px;border-bottom:2px solid #444;page-break-after:avoid;break-after:avoid;">
+                        <h3 style="margin:0;font-size:14px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#111827;">
+                            ${nombreSeccion}
                         </h3>
-                        ${seccion.descripcion
-                    ? `<p style="margin:4px 0 0 0;font-size:14px;color:#666;">${seccion.descripcion}</p>`
+                        ${descripcionSeccion
+                    ? `<p style="margin:3px 0 0 0;font-size:11px;color:#555;line-height:1.4;">${descripcionSeccion}</p>`
                     : ""
                 }
                     </div>
@@ -881,11 +1039,11 @@ const generarPDF = async (
                         ${mostrarTotales
                     ? `
                                     <tfoot>
-                                        <tr>
-                                            <td colspan="9" style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
-    Total ${seccion.nombre}:
-</td>
-                                            <td style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:bold;">
+                                        <tr style="background:#f7f7f7;">
+                                            <td colspan="9" style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:600;color:#374151;">
+                                                Total ${nombreSeccion}
+                                            </td>
+                                            <td style="padding:8px;text-align:right;border:1px solid #dee2e6;font-weight:700;color:#111827;">
                                                 ${formatPDFFinal(totalSeccion)}
                                             </td>
                                         </tr>
@@ -1265,7 +1423,11 @@ td {
 
     const { iframe, element } = await crearIframePdfCotizacion(html);
 
+
     try {
+        // Evita filas y bloques cortados entre páginas
+        paginarContenidoPdf(element);
+
         const canvas = await html2canvas(element, {
             scale: 2,
             useCORS: true,

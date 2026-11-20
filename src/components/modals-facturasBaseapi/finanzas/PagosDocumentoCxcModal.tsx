@@ -57,6 +57,16 @@ const inputClase =
    COMPONENTE
 ========================================================= */
 
+/** Resultado del «Pago recibido» (backend: pago-recibido.service). */
+type AvisoPago = { enviados: string[]; errores: Array<{ email: string; error: string }>; omitido: string | null };
+
+function textoAviso(aviso: AvisoPago | null | undefined) {
+    if (!aviso) return "";
+    if (aviso.enviados.length > 0) return ` Aviso de pago enviado a ${aviso.enviados.join(", ")}.`;
+    if (aviso.errores.length > 0) return ` No se pudo enviar el aviso de pago: ${aviso.errores[0]?.error ?? "error"}.`;
+    return aviso.omitido ? ` Sin aviso de pago: ${aviso.omitido}` : "";
+}
+
 type Props = {
     empresa: EmpresaCxc;
     documento: DocumentoCxc;
@@ -74,6 +84,7 @@ const PagosDocumentoCxcModal: React.FC<Props> = ({ empresa, documento, onClose, 
     const [fechaPago, setFechaPago] = useState(hoyChile());
     const [formaPago, setFormaPago] = useState("TRANSFERENCIA");
     const [observacion, setObservacion] = useState("");
+    const [avisarCliente, setAvisarCliente] = useState(true);
     const [guardando, setGuardando] = useState(false);
     const [borrarId, setBorrarId] = useState<number | null>(null);
 
@@ -106,20 +117,24 @@ const PagosDocumentoCxcModal: React.FC<Props> = ({ empresa, documento, onClose, 
         setGuardando(true);
         setError("");
         try {
-            const response = await api.post<{ ok: boolean; data: { pagos: PagosDocumentoCxc; conciliada: boolean } }>("/baseapi/finanzas/cxc/pagos", {
-                ...claveDoc,
-                monto: montoNumero,
-                fechaPago,
-                formaPago,
-                observacion: observacion.trim() || null,
-            });
-            const { pagos: nuevos, conciliada } = response.data.data;
+            const response = await api.post<{ ok: boolean; data: { pagos: PagosDocumentoCxc; conciliada: boolean; aviso?: AvisoPago | null } }>(
+                "/baseapi/finanzas/cxc/pagos",
+                {
+                    ...claveDoc,
+                    monto: montoNumero,
+                    fechaPago,
+                    formaPago,
+                    observacion: observacion.trim() || null,
+                    avisarCliente: esTotal && avisarCliente,
+                },
+            );
+            const { pagos: nuevos, conciliada, aviso } = response.data.data;
             setPagos(nuevos);
             setMonto(new Intl.NumberFormat("es-CL").format(nuevos.pendiente));
             setObservacion("");
             onCambio(
                 conciliada
-                    ? `Pago registrado: ${documento.tipoDoc}-${documento.folio} queda pagada.`
+                    ? `Pago registrado: ${documento.tipoDoc}-${documento.folio} queda pagada.${textoAviso(aviso)}`
                     : `Abono de ${formatCLP(montoNumero)} registrado en ${documento.tipoDoc}-${documento.folio}. Pendiente ${formatCLP(nuevos.pendiente)}.`,
             );
         } catch (err: any) {
@@ -284,6 +299,12 @@ const PagosDocumentoCxcModal: React.FC<Props> = ({ empresa, documento, onClose, 
                                         <span className="mb-1 block text-[10px] font-bold text-slate-500">Observación (opcional)</span>
                                         <input value={observacion} onChange={(e) => setObservacion(e.target.value)} className={inputClase} />
                                     </label>
+                                    {esTotal && (
+                                        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+                                            <input type="checkbox" checked={avisarCliente} onChange={(e) => setAvisarCliente(e.target.checked)} className="h-3.5 w-3.5 accent-emerald-600" />
+                                            Avisar al cliente («Pago recibido» a sus contactos de Cobranza)
+                                        </label>
+                                    )}
                                     <div className="flex items-center justify-between gap-2">
                                         <span className={`text-[11px] ${montoNumero > pagos.pendiente ? "font-semibold text-red-600" : "text-slate-500"}`}>
                                             {montoNumero > pagos.pendiente

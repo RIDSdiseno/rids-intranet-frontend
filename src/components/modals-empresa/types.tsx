@@ -64,6 +64,7 @@ export interface EmpresaLite {
     detalleEmpresa?: DetalleEmpresa | null;
     isActive: boolean;
     deactivatedAt?: string | null;
+    grupo?: { id: number; nombre: string } | null;
 }
 
 export interface FichaEmpresa {

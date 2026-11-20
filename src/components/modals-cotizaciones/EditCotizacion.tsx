@@ -1,5 +1,6 @@
 // src/components/modals-cotizaciones/EditCotizacion.tsx
 import React, { useEffect, useState, useRef } from "react";
+import { Select } from "antd";
 import { motion } from "framer-motion";
 import {
     DeleteOutlined,
@@ -22,13 +23,16 @@ import {
     ItemTipoGestioo,
     MonedaCotizacion,
     type CotizacionItemGestioo,
-    type OrigenEntidadGestioo
+    type OrigenEntidadGestioo,
+    type SeccionCotizacion,
+    type EntidadGestioo
 } from "./types";
 
 import { useApi } from "./UseApi"; // ajusta la ruta si es necesario
 
-import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig, redondearDecimal, normalizarCLP, formatearMontoFinal } from "./utils";
+import { formatearPrecio, calcularTotales, calcularValoresItem, estadoConfig, redondearDecimal, normalizarCLP, formatearMontoFinal, itemEnSeccion, ordenarSecciones } from "./utils";
 import EditServicioModal from "./EditServicio";
+import SeccionesCotizacionPanel from "./SeccionesCotizacionPanel";
 
 interface EditCotizacionModalProps {
     show: boolean;
@@ -48,6 +52,11 @@ interface EditCotizacionModalProps {
     onVincularEquipo?: (itemId: number, equipoId: number | null) => void;  // NUEVO
     onAbrirSeleccionEquipo?: (item: CotizacionItemGestioo) => void;
     onGuardarYEnviar?: () => void;
+    /** Sección donde el padre agrega productos/servicios (null = «General (sin título)»). */
+    seccionActiva?: number | null;
+    onSeccionActivaChange?: (seccionId: number | null) => void;
+    /** Entidades para cambiar el cliente de la cotización. */
+    entidades?: EntidadGestioo[];
 }
 
 // Configuración de estados para mostrar en el badge
@@ -68,6 +77,9 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     onVincularEquipo,
     onAbrirSeleccionEquipo,
     onGuardarYEnviar,
+    seccionActiva,
+    onSeccionActivaChange,
+    entidades = [],
 }) => {
 
     // ==========================
@@ -91,6 +103,25 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             setItemsLocal(cotizacion.items || []);
         }
     }, [show, cotizacion]);
+
+    // ==========================
+    // SECCIONES
+    // ==========================
+    const [seccionActivaLocal, setSeccionActivaLocal] = useState<number | null>(null);
+
+    const cambiarSeccionActiva = (seccionId: number | null) => {
+        setSeccionActivaLocal(seccionId);
+        onSeccionActivaChange?.(seccionId);
+    };
+
+    // Al abrir otra cotización: activar su primera sección (o «General» si no tiene)
+    useEffect(() => {
+        if (show && cotizacion) {
+            const primera = ordenarSecciones(cotizacion.secciones)[0]?.id ?? null;
+            cambiarSeccionActiva(primera);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [show, cotizacion?.id]);
 
     if (!show || !cotizacion) return null;
 
@@ -259,6 +290,7 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
             precioOriginalCLP: 0, // 👈 IMPORTANTE: agregar este campo
             porcentaje: tipo === ItemTipoGestioo.ADICIONAL ? 10 : 0,
             tieneDescuento: tipo === ItemTipoGestioo.ADICIONAL,
+            seccionId: seccionActual,
             createdAt: new Date().toISOString(),
         };
 
@@ -286,6 +318,103 @@ const EditCotizacionModal: React.FC<EditCotizacionModalProps> = ({
     // CALCULAR TOTALES EN TIEMPO REAL
     const { subtotalBruto, descuentos, subtotal, iva, total } =
         calcularTotales(itemsLocal);
+
+    // =====================================================
+    // SECCIONES (null = «General (sin título)», cotizaciones antiguas)
+    // =====================================================
+    const secciones = ordenarSecciones(cotizacion.secciones);
+
+    const hayItemsSinSeccion = itemsLocal.some((i) =>
+        itemEnSeccion(i, null, secciones)
+    );
+
+    const mostrarGeneral = hayItemsSinSeccion || secciones.length === 0;
+
+    const seccionPedida =
+        seccionActiva !== undefined ? seccionActiva : seccionActivaLocal;
+
+    const seccionActual: number | null =
+        seccionPedida === null
+            ? mostrarGeneral ? null : secciones[0]?.id ?? null
+            : secciones.some((s) => s.id === seccionPedida)
+                ? seccionPedida
+                : mostrarGeneral ? null : secciones[0]?.id ?? null;
+
+    if (seccionActual !== seccionPedida) {
+        // Sección eliminada o vacía: avisar al padre en el próximo ciclo
+        queueMicrotask(() => cambiarSeccionActiva(seccionActual));
+    }
+
+    const itemsDeSeccion = (seccionId: number | null) =>
+        itemsLocal.filter((i) => itemEnSeccion(i, seccionId, secciones));
+
+    const itemsActivos = itemsDeSeccion(seccionActual);
+
+    const nombreSeccionActual =
+        secciones.find((s) => s.id === seccionActual)?.nombre ??
+        "General (sin título)";
+
+    const hayVariosGrupos = secciones.length + (mostrarGeneral ? 1 : 0) > 1;
+
+    const guardarSecciones = (
+        nuevas: SeccionCotizacion[],
+        nuevosItems?: CotizacionItemGestioo[]
+    ) => {
+        if (nuevosItems) setItemsLocal(nuevosItems);
+
+        onUpdateCotizacion({
+            ...cotizacion,
+            secciones: nuevas.map((s, idx) => ({ ...s, orden: idx })),
+            ...(nuevosItems ? { items: nuevosItems } : {}),
+        });
+    };
+
+    const agregarSeccion = () => {
+        const nueva: SeccionCotizacion = {
+            id: -Date.now(), // id temporal (negativo): el backend crea la sección real
+            nombre: `Sección ${secciones.length + 1}`,
+            descripcion: "",
+            orden: secciones.length,
+        };
+
+        guardarSecciones([...secciones, nueva]);
+        cambiarSeccionActiva(nueva.id);
+    };
+
+    const eliminarSeccion = (seccionId: number) => {
+        const itemsSeccion = itemsDeSeccion(seccionId);
+
+        if (
+            itemsSeccion.length > 0 &&
+            !window.confirm(
+                `La sección tiene ${itemsSeccion.length} ítem(s). Se eliminarán junto con la sección. ¿Continuar?`
+            )
+        ) {
+            return;
+        }
+
+        const restantes = secciones.filter((s) => s.id !== seccionId);
+        const nuevosItems = itemsLocal.filter((i) => i.seccionId !== seccionId);
+
+        guardarSecciones(restantes, nuevosItems);
+
+        if (seccionActual === seccionId) {
+            cambiarSeccionActiva(restantes[0]?.id ?? null);
+        }
+    };
+
+    const actualizarSeccion = (
+        seccionId: number,
+        campo: "nombre" | "descripcion",
+        valor: string
+    ) => {
+        guardarSecciones(
+            secciones.map((s) => (s.id === seccionId ? { ...s, [campo]: valor } : s))
+        );
+    };
+
+    const puedeEliminarSeccion = () =>
+        secciones.length > 1 || hayItemsSinSeccion;
 
     // =====================================================
     // DESGLOSE FINANCIERO
@@ -474,10 +603,70 @@ max-w-[1800px]
                                         </div>
                                     </div>
 
+                                    {/* SELECCIÓN DE ENTIDAD (cambia el cliente de la cotización) */}
+                                    <div className="mb-5 p-4 rounded-xl border border-cyan-200 bg-cyan-50/40">
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                            Cliente de la cotización
+                                        </label>
+                                        <Select
+                                            showSearch
+                                            className="w-full"
+                                            size="large"
+                                            placeholder="Buscar entidad por nombre o RUT…"
+                                            value={
+                                                cotizacion.entidadId ??
+                                                cotizacion.entidad?.id ??
+                                                undefined
+                                            }
+                                            onChange={(value: number) => {
+                                                const seleccionada = entidades.find(
+                                                    (ent) => ent.id === value
+                                                );
+                                                if (!seleccionada) return;
+
+                                                onUpdateCotizacion({
+                                                    ...cotizacion,
+                                                    entidadId: seleccionada.id,
+                                                    entidad: { ...seleccionada },
+                                                });
+                                            }}
+                                            filterOption={(input, option) => {
+                                                const normalizar = (texto: string) =>
+                                                    texto
+                                                        .toLowerCase()
+                                                        .normalize("NFD")
+                                                        .replace(/\p{Diacritic}/gu, "");
+
+                                                const normalizarRut = (rut: string) =>
+                                                    rut.replace(/[.\-\s]/g, "").toLowerCase();
+
+                                                const busqueda = normalizar(input);
+                                                const etiqueta = normalizar(String(option?.label ?? ""));
+                                                const rut = normalizarRut(String(option?.rut ?? ""));
+
+                                                return (
+                                                    etiqueta.includes(busqueda) ||
+                                                    (normalizarRut(input).length > 0 &&
+                                                        rut.includes(normalizarRut(input)))
+                                                );
+                                            }}
+                                            options={entidades.map((ent) => ({
+                                                value: ent.id,
+                                                label: `${ent.nombre}${ent.rut ? ` (${ent.rut})` : ""}${ent.origen ? ` · ${ent.origen}` : ""}`,
+                                                rut: ent.rut ?? "",
+                                            }))}
+                                            notFoundContent="No se encontraron entidades"
+                                        />
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            Elegir otra entidad cambia el cliente de esta cotización.
+                                            Los campos de abajo editan los datos de la entidad seleccionada.
+                                        </p>
+                                    </div>
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div className="md:col-span-2">
                                             <label className="block text-sm font-semibold text-slate-700 mb-2">
-                                                Entidad / Razón Social{" "}
+                                                Razón Social{" "}
                                                 <span className="text-rose-500">*</span>
                                             </label>
                                             <input
@@ -818,6 +1007,25 @@ max-w-[1800px]
 
                         {/* SECCIÓN DE ÍTEMS */}
                         <div className="mb-8">
+                            <SeccionesCotizacionPanel
+                                secciones={secciones}
+                                seccionActiva={seccionActual}
+                                mostrarGeneral={mostrarGeneral}
+                                totalTexto={(seccionId) =>
+                                    formatearPrecio(
+                                        calcularTotales(itemsDeSeccion(seccionId)).total,
+                                        moneda,
+                                        tasa
+                                    )
+                                }
+                                cantidadItems={(seccionId) => itemsDeSeccion(seccionId).length}
+                                onSeleccionar={cambiarSeccionActiva}
+                                onAgregar={agregarSeccion}
+                                onEliminar={eliminarSeccion}
+                                onActualizar={actualizarSeccion}
+                                puedeEliminar={puedeEliminarSeccion}
+                            />
+
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                 <div>
                                     <h3 className="text-2xl font-bold text-slate-800">
@@ -861,18 +1069,18 @@ max-w-[1800px]
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center gap-3">
                                             <h4 className="text-lg font-bold text-slate-800">
-                                                Sección General
+                                                {nombreSeccionActual}
                                             </h4>
                                             <span className="bg-cyan-100 text-cyan-800 text-sm font-medium px-3 py-1 rounded-full">
-                                                {itemsLocal.length} ítems
+                                                {itemsActivos.length} ítems
                                             </span>
                                         </div>
                                         <div className="text-right">
                                             <div className="text-sm text-slate-600">
-                                                Total estimado
+                                                Total sección · Total cotización {formatearPrecio(total, moneda, tasa)}
                                             </div>
                                             <div className="text-2xl font-bold text-slate-900">
-                                                {formatearPrecio(total, moneda, tasa)}
+                                                {formatearPrecio(calcularTotales(itemsActivos).total, moneda, tasa)}
                                             </div>
                                         </div>
                                     </div>
@@ -926,7 +1134,7 @@ max-w-[1800px]
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {itemsLocal.length === 0 ? (
+                                                {itemsActivos.length === 0 ? (
                                                     <tr>
                                                         <td colSpan={10} className="px-6 py-12 text-center">
                                                             <div className="flex flex-col items-center justify-center">
@@ -934,7 +1142,7 @@ max-w-[1800px]
                                                                     <FileTextOutlined className="text-3xl text-slate-400" />
                                                                 </div>
                                                                 <h4 className="text-lg font-medium text-slate-700 mb-2">
-                                                                    No hay ítems en esta cotización
+                                                                    No hay ítems en esta sección
                                                                 </h4>
                                                                 <p className="text-slate-500 mb-6">
                                                                     Agregue productos, servicios o descuentos para comenzar
@@ -945,6 +1153,11 @@ max-w-[1800px]
                                                 ) : (
                                                     // Renderizar cada ítem en una fila de la tabla
                                                     itemsLocal.map((item, index) => {
+                                                        // Solo la sección activa (el índice sigue siendo el de itemsLocal)
+                                                        if (!itemEnSeccion(item, seccionActual, secciones)) {
+                                                            return null;
+                                                        }
+
                                                         const valores = calcularValoresItem(item);
 
                                                         const precioCosto = Number(item.precioCosto || 0);
@@ -998,6 +1211,37 @@ max-w-[1800px]
                                                                         className="w-full max-w-[520px] border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-sm"
                                                                         placeholder="Nombre del ítem"
                                                                     />
+
+                                                                    {hayVariosGrupos && (
+                                                                        <select
+                                                                            title="Mover a otra sección"
+                                                                            value={
+                                                                                item.seccionId != null &&
+                                                                                    secciones.some((s) => s.id === item.seccionId)
+                                                                                    ? String(item.seccionId)
+                                                                                    : ""
+                                                                            }
+                                                                            onChange={(e) =>
+                                                                                handleItemChange(
+                                                                                    index,
+                                                                                    "seccionId",
+                                                                                    e.target.value === ""
+                                                                                        ? null
+                                                                                        : Number(e.target.value)
+                                                                                )
+                                                                            }
+                                                                            className="mt-1 w-full max-w-[520px] border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                                                                        >
+                                                                            {mostrarGeneral && (
+                                                                                <option value="">Sección: General (sin título)</option>
+                                                                            )}
+                                                                            {secciones.map((s) => (
+                                                                                <option key={s.id} value={String(s.id)}>
+                                                                                    Sección: {s.nombre}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    )}
                                                                 </td>
 
                                                                 {/* CANTIDAD */}
