@@ -35,6 +35,8 @@ import {
   buildAndDownloadReporteIABetaDocx,
   buildReporteIABetaDocxBlob,
   buildReporteIABetaFileName,
+  type HorasSoporteInforme,
+  type PerfilInformeIA,
 } from "./buildReporteIABetaDocx";
 
 export type ContenidoAdicionalInforme = {
@@ -242,6 +244,70 @@ const tablePro = (
   ];
 };
 
+/**
+ * Quita los márgenes vacíos del logo (transparentes o blancos), para que en el
+ * Word se vea del mismo tamaño visual que el de RIDS. Si algo falla, devuelve
+ * el logo original.
+ */
+const recortarMargenesLogo = async (bytes: Uint8Array): Promise<Uint8Array> => {
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: "image/png" }));
+    const { width, height } = bitmap;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return bytes;
+    ctx.drawImage(bitmap, 0, 0);
+    const { data } = ctx.getImageData(0, 0, width, height);
+
+    let minX = width, minY = height, maxX = -1, maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const a = data[i + 3] ?? 0;
+        const vacio = a < 16 || ((data[i] ?? 0) > 245 && (data[i + 1] ?? 0) > 245 && (data[i + 2] ?? 0) > 245);
+        if (vacio) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (maxX < 0) return bytes; // imagen vacía: se deja como está
+
+    const margen = Math.round(Math.max(maxX - minX, maxY - minY) * 0.03);
+    const x0 = Math.max(0, minX - margen);
+    const y0 = Math.max(0, minY - margen);
+    const w = Math.min(width, maxX + margen + 1) - x0;
+    const h = Math.min(height, maxY + margen + 1) - y0;
+    if (w >= width * 0.97 && h >= height * 0.97) return bytes; // sin márgenes que quitar
+
+    const recorte = document.createElement("canvas");
+    recorte.width = w;
+    recorte.height = h;
+    recorte.getContext("2d")?.drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>((ok) => recorte.toBlob(ok, "image/png"));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : bytes;
+  } catch {
+    return bytes;
+  }
+};
+
+/** Logo de la empresa en PNG (backend), sin márgenes. Sin logo o con error → null. */
+const obtenerLogoEmpresaBytes = async (empresaId: string | number): Promise<Uint8Array | null> => {
+  const id = Number(empresaId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  try {
+    const res = await http.get<ArrayBuffer>(`/empresas-logo/${id}/png`, { responseType: "arraybuffer" });
+    return res.data && res.data.byteLength > 0
+      ? await recortarMargenesLogo(new Uint8Array(res.data))
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const fetchImageBytes = async (path: string): Promise<Uint8Array | null> => {
   try {
     const res = await fetch(path, { cache: "no-store" });
@@ -443,6 +509,7 @@ export const useExportReportes = ({
 
     const logoBytes = await fetchImageBytes("/login/rids_logo.png");
     const headerLogoBytes = await fetchImageBytes("/login/LOGO_RIDS.png");
+    const empresaLogoBytes = await obtenerLogoEmpresaBytes(empresaFiltro);
 
     const ticketsPorCategoriaMap: Record<string, number> = {};
 
@@ -508,6 +575,8 @@ export const useExportReportes = ({
     const inventarioPorMarcaMap: Record<string, number> = {};
 
     for (const eq of dataBase.equipos || []) {
+      // Solo equipos activos (los dados de baja no son parte del parque)
+      if (/baja/i.test(String(eq.estadoEquipo ?? eq.estado ?? ""))) continue;
       const key = (eq.marca || "Sin marca").trim();
       inventarioPorMarcaMap[key] = (inventarioPorMarcaMap[key] || 0) + 1;
     }
@@ -613,79 +682,130 @@ export const useExportReportes = ({
       mantenciones_por_tecnico: "chart-wordbeta-mant-tecnico",
     };
 
-    const chartColorMap: Record<string, string> = {
-      mantenciones_por_fecha: CHART_CONFIG.colors.primary,
-      distribucion_servicios: CHART_CONFIG.colors.secondary,
-      solicitudes_programadas_vs_adicionales: CHART_CONFIG.colors.purple,
-      actividades_mantenimiento: CHART_CONFIG.colors.accent,
-      inventario_por_marca: CHART_CONFIG.colors.danger,
-      tickets_por_categoria: CHART_CONFIG.colors.teal,
-      tickets_top_usuarios: CHART_CONFIG.colors.emerald,
-      tickets_top_solicitantes: CHART_CONFIG.colors.rose,
-      visitas_por_tecnico: CHART_CONFIG.colors.cyan,
-      visitas_por_tipo: CHART_CONFIG.colors.pink,
-      mantenciones_por_status: CHART_CONFIG.colors.warning,
-      mantenciones_por_tecnico: CHART_CONFIG.colors.teal,
+    /*
+     * Word IA adaptativo: las REGLAS deciden qué gráficos van según el perfil
+     * del cliente; la IA solo aporta la lectura de cada uno.
+     *  - REMOTO (0 visitas): sin gráficos de terreno.
+     *  - CON_TERRENO: agrega fechas, técnicos, actividades y tipos de visita.
+     * Un gráfico solo entra si tiene al menos 2 categorías con valor > 0
+     * (uno vacío o de una sola barra no aporta; el dato ya está en los KPIs).
+     */
+    const perfil: PerfilInformeIA =
+      (dataBase.visitas?.length ?? 0) > 0 ? "CON_TERRENO" : "REMOTO";
+
+    const categoriasConValor = (key: string) =>
+      (datasetMap[key]?.values ?? []).filter((v) => Number(v) > 0).length;
+
+    const valoresDistintos = (key: string) =>
+      new Set((datasetMap[key]?.values ?? []).filter((v) => Number(v) > 0)).size;
+
+    const lecturaIA = (key: string, porDefecto: string): string => {
+      const desdeMapa = iaPayload?.lecturas_graficos?.[key];
+      if (typeof desdeMapa === "string" && desdeMapa.trim()) return desdeMapa.trim();
+      const sugerido = (iaPayload?.graficos_sugeridos ?? []).find(
+        (g: any) => g?.dataset_key === key && typeof g?.lectura === "string" && g.lectura.trim()
+      );
+      return sugerido?.lectura?.trim() || porDefecto;
     };
 
-    const graficosOperacionalesFijos = [
-      {
-        tipo: "bar",
-        titulo: "Cantidad de mantenciones por fecha",
-        dataset_key: "mantenciones_por_fecha",
-        lectura:
-          "Permite observar la distribución temporal de mantenciones realizadas durante el periodo y detectar jornadas de mayor actividad.",
-      },
-      {
-        tipo: "pie",
-        titulo: "Distribución de Servicios",
-        dataset_key: "distribucion_servicios",
-        lectura:
-          "Resume visualmente el peso relativo de cada tipo de servicio ejecutado durante el periodo.",
-      },
-      {
-        tipo: "pie",
-        titulo: "Solicitudes programadas vs adicionales",
-        dataset_key: "solicitudes_programadas_vs_adicionales",
-        lectura:
-          "Permite distinguir la proporción entre trabajo planificado y requerimientos adicionales atendidos en terreno.",
-      },
-      {
-        tipo: "bar",
-        titulo: "Actividades de mantenimiento",
-        dataset_key: "actividades_mantenimiento",
-        lectura:
-          "Muestra las principales actividades ejecutadas por el equipo técnico dentro del periodo informado.",
-      },
-      {
-        tipo: "bar",
-        titulo: "Inventario de equipos por marca",
-        dataset_key: "inventario_por_marca",
-        lectura:
-          "Entrega visibilidad sobre la composición del parque tecnológico por fabricante.",
-      },
-    ];
+    const reglasGraficos: Array<{
+      dataset_key: string;
+      tipo: "bar" | "pie";
+      titulo: string;
+      lectura: string;
+      aplica: boolean;
+    }> = [
+        // Terreno
+        {
+          dataset_key: "mantenciones_por_fecha",
+          tipo: "bar",
+          titulo: "Mantenciones en terreno por fecha",
+          lectura: "Distribución de las jornadas de mantención durante el período.",
+          aplica: perfil === "CON_TERRENO" && categoriasConValor("mantenciones_por_fecha") >= 2,
+        },
+        {
+          dataset_key: "visitas_por_tecnico",
+          tipo: "bar",
+          titulo: "Atenciones en terreno por técnico",
+          lectura: "Cobertura presencial entregada por cada técnico.",
+          aplica: perfil === "CON_TERRENO" && categoriasConValor("visitas_por_tecnico") >= 2,
+        },
+        {
+          dataset_key: "actividades_mantenimiento",
+          tipo: "bar",
+          titulo: "Actividades de mantenimiento",
+          lectura: "Principales tareas preventivas ejecutadas en los equipos.",
+          // Si todas las actividades tienen el mismo valor, el gráfico no informa nada
+          aplica:
+            perfil === "CON_TERRENO" &&
+            categoriasConValor("actividades_mantenimiento") >= 2 &&
+            valoresDistintos("actividades_mantenimiento") >= 2,
+        },
+        {
+          dataset_key: "solicitudes_programadas_vs_adicionales",
+          tipo: "pie",
+          titulo: "Solicitudes programadas vs adicionales",
+          lectura: "Proporción entre el trabajo planificado y los requerimientos adicionales.",
+          aplica: perfil === "CON_TERRENO" && categoriasConValor("solicitudes_programadas_vs_adicionales") >= 2,
+        },
+        {
+          dataset_key: "distribucion_servicios",
+          tipo: "pie",
+          titulo: "Distribución de servicios",
+          lectura: "Peso relativo de cada tipo de servicio ejecutado en terreno.",
+          aplica: perfil === "CON_TERRENO" && categoriasConValor("distribucion_servicios") >= 2,
+        },
+        // Remoto
+        {
+          dataset_key: "mantenciones_por_tecnico",
+          tipo: "bar",
+          titulo: "Mantenciones remotas por técnico",
+          lectura: "Distribución del soporte remoto entre el equipo técnico.",
+          aplica: categoriasConValor("mantenciones_por_tecnico") >= 2,
+        },
+        {
+          dataset_key: "mantenciones_por_status",
+          tipo: "pie",
+          titulo: "Mantenciones remotas por estado",
+          lectura: "Estado de ejecución de las mantenciones remotas del período.",
+          aplica: categoriasConValor("mantenciones_por_status") >= 2,
+        },
+        // Mesa de ayuda
+        {
+          dataset_key: "tickets_top_solicitantes",
+          tipo: "bar",
+          titulo: "Solicitantes con más tickets",
+          lectura: "Usuarios que concentraron la demanda de soporte en el período.",
+          aplica: categoriasConValor("tickets_top_solicitantes") >= 2,
+        },
+        {
+          dataset_key: "tickets_por_categoria",
+          tipo: "pie",
+          titulo: "Tickets por categoría",
+          lectura: "Tipos de requerimiento atendidos por la mesa de ayuda.",
+          aplica: categoriasConValor("tickets_por_categoria") >= 2,
+        },
+        // Inventario
+        {
+          dataset_key: "inventario_por_marca",
+          tipo: "bar",
+          titulo: "Equipos activos por marca",
+          lectura: "Composición del parque tecnológico activo por fabricante.",
+          aplica: categoriasConValor("inventario_por_marca") >= 1,
+        },
+      ];
 
-    const graficosCombinados = [
-      ...graficosOperacionalesFijos,
-      ...(iaPayload.graficos_sugeridos || []),
-    ]
-      .filter((grafico, index, arr) => {
-        const key = grafico?.dataset_key || `idx-${index}`;
+    const graficosCombinados = reglasGraficos
+      .filter((r) => r.aplica)
+      .map(({ dataset_key, tipo, titulo, lectura }) => ({
+        dataset_key,
+        tipo,
+        titulo,
+        lectura: lecturaIA(dataset_key, lectura),
+      }));
 
-        return (
-          arr.findIndex(
-            (x) => (x?.dataset_key || `idx-${index}`) === key
-          ) === index
-        );
-      })
-      .filter((grafico) => {
-        if (!grafico?.dataset_key) return false;
-
-        const ds = datasetMap[grafico.dataset_key];
-
-        return ds && ds.labels.length > 0 && ds.values.length > 0;
-      });
+    // Gráficos en gris corporativo (mismo color para todos)
+    const COLOR_GRAFICO = "#475569";
 
     const chartImages = [];
 
@@ -717,11 +837,11 @@ export const useExportReportes = ({
           chartId,
           ds.labels,
           ds.values,
-          grafico.titulo || "Gráfico"
+          grafico.titulo || "Gráfico",
+          { sobrio: true }
         );
       } else if (tipo === "line") {
-        const chartColor =
-          chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
+        const chartColor = COLOR_GRAFICO;
 
         dataUrl = await generateLineChart(
           chartId,
@@ -736,15 +856,13 @@ export const useExportReportes = ({
           grafico.titulo || "Gráfico"
         );
       } else {
-        const chartColor =
-          chartColorMap[datasetKey] || CHART_CONFIG.colors.primary;
-
         dataUrl = await generateBarChart(
           chartId,
           ds.labels,
           ds.values,
           grafico.titulo || "Gráfico",
-          chartColor
+          COLOR_GRAFICO,
+          { sobrio: true }
         );
       }
 
@@ -799,15 +917,32 @@ export const useExportReportes = ({
       })
     );
 
+    // Horas de soporte con los mismos cálculos del Word normal
+    const exportDataIA = buildReporteExportData({
+      data: dataBase,
+      periodoTexto,
+      empresaNombre,
+    });
+
+    const horasSoporte: HorasSoporteInforme = {
+      horasTickets: exportDataIA.totalHorasTickets,
+      minutosRemotas: exportDataIA.totalMinutosRemotas,
+      minutosTerreno: exportDataIA.totalMinutosVisitas,
+      horasTotal: exportDataIA.totalHorasSoporte,
+    };
+
     return {
       iaPayload,
       dataBase,
       logoBytes,
       headerLogoBytes,
+      empresaLogoBytes,
       graficosCombinados,
       chartImages,
       extras,
       equiposDetalleReporte,
+      perfil,
+      horasSoporte,
     };
   };
 
@@ -821,13 +956,18 @@ export const useExportReportes = ({
         dataBase,
         logoBytes,
         headerLogoBytes,
+        empresaLogoBytes,
         graficosCombinados,
         chartImages,
         extras,
         equiposDetalleReporte,
+        perfil,
+        horasSoporte,
       } = await prepararReporteIABeta();
 
       const blobIA = await buildAndDownloadReporteIABetaDocx({
+        perfil,
+        horasSoporte,
         payload: { ...iaPayload, graficos_sugeridos: graficosCombinados },
         empresaNombre,
         periodoTexto,
@@ -842,6 +982,7 @@ export const useExportReportes = ({
         licencias: dataBase.licencias,
         logoBytes,
         headerLogoBytes,
+        empresaLogoBytes,
       });
 
       // Guardar en el historial (no bloquea la descarga)
@@ -891,13 +1032,18 @@ export const useExportReportes = ({
         dataBase,
         logoBytes,
         headerLogoBytes,
+        empresaLogoBytes,
         graficosCombinados,
         chartImages,
         extras,
         equiposDetalleReporte,
+        perfil,
+        horasSoporte,
       } = await prepararReporteIABeta();
 
       const blob = await buildReporteIABetaDocxBlob({
+        perfil,
+        horasSoporte,
         payload: {
           ...iaPayload,
           graficos_sugeridos: graficosCombinados,
@@ -928,6 +1074,7 @@ export const useExportReportes = ({
           dataBase.licencias,
         logoBytes,
         headerLogoBytes,
+        empresaLogoBytes,
       });
 
       const fileName =

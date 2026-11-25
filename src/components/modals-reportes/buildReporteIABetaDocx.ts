@@ -83,6 +83,19 @@ type TicketDetalleRow = {
   subject?: string | null;
   type?: string | null;
   fecha?: string | Date | null;
+  createdAt?: string | Date | null;
+  status?: string | null;
+};
+
+/** Perfil del cliente en el período: decide qué secciones lleva el Word IA. */
+export type PerfilInformeIA = "REMOTO" | "CON_TERRENO";
+
+/** Horas de soporte del período (mismos cálculos que el Word normal). */
+export type HorasSoporteInforme = {
+  horasTickets: number;
+  minutosRemotas: number;
+  minutosTerreno: number;
+  horasTotal: number;
 };
 
 type VisitaDetalleRow = {
@@ -137,6 +150,8 @@ type PayloadIABeta = {
   hallazgos?: Array<{ titulo?: string; detalle?: string; impacto?: string }>;
   riesgos?: Array<{ titulo?: string; detalle?: string; nivel?: string }>;
   recomendaciones?: Array<{ prioridad?: string; titulo?: string; detalle?: string; beneficio?: string }>;
+  perfil?: PerfilInformeIA;
+  lecturas_graficos?: Record<string, string>;
   plan_30_60_90?: { d30?: string[]; d60?: string[]; d90?: string[] };
   conclusion?: string;
 };
@@ -162,6 +177,11 @@ export type BuildReporteIABetaDocxParams = {
   equiposDetalle?: EquipoDetalleRow[];
   logoBytes?: Uint8Array | null;
   headerLogoBytes?: Uint8Array | null;
+  /** Logo de la empresa del informe (PNG). Sin logo → solo RIDS. */
+  empresaLogoBytes?: Uint8Array | null;
+  /** Si no viene, se deduce: hay visitas → CON_TERRENO. */
+  perfil?: PerfilInformeIA;
+  horasSoporte?: HorasSoporteInforme | null;
   licencias?: {
     total?: number;
     totalUsuariosConLicencia?: number;
@@ -176,11 +196,12 @@ export type BuildReporteIABetaDocxParams = {
 
 // ── Paleta de tema ─────────────────────────────────────────────────────────
 
+// Paleta gris corporativa (un solo acento sobrio)
 const THEME = {
   primary: "1F2937",
-  accent: "2563EB",
-  accentSoft: "DBEAFE",
-  light: "F3F4F6",
+  accent: "475569",
+  accentSoft: "E2E8F0",
+  light: "F1F5F9",
   border: "E5E7EB",
   text: "0F172A",
   muted: "475569",
@@ -292,7 +313,60 @@ const noBorders = {
 
 // ── Header / Footer ────────────────────────────────────────────────────────
 
-const buildHeader = (empresaNombre: string, headerLogoBytes?: Uint8Array | null) =>
+/** Logos del encabezado: RIDS y, si existe, el de la empresa separados por una línea gris. */
+const logosEncabezado = (
+  headerLogoBytes?: Uint8Array | null,
+  empresaLogoBytes?: Uint8Array | null
+): (ImageRun | TextRun)[] => {
+  const runs: (ImageRun | TextRun)[] = [];
+  if (headerLogoBytes) {
+    runs.push(new ImageRun({ data: headerLogoBytes, type: "png", transformation: { width: 120, height: 36 } }));
+  }
+  if (empresaLogoBytes) {
+    if (runs.length) runs.push(new TextRun({ text: "  |  ", color: "CBD5E1", size: 28 }));
+    runs.push(new ImageRun({ data: empresaLogoBytes, type: "png", transformation: fitTransformation(empresaLogoBytes, 120, 36) }));
+  }
+  return runs.length ? runs : [new TextRun({ text: "" })];
+};
+
+/** Franja blanca de la portada: logo de RIDS | logo de la empresa. */
+const celdaLogoPortada = (bytes: Uint8Array, conSeparador: boolean) =>
+  new TableCell({
+    width: { size: 50, type: WidthType.PERCENTAGE },
+    shading: { fill: THEME.white },
+    verticalAlign: VerticalAlign.CENTER,
+    margins: { top: 100, bottom: 100, left: 140, right: 140 },
+    borders: {
+      ...noBorders,
+      left: conSeparador
+        ? { style: BorderStyle.SINGLE, size: 8, color: "CBD5E1" }
+        : noBorder,
+    },
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ data: bytes, type: "png", transformation: fitTransformation(bytes, 160, 52) })],
+      }),
+    ],
+  });
+
+const buildFranjaLogos = (ridsLogo: Uint8Array, empresaLogo: Uint8Array) =>
+  new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorders,
+    rows: [
+      new TableRow({
+        cantSplit: true,
+        children: [celdaLogoPortada(ridsLogo, false), celdaLogoPortada(empresaLogo, true)],
+      }),
+    ],
+  });
+
+const buildHeader = (
+  empresaNombre: string,
+  headerLogoBytes?: Uint8Array | null,
+  empresaLogoBytes?: Uint8Array | null
+) =>
   new Header({
     children: [
       new Table({
@@ -303,7 +377,7 @@ const buildHeader = (empresaNombre: string, headerLogoBytes?: Uint8Array | null)
             cantSplit: true,
             children: [
               new TableCell({
-                width: { size: 72, type: WidthType.PERCENTAGE },
+                width: { size: empresaLogoBytes ? 50 : 72, type: WidthType.PERCENTAGE },
                 borders: noBorders,
                 verticalAlign: VerticalAlign.CENTER,
                 children: [
@@ -320,15 +394,13 @@ const buildHeader = (empresaNombre: string, headerLogoBytes?: Uint8Array | null)
                 ],
               }),
               new TableCell({
-                width: { size: 28, type: WidthType.PERCENTAGE },
+                width: { size: empresaLogoBytes ? 50 : 28, type: WidthType.PERCENTAGE },
                 borders: noBorders,
                 verticalAlign: VerticalAlign.CENTER,
                 children: [
                   new Paragraph({
                     alignment: AlignmentType.RIGHT,
-                    children: headerLogoBytes
-                      ? [new ImageRun({ data: headerLogoBytes, type: "png", transformation: { width: 120, height: 36 } })]
-                      : [new TextRun({ text: "" })],
+                    children: logosEncabezado(headerLogoBytes, empresaLogoBytes),
                   }),
                 ],
               }),
@@ -363,7 +435,9 @@ const buildHeroPremium = (
   subtitulo: string,
   empresaNombre: string,
   periodoTexto: string,
-  logoBytes?: Uint8Array | null
+  logoBytes?: Uint8Array | null,
+  headerLogoBytes?: Uint8Array | null,
+  empresaLogoBytes?: Uint8Array | null
 ) =>
   new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -372,7 +446,7 @@ const buildHeroPremium = (
         cantSplit: true,
         children: [
           new TableCell({
-            shading: { fill: "0F2B67" },
+            shading: { fill: "1F2937" },
             margins: { top: 220, bottom: 220, left: 240, right: 240 },
             children: [
               new Table({
@@ -386,13 +460,20 @@ const buildHeroPremium = (
                         width: { size: 58, type: WidthType.PERCENTAGE },
                         borders: noBorders,
                         children: [
-                          ...(logoBytes
-                            ? [new Paragraph({ spacing: { after: 70 }, children: [new ImageRun({ data: logoBytes, type: "png", transformation: { width: 170, height: 52 } })] })]
-                            : []),
-                          new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: "ASESORÍAS RIDS · REPORTE MENSUAL", bold: true, size: 18, color: "DCE7FF" })] }),
+                          // Con logo de empresa: franja blanca RIDS | empresa
+                          // (el logo oscuro de RIDS se ve sobre blanco).
+                          ...(empresaLogoBytes && (headerLogoBytes ?? logoBytes)
+                            ? [
+                              buildFranjaLogos((headerLogoBytes ?? logoBytes) as Uint8Array, empresaLogoBytes),
+                              new Paragraph({ spacing: { after: 90 }, children: [] }),
+                            ]
+                            : logoBytes
+                              ? [new Paragraph({ spacing: { after: 70 }, children: [new ImageRun({ data: logoBytes, type: "png", transformation: { width: 170, height: 52 } })] })]
+                              : []),
+                          new Paragraph({ spacing: { after: 60 }, children: [new TextRun({ text: "ASESORÍAS RIDS · REPORTE MENSUAL", bold: true, size: 18, color: "CBD5E1" })] }),
                           new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: titulo, bold: true, size: 42, color: "FFFFFF" })] }),
                           new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: subtitulo, size: 24, color: "E2E8F0" })] }),
-                          new Paragraph({ children: [new TextRun({ text: `${empresaNombre} · Periodo ${periodoTexto || "No definido"}`, bold: true, size: 22, color: "FFFFFF" })] }),
+                          new Paragraph({ children: [new TextRun({ text: `${empresaNombre} · ${periodoTexto || "Periodo no definido"}`, bold: true, size: 22, color: "FFFFFF" })] }),
                         ],
                       }),
                       // Columna derecha — resumen de emisión
@@ -407,19 +488,19 @@ const buildHeroPremium = (
                                 cantSplit: true,
                                 children: [
                                   new TableCell({
-                                    shading: { fill: "335FBA" },
+                                    shading: { fill: "334155" },
                                     margins: { top: 140, bottom: 140, left: 160, right: 160 },
                                     borders: {
-                                      top: { style: BorderStyle.SINGLE, size: 4, color: "5D84D1" },
-                                      right: { style: BorderStyle.SINGLE, size: 4, color: "5D84D1" },
-                                      bottom: { style: BorderStyle.SINGLE, size: 4, color: "5D84D1" },
-                                      left: { style: BorderStyle.SINGLE, size: 4, color: "5D84D1" },
+                                      top: { style: BorderStyle.SINGLE, size: 4, color: "475569" },
+                                      right: { style: BorderStyle.SINGLE, size: 4, color: "475569" },
+                                      bottom: { style: BorderStyle.SINGLE, size: 4, color: "475569" },
+                                      left: { style: BorderStyle.SINGLE, size: 4, color: "475569" },
                                     },
                                     children: [
-                                      new Paragraph({ spacing: { after: 70 }, children: [new TextRun({ text: "RESUMEN DE EMISIÓN", bold: true, size: 22, color: "DCE7FF" })] }),
+                                      new Paragraph({ spacing: { after: 70 }, children: [new TextRun({ text: "RESUMEN DE EMISIÓN", bold: true, size: 22, color: "CBD5E1" })] }),
                                       new Paragraph({ spacing: { after: 45 }, children: [new TextRun({ text: `Cliente: ${empresaNombre}`, bold: true, size: 20, color: "FFFFFF" })] }),
                                       new Paragraph({ spacing: { after: 45 }, children: [new TextRun({ text: `Periodo: ${periodoTexto || "No definido"}`, bold: true, size: 20, color: "FFFFFF" })] }),
-                                      new Paragraph({ spacing: { after: 45 }, children: [new TextRun({ text: "Versión: Informe Visual", size: 20, color: "FFFFFF" })] }),
+                                      new Paragraph({ spacing: { after: 45 }, children: [new TextRun({ text: "Versión: Informe ejecutivo", size: 20, color: "FFFFFF" })] }),
                                       new Paragraph({ children: [new TextRun({ text: "Datos reales del sistema interno de RIDS.", size: 18, color: "E2E8F0" })] }),
                                     ],
                                   }),
@@ -455,6 +536,12 @@ const buildKpiDashboard = (
             width: { size: 25, type: WidthType.PERCENTAGE },
             shading: { fill: card.fill },
             margins: { top: 160, bottom: 160, left: 160, right: 160 },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 12, color: card.accent },
+              left: { style: BorderStyle.SINGLE, size: 4, color: THEME.border },
+              right: { style: BorderStyle.SINGLE, size: 4, color: THEME.border },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: THEME.border },
+            },
             children: [
               new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: "▁▁▁", bold: true, size: 20, color: card.accent })] }),
               new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: card.label, bold: true, size: 22, color: THEME.muted })] }),
@@ -591,9 +678,13 @@ const FALLBACK_STYLES = [
 ];
 
 function getStyle(datasetKey?: string, index = 0) {
-  return (datasetKey && DATASET_STYLES[datasetKey])
+  const base = (datasetKey && DATASET_STYLES[datasetKey])
     ? DATASET_STYLES[datasetKey]
     : FALLBACK_STYLES[index % FALLBACK_STYLES.length];
+
+  // Estilo corporativo: tarjeta blanca y un único acento gris para todos los
+  // gráficos. Solo se conserva la etiqueta (badge) de cada tipo.
+  return { bg: THEME.white, accent: THEME.accent, badge: base?.badge ?? "Visual ejecutivo" };
 }
 
 // ── Escalado de imágenes respetando proporción ─────────────────────────────
@@ -683,7 +774,7 @@ const buildChartCard = (grafico: ChartImageItem, index: number): Table => {
     // Lectura ejecutiva
     new Paragraph({
       children: [
-        new TextRun({ text: "▶ ", bold: true, size: 18, color: style.accent }),
+        new TextRun({ text: "• ", bold: true, size: 18, color: style.accent }),
         new TextRun({
           text: grafico.lectura || "Sin lectura ejecutiva disponible.",
           size: 20,
@@ -771,7 +862,7 @@ const buildChartPair = (
           ]),
         new Paragraph({
           children: [
-            new TextRun({ text: "▶ ", bold: true, size: 16, color: style.accent }),
+            new TextRun({ text: "• ", bold: true, size: 16, color: style.accent }),
             new TextRun({ text: grafico.lectura || "—", size: 18, color: THEME.text }),
           ],
         }),
@@ -1007,6 +1098,74 @@ function buildInventarioEquiposTables(equipos: EquipoDetalleRow[]): Table[] {
   ];
 }
 
+// ── Tablas compactas para las secciones adaptativas ───────────────────────
+
+function formatMinutos(minutos: number): string {
+  const total = Math.max(0, Math.round(Number(minutos) || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+function minutosEntre(inicio?: string | Date | null, fin?: string | Date | null): number {
+  if (!inicio || !fin) return 0;
+  const i = new Date(inicio).getTime();
+  const f = new Date(fin).getTime();
+  return Number.isFinite(i) && Number.isFinite(f) && f > i ? (f - i) / 60000 : 0;
+}
+
+function fechaCorta(value?: string | Date | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+const ESTADOS_TICKET: Record<string, string> = {
+  NEW: "Nuevo", OPEN: "Abierto", PENDING: "Pendiente", ON_HOLD: "En espera",
+  RESOLVED: "Resuelto", CLOSED: "Cerrado",
+};
+
+/** Tabla simple (encabezado gris oscuro, filas cebra) que no se corta por fila. */
+function buildTablaSimple(
+  headers: string[],
+  rows: (string | number)[][],
+  anchos?: number[]
+): Table {
+  const headerRow = new TableRow({
+    tableHeader: true,
+    cantSplit: true,
+    children: headers.map((h, i) =>
+      new TableCell({
+        ...(anchos?.[i] ? { width: { size: anchos[i], type: WidthType.PERCENTAGE } } : {}),
+        shading: { fill: THEME.primary },
+        verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 100, right: 100 },
+        children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 18 })] })],
+      })
+    ),
+  });
+
+  const bodyRows = rows.map((row, r) =>
+    new TableRow({
+      cantSplit: true,
+      children: row.map((value) =>
+        new TableCell({
+          shading: { fill: r % 2 === 0 ? THEME.zebra : THEME.white },
+          verticalAlign: VerticalAlign.CENTER,
+          margins: { top: 50, bottom: 50, left: 100, right: 100 },
+          children: [new Paragraph({ children: [new TextRun({ text: String(value ?? "—"), color: THEME.text, size: 18 })] })],
+        })
+      ),
+    })
+  );
+
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...bodyRows] });
+}
+
 // ── Función principal ──────────────────────────────────────────────────────
 
 export async function buildReporteIABetaDocxBlob({
@@ -1018,18 +1177,27 @@ export async function buildReporteIABetaDocxBlob({
   mantencionesRemotas = [],
   ticketsDetalle = [],
   visitasDetalle = [],
-  solicitantesDetalle = [],
   equiposDetalle = [],
   logoBytes = null,
   headerLogoBytes = null,
+  empresaLogoBytes = null,
+  perfil: perfilParam,
+  horasSoporte = null,
 }: BuildReporteIABetaDocxParams): Promise<Blob> {
-  const titulo = payload?.titulo || "Informe Ejecutivo de Operaciones TI";
-  const subtitulo = payload?.subtitulo || "Versión Visual";
+  // Perfil del cliente: decide qué secciones van (las reglas, no la IA).
+  const perfil: PerfilInformeIA =
+    perfilParam ?? payload?.perfil ?? (visitasDetalle.length > 0 ? "CON_TERRENO" : "REMOTO");
+
+  // Portada con formato fijo (la IA ya no define título/subtítulo).
+  const titulo = "Informe de Gestión de Servicios TI";
+  const subtitulo =
+    perfil === "REMOTO"
+      ? "Informe ejecutivo · Soporte remoto y mesa de ayuda"
+      : "Informe ejecutivo · Soporte en terreno, remoto y mesa de ayuda";
 
   // ── 1. Enriquecer gráficos con imágenes ──────────────────────────────────
-  const graficosBase = normalizeArray(payload?.graficos_sugeridos, [
-    { tipo: "bar", titulo: "Sin gráficos disponibles", dataset_key: "tickets_por_categoria", lectura: "No se definieron gráficos para este periodo." },
-  ]);
+  // Los gráficos llegan ya filtrados por reglas desde prepararReporteIABeta.
+  const graficosBase = normalizeArray(payload?.graficos_sugeridos, []);
 
   const graficosConImagen: ChartImageItem[] = graficosBase.map((g) => {
     const found = chartImages.find((c) => c.dataset_key === g.dataset_key);
@@ -1039,36 +1207,41 @@ export async function buildReporteIABetaDocxBlob({
   // ── 2. Panel KPI ─────────────────────────────────────────────────────────
   const metricasDestacadas = normalizeArray(payload?.metricas_destacadas, []);
 
-  const panelCards = [
-    {
-      label: "TICKETS",
-      value: String(ticketsDetalle.length || metricasDestacadas.find((m) => compactText(m.nombre).toLowerCase().includes("ticket"))?.valor || "0"),
-      helper: "Incidencias atendidas",
-      fill: "E8F0FF",
-      accent: "2563EB",
-    },
-    {
-      label: "MANTENCIONES REMOTAS",
-      value: String(mantencionesRemotas.length || metricasDestacadas.find((m) => compactText(m.nombre).toLowerCase().includes("mantencion"))?.valor || "0"),
-      helper: "Sesiones remotas del periodo",
-      fill: "E7F7EF",
-      accent: "059669",
-    },
-    {
-      label: "USUARIOS",
-      value: String(solicitantesDetalle.length || "0"),
-      helper: "Solicitantes activos",
-      fill: "F1EAFE",
-      accent: "7C3AED",
-    },
-    {
-      label: "INVENTARIO",
-      value: String(equiposDetalle.length || metricasDestacadas.find((m) => compactText(m.nombre).toLowerCase().includes("inventario"))?.valor || "0"),
-      helper: "Activos registrados",
-      fill: "FFF4E6",
-      accent: "D97706",
-    },
-  ];
+  const equiposActivos = equiposDetalle.filter(
+    (e) => !/baja/i.test(String(e.estadoEquipo ?? e.estado ?? ""))
+  ).length;
+
+  const minutosRemotasDetalle = mantencionesRemotas.reduce(
+    (acc, m) => acc + minutosEntre(m.inicio, m.fin),
+    0
+  );
+
+  const tarjeta = (label: string, value: string, helper: string) => ({
+    label, value, helper, fill: THEME.white, accent: THEME.accent,
+  });
+
+  const panelCards =
+    perfil === "REMOTO"
+      ? [
+        tarjeta("TICKETS", String(ticketsDetalle.length), "Incidencias atendidas"),
+        tarjeta("MANTENCIONES REMOTAS", String(mantencionesRemotas.length), "Sesiones remotas del período"),
+        tarjeta(
+          "HORAS DE SOPORTE",
+          horasSoporte ? `${horasSoporte.horasTotal.toFixed(1)} h` : formatMinutos(minutosRemotasDetalle),
+          "Tickets y soporte remoto"
+        ),
+        tarjeta("EQUIPOS ACTIVOS", String(equiposActivos), `De ${equiposDetalle.length} registrados · ${equiposDetalle.length - equiposActivos} inactivos`),
+      ]
+      : [
+        tarjeta("ATENCIONES EN TERRENO", String(visitasDetalle.length), "Atenciones presenciales"),
+        tarjeta(
+          "TIEMPO EN TERRENO",
+          horasSoporte ? formatMinutos(horasSoporte.minutosTerreno) : "—",
+          "Jornadas de visita"
+        ),
+        tarjeta("TICKETS", String(ticketsDetalle.length), "Incidencias atendidas"),
+        tarjeta("MANTENCIONES REMOTAS", String(mantencionesRemotas.length), "Sesiones remotas del período"),
+      ];
 
   // ── 3. Tabla de métricas IA ───────────────────────────────────────────────
   const metricasTable = metricasDestacadas.length > 0
@@ -1108,15 +1281,73 @@ export async function buildReporteIABetaDocxBlob({
     return ai - bi;
   });
 
-  // Separar en grupos temáticos para añadir secciones separadoras
-  const grupoActividad = sortedGraficos.filter((g) => ["mantenciones_por_fecha", "visitas_por_tecnico", "mantenciones_por_tecnico"].includes(g.dataset_key ?? ""));
-  const grupoTickets = sortedGraficos.filter((g) => ["tickets_por_categoria", "tickets_top_solicitantes", "tickets_top_usuarios"].includes(g.dataset_key ?? ""));
-  const grupoInventario = sortedGraficos.filter((g) => ["inventario_por_marca"].includes(g.dataset_key ?? ""));
-  const grupoDistrib = sortedGraficos.filter((g) => ["distribucion_servicios", "solicitudes_programadas_vs_adicionales", "actividades_mantenimiento", "visitas_por_tipo", "mantenciones_por_status"].includes(g.dataset_key ?? ""));
-  const grupoOtros = sortedGraficos.filter((g) => {
-    const allGrouped = [...grupoActividad, ...grupoTickets, ...grupoInventario, ...grupoDistrib];
-    return !allGrouped.some((x) => x.dataset_key === g.dataset_key);
-  });
+  // Grupos por tema. Qué gráficos existen ya lo decidieron las reglas.
+  const KEYS_TERRENO = [
+    "mantenciones_por_fecha",
+    "visitas_por_tecnico",
+    "actividades_mantenimiento",
+    "solicitudes_programadas_vs_adicionales",
+    "distribucion_servicios",
+    "visitas_por_tipo",
+  ];
+  const KEYS_REMOTO = ["mantenciones_por_tecnico", "mantenciones_por_status"];
+  const KEYS_TICKETS = ["tickets_top_solicitantes", "tickets_top_usuarios", "tickets_por_categoria"];
+  const KEYS_INVENTARIO = ["inventario_por_marca"];
+
+  const enGrupo = (keys: string[]) => sortedGraficos.filter((g) => keys.includes(g.dataset_key ?? ""));
+
+  const grupoTerreno = perfil === "CON_TERRENO" ? enGrupo(KEYS_TERRENO) : [];
+  const grupoRemoto = enGrupo(KEYS_REMOTO);
+  const grupoTickets = enGrupo(KEYS_TICKETS);
+  const grupoInventario = enGrupo(KEYS_INVENTARIO);
+  const grupoOtros = sortedGraficos.filter(
+    (g) => ![...KEYS_TERRENO, ...KEYS_REMOTO, ...KEYS_TICKETS, ...KEYS_INVENTARIO].includes(g.dataset_key ?? "")
+  );
+
+  // ── Tablas resumidas de cada sección ─────────────────────────────────────
+  const remotasOrdenadas = [...mantencionesRemotas].sort(
+    (a, b) => new Date(a.inicio ?? 0).getTime() - new Date(b.inicio ?? 0).getTime()
+  );
+
+  const tablaRemotas = remotasOrdenadas.length
+    ? buildTablaSimple(
+      ["Fecha", "Técnico", "Usuario", "Duración", "Estado"],
+      remotasOrdenadas.map((m) => [
+        fechaCorta(m.inicio),
+        m.tecnico?.nombre ?? "—",
+        m.solicitante ?? "—",
+        formatMinutos(minutosEntre(m.inicio, m.fin)),
+        String(m.status ?? "—").toUpperCase(),
+      ]),
+      [16, 24, 28, 14, 18]
+    )
+    : null;
+
+  // Tickets: listado completo del período, siempre (además de los gráficos)
+  const tablaTickets = ticketsDetalle.length
+    ? buildTablaSimple(
+      ["Fecha", "Asunto", "Estado"],
+      ticketsDetalle.map((t) => [
+        fechaCorta(t.createdAt ?? t.fecha),
+        compactText(t.subject),
+        ESTADOS_TICKET[String(t.status ?? "").toUpperCase()] ?? compactText(t.status),
+      ]),
+      [16, 64, 20]
+    )
+    : null;
+
+  const filasHoras: (string | number)[][] = horasSoporte
+    ? [
+      ...(horasSoporte.horasTickets > 0 ? [["Mesa de ayuda (tickets, estimado)", `${horasSoporte.horasTickets.toFixed(1)} h`]] : []),
+      ...(horasSoporte.minutosRemotas > 0 ? [["Mantenciones remotas", formatMinutos(horasSoporte.minutosRemotas)]] : []),
+      ...(horasSoporte.minutosTerreno > 0 ? [["Atención en terreno", formatMinutos(horasSoporte.minutosTerreno)]] : []),
+      ["Total del período", `${horasSoporte.horasTotal.toFixed(1)} h`],
+    ]
+    : [];
+
+  const recomendaciones = (payload?.recomendaciones ?? [])
+    .filter((r) => compactText(r?.titulo) !== "—")
+    .slice(0, 4);
 
   // ── 5. Armar el documento ─────────────────────────────────────────────────
   //
@@ -1128,7 +1359,7 @@ export async function buildReporteIABetaDocxBlob({
   const children: (Table | Paragraph)[] = [
 
     // ── Portada ──────────────────────────────────────────────────────────────
-    buildHeroPremium(titulo, subtitulo, empresaNombre, periodoTexto, logoBytes),
+    buildHeroPremium(titulo, subtitulo, empresaNombre, periodoTexto, logoBytes, headerLogoBytes, empresaLogoBytes),
     spacer(70),
 
     // ── Panel KPI ─────────────────────────────────────────────────────────────
@@ -1157,36 +1388,51 @@ export async function buildReporteIABetaDocxBlob({
       ]
       : []),
 
-    // ── Bloque A: Actividad y cobertura ───────────────────────────────────────
-    ...(grupoActividad.length > 0
+    // ── Atención en terreno (solo clientes con visitas) ───────────────────────
+    ...(grupoTerreno.length > 0
       ? [
-        ...buildSectionHeader(
-          "Actividad y cobertura técnica",
-          "Visitas, mantenciones presenciales y remotas"
-        ),
-        ...buildChartBlocks(grupoActividad),
+        ...buildSectionHeader("Atención en terreno", "Jornadas presenciales, técnicos y actividades ejecutadas"),
+        ...buildChartBlocks(grupoTerreno),
         spacer(50),
       ]
       : []),
 
-    // ── Bloque B: Mesa de ayuda ───────────────────────────────────────────────
-    ...(grupoTickets.length > 0
+    // ── Soporte remoto (si hubo mantenciones remotas) ─────────────────────────
+    ...(mantencionesRemotas.length > 0
       ? [
         ...buildSectionHeader(
-          "Mesa de ayuda — Tickets",
-          "Volumen, categorías y solicitantes frecuentes"
+          "Soporte remoto",
+          `${mantencionesRemotas.length} mantenciones remotas · ${formatMinutos(horasSoporte?.minutosRemotas || minutosRemotasDetalle)} de trabajo`
         ),
-        ...buildChartBlocks(grupoTickets),
-        spacer(80),
+        ...buildChartBlocks(grupoRemoto),
+        ...(tablaRemotas ? [tablaRemotas, spacer(50)] : []),
       ]
       : []),
 
-    // ── Bloque C: Inventario ──────────────────────────────────────────────────
+    // ── Mesa de ayuda (si hubo tickets) ───────────────────────────────────────
+    ...(ticketsDetalle.length > 0
+      ? [
+        ...buildSectionHeader("Mesa de ayuda", `${ticketsDetalle.length} tickets gestionados en el período`),
+        ...buildChartBlocks(grupoTickets),
+        ...(tablaTickets ? [tablaTickets, spacer(50)] : []),
+      ]
+      : []),
+
+    // ── Horas de soporte ──────────────────────────────────────────────────────
+    ...(filasHoras.length > 1
+      ? [
+        ...buildSectionHeader("Horas de soporte", "Tiempo invertido en el período"),
+        buildTablaSimple(["Concepto", "Tiempo"], filasHoras, [70, 30]),
+        spacer(60),
+      ]
+      : []),
+
+    // ── Inventario (detalle sin cambios) ──────────────────────────────────────
     ...(grupoInventario.length > 0 || inventarioEquiposTables.length > 0
       ? [
         ...buildSectionHeader(
           "Inventario de equipamiento",
-          "Composición tecnológica y detalle operativo de activos registrados"
+          `${equiposDetalle.length} equipos registrados · ${equiposActivos} activos · ${equiposDetalle.length - equiposActivos} inactivos (dados de baja)`
         ),
 
         ...(grupoInventario.length > 0
@@ -1212,24 +1458,28 @@ export async function buildReporteIABetaDocxBlob({
       ]
       : []),
 
-    // ── Bloque D: Distribución de servicios ───────────────────────────────────
-    ...(grupoDistrib.length > 0
+    // ── Otros gráficos (si las reglas agregan alguno nuevo) ───────────────────
+    ...(grupoOtros.length > 0
       ? [
-        ...buildSectionHeader(
-          "Distribución de servicios",
-          "Tipos de intervención y actividades ejecutadas"
-        ),
-        ...buildChartBlocks(grupoDistrib),
-        spacer(50),
+        ...buildSectionHeader("Análisis complementario"),
+        ...buildChartBlocks(grupoOtros),
+        spacer(80),
       ]
       : []),
 
-    // ── Bloque E: Gráficos adicionales sugeridos por IA ───────────────────────
-    ...(grupoOtros.length > 0
+    // ── Recomendaciones (IA) ──────────────────────────────────────────────────
+    ...(recomendaciones.length > 0
       ? [
-        ...buildSectionHeader("Análisis complementario", "Visualizaciones adicionales sugeridas"),
-        ...buildChartBlocks(grupoOtros),
-        spacer(80),
+        ...buildSectionHeader("Recomendaciones", "Acciones propuestas para el próximo período"),
+        buildTablaSimple(
+          ["Prioridad", "Recomendación"],
+          recomendaciones.map((r) => [
+            compactText(r.prioridad),
+            `${compactText(r.titulo)}${r.detalle ? `: ${compactText(r.detalle)}` : ""}`,
+          ]),
+          [16, 84]
+        ),
+        spacer(60),
       ]
       : []),
 
@@ -1280,7 +1530,7 @@ export async function buildReporteIABetaDocxBlob({
     },
     sections: [
       {
-        headers: { default: buildHeader(empresaNombre, headerLogoBytes) },
+        headers: { default: buildHeader(empresaNombre, headerLogoBytes, empresaLogoBytes) },
         footers: { default: buildFooter() },
         properties: {
           page: {

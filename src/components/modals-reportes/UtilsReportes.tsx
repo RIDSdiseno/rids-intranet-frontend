@@ -308,18 +308,36 @@ const PIE_PALETTE = [
 const getPieColors = (size: number) =>
     Array.from({ length: size }, (_, index) => PIE_PALETTE[index % PIE_PALETTE.length]);
 
+/*
+ * Estilo «sobrio» (Word IA): sin leyenda ni título dentro de la imagen (la
+ * tarjeta del Word ya muestra el título), textos oscuros legibles y paleta gris.
+ * Sin `opciones`, los gráficos se generan igual que antes (Word normal).
+ */
+export interface OpcionesGrafico {
+    sobrio?: boolean;
+}
+
+const TEXTO_SOBRIO = "#374151";
+// Circulares del Word IA: tonos corporativos pero bien distintos entre sí,
+// para que cada categoría se diferencie a simple vista.
+const PALETA_CIRCULAR_SOBRIA = ["#1E3A5F", "#0F766E", "#C2410C", "#64748B", "#9F1239", "#A16207", "#94A3B8"];
+
 
 export const generateBarChart = async (
     canvasId: string,
     labels: string[],
     data: number[],
     title: string,
-    color: string = CHART_CONFIG.colors.primary
+    color: string = CHART_CONFIG.colors.primary,
+    opciones?: OpcionesGrafico
 ): Promise<string | null> => {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
     if (!canvas) return null;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
+
+    const sobrio = Boolean(opciones?.sobrio);
+    const tick = sobrio ? TEXTO_SOBRIO : TICK_COLOR;
 
     const chart = new Chart(ctx, {
         type: "bar",
@@ -334,13 +352,13 @@ export const generateBarChart = async (
         options: {
             responsive: false, maintainAspectRatio: false, animation: false,
             plugins: {
-                legend: { display: true, position: "top", labels: { font: { size: 14 }, color: TICK_COLOR } },
-                title: { display: true, text: title, font: { size: 16, weight: "bold" }, color: TICK_COLOR, padding: 20 },
+                legend: { display: !sobrio, position: "top", labels: { font: { size: 14 }, color: tick } },
+                title: { display: !sobrio, text: title, font: { size: 16, weight: "bold" }, color: tick, padding: 20 },
                 tooltip: { backgroundColor: "rgba(255,255,255,0.95)", titleColor: "#111827", bodyColor: "#374151", borderColor: "#E5E7EB", borderWidth: 1, cornerRadius: 6 },
             },
             scales: {
-                x: { grid: { display: false }, ticks: { color: TICK_COLOR, maxRotation: 45, minRotation: 0 } },
-                y: { beginAtZero: true, grid: { color: "#F3F4F6" }, ticks: { color: TICK_COLOR, precision: 0 } },
+                x: { grid: { display: false }, ticks: { color: tick, maxRotation: 45, minRotation: 0, ...(sobrio ? { font: { size: 13 } } : {}) } },
+                y: { beginAtZero: true, grid: { color: sobrio ? "#E5E7EB" : "#F3F4F6" }, ticks: { color: tick, precision: 0, ...(sobrio ? { font: { size: 13 } } : {}) } },
             },
         },
     });
@@ -355,28 +373,45 @@ export const generatePieChart = async (
     canvasId: string,
     labels: string[],
     data: number[],
-    title: string
+    title: string,
+    opciones?: OpcionesGrafico
 ): Promise<string | null> => {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
     if (!canvas) return null;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
+    const sobrio = Boolean(opciones?.sobrio);
+
+    // Word IA: se omiten las categorías en 0 (no se ven en el gráfico) y la
+    // leyenda muestra cantidad y porcentaje de cada una.
+    const indices = labels.map((_, i) => i).filter((i) => !sobrio || Number(data[i]) > 0);
+    const totalPie = indices.reduce((acc, i) => acc + (Number(data[i]) || 0), 0);
+    const pieData = indices.map((i) => Number(data[i]) || 0);
+    const pieLabels = indices.map((i) => {
+        const valor = Number(data[i]) || 0;
+        if (!sobrio) return labels[i] ?? "";
+        const pct = totalPie > 0 ? Math.round((valor / totalPie) * 100) : 0;
+        return `${labels[i] ?? ""}: ${valor} (${pct}%)`;
+    });
+
     const chart = new Chart(ctx, {
         type: "pie",
         data: {
-            labels,
+            labels: pieLabels,
             datasets: [{
-                label: title, data,
-                backgroundColor: getPieColors(labels.length),
+                label: title, data: pieData,
+                backgroundColor: sobrio
+                    ? pieLabels.map((_, i) => PALETA_CIRCULAR_SOBRIA[i % PALETA_CIRCULAR_SOBRIA.length])
+                    : getPieColors(pieLabels.length),
                 borderColor: "#FFFFFF", borderWidth: 2,
             }],
         },
         options: {
             responsive: false, maintainAspectRatio: false, animation: false,
             plugins: {
-                legend: { display: true, position: "bottom", labels: { font: { size: 12 }, color: "#d2d8e0ff", padding: 20 } },
-                title: { display: true, text: title, font: { size: 16, weight: "bold" }, color: TICK_COLOR, padding: 20 },
+                legend: { display: true, position: "bottom", labels: { font: { size: sobrio ? 14 : 12 }, color: sobrio ? TEXTO_SOBRIO : "#d2d8e0ff", padding: 20 } },
+                title: { display: !sobrio, text: title, font: { size: 16, weight: "bold" }, color: TICK_COLOR, padding: 20 },
                 tooltip: { backgroundColor: "rgba(255,255,255,0.95)", titleColor: "#111827", bodyColor: "#374151", borderColor: "#E5E7EB", borderWidth: 1, cornerRadius: 6 },
             },
         },

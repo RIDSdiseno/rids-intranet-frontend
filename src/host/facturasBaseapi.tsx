@@ -667,6 +667,8 @@ const FacturasBaseapi: React.FC = () => {
     const fetchDashboard =
         useCallback(
             async () => {
+                /* El dashboard RCV es solo interno */
+                if (isCliente) return;
                 setDashboardLoading(
                     true
                 );
@@ -1587,7 +1589,6 @@ const FacturasBaseapi: React.FC = () => {
                                 isCliente
                                     ? ([
                                         "documentos",
-                                        "dashboard",
                                     ] as const)
                                     : ([
                                         "facturas",
