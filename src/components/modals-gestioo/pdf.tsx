@@ -11,6 +11,7 @@ import type {
 
 import {
     TipoEquipoLabel,
+    etiquetaDetalleTrabajo,
 } from "./types";
 
 import {
@@ -165,6 +166,17 @@ export const handlePrint = async (
         ${orden.tipoTrabajo ?? "—"}
     </div>
 </div>
+
+${orden.detalleTrabajo
+                ? `
+<div style="margin-bottom: 15px;">
+    <h3 style="font-size: 30px;">${etiquetaDetalleTrabajo(orden.area)}:</h3>
+    <br>
+    <div style="border: 1px solid #d1d5db; padding: 10px; border-radius: 8px; background: #f9fafb; white-space: pre-wrap;" class="pdf-section">${orden.detalleTrabajo}</div>
+</div>
+`
+                : ""
+            }
 
 <div style="margin-bottom: 15px;">
     <h3 style="font-size: 30px;">Notas del técnico:</h3>

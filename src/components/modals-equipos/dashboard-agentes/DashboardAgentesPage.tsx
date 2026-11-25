@@ -19,6 +19,7 @@ import {
     ConfigProvider,
     Input,
     Select,
+    Tooltip,
 } from "antd";
 
 import {
@@ -26,7 +27,10 @@ import {
     BuildingOfficeIcon,
     CheckCircleIcon,
     ChevronDownIcon,
+    ChevronUpDownIcon,
+    ChevronUpIcon,
     ClipboardDocumentCheckIcon,
+    InformationCircleIcon,
     CloudIcon,
     ComputerDesktopIcon,
     CpuChipIcon,
@@ -47,6 +51,8 @@ import type {
     DashboardSaludOneDrive,
 } from "./dashboard-agente.types";
 
+import { EquiposFueraDashboard } from "./EquiposFueraDashboard";
+
 import axios from "axios";
 
 import XLSX from "xlsx-js-style";
@@ -57,6 +63,7 @@ type EmpresaOption = {
 };
 
 type EmpresaCoverageRow = {
+    empresaId: number | null;
     nombre: string;
     total: number;
     revisados: number;
@@ -64,6 +71,190 @@ type EmpresaCoverageRow = {
     analisis: number;
     pct: number;
 };
+
+/*
+ * Filtros que no existen en el backend porque agrupan varios estados.
+ * Se aplican sobre la tabla en el navegador.
+ */
+type FiltroLocal =
+    | null
+    | "DESACTUALIZADO"
+    | "OD_ALERTAS"
+    | "OD_INESTABLE";
+
+/* Cada card del dashboard aplica uno de estos filtros al hacer clic. */
+type FiltroCard =
+    | "TODOS_EQUIPOS"
+    | "ANALIZADOS"
+    | "NO_ANALIZADOS"
+    | "AGENTE_ACTIVO"
+    | "SIN_CONEXION"
+    | "SIN_AGENTE"
+    | "DESACTUALIZADO"
+    | "OD_OPERATIVO"
+    | "OD_ALERTAS"
+    | "OD_NO_INSTALADO"
+    | "OD_SIN_INFO"
+    | "OD_ESTABLE"
+    | "OD_INESTABLE";
+
+type FiltrosCards = {
+    estadoAgente: "TODOS" | DashboardEstadoAgente;
+    estadoOneDrive: "TODOS" | DashboardEstadoOneDrive;
+    saludOneDrive: "TODOS" | DashboardSaludOneDrive;
+    analizadoMes: DashboardAnalizadoMesFilter;
+    filtroLocal: FiltroLocal;
+};
+
+const FILTROS_CARDS_DEFAULT: FiltrosCards = {
+    estadoAgente: "TODOS",
+    estadoOneDrive: "TODOS",
+    saludOneDrive: "TODOS",
+    analizadoMes: "TODOS",
+    filtroLocal: null,
+};
+
+const FILTRO_POR_CARD: Record<FiltroCard, Partial<FiltrosCards>> = {
+    TODOS_EQUIPOS: {},
+    ANALIZADOS: { analizadoMes: "ANALIZADO" },
+    NO_ANALIZADOS: { analizadoMes: "NO_ANALIZADO" },
+    AGENTE_ACTIVO: { estadoAgente: "ACTIVO" },
+    SIN_CONEXION: { estadoAgente: "SIN_CONEXION" },
+    SIN_AGENTE: { estadoAgente: "SIN_AGENTE" },
+    DESACTUALIZADO: { filtroLocal: "DESACTUALIZADO" },
+    OD_OPERATIVO: { estadoOneDrive: "OPERATIVO" },
+    OD_ALERTAS: { filtroLocal: "OD_ALERTAS" },
+    OD_NO_INSTALADO: { estadoOneDrive: "NO_INSTALADO" },
+    OD_SIN_INFO: { estadoOneDrive: "SIN_INFORMACION" },
+    OD_ESTABLE: { saludOneDrive: "ESTABLE" },
+    OD_INESTABLE: { filtroLocal: "OD_INESTABLE" },
+};
+
+/* Columnas ordenables de la tabla de detalle. */
+type SortKey =
+    | "equipo"
+    | "empresa"
+    | "agente"
+    | "ultimaConexion"
+    | "analisis"
+    | "oneDrive"
+    | "usuario"
+    | "salud"
+    | "operatividad"
+    | "alertas";
+
+type SortDir = "asc" | "desc";
+
+const ORDEN_ESTADO_AGENTE: Record<string, number> = {
+    ACTIVO: 0,
+    SIN_CONEXION: 1,
+    SIN_AGENTE: 2,
+};
+
+const ORDEN_SALUD: Record<string, number> = {
+    ESTABLE: 0,
+    INTERMITENTE: 1,
+    CON_FALLAS: 2,
+    NO_INSTALADO: 3,
+    SIN_DATOS: 4,
+};
+
+function textoEquipo(item: DashboardAgenteItem): string {
+    return `${item.marca ?? ""} ${item.modelo ?? ""}`.trim();
+}
+
+/* Compara dos equipos según la columna elegida (orden ascendente). */
+function compararItems(
+    a: DashboardAgenteItem,
+    b: DashboardAgenteItem,
+    key: SortKey,
+): number {
+    const texto = (x: string, y: string) => x.localeCompare(y, "es", { sensitivity: "base" });
+    const fechaMs = (v: string | null) => (v ? new Date(v).getTime() : Number.NEGATIVE_INFINITY);
+
+    switch (key) {
+        case "equipo":
+            return texto(textoEquipo(a), textoEquipo(b));
+        case "empresa":
+            return (
+                texto(a.empresa?.nombre ?? "~", b.empresa?.nombre ?? "~") ||
+                texto(textoEquipo(a), textoEquipo(b))
+            );
+        case "agente":
+            return (ORDEN_ESTADO_AGENTE[a.agente.estado] ?? 9) - (ORDEN_ESTADO_AGENTE[b.agente.estado] ?? 9);
+        case "ultimaConexion":
+            return fechaMs(a.agente.ultimaConexion) - fechaMs(b.agente.ultimaConexion);
+        case "analisis":
+            return a.analisisMes.cantidad - b.analisisMes.cantidad;
+        case "oneDrive":
+            return texto(getOneDriveStateLabel(a.oneDrive.estado), getOneDriveStateLabel(b.oneDrive.estado));
+        case "usuario":
+            return texto(a.oneDrive.usuario ?? "~", b.oneDrive.usuario ?? "~");
+        case "salud":
+            return (ORDEN_SALUD[a.oneDrive.saludMes.estado] ?? 9) - (ORDEN_SALUD[b.oneDrive.saludMes.estado] ?? 9);
+        case "operatividad":
+            return a.oneDrive.saludMes.porcentajeOperativo - b.oneDrive.saludMes.porcentajeOperativo;
+        case "alertas":
+            return a.alertas.length - b.alertas.length;
+        default:
+            return 0;
+    }
+}
+
+/* Encabezado de columna con tooltip y orden ascendente/descendente al hacer clic. */
+function SortableTh({
+    label,
+    tooltip,
+    sortKey,
+    currentKey,
+    currentDir,
+    onSort,
+    className,
+    align = "left",
+}: {
+    label: string;
+    tooltip: string;
+    sortKey: SortKey;
+    currentKey: SortKey;
+    currentDir: SortDir;
+    onSort: (key: SortKey) => void;
+    className: string;
+    align?: "left" | "right" | "center";
+}) {
+    const activo = sortKey === currentKey;
+
+    return (
+        <th
+            className={className}
+            aria-sort={activo ? (currentDir === "asc" ? "ascending" : "descending") : "none"}
+        >
+            <Tooltip title={tooltip}>
+                <button
+                    type="button"
+                    onClick={() => onSort(sortKey)}
+                    className={clsx(
+                        "inline-flex items-center gap-1 uppercase tracking-wide hover:text-cyan-700",
+                        activo && "text-cyan-700",
+                        align === "right" && "flex-row-reverse",
+                        align === "center" && "justify-center",
+                    )}
+                >
+                    {label}
+                    {activo ? (
+                        <ChevronUpIcon
+                            className={clsx(
+                                "h-3.5 w-3.5 transition-transform",
+                                currentDir === "desc" && "rotate-180",
+                            )}
+                        />
+                    ) : (
+                        <ChevronUpDownIcon className="h-3.5 w-3.5 opacity-50" />
+                    )}
+                </button>
+            </Tooltip>
+        </th>
+    );
+}
 
 /* =========================================================
    HELPERS
@@ -350,6 +541,9 @@ function KpiCard({
     tone = "neutral",
     context,
     progress,
+    tooltip,
+    onClick,
+    active = false,
 }: {
     icon?: React.ComponentType<{ className?: string }>;
     label: string;
@@ -357,19 +551,46 @@ function KpiCard({
     tone?: KpiTone;
     context?: string;
     progress?: number;
+    /* Explicación del indicador (ícono i junto al título) */
+    tooltip?: string;
+    /* Si existe, la card es clickeable y aplica su filtro */
+    onClick?: () => void;
+    /* La card corresponde al filtro activo */
+    active?: boolean;
 }) {
     const t = KPI_TONES[tone];
 
     return (
         <div
+            role={onClick ? "button" : undefined}
+            tabIndex={onClick ? 0 : undefined}
+            aria-pressed={onClick ? active : undefined}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (onClick && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
             className={clsx(
                 "flex min-w-0 flex-col rounded-2xl border bg-white p-3 shadow-sm transition sm:p-4 sm:hover:-translate-y-0.5 sm:hover:shadow-md",
-                t.border
+                t.border,
+                onClick && "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400",
+                active && "ring-2 ring-cyan-500 ring-offset-1"
             )}
         >
             <div className="flex items-start justify-between gap-3">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     {label}
+
+                    {tooltip && (
+                        <Tooltip title={tooltip}>
+                            <InformationCircleIcon
+                                className="h-3.5 w-3.5 shrink-0 cursor-help text-slate-400"
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            />
+                        </Tooltip>
+                    )}
                 </span>
 
                 {Icon && (
@@ -405,6 +626,12 @@ function KpiCard({
             {context && (
                 <div className="mt-2 text-xs text-slate-500">
                     {context}
+                </div>
+            )}
+
+            {onClick && (
+                <div className="mt-2 text-[11px] font-medium text-cyan-700">
+                    {active ? "Filtro aplicado · clic para quitar" : "Clic para ver en la tabla"}
                 </div>
             )}
         </div>
@@ -606,8 +833,14 @@ function MiniBarChart({
 
 function EmpresaCoverage({
     empresas,
+    selectedId,
+    onSelect,
 }: {
     empresas: EmpresaCoverageRow[];
+    /* Empresa aplicada como filtro (se resalta) */
+    selectedId?: number | null;
+    /* Si existe, cada empresa es clickeable y filtra la tabla */
+    onSelect?: (empresaId: number | null) => void;
 }) {
     const totalEquipos = empresas.reduce(
         (sum, empresa) => sum + empresa.total,
@@ -632,11 +865,16 @@ function EmpresaCoverage({
                         <h3 className="text-sm font-semibold text-slate-800">
                             Cobertura por empresa
                         </h3>
+
+                        <Tooltip title="Porcentaje de PCs en uso de cada empresa que enviaron al menos un inventario durante el mes seleccionado. No considera dados de baja, vendidos, equipos que no son PC ni equipos en stock o en RIDS.">
+                            <InformationCircleIcon className="h-4 w-4 cursor-help text-slate-400" />
+                        </Tooltip>
                     </div>
 
                     <p className="mt-1 text-xs text-slate-500">
                         Equipos revisados este mes respecto al
                         total administrado en cada empresa.
+                        {onSelect && " Haz clic en una empresa para ver sus equipos en la tabla."}
                     </p>
                 </div>
 
@@ -675,67 +913,98 @@ function EmpresaCoverage({
             ) : (
                 <>
                     <div className="mt-4 grid max-h-[430px] grid-cols-1 gap-x-8 gap-y-3.5 overflow-y-auto pr-1 lg:grid-cols-2">
-                        {empresas.map((empresa) => (
-                            <div
-                                key={empresa.nombre}
-                                className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3"
-                            >
-                                <div className="min-w-0">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="truncate text-sm font-medium text-slate-700">
-                                            {empresa.nombre}
-                                        </span>
+                        {empresas.map((empresa) => {
+                            const clickeable =
+                                Boolean(onSelect) && empresa.empresaId !== null;
+                            const seleccionada =
+                                empresa.empresaId !== null &&
+                                empresa.empresaId === selectedId;
 
-                                        {empresa.pendientes >
-                                            0 && (
-                                                <span className="shrink-0 text-[11px] font-medium text-rose-500">
-                                                    {formatNumber(
-                                                        empresa.pendientes
-                                                    )}{" "}
-                                                    sin revisar
-                                                </span>
-                                            )}
+                            return (
+                                <div
+                                    key={empresa.empresaId ?? empresa.nombre}
+                                    role={clickeable ? "button" : undefined}
+                                    tabIndex={clickeable ? 0 : undefined}
+                                    aria-pressed={clickeable ? seleccionada : undefined}
+                                    title={
+                                        clickeable
+                                            ? seleccionada
+                                                ? "Clic para quitar el filtro de empresa"
+                                                : "Clic para ver los equipos de esta empresa en la tabla"
+                                            : undefined
+                                    }
+                                    onClick={() => {
+                                        if (clickeable) onSelect?.(empresa.empresaId);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (clickeable && (e.key === "Enter" || e.key === " ")) {
+                                            e.preventDefault();
+                                            onSelect?.(empresa.empresaId);
+                                        }
+                                    }}
+                                    className={clsx(
+                                        "grid grid-cols-1 gap-2 rounded-xl px-2 py-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3",
+                                        clickeable && "cursor-pointer transition hover:bg-cyan-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400",
+                                        seleccionada && "bg-cyan-50 ring-1 ring-cyan-300"
+                                    )}
+                                >
+                                    <div className="min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="truncate text-sm font-medium text-slate-700">
+                                                {empresa.nombre}
+                                            </span>
+
+                                            {empresa.pendientes >
+                                                0 && (
+                                                    <span className="shrink-0 text-[11px] font-medium text-rose-500">
+                                                        {formatNumber(
+                                                            empresa.pendientes
+                                                        )}{" "}
+                                                        sin revisar
+                                                    </span>
+                                                )}
+                                        </div>
+
+                                        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                                            <div
+                                                className={clsx(
+                                                    "h-full rounded-full transition-all",
+                                                    coverageBarColor(
+                                                        empresa.pct
+                                                    )
+                                                )}
+                                                style={{
+                                                    width: `${empresa.pct}%`,
+                                                }}
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <div
+                                    <div className="flex items-center justify-between gap-2 sm:block sm:w-16 sm:text-right">
+                                        <span
                                             className={clsx(
-                                                "h-full rounded-full transition-all",
-                                                coverageBarColor(
+                                                "inline-flex justify-center rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums",
+                                                coverageBadgeClass(
                                                     empresa.pct
                                                 )
                                             )}
-                                            style={{
-                                                width: `${empresa.pct}%`,
-                                            }}
-                                        />
+                                        >
+                                            {empresa.pct}%
+                                        </span>
+
+                                        <div className="mt-0.5 text-[11px] tabular-nums text-slate-400">
+                                            {formatNumber(
+                                                empresa.revisados
+                                            )}
+                                            /
+                                            {formatNumber(
+                                                empresa.total
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center justify-between gap-2 sm:block sm:w-16 sm:text-right">
-                                    <span
-                                        className={clsx(
-                                            "inline-flex justify-center rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums",
-                                            coverageBadgeClass(
-                                                empresa.pct
-                                            )
-                                        )}
-                                    >
-                                        {empresa.pct}%
-                                    </span>
-
-                                    <div className="mt-0.5 text-[11px] tabular-nums text-slate-400">
-                                        {formatNumber(
-                                            empresa.revisados
-                                        )}
-                                        /
-                                        {formatNumber(
-                                            empresa.total
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
@@ -1378,6 +1647,13 @@ export default function DashboardAgentesPage() {
 
     const [tablePage, setTablePage] = useState(1);
 
+    /* Filtros de las cards que el backend no tiene (se aplican en la tabla) */
+    const [filtroLocal, setFiltroLocal] = useState<FiltroLocal>(null);
+
+    /* Orden de la tabla: por defecto, empresa de la A a la Z */
+    const [sortKey, setSortKey] = useState<SortKey>("empresa");
+    const [sortDir, setSortDir] = useState<SortDir>("asc");
+
     async function fetchDashboard(signal?: AbortSignal) {
         try {
             setLoading(true);
@@ -1569,6 +1845,9 @@ export default function DashboardAgentesPage() {
                     .coberturaPorEmpresa ??
                 []
             ).map((empresa) => ({
+                empresaId:
+                    empresa.empresaId,
+
                 nombre:
                     empresa.nombre,
 
@@ -1586,7 +1865,15 @@ export default function DashboardAgentesPage() {
 
                 pct:
                     empresa.porcentaje,
-            }));
+            }))
+                /* Orden alfabético; «Sin empresa» al final */
+                .sort((a, b) =>
+                    (a.empresaId === null ? 1 : 0) -
+                    (b.empresaId === null ? 1 : 0) ||
+                    a.nombre.localeCompare(b.nombre, "es", {
+                        sensitivity: "base",
+                    })
+                );
         }, [
             data?.graficos
                 .coberturaPorEmpresa,
@@ -1599,7 +1886,87 @@ export default function DashboardAgentesPage() {
         estadoOneDrive !== "TODOS",
         saludOneDrive !== "TODOS",
         analizadoMes !== "TODOS",
+        filtroLocal !== null,
     ].filter(Boolean).length;
+
+    /* ---------- Cards clickeables ---------- */
+
+    const filtrosCardsActuales: FiltrosCards = {
+        estadoAgente,
+        estadoOneDrive,
+        saludOneDrive,
+        analizadoMes,
+        filtroLocal,
+    };
+
+    const esCardActiva = (card: FiltroCard): boolean => {
+        /* «Equipos administrados» solo limpia los filtros de las cards */
+        if (card === "TODOS_EQUIPOS") return false;
+
+        const esperado = { ...FILTROS_CARDS_DEFAULT, ...FILTRO_POR_CARD[card] };
+
+        return (Object.keys(esperado) as Array<keyof FiltrosCards>).every(
+            (k) => esperado[k] === filtrosCardsActuales[k],
+        );
+    };
+
+    const aplicarFiltrosCards = (f: FiltrosCards) => {
+        setEstadoAgente(f.estadoAgente);
+        setEstadoOneDrive(f.estadoOneDrive);
+        setSaludOneDrive(f.saludOneDrive);
+        setAnalizadoMes(f.analizadoMes);
+        setFiltroLocal(f.filtroLocal);
+        setExpandedId(null);
+        setTablePage(1);
+    };
+
+    /*
+     * Al hacer clic en una card se aplica solo su filtro (y se quitan los de
+     * las otras cards). Si ya estaba aplicado, se quita. Empresa, búsqueda y
+     * período se mantienen.
+     */
+    const cardFiltro = (card: FiltroCard) => ({
+        active: esCardActiva(card),
+        onClick: () => {
+            const activa = esCardActiva(card);
+
+            aplicarFiltrosCards(
+                activa
+                    ? FILTROS_CARDS_DEFAULT
+                    : { ...FILTROS_CARDS_DEFAULT, ...FILTRO_POR_CARD[card] },
+            );
+
+            document
+                .getElementById("tabla-detalle-agentes")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+    });
+
+    /* ---------- Cobertura clickeable ---------- */
+
+    const seleccionarEmpresaCobertura = (id: number | null) => {
+        if (isCliente || id === null) return;
+
+        setEmpresaId((actual) => (actual === id ? null : id));
+
+        document
+            .getElementById("tabla-detalle-agentes")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    /* ---------- Orden de la tabla ---------- */
+
+    const ordenarPor = (key: SortKey) => {
+        if (key === sortKey) {
+            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        } else {
+            setSortKey(key);
+            setSortDir("asc");
+        }
+
+        setTablePage(1);
+        setExpandedId(null);
+    };
 
     const clearFilters = () => {
         setSearch("");
@@ -1612,6 +1979,7 @@ export default function DashboardAgentesPage() {
         setEstadoOneDrive("TODOS");
         setSaludOneDrive("TODOS");
         setAnalizadoMes("TODOS");
+        setFiltroLocal(null);
         setExpandedId(null);
     };
 
@@ -2289,37 +2657,65 @@ export default function DashboardAgentesPage() {
     }
 
     /*
- * La paginación se realiza localmente porque el backend
- * ya devuelve los equipos filtrados del dashboard.
- */
-    const paginatedItems = useMemo(() => {
-        const items = data?.items ?? [];
+  * Equipos de la tabla: los del backend, más los filtros locales
+  * de las cards y el orden elegido en los encabezados.
+  */
+    const tableItems = useMemo(() => {
+        const base = (data?.items ?? []).filter((item) => {
+            if (filtroLocal === "DESACTUALIZADO") {
+                return item.agente.versionDesactualizada;
+            }
 
+            if (filtroLocal === "OD_ALERTAS") {
+                return ["NO_EJECUTANDO", "SIN_USUARIO", "CON_ADVERTENCIAS"].includes(
+                    item.oneDrive.estado,
+                );
+            }
+
+            if (filtroLocal === "OD_INESTABLE") {
+                return ["INTERMITENTE", "CON_FALLAS"].includes(
+                    item.oneDrive.saludMes.estado,
+                );
+            }
+
+            return true;
+        });
+
+        const factor = sortDir === "asc" ? 1 : -1;
+
+        return [...base].sort(
+            (a, b) =>
+                factor * compararItems(a, b, sortKey) ||
+                a.idEquipo - b.idEquipo,
+        );
+    }, [data?.items, filtroLocal, sortKey, sortDir]);
+
+    const paginatedItems = useMemo(() => {
         const start =
             (tablePage - 1) * TABLE_PAGE_SIZE;
 
-        return items.slice(
+        return tableItems.slice(
             start,
             start + TABLE_PAGE_SIZE
         );
-    }, [data?.items, tablePage]);
+    }, [tableItems, tablePage]);
 
     const tableTotalPages = Math.max(
         1,
         Math.ceil(
-            (data?.items.length ?? 0) /
+            tableItems.length /
             TABLE_PAGE_SIZE
         )
     );
 
     const firstVisibleItem =
-        data?.items.length
+        tableItems.length
             ? (tablePage - 1) * TABLE_PAGE_SIZE + 1
             : 0;
 
     const lastVisibleItem = Math.min(
         tablePage * TABLE_PAGE_SIZE,
-        data?.items.length ?? 0
+        tableItems.length
     );
 
     return (
@@ -2711,6 +3107,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ComputerDesktopIcon}
                                 label="Equipos administrados"
+                                tooltip="PCs en uso (activos, en garantía o en taller externo) según los filtros. No incluye dados de baja, vendidos, equipos que no son PC ni equipos en stock o en RIDS. Clic para quitar los filtros de las cards."
+                                {...cardFiltro("TODOS_EQUIPOS")}
                                 value={summary.totalEquipos}
                                 tone="brand"
                                 context="Equipos incluidos según los filtros actuales."
@@ -2719,6 +3117,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={CheckCircleIcon}
                                 label="Analizados este mes"
+                                tooltip="Equipos que enviaron al menos un inventario (sincronización) durante el mes seleccionado. El porcentaje es la cobertura del mes."
+                                {...cardFiltro("ANALIZADOS")}
                                 value={summary.equiposAnalizados}
                                 tone="positive"
                                 progress={summary.porcentajeAnalizados}
@@ -2728,6 +3128,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ExclamationTriangleIcon}
                                 label="No analizados"
+                                tooltip="Equipos sin ningún inventario recibido en el mes: no tienen agente, el PC estuvo apagado o el agente no se ejecutó."
+                                {...cardFiltro("NO_ANALIZADOS")}
                                 value={summary.equiposNoAnalizados}
                                 tone={
                                     summary.equiposNoAnalizados > 0
@@ -2749,6 +3151,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={CheckCircleIcon}
                                 label="Agentes activos"
+                                tooltip="El agente reportó dentro del umbral configurado. El agente corre cada 14 días; el umbral deja una semana de margen."
+                                {...cardFiltro("AGENTE_ACTIVO")}
                                 value={summary.agentesActivos}
                                 tone="positive"
                                 context={`Reportaron dentro de las últimas ${data?.configuracion.horasSinConexion ?? 0} horas.`}
@@ -2757,6 +3161,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={SignalSlashIcon}
                                 label="Sin conexión"
+                                tooltip="Tienen agente instalado, pero no reportan desde hace más del umbral configurado. Revisar si el PC está apagado, desconectado o si la tarea programada falló."
+                                {...cardFiltro("SIN_CONEXION")}
                                 value={summary.agentesSinConexion}
                                 tone={
                                     summary.agentesSinConexion > 0
@@ -2769,6 +3175,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ExclamationTriangleIcon}
                                 label="Sin agente"
+                                tooltip="Equipos registrados en el CRM que nunca han enviado inventario: el agente no está instalado."
+                                {...cardFiltro("SIN_AGENTE")}
                                 value={summary.equiposSinAgente}
                                 tone={
                                     summary.equiposSinAgente > 0
@@ -2781,6 +3189,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ArrowPathIcon}
                                 label="Versión desactualizada"
+                                tooltip="Agentes con una versión anterior a la recomendada para su plataforma (Windows o Mac). Las versiones más nuevas no se marcan."
+                                {...cardFiltro("DESACTUALIZADO")}
                                 value={summary.agentesDesactualizados}
                                 tone={
                                     summary.agentesDesactualizados > 0
@@ -2789,7 +3199,7 @@ export default function DashboardAgentesPage() {
                                 }
                                 context={
                                     data?.configuracion.versionAgenteRecomendada
-                                        ? `Versión esperada: ${data.configuracion.versionAgenteRecomendada}`
+                                        ? `Anteriores a ${data.configuracion.versionAgenteRecomendada} (Windows)${data.configuracion.versionAgenteRecomendadaMac ? ` o ${data.configuracion.versionAgenteRecomendadaMac} (Mac)` : ""}.`
                                         : "No existe una versión recomendada configurada."
                                 }
                             />
@@ -2803,6 +3213,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={CloudIcon}
                                 label="Operativo actualmente"
+                                tooltip="Según el último reporte, OneDrive está instalado, en ejecución, con usuario y sincronizando sin advertencias."
+                                {...cardFiltro("OD_OPERATIVO")}
                                 value={summary.oneDriveOperativo}
                                 tone="positive"
                                 context="Instalado, ejecutándose, con usuario y operativo."
@@ -2811,6 +3223,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ExclamationTriangleIcon}
                                 label="Con alertas reales"
+                                tooltip="OneDrive está instalado pero no se está ejecutando, no tiene usuario o reporta advertencias."
+                                {...cardFiltro("OD_ALERTAS")}
                                 value={summary.oneDriveConAdvertencias}
                                 tone={
                                     summary.oneDriveConAdvertencias > 0
@@ -2823,6 +3237,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={SignalSlashIcon}
                                 label="No instalado"
+                                tooltip="El agente confirmó que OneDrive no está instalado en el equipo."
+                                {...cardFiltro("OD_NO_INSTALADO")}
                                 value={summary.oneDriveNoInstalado}
                                 tone={
                                     summary.oneDriveNoInstalado > 0
@@ -2835,6 +3251,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ComputerDesktopIcon}
                                 label="Sin información"
+                                tooltip="El agente todavía no ha enviado datos de OneDrive (versión antigua del agente o sin reportes). No se considera falla."
+                                {...cardFiltro("OD_SIN_INFO")}
                                 value={summary.oneDriveSinInformacion}
                                 tone="neutral"
                                 context="Todavía no se han recibido datos suficientes de OneDrive."
@@ -2843,6 +3261,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={CheckCircleIcon}
                                 label="Estable durante el mes"
+                                tooltip="OneDrive estuvo operativo en el 100% de los reportes del mes que traían datos."
+                                {...cardFiltro("OD_ESTABLE")}
                                 value={summary.oneDriveEstableMes}
                                 tone="positive"
                                 context="Operativo en todos los análisis mensuales con datos."
@@ -2851,6 +3271,8 @@ export default function DashboardAgentesPage() {
                             <KpiCard
                                 icon={ExclamationTriangleIcon}
                                 label="Intermitente / con fallas"
+                                tooltip="Intermitente: operativo entre 70% y 99% de los reportes del mes. Con fallas: menos de 70%."
+                                {...cardFiltro("OD_INESTABLE")}
                                 value={
                                     summary.oneDriveIntermitenteMes +
                                     summary.oneDriveConFallasMes
@@ -2911,7 +3333,12 @@ export default function DashboardAgentesPage() {
                                                         ?.configuracion
                                                         .horasSinConexion
                                                 }{" "}
-                                                horas (2 semanas)
+                                                horas (
+                                                {Math.round(
+                                                    (data?.configuracion
+                                                        .horasSinConexion ?? 0) / 24
+                                                )}{" "}
+                                                días)
                                             </span>{" "}
                                             sin reportar.
                                         </div>
@@ -2923,8 +3350,9 @@ export default function DashboardAgentesPage() {
                                         </div>
                                         <div className="mt-0.5 text-sm font-semibold text-slate-900">
                                             {data?.configuracion
-                                                .versionAgenteRecomendada ||
-                                                "No configurada"}
+                                                .versionAgenteRecomendada
+                                                ? `Windows ${data.configuracion.versionAgenteRecomendada}${data.configuracion.versionAgenteRecomendadaMac ? ` · Mac ${data.configuracion.versionAgenteRecomendadaMac}` : ""}`
+                                                : "No configurada"}
                                         </div>
                                     </div>
 
@@ -2943,7 +3371,13 @@ export default function DashboardAgentesPage() {
                         </section>
 
                         {/* ============ COBERTURA POR EMPRESA ============ */}
-                        <EmpresaCoverage empresas={empresaCoverage} />
+                        <EmpresaCoverage
+                            empresas={empresaCoverage}
+                            selectedId={empresaId}
+                            {...(isCliente
+                                ? {}
+                                : { onSelect: seleccionarEmpresaCobertura })}
+                        />
 
                         {/* ============ VERSIONES ============ */}
                         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -2967,7 +3401,10 @@ export default function DashboardAgentesPage() {
                         </section>
 
                         {/* ============ TABLA DETALLE ============ */}
-                        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section
+                            id="tabla-detalle-agentes"
+                            className="min-w-0 scroll-mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        >
                             <div className="flex flex-col gap-2 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                     <h3 className="font-semibold text-slate-900">
@@ -2977,13 +3414,33 @@ export default function DashboardAgentesPage() {
                                     <p className="text-xs text-slate-500">
                                         Selecciona una fila para
                                         revisar configuración y
-                                        operatividad mensual.
+                                        operatividad mensual. Haz clic
+                                        en un encabezado para ordenar.
                                     </p>
+
+                                    {filtroLocal && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setFiltroLocal(null);
+                                                setTablePage(1);
+                                            }}
+                                            className="mt-1 inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[11px] font-medium text-cyan-700 hover:bg-cyan-100"
+                                        >
+                                            Filtro:{" "}
+                                            {filtroLocal === "DESACTUALIZADO"
+                                                ? "versión desactualizada"
+                                                : filtroLocal === "OD_ALERTAS"
+                                                    ? "OneDrive con alertas"
+                                                    : "OneDrive intermitente o con fallas"}{" "}
+                                            ✕
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
                                     {formatNumber(
-                                        data?.items.length ?? 0
+                                        tableItems.length
                                     )}{" "}
                                     resultado(s)
                                 </div>
@@ -3010,7 +3467,7 @@ export default function DashboardAgentesPage() {
                                     />
                                 ))}
 
-                                {data?.items.length === 0 && (
+                                {tableItems.length === 0 && (
                                     <div className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-12 text-center">
                                         <ComputerDesktopIcon className="h-8 w-8 text-slate-300" />
 
@@ -3051,45 +3508,109 @@ export default function DashboardAgentesPage() {
                                 >
                                     <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
                                         <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-                                            <th className="sticky left-0 z-20 w-[20%] min-w-[250px] bg-slate-50 px-4 py-3 font-semibold">
-                                                Equipo
-                                            </th>
+                                            <SortableTh
+                                                label="Equipo"
+                                                tooltip="Marca y modelo del equipo, con su serial."
+                                                sortKey="equipo"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="sticky left-0 z-20 w-[20%] min-w-[250px] bg-slate-50 px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="w-[14%] min-w-[170px] px-4 py-3 font-semibold">
-                                                Empresa
-                                            </th>
+                                            <SortableTh
+                                                label="Empresa"
+                                                tooltip="Empresa del equipo (o la de su solicitante). Orden por defecto: A a Z."
+                                                sortKey="empresa"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[14%] min-w-[170px] px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="w-[10%] min-w-[125px] px-4 py-3 font-semibold">
-                                                Agente
-                                            </th>
+                                            <SortableTh
+                                                label="Agente"
+                                                tooltip="Activo: reportó dentro del umbral. Sin conexión: superó el umbral. Sin agente: nunca reportó."
+                                                sortKey="agente"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[10%] min-w-[125px] px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="w-[11%] min-w-[145px] px-4 py-3 font-semibold">
-                                                Última conexión
-                                            </th>
+                                            <SortableTh
+                                                label="Última conexión"
+                                                tooltip="Fecha y hora del último inventario recibido desde el agente."
+                                                sortKey="ultimaConexion"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[11%] min-w-[145px] px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="w-[8%] min-w-[110px] px-4 py-3 text-right font-semibold">
-                                                Análisis mes
-                                            </th>
+                                            <SortableTh
+                                                label="Análisis mes"
+                                                tooltip="Cantidad de inventarios recibidos durante el mes seleccionado."
+                                                sortKey="analisis"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[8%] min-w-[110px] px-4 py-3 text-right font-semibold"
+                                                align="right"
+                                            />
 
-                                            <th className="w-[11%] min-w-[145px] px-4 py-3 font-semibold">
-                                                OneDrive actual
-                                            </th>
+                                            <SortableTh
+                                                label="OneDrive actual"
+                                                tooltip="Estado de OneDrive según el último reporte del agente."
+                                                sortKey="oneDrive"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[11%] min-w-[145px] px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="hidden w-[14%] min-w-[190px] px-4 py-3 font-semibold xl:table-cell">
-                                                Usuario
-                                            </th>
+                                            <SortableTh
+                                                label="Usuario"
+                                                tooltip="Cuenta de OneDrive detectada en el equipo."
+                                                sortKey="usuario"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="hidden w-[14%] min-w-[190px] px-4 py-3 font-semibold xl:table-cell"
+                                            />
 
-                                            <th className="w-[10%] min-w-[135px] px-4 py-3 font-semibold">
-                                                Salud mensual
-                                            </th>
+                                            <SortableTh
+                                                label="Salud mensual"
+                                                tooltip="Estabilidad de OneDrive en el mes: estable (100%), intermitente (70–99%) o con fallas (menos de 70%)."
+                                                sortKey="salud"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[10%] min-w-[135px] px-4 py-3 font-semibold"
+                                            />
 
-                                            <th className="w-[10%] min-w-[135px] px-4 py-3 text-right font-semibold">
-                                                Operatividad
-                                            </th>
+                                            <SortableTh
+                                                label="Operatividad"
+                                                tooltip="Porcentaje de reportes del mes en que OneDrive estaba operativo."
+                                                sortKey="operatividad"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[10%] min-w-[135px] px-4 py-3 text-right font-semibold"
+                                                align="right"
+                                            />
 
-                                            <th className="w-[7%] min-w-[85px] px-4 py-3 text-center font-semibold">
-                                                Alertas
-                                            </th>
+                                            <SortableTh
+                                                label="Alertas"
+                                                tooltip="Cantidad de condiciones que requieren revisión en el equipo."
+                                                sortKey="alertas"
+                                                currentKey={sortKey}
+                                                currentDir={sortDir}
+                                                onSort={ordenarPor}
+                                                className="w-[7%] min-w-[85px] px-4 py-3 text-center font-semibold"
+                                                align="center"
+                                            />
+
                                         </tr>
                                     </thead>
 
@@ -3405,7 +3926,7 @@ export default function DashboardAgentesPage() {
                             </div>
 
                             {/* ============ PAGINACIÓN DE LA TABLA ============ */}
-                            {(data?.items.length ?? 0) > 0 && (
+                            {tableItems.length > 0 && (
                                 <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
                                     <div className="text-xs text-slate-500">
                                         Mostrando{" "}
@@ -3418,7 +3939,7 @@ export default function DashboardAgentesPage() {
                                         </strong>{" "}
                                         de{" "}
                                         <strong className="text-slate-700">
-                                            {formatNumber(data?.items.length ?? 0)}
+                                            {formatNumber(tableItems.length)}
                                         </strong>{" "}
                                         equipos
                                     </div>
@@ -3464,6 +3985,13 @@ export default function DashboardAgentesPage() {
                                 </div>
                             )}
                         </section>
+
+                        {/* ============ FUERA DEL DASHBOARD: EN STOCK / EN RIDS Y EXCLUIDOS ============ */}
+                        <EquiposFueraDashboard
+                            key={`${data?.periodo.year}-${data?.periodo.month}`}
+                            excluidos={data?.excluidos}
+                            fueraDeOperacion={data?.fueraDeOperacion}
+                        />
                     </>
                 )}
             </div>

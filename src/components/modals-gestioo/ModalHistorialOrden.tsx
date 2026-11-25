@@ -42,6 +42,7 @@ interface ItemHistorial {
     area: string | null;
     cambios: CambioHistorial[];
     reconstruido: boolean;
+    detalle?: { label: string; texto: string };
 }
 
 interface HistorialResponse {
@@ -216,6 +217,17 @@ export const ModalHistorialOrden: React.FC<ModalHistorialOrdenProps> = ({
                                                 <p className="text-sm text-slate-600 mt-1">
                                                     {item.descripcion}
                                                 </p>
+                                            )}
+
+                                            {item.detalle && (
+                                                <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+                                                    <p className="text-xs font-medium text-slate-700">
+                                                        {item.detalle.label}
+                                                    </p>
+                                                    <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-slate-600">
+                                                        {item.detalle.texto}
+                                                    </p>
+                                                </div>
                                             )}
 
                                             {item.cambios.length > 0 && (

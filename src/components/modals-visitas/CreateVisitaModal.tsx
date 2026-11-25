@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import CrearSolicitante from "../modals-solicitantes/CrearSolicitante";
+import SeleccionarFechasCalendario from "../modals-agenda/SeleccionarFechasCalendario";
 
 type ViteEnv = { env?: { VITE_API_URL?: string } };
 const API_URL =
@@ -44,7 +45,18 @@ export type CreateVisitaPayloadBatch = Omit<
 > & {
   solicitantesIds?: number[];
   solicitantesNombres?: string[];
+  /* Varias fechas: la misma visita se crea en cada fecha */
+  fechas?: Array<{ inicio: string; fin: string | null }>;
 };
+
+/* Fecha elegida en el calendario con su horario */
+type FechaVisitaLote = {
+  fecha: string; // YYYY-MM-DD
+  horaInicio: string; // HH:mm
+  horaFin: string; // HH:mm o ""
+};
+
+const MAX_FECHAS_LOTE = 31;
 
 export type VisitaForEdit = {
   id_visita: number;
@@ -198,6 +210,12 @@ export default function CreateVisitaModal({
 
   const [inicio, setInicio] = useState(nowLocal);
   const [fin, setFin] = useState<string>("");
+
+  /* Varias fechas (solo al crear) */
+  const [variasFechas, setVariasFechas] = useState(false);
+  const [fechasLote, setFechasLote] = useState<FechaVisitaLote[]>([]);
+  const [horaInicioLote, setHoraInicioLote] = useState(nowLocal.slice(11, 16));
+  const [horaFinLote, setHoraFinLote] = useState("");
   const [status, setStatus] = useState<EstadoVisita>("PENDIENTE");
 
   const [confImpresoras, setConfImpresoras] = useState(false);
@@ -259,6 +277,8 @@ export default function CreateVisitaModal({
       setSelectedSolicitantes([]);
       setManualNombre("");
       setInicio(nowLocal); setFin(""); setStatus("PENDIENTE");
+      setVariasFechas(false); setFechasLote([]);
+      setHoraInicioLote(nowLocal.slice(11, 16)); setHoraFinLote("");
       setConfImpresoras(false); setConfTelefonos(false); setConfPiePagina(false);
       setOtros(false); setOtrosDetalle("");
       setActualizaciones(false); setAntivirus(false); setCcleaner(false);
@@ -373,10 +393,46 @@ export default function CreateVisitaModal({
   const empresaElegida = typeof empresaId === "number" && empresaId > 0;
   const listOpenSize = empresaElegida ? Math.min(Math.max(solicitantes.length, 6), 10) : 1;
 
+  /* ---------- Varias fechas ---------- */
+
+  const usarVariasFechas = mode === "create" && variasFechas;
+
+  function toggleFechaLote(fecha: string) {
+    setFechasLote((prev) => {
+      if (prev.some((f) => f.fecha === fecha)) {
+        return prev.filter((f) => f.fecha !== fecha);
+      }
+
+      if (prev.length >= MAX_FECHAS_LOTE) return prev;
+
+      return [...prev, { fecha, horaInicio: horaInicioLote, horaFin: horaFinLote }].sort((a, b) =>
+        a.fecha.localeCompare(b.fecha)
+      );
+    });
+  }
+
+  function cambiarHoraFecha(fecha: string, campo: "horaInicio" | "horaFin", valor: string) {
+    setFechasLote((prev) => prev.map((f) => (f.fecha === fecha ? { ...f, [campo]: valor } : f)));
+  }
+
+  /* Aplica el horario general a todas las fechas ya elegidas */
+  function aplicarHorarioATodas() {
+    setFechasLote((prev) => prev.map((f) => ({ ...f, horaInicio: horaInicioLote, horaFin: horaFinLote })));
+  }
+
+  const fechasLoteValidas =
+    fechasLote.length > 0 &&
+    fechasLote.every((f) => !!f.horaInicio && (!f.horaFin || f.horaFin >= f.horaInicio));
+
+  const totalVisitasACrear =
+    mode === "create"
+      ? selectedSolicitantes.length * (usarVariasFechas ? fechasLote.length : 1)
+      : 1;
+
   const canSubmit =
     empresaElegida &&
     !!tecnicoId &&
-    !!inicio &&
+    (usarVariasFechas ? fechasLoteValidas : !!inicio) &&
     (status === "PENDIENTE" || status === "COMPLETADA" || status === "CANCELADA") &&
     (
       (mode === "edit" && typeof solicitanteId === "number" && solicitanteId > 0 && solicitante.trim().length > 0)
@@ -418,8 +474,17 @@ export default function CreateVisitaModal({
         const ids = selectedSolicitantes.filter(s => typeof s.id === "number").map(s => s.id!) as number[];
         const names = selectedSolicitantes.filter(s => !s.id).map(s => s.nombre.trim()).filter(Boolean);
 
+        const fechas = usarVariasFechas
+          ? fechasLote.map((f) => ({
+            inicio: isoLocalFromDateTimeLocal(`${f.fecha}T${f.horaInicio}`),
+            fin: f.horaFin ? isoLocalFromDateTimeLocal(`${f.fecha}T${f.horaFin}`) : null,
+          }))
+          : null;
+
         const payload: CreateVisitaPayloadBatch = {
           ...base,
+          // Con varias fechas, inicio/fin toman la primera (el backend usa `fechas`)
+          ...(fechas ? { inicio: fechas[0]!.inicio, fin: fechas[0]!.fin, fechas } : {}),
           ...(ids.length ? { solicitantesIds: ids } : {}),
           ...(names.length ? { solicitantesNombres: names } : {}),
         };
@@ -674,21 +739,133 @@ export default function CreateVisitaModal({
             )}
 
             {/* Fechas y estado */}
+            {mode === "create" && (
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={variasFechas}
+                  onChange={(e) => setVariasFechas(e.target.checked)}
+                />
+                Crear en varias fechas
+                <span className="text-xs font-normal text-neutral-500">
+                  (misma empresa, técnico, solicitantes y configuración en cada día elegido)
+                </span>
+              </label>
+            )}
+
+            {usarVariasFechas && (
+              <div className="grid grid-cols-1 gap-4 rounded-2xl border border-cyan-100 bg-cyan-50/30 p-4 md:grid-cols-2">
+                <div>
+                  <span className="text-sm font-medium text-neutral-700">
+                    Selecciona los días ({fechasLote.length}/{MAX_FECHAS_LOTE})
+                  </span>
+                  <div className="mt-1 bg-white">
+                    <SeleccionarFechasCalendario
+                      fechasSeleccionadas={fechasLote.map((f) => f.fecha)}
+                      onToggleFecha={toggleFechaLote}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Hora inicio">
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm"
+                        value={horaInicioLote}
+                        onChange={(e) => setHoraInicioLote(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Hora fin (opcional)">
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-sm"
+                        value={horaFinLote}
+                        onChange={(e) => setHoraFinLote(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+
+                  {fechasLote.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={aplicarHorarioATodas}
+                      className="text-xs font-medium text-cyan-700 hover:underline"
+                    >
+                      Aplicar este horario a todas las fechas
+                    </button>
+                  )}
+
+                  {fechasLote.length === 0 ? (
+                    <p className="text-xs text-neutral-500">
+                      Haz clic en los días del calendario. Cada día toma el horario de arriba y lo puedes ajustar.
+                    </p>
+                  ) : (
+                    <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                      {fechasLote.map((f) => (
+                        <li
+                          key={f.fecha}
+                          className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-2 py-1.5 text-xs"
+                        >
+                          <span className="w-24 shrink-0 font-medium capitalize text-neutral-700">
+                            {new Date(`${f.fecha}T12:00:00`).toLocaleDateString("es-CL", {
+                              weekday: "short",
+                              day: "2-digit",
+                              month: "2-digit",
+                            })}
+                          </span>
+                          <input
+                            type="time"
+                            className="w-24 rounded-lg border border-neutral-300 px-1.5 py-1"
+                            value={f.horaInicio}
+                            onChange={(e) => cambiarHoraFecha(f.fecha, "horaInicio", e.target.value)}
+                          />
+                          <span className="text-neutral-400">a</span>
+                          <input
+                            type="time"
+                            className="w-24 rounded-lg border border-neutral-300 px-1.5 py-1"
+                            value={f.horaFin}
+                            onChange={(e) => cambiarHoraFecha(f.fecha, "horaFin", e.target.value)}
+                          />
+                          {f.horaFin && f.horaFin < f.horaInicio && (
+                            <span className="text-rose-600">fin antes del inicio</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleFechaLote(f.fecha)}
+                            className="ml-auto text-neutral-400 hover:text-rose-600"
+                            aria-label="Quitar fecha"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="Inicio">
-                <input
-                  type="datetime-local"
-                  className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/60 transition"
-                  value={inicio} onChange={(e) => setInicio(e.target.value)} required
-                />
-              </Field>
-              <Field label="Fin (opcional)">
-                <input
-                  type="datetime-local"
-                  className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/60 transition"
-                  value={fin} onChange={(e) => setFin(e.target.value)}
-                />
-              </Field>
+              {!usarVariasFechas && (
+                <>
+                  <Field label="Inicio">
+                    <input
+                      type="datetime-local"
+                      className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/60 transition"
+                      value={inicio} onChange={(e) => setInicio(e.target.value)} required
+                    />
+                  </Field>
+                  <Field label="Fin (opcional)">
+                    <input
+                      type="datetime-local"
+                      className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/60 transition"
+                      value={fin} onChange={(e) => setFin(e.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
               <Field label="Estado">
                 <select
                   className="mt-1 w-full rounded-2xl border border-neutral-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600/30 focus:border-cyan-600/60 transition"
@@ -754,7 +931,13 @@ export default function CreateVisitaModal({
                 }`}
             >
               {submitting && <Spinner className="w-4 h-4 text-white" />}
-              {submitting ? "Guardando…" : mode === "edit" ? "Actualizar visita" : "Crear visita(s)"}
+              {submitting
+                ? "Guardando…"
+                : mode === "edit"
+                  ? "Actualizar visita"
+                  : totalVisitasACrear > 1
+                    ? `Crear ${totalVisitasACrear} visitas`
+                    : "Crear visita"}
             </button>
           </footer>
         </form>

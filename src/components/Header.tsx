@@ -310,7 +310,7 @@ const NAV: NavEntry[] = [
             icon: <Wrench size={18} />,
           },
           {
-            label: "Dashboard Script",
+            label: "Estado Agente de Inventario",
             to: DASHBOARD_AGENTES_PATH,
             icon: <ChartNetwork size={18} />,
           },

@@ -83,7 +83,7 @@ export type AgentEventMetadata = {
     number | null;
 
     dominioEmpresa?:
-    string | null;  
+    string | null;
 
 
     conflictoCorreos?:
@@ -119,6 +119,7 @@ export const ESTADO_EQUIPO_OPTIONS: Array<{
         { value: "EN_RIDS", label: "En RIDS" },
         { value: "EN_GARANTIA", label: "En garantía" },
         { value: "EN_TALLER_EXTERNO", label: "En taller externo" },
+        { value: "VENDIDO", label: "Vendido" },
     ];
 
 export const REQUIRED_FIELDS_BY_TIPO: Record<TipoEquipoValue, RequiredEquipoFields> = {
@@ -318,6 +319,8 @@ export function getEstadoEquipoClass(value?: string | null) {
             return "bg-purple-50 text-purple-700 border-purple-200";
         case "DADO_DE_BAJA":
             return "bg-rose-50 text-rose-700 border-rose-200";
+        case "VENDIDO":
+            return "bg-slate-100 text-slate-700 border-slate-300";
         default:
             return "bg-slate-50 text-slate-700 border-slate-200";
     }

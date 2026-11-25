@@ -15,10 +15,10 @@ import {
     SwapOutlined,
     HistoryOutlined
 } from "@ant-design/icons";
-import { MailOutlined } from "@ant-design/icons";
+import { MailOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
-import { DatePicker, Select, Pagination } from "antd";
+import { DatePicker, Select, Pagination, Tooltip } from "antd";
 
 import dayjs from "dayjs";
 
@@ -215,6 +215,9 @@ const OrdenesTaller: React.FC = () => {
             orden.destinoEquipoNota ?? ""
         );
 
+        /* Lo realizado se escribe siempre en la salida (no se copia el análisis de entrada) */
+        setTrabajoRealizadoSalida("");
+
         setSalidaOpen(true);
     };
 
@@ -229,6 +232,15 @@ const OrdenesTaller: React.FC = () => {
                 type: "error",
                 message:
                     "Debe confirmar el destino del equipo antes de generar la salida.",
+            });
+
+            return;
+        }
+
+        if (!trabajoRealizadoSalida.trim()) {
+            setToast({
+                type: "error",
+                message: "Debe detallar el trabajo realizado o el motivo de salida.",
             });
 
             return;
@@ -271,6 +283,9 @@ const OrdenesTaller: React.FC = () => {
                 descripcion:
                     orden.descripcion,
 
+                detalleTrabajo:
+                    trabajoRealizadoSalida.trim(),
+
                 prioridad:
                     orden.prioridad,
 
@@ -311,7 +326,10 @@ const OrdenesTaller: React.FC = () => {
 
                 // Al salir normalmente vuelve a estar operativo.
                 estadoEquipo:
-                    "ACTIVO",
+                    destinoSalida === "VENTA" ||
+                        destinoSalida === "VENTA_EMPRESA"
+                        ? "VENDIDO"
+                        : "ACTIVO",
 
                 // Destino confirmado AHORA.
                 destinoEquipo:
@@ -337,6 +355,7 @@ const OrdenesTaller: React.FC = () => {
             setOrdenPendienteSalida(null);
             setDestinoSalida("SIN_DEFINIR");
             setDestinoSalidaNota("");
+            setTrabajoRealizadoSalida("");
 
             await fetchOrdenes();
         } catch (err: any) {
@@ -510,6 +529,7 @@ const OrdenesTaller: React.FC = () => {
             const payload = {
                 tipoTrabajo: formData.tipoTrabajo.trim() || "General",
                 descripcion: formData.descripcion.trim() || null,
+                detalleTrabajo: (formData.detalleTrabajo ?? "").trim() || null,
                 prioridad: prioridadToApi(formData.prioridad),
                 estado: estadoToApi(formData.estado),
                 notas: formData.notas || null,
@@ -569,6 +589,7 @@ const OrdenesTaller: React.FC = () => {
         setFormData({
             tipoTrabajo: o.tipoTrabajo ?? "",
             descripcion: o.descripcion ?? "",
+            detalleTrabajo: o.detalleTrabajo ?? "",
             prioridad: (o.prioridad?.toLowerCase() ?? "normal") as Prioridad,
             estado: normalizeEstado(o.estado),
             notas: o.notas ?? "",
@@ -635,6 +656,7 @@ const OrdenesTaller: React.FC = () => {
             const payload = {
                 tipoTrabajo: formData.tipoTrabajo,
                 descripcion: formData.descripcion || null,
+                detalleTrabajo: (formData.detalleTrabajo ?? "").trim() || null,
                 prioridad: prioridadToApi(formData.prioridad),
                 estado: estadoToApi(formData.estado),
                 notas: formData.notas || null,
@@ -851,6 +873,9 @@ const OrdenesTaller: React.FC = () => {
         useState<DestinoEquipoTaller>("SIN_DEFINIR");
 
     const [destinoSalidaNota, setDestinoSalidaNota] =
+        useState("");
+
+    const [trabajoRealizadoSalida, setTrabajoRealizadoSalida] =
         useState("");
 
     const [creandoSalida, setCreandoSalida] =
@@ -1684,6 +1709,9 @@ const OrdenesTaller: React.FC = () => {
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
                                 Destino del equipo
                                 <span className="text-rose-500"> *</span>
+                                <Tooltip zIndex={10000} title="Hacia dónde va efectivamente el equipo al salir del taller. Queda en el historial de salida.">
+                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                </Tooltip>
                             </label>
 
                             <Select
@@ -1714,10 +1742,35 @@ const OrdenesTaller: React.FC = () => {
                             </p>
                         </div>
 
+                        {/* Trabajo realizado / motivo de salida (obligatorio) */}
+                        <div className="mt-4">
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Trabajo realizado / motivo de salida <span className="text-rose-500">*</span>
+                                <Tooltip zIndex={10000} title="Qué se hizo en el taller (reparaciones, repuestos, instalaciones) o por qué el equipo sale sin reparar. Se imprime en el PDF de la orden.">
+                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                </Tooltip>
+                            </label>
+
+                            <textarea
+                                value={trabajoRealizadoSalida}
+                                onChange={(e) =>
+                                    setTrabajoRealizadoSalida(
+                                        e.target.value
+                                    )
+                                }
+                                rows={4}
+                                placeholder="Ej: Se reemplazó el disco por SSD 480 GB y se reinstaló Windows..."
+                                className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                            />
+                        </div>
+
                         {/* Nota */}
                         <div className="mt-4">
                             <label className="block text-sm font-semibold text-slate-700 mb-2">
                                 Observación del destino
+                                <Tooltip zIndex={10000} title="Detalle del destino: quién retira o recibe, sucursal, comprador, motivo de la baja, etc.">
+                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                </Tooltip>
                             </label>
 
                             <textarea
@@ -1761,7 +1814,8 @@ const OrdenesTaller: React.FC = () => {
                                 type="button"
                                 disabled={
                                     creandoSalida ||
-                                    destinoSalida === "SIN_DEFINIR"
+                                    destinoSalida === "SIN_DEFINIR" ||
+                                    !trabajoRealizadoSalida.trim()
                                 }
                                 onClick={confirmarOrdenSalida}
                                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"

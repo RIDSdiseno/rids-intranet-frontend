@@ -16,8 +16,10 @@ import {
     Col,
     Dropdown,
     Pagination,
+    DatePicker,
 } from "antd";
 import type { MenuProps } from "antd";
+import dayjs from "dayjs";
 import {
     PlusOutlined,
     ReloadOutlined,
@@ -391,6 +393,10 @@ export default function TicketeraRids() {
         (searchParams.get("area") as AreaFilter) ?? "TODAS"
     );
 
+    const [empresaFilter, setEmpresaFilter] = useState<number | undefined>(
+        searchParams.get("empresaId") ? Number(searchParams.get("empresaId")) : undefined
+    );
+
     const [sortOrder, setSortOrder] = useState<"recent_first" | "old_first">(
         (searchParams.get("sortOrder") as "recent_first" | "old_first") ?? "recent_first"
     );
@@ -409,10 +415,6 @@ export default function TicketeraRids() {
     const [newTicketsCount, setNewTicketsCount] = useState<number>(0);
     const [now, setNow] = useState(() => Date.now());
     const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
-
-    const [activeRange, setActiveRange] = useState<string | null>(
-        searchParams.get("activeRange") ?? null
-    );
 
     const [selectedTickets, setSelectedTickets] = useState<number[]>([]);
 
@@ -674,6 +676,7 @@ export default function TicketeraRids() {
                 if (assigneeFilter) params.append("assigneeId", assigneeFilter.toString());
                 const selectedArea = areaFilter === "TODAS" ? undefined : areaFilter;
                 if (selectedArea) params.append("area", selectedArea);
+                if (empresaFilter) params.append("empresaId", String(empresaFilter));
             }
 
             if (debouncedSearchText) {
@@ -815,7 +818,7 @@ export default function TicketeraRids() {
                     ? `#${payload.id ?? ""} - ${payload.subject}`
                     : "Ha llegado un nuevo ticket",
                 placement: "topRight",
-                duration: 4,
+                duration: 6,
             });
 
             /*
@@ -847,7 +850,7 @@ export default function TicketeraRids() {
                     ? `#${payload.ticketId ?? payload.id ?? ""} - ${payload.subject}`
                     : `El ticket #${payload?.ticketId ?? payload?.id ?? ""} recibió una respuesta`,
                 placement: "topRight",
-                duration: 4,
+                duration: 6,
             });
 
             /*
@@ -982,6 +985,7 @@ export default function TicketeraRids() {
         priorityFilter,
         assigneeFilter,
         areaFilter,
+        empresaFilter,
         dateRange,
         debouncedSearchText,
     ]);
@@ -1008,7 +1012,7 @@ export default function TicketeraRids() {
         if (sortOrder !== "recent_first") nextParams.set("sortOrder", sortOrder);
         if (page !== 1) nextParams.set("page", String(page));
         if (pageSize !== 30) nextParams.set("pageSize", String(pageSize));
-        if (activeRange) nextParams.set("activeRange", activeRange);
+        if (empresaFilter) nextParams.set("empresaId", String(empresaFilter));
 
         if (dateRange) {
             nextParams.set("from", dateRange[0]);
@@ -1027,43 +1031,44 @@ export default function TicketeraRids() {
         page,
         pageSize,
         dateRange,
-        activeRange,
+        empresaFilter,
         setSearchParams,
     ]);
 
-    const setLastDays = (days: number) => {
-        const now = new Date();
-        const from = new Date();
-        from.setDate(now.getDate() - days);
-        from.setHours(0, 0, 0, 0);
+    /*
+ * Rango de fechas con calendario (RangePicker).
+ * dateRange guarda [desde, hasta) en ISO: "hasta" es el inicio del día
+ * siguiente al último día elegido, porque el backend filtra con `lt`.
+ */
+    const hoy = dayjs();
+    const presetsRango = [
+        { label: "Hoy", value: [hoy.startOf("day"), hoy.endOf("day")] },
+        { label: "Ayer", value: [hoy.subtract(1, "day").startOf("day"), hoy.subtract(1, "day").endOf("day")] },
+        { label: "Últimos 7 días", value: [hoy.subtract(6, "day").startOf("day"), hoy.endOf("day")] },
+        { label: "Últimos 30 días", value: [hoy.subtract(29, "day").startOf("day"), hoy.endOf("day")] },
+        { label: "Este mes", value: [hoy.startOf("month"), hoy.endOf("day")] },
+        {
+            label: "Mes anterior",
+            value: [hoy.subtract(1, "month").startOf("month"), hoy.subtract(1, "month").endOf("month")],
+        },
+    ] as { label: string; value: [dayjs.Dayjs, dayjs.Dayjs] }[];
 
-        setDateRange([from.toISOString(), now.toISOString()]);
-        setActiveRange(`last-${days}`);
+    const valorRango: [dayjs.Dayjs, dayjs.Dayjs] | null = dateRange
+        ? [dayjs(dateRange[0]), dayjs(dateRange[1]).subtract(1, "millisecond")]
+        : null;
+
+    const cambiarRango = (desde: dayjs.Dayjs | null, hasta: dayjs.Dayjs | null) => {
         setPage(1);
-    };
 
-    const setToday = () => {
-        const today = new Date();
-        const start = new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate(),
-            0,
-            0,
-            0
-        );
-        const end = new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate() + 1,
-            0,
-            0,
-            0
-        );
+        if (!desde || !hasta) {
+            setDateRange(null);
+            return;
+        }
 
-        setActiveRange("today");
-        setPage(1);
-        setDateRange([start.toISOString(), end.toISOString()]);
+        setDateRange([
+            desde.startOf("day").toISOString(),
+            hasta.add(1, "day").startOf("day").toISOString(),
+        ]);
     };
 
     const crearTicket = async () => {
@@ -1274,10 +1279,12 @@ export default function TicketeraRids() {
                 await loadSla();
             }
         } catch (error: any) {
-            message.error(
-                error?.response?.data?.message ||
-                "Error al marcar tickets como pendientes"
-            );
+            message.error({
+                content:
+                    error?.response?.data?.message ||
+                    "Error al marcar tickets como pendientes",
+                duration: 6,
+            });
         }
     };
 
@@ -1304,10 +1311,12 @@ export default function TicketeraRids() {
         } catch (error: any) {
             ignoreNextSocketReload.current = false;
 
-            message.error(
-                error?.response?.data?.message ||
-                "No se pudo marcar el ticket como pendiente"
-            );
+            message.error({
+                content:
+                    error?.response?.data?.message ||
+                    "No se pudo marcar el ticket como pendiente",
+                duration: 6,
+            });
         }
     };
 
@@ -1752,6 +1761,22 @@ export default function TicketeraRids() {
                                 {!isCliente && (
                                     <>
                                         <Select
+                                            placeholder="Empresa"
+                                            allowClear
+                                            showSearch
+                                            optionFilterProp="label"
+                                            style={{ width: 220 }}
+                                            value={empresaFilter}
+                                            onChange={(value) => {
+                                                setPage(1);
+                                                setEmpresaFilter(value);
+                                            }}
+                                            options={empresas.map((e) => ({
+                                                value: e.id_empresa,
+                                                label: e.nombre,
+                                            }))}
+                                        />
+                                        <Select
                                             placeholder="Prioridad"
                                             allowClear
                                             style={{ width: 140 }}
@@ -1805,11 +1830,18 @@ export default function TicketeraRids() {
                         </div>
 
                         {/* Rangos de fecha — visibles para todos */}
-                        <div className="flex flex-wrap gap-2">
-                            <Button type={activeRange === "today" ? "primary" : "default"} onClick={setToday}>Hoy</Button>
-                            <Button type={activeRange === "last-7" ? "primary" : "default"} onClick={() => setLastDays(7)}>Últimos 7 días</Button>
-                            <Button type={activeRange === "last-30" ? "primary" : "default"} onClick={() => setLastDays(30)}>Este mes</Button>
-                            <Button onClick={() => { setDateRange(null); setActiveRange(null); setPage(1); }}>Limpiar rango</Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm text-slate-500">Última actividad:</span>
+                            <DatePicker.RangePicker
+                                value={valorRango}
+                                onChange={(valores) =>
+                                    cambiarRango(valores?.[0] ?? null, valores?.[1] ?? null)
+                                }
+                                presets={presetsRango}
+                                format="DD-MM-YYYY"
+                                allowClear
+                                placeholder={["Desde", "Hasta"]}
+                            />
                         </div>
                     </div>
                 </Card>

@@ -820,7 +820,7 @@ Soporte Técnico`
                 return;
             }
 
-            message.error(backendMessage);
+            message.error({ content: backendMessage, duration: 6 });
             await loadTicket();
         }
     };

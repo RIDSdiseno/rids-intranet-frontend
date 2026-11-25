@@ -14,7 +14,8 @@ export type EstadoEquipo =
     | "EN_RIDS"
     | "EN_GARANTIA"
     | "EN_TALLER_EXTERNO"
-    | "DADO_DE_BAJA";
+    | "DADO_DE_BAJA"
+    | "VENDIDO";
 
 export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
     ACTIVO: "Activo",
@@ -23,6 +24,7 @@ export const EstadoEquipoLabel: Record<EstadoEquipo, string> = {
     EN_GARANTIA: "En garantía",
     EN_TALLER_EXTERNO: "En taller externo",
     DADO_DE_BAJA: "Dado de baja",
+    VENDIDO: "Vendido",
 };
 
 export type DestinoEquipoTaller =
@@ -117,6 +119,7 @@ export const EstadoEquipoColor: Record<EstadoEquipo, string> = {
     EN_GARANTIA: "bg-cyan-50 text-cyan-700 ring-cyan-200",
     EN_TALLER_EXTERNO: "bg-purple-50 text-purple-700 ring-purple-200",
     DADO_DE_BAJA: "bg-rose-50 text-rose-700 ring-rose-200",
+     VENDIDO: "bg-slate-100 text-slate-700 ring-slate-300",
 };
 
 export const TipoEquipo = {
@@ -176,6 +179,16 @@ export const TipoEquipoLabel: Record<TipoEquipoValue, string> = {
     OTRO: "Otro",
 };
 
+/**
+ * Etiqueta del campo detalleTrabajo según el área de la orden
+ * (acepta "SALIDA" de la API o "salida" del formulario).
+ */
+export function etiquetaDetalleTrabajo(area: string | null | undefined): string {
+    return String(area ?? "").toUpperCase() === "SALIDA"
+        ? "Trabajo realizado / motivo de salida"
+        : "Análisis de entrada / trabajo a realizar";
+}
+
 export interface OrdenFormData {
     tipoTrabajo: string;
     descripcion: string;
@@ -196,6 +209,9 @@ export interface OrdenFormData {
 
     destinoEquipo: DestinoEquipoTaller;
     destinoEquipoNota: string;
+    /** ENTRADA: análisis / a realizar. SALIDA: trabajo realizado / motivo (obligatorio). */
+    detalleTrabajo?: string;
+
 }
 
 export interface EntidadGestioo {
@@ -207,7 +223,6 @@ export interface EntidadGestioo {
     direccion?: string;
     origen?: OrigenGestioo;
 
-    // 🔥 AGREGAR ESTO
     tipo?: "EMPRESA" | "PERSONA";
 }
 
@@ -252,6 +267,7 @@ export interface DetalleTrabajoGestioo {
 
     tipoTrabajo: string;
     descripcion?: string | null;
+    detalleTrabajo?: string | null;
     estado: string;
     notas?: string | null;
 

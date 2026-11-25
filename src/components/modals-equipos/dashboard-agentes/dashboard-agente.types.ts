@@ -55,6 +55,8 @@ export interface DashboardAgenteItem {
         estadoGuardado: string;
         estado: DashboardEstadoAgente;
         version: string | null;
+        /** Plataforma del agente, para comparar contra su versión recomendada */
+        plataforma?: "WINDOWS" | "MACOS";
         versionRecomendada: string | null;
         versionDesactualizada: boolean;
         ultimaConexion: string | null;
@@ -124,6 +126,9 @@ export interface DashboardAgenteResponse {
     configuracion: {
         horasSinConexion: number;
         versionAgenteRecomendada: string | null;
+        versionAgenteRecomendadaMac?: string | null;
+        tiposPcIncluidos?: string[];
+        estadosFueraDeOperacion?: string[];
 
         criteriosOneDrive: {
             requiereInstalado: boolean;
@@ -189,5 +194,56 @@ export interface DashboardAgenteResponse {
         }>;
     };
 
+    items: DashboardAgenteItem[];
+
+    /** Equipos que no entran al dashboard (dados de baja o que no son PC) */
+    excluidos?: DashboardExcluidos;
+
+    /** EN_STOCK / EN_RIDS: se muestran aparte */
+    fueraDeOperacion?: DashboardFueraDeOperacion;
+}
+
+export type DashboardMotivoExclusion = "DADO_DE_BAJA" | "VENDIDO" | "NO_ES_PC";
+
+export interface DashboardExcluidos {
+    total: number;
+
+    dadosDeBaja: {
+        total: number;
+        conAgente: number;
+        conAgenteActivo: number;
+    };
+
+    /* Opcional para no romper si el backend aún no lo envía */
+    vendidos?: {
+        total: number;
+        conAgente: number;
+        conAgenteActivo: number;
+    };
+
+    noPc: {
+        total: number;
+        porTipo: Array<{ tipo: string; cantidad: number }>;
+    };
+
+    equipos: Array<{
+        idEquipo: number;
+        serial: string | null;
+        marca: string;
+        modelo: string;
+        tipo: string;
+        estadoEquipo: string;
+        empresa: { id: number; nombre: string } | null;
+        hostname: string | null;
+        ultimaConexion: string | null;
+        estadoAgente: DashboardEstadoAgente;
+        motivos: DashboardMotivoExclusion[];
+    }>;
+}
+
+export interface DashboardFueraDeOperacion {
+    total: number;
+    enStock: number;
+    enRids: number;
     items: DashboardAgenteItem[];
 }

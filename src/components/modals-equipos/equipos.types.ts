@@ -7,7 +7,8 @@ export type EstadoEquipo =
   | "DADO_DE_BAJA"
   | "EN_RIDS"
   | "EN_GARANTIA"
-  | "EN_TALLER_EXTERNO";
+  | "EN_TALLER_EXTERNO"
+  | "VENDIDO";
 
 export type OrigenEquipoAdicional =
   | "MANUAL"

@@ -13,6 +13,7 @@ import {
     TipoEquipoLabel,
     EstadoEquipoLabel,
     DestinoEquipoTallerLabel,
+    etiquetaDetalleTrabajo,
 } from "./types";
 
 interface ModalPreviewOrdenProps {
@@ -119,6 +120,11 @@ export const ModalPreviewOrden: React.FC<ModalPreviewOrdenProps> = ({
                     <Section
                         title="Trabajo solicitado"
                         content={orden.tipoTrabajo}
+                    />
+
+                    <Section
+                        title={etiquetaDetalleTrabajo(orden.area)}
+                        content={orden.detalleTrabajo ?? "Sin detalle registrado"}
                     />
 
                     <Section

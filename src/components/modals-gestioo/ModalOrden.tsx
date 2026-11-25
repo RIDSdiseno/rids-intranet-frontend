@@ -4,8 +4,9 @@ import { motion } from "framer-motion";
 import {
     PlusOutlined,
     EditOutlined,
+    InfoCircleOutlined,
 } from "@ant-design/icons";
-import { Select } from "antd";
+import { Select, Tooltip } from "antd";
 
 import { http } from "../../service/http";
 
@@ -27,6 +28,7 @@ import {
     TipoEquipoLabel,
     EstadoEquipoLabel,
     DestinoEquipoTallerOptions,
+    etiquetaDetalleTrabajo,
 } from "./types";
 
 // Orden explícito de los estados que se muestran en el selector de estado del equipo.
@@ -38,6 +40,7 @@ const ESTADOS_EQUIPO: EstadoEquipo[] = [
     "DADO_DE_BAJA",
     "EN_GARANTIA",
     "EN_TALLER_EXTERNO",
+    "VENDIDO",
 ];
 
 // Normaliza texto para búsquedas: minúsculas y sin tildes.
@@ -136,6 +139,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
     }, [
         formData.tipoTrabajo,
         formData.descripcion,
+        formData.detalleTrabajo,
         formData.entidadId,
         formData.equipoId,
         formData.tecnicoId,
@@ -243,6 +247,11 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
             return;
         }
 
+        if (formData.area === "salida" && !(formData.detalleTrabajo ?? "").trim()) {
+            setErrorMsg("Debe detallar el trabajo realizado o el motivo de salida.");
+            return;
+        }
+
         if (!formData.tipoTrabajo.trim()) {
             setErrorMsg("Debe indicar el tipo de trabajo.");
             return;
@@ -319,7 +328,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                             <div className="space-y-5 sm:space-y-6">
                                 {/* Descripción */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción del Estado<span className="text-rose-500">*</span></label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                        Descripción del Estado<span className="text-rose-500">*</span>
+                                        <Tooltip title="Cómo llega o se encuentra el equipo: estado físico (golpes, rayas, piezas faltantes) y la falla que presenta o reporta el cliente.">
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
+                                    </label>
                                     <textarea
                                         placeholder="Describe detalladamente el estado del equipo..."
                                         required
@@ -329,10 +343,36 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         rows={4}
                                     />
                                 </div>
+                                {/* Detalle del trabajo: análisis de entrada / trabajo realizado en la salida */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                        {etiquetaDetalleTrabajo(formData.area)}
+                                        <span className="text-rose-500">*</span>
+                                        <Tooltip title={formData.area === "salida"
+                                            ? "Qué se hizo en el taller (reparaciones, repuestos, instalaciones) o por qué el equipo sale sin reparar. Se imprime en el PDF de la orden."
+                                            : "Diagnóstico o análisis inicial y el trabajo que se planea realizar. Al dar salida se reemplaza por lo realizado; lo anterior queda en el historial."}>
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
+                                    </label>
+                                    <textarea
+                                        placeholder={
+                                            formData.area === "salida"
+                                                ? "Qué se hizo en el taller o por qué se da salida al equipo..."
+                                                : "Diagnóstico inicial y trabajo a realizar..."
+                                        }
+                                        value={formData.detalleTrabajo ?? ""}
+                                        onChange={(e) => setFormData({ ...formData, detalleTrabajo: e.target.value })}
+                                        className="w-full border border-cyan-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all resize-none"
+                                        rows={4}
+                                    />
+                                </div>
                                 {/* Tipo de Trabajo */}
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-2">
                                         Tipo de Trabajo <span className="text-rose-500">*</span>
+                                        <Tooltip title="Categoría breve del servicio. Ej: mantención, formateo, cambio de disco, diagnóstico.">
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
                                     </label>
                                     <input
                                         type="text"
@@ -346,7 +386,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
 
                                 {/* Notas */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Notas / Observaciones Técnico</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                        Notas / Observaciones Técnico
+                                        <Tooltip title="Comentarios internos del técnico: accesorios recibidos, advertencias, acuerdos con el cliente, etc.">
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
+                                    </label>
                                     <textarea
                                         placeholder="Observaciones adicionales, comentarios especiales..."
                                         value={formData.notas}
@@ -365,6 +410,11 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         {formData.area === "salida" && (
                                             <span className="text-rose-500"> *</span>
                                         )}
+                                        <Tooltip title={formData.area === "salida"
+                                            ? "Hacia dónde va efectivamente el equipo al salir del taller. Queda en el historial de salida."
+                                            : "Hacia dónde se espera que vaya el equipo al terminar el trabajo. Se puede ajustar al dar salida."}>
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
                                     </label>
 
                                     <Select
@@ -388,6 +438,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                 <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1">
                                         Nota destino equipo
+                                        <Tooltip title="Detalle del destino: quién retira o recibe, sucursal, comprador, motivo de la baja, etc.">
+                                            <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                        </Tooltip>
                                     </label>
 
                                     <textarea
@@ -429,7 +482,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Estado
+                                                <Tooltip title="Estado de la orden (no del equipo): pendiente = en curso, completada = trabajo terminado, cancelada = no se realizará.">
+                                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                                </Tooltip>
+                                            </label>
                                             <select
                                                 value={formData.estado}
                                                 onChange={(e) => setFormData({ ...formData, estado: e.target.value as OrdenFormData["estado"] })}
@@ -442,7 +500,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">Área</label>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Área
+                                                <Tooltip title="Entrada: el equipo ingresa al taller. Domicilio: atención en dependencias del cliente. Salida (solo al editar): el equipo deja el taller; luego el área ya no se puede cambiar.">
+                                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                                </Tooltip>
+                                            </label>
                                             <select
                                                 value={formData.area}
                                                 disabled={isEditing && originalArea === "salida"}
@@ -453,6 +516,12 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                                     setFormData((prev) => ({
                                                         ...prev,
                                                         area: nuevaArea,
+
+                                                        /* Al pasar a salida se escribe lo realizado (la entrada conserva su análisis) */
+                                                        detalleTrabajo:
+                                                            nuevaArea === "salida" && prev.area !== "salida"
+                                                                ? ""
+                                                                : prev.detalleTrabajo,
 
                                                         fechaIngreso:
                                                             nuevaArea === "salida"
@@ -582,6 +651,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                             <div>
                                                 <label className="block text-xs font-medium text-slate-600 mb-1">
                                                     Filtrar por origen
+                                                    <Tooltip title="Solo filtra la lista de entidades por su origen; no se guarda en la orden.">
+                                                        <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                                    </Tooltip>
                                                 </label>
 
                                                 <select
@@ -767,6 +839,9 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                         <div>
                                             <label className="block text-xs font-medium text-slate-600 mb-1">
                                                 Estado del equipo <span className="text-rose-500">*</span>
+                                                <Tooltip title="Estado del equipo en el inventario (activo, en stock, en garantía, dado de baja…). Se precarga con su estado actual.">
+                                                    <InfoCircleOutlined className="ml-1 text-slate-400 cursor-help" />
+                                                </Tooltip>
                                             </label>
 
                                             <select
@@ -869,6 +944,7 @@ export const ModalOrden: React.FC<ModalOrdenProps> = ({
                                     !formData.tecnicoId ||
                                     !formData.entidadId ||
                                     !formData.descripcion.trim() ||
+                                    (formData.area === "salida" && !(formData.detalleTrabajo ?? "").trim()) ||
                                     (
                                         formData.area === "salida" &&
                                         (
