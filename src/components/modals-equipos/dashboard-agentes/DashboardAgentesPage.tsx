@@ -20,6 +20,8 @@ import {
     Input,
     Select,
     Tooltip,
+    message,
+
 } from "antd";
 
 import {
@@ -80,7 +82,9 @@ type FiltroLocal =
     | null
     | "DESACTUALIZADO"
     | "OD_ALERTAS"
-    | "OD_INESTABLE";
+    | "OD_INESTABLE"
+    | "HOSTNAME_NO_ESTANDAR"
+    | "HOSTNAME_REPETIDO";
 
 /* Cada card del dashboard aplica uno de estos filtros al hacer clic. */
 type FiltroCard =
@@ -96,7 +100,9 @@ type FiltroCard =
     | "OD_NO_INSTALADO"
     | "OD_SIN_INFO"
     | "OD_ESTABLE"
-    | "OD_INESTABLE";
+    | "OD_INESTABLE"
+    | "HOSTNAME_NO_ESTANDAR"
+    | "HOSTNAME_REPETIDO";
 
 type FiltrosCards = {
     estadoAgente: "TODOS" | DashboardEstadoAgente;
@@ -128,6 +134,8 @@ const FILTRO_POR_CARD: Record<FiltroCard, Partial<FiltrosCards>> = {
     OD_SIN_INFO: { estadoOneDrive: "SIN_INFORMACION" },
     OD_ESTABLE: { saludOneDrive: "ESTABLE" },
     OD_INESTABLE: { filtroLocal: "OD_INESTABLE" },
+    HOSTNAME_NO_ESTANDAR: { filtroLocal: "HOSTNAME_NO_ESTANDAR" },
+    HOSTNAME_REPETIDO: { filtroLocal: "HOSTNAME_REPETIDO" },
 };
 
 /* Columnas ordenables de la tabla de detalle. */
@@ -1159,6 +1167,21 @@ function EquipoExpandedDetail({
                         label="Hostname"
                         value={item.agente.hostname || "—"}
                     />
+                    {item.hostnameControl?.sugerido && (
+                        <DetailField
+                            label="Hostname sugerido"
+                            value={
+                                `${item.hostnameControl.sugerido}` +
+                                (item.hostnameControl.coincide ? " (coincide)" : " (no estándar)") +
+                                (item.hostnameControl.repetido
+                                    ? ` · repetido en ${item.hostnameControl.repeticiones} equipos de la empresa`
+                                    : "") +
+                                ((item.hostnameControl.repeticionesCrm ?? 0) > item.hostnameControl.repeticiones
+                                    ? ` · también en ${(item.hostnameControl.repeticionesCrm ?? 0) - item.hostnameControl.repeticiones} equipo(s) de otras empresas`
+                                    : "")
+                            }
+                        />
+                    )}
                     {/* Serial registrado para identificar físicamente el equipo. */}
                     <DetailField
                         label="Serial"
@@ -2678,6 +2701,17 @@ export default function DashboardAgentesPage() {
                 );
             }
 
+            if (filtroLocal === "HOSTNAME_NO_ESTANDAR") {
+                return Boolean(
+                    item.hostnameControl?.sugerido &&
+                    !item.hostnameControl.coincide,
+                );
+            }
+
+            if (filtroLocal === "HOSTNAME_REPETIDO") {
+                return Boolean(item.hostnameControl?.repetido);
+            }
+
             return true;
         });
 
@@ -3205,6 +3239,42 @@ export default function DashboardAgentesPage() {
                             />
                         </KpiSection>
 
+                        {!isCliente && summary.hostnameNoEstandar != null && (
+                            <KpiSection
+                                title="Nombres de equipo (hostname)"
+                                description="Hostnames que no siguen el estándar RIDS (NT|WS-SIGLA-INICIAL+APELLIDO) o que se repiten dentro de una empresa. Los Mac no se incluyen."
+                                columns={3}
+                            >
+                                <KpiCard
+                                    icon={ComputerDesktopIcon}
+                                    label="Hostname no estándar"
+                                    tooltip="El nombre del equipo no coincide con el sugerido para su empresa y su solicitante actual (por ejemplo, nunca se renombró o cambió de usuario). Clic para ver los equipos y copiar el nombre sugerido."
+                                    {...cardFiltro("HOSTNAME_NO_ESTANDAR")}
+                                    value={summary.hostnameNoEstandar}
+                                    tone={
+                                        summary.hostnameNoEstandar > 0
+                                            ? "warning"
+                                            : "positive"
+                                    }
+                                    context="Renombrar con Inventario.bat (el técnico confirma) o a mano."
+                                />
+
+                                <KpiCard
+                                    icon={ExclamationTriangleIcon}
+                                    label="Hostname repetido"
+                                    tooltip="El mismo nombre de Windows está en más de un equipo de la misma empresa (por ejemplo, por clonar una imagen de disco). Dentro de una empresa, el agente puede confundir equipos que no tienen serial válido."
+                                    {...cardFiltro("HOSTNAME_REPETIDO")}
+                                    value={summary.hostnameRepetidos ?? 0}
+                                    tone={
+                                        (summary.hostnameRepetidos ?? 0) > 0
+                                            ? "critical"
+                                            : "positive"
+                                    }
+                                    context="Conviene renombrar estos equipos primero."
+                                />
+                            </KpiSection>
+                        )}
+
                         <KpiSection
                             title="Operatividad de OneDrive"
                             description="Estado actual y estabilidad de OneDrive durante el período seleccionado."
@@ -3428,11 +3498,15 @@ export default function DashboardAgentesPage() {
                                             className="mt-1 inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[11px] font-medium text-cyan-700 hover:bg-cyan-100"
                                         >
                                             Filtro:{" "}
-                                            {filtroLocal === "DESACTUALIZADO"
-                                                ? "versión desactualizada"
-                                                : filtroLocal === "OD_ALERTAS"
-                                                    ? "OneDrive con alertas"
-                                                    : "OneDrive intermitente o con fallas"}{" "}
+                                            {
+                                                {
+                                                    DESACTUALIZADO: "versión desactualizada",
+                                                    OD_ALERTAS: "OneDrive con alertas",
+                                                    OD_INESTABLE: "OneDrive intermitente o con fallas",
+                                                    HOSTNAME_NO_ESTANDAR: "hostname no estándar",
+                                                    HOSTNAME_REPETIDO: "hostname repetido",
+                                                }[filtroLocal]
+                                            }{" "}
                                             ✕
                                         </button>
                                     )}
@@ -3669,6 +3743,42 @@ export default function DashboardAgentesPage() {
                                                                             .hostname ||
                                                                             `Equipo #${item.idEquipo}`}
                                                                     </div>
+
+                                                                    {item.hostnameControl?.sugerido &&
+                                                                        !item.hostnameControl.coincide && (
+                                                                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-700">
+                                                                                <span
+                                                                                    className="truncate font-mono"
+                                                                                    title="Hostname sugerido"
+                                                                                >
+                                                                                    → {item.hostnameControl.sugerido}
+                                                                                </span>
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    title="Copiar hostname sugerido"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        void navigator.clipboard
+                                                                                            ?.writeText(item.hostnameControl?.sugerido ?? "")
+                                                                                            .then(() => message.success("Hostname copiado"))
+                                                                                            .catch(() => undefined);
+                                                                                    }}
+                                                                                    className="shrink-0 rounded border border-amber-200 bg-white px-1 text-[10px] font-medium text-amber-700 hover:bg-amber-50"
+                                                                                >
+                                                                                    Copiar
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+
+                                                                    {item.hostnameControl?.repetido && (
+                                                                        <div
+                                                                            className="text-[11px] font-medium text-rose-600"
+                                                                            title="El mismo hostname está en otros equipos de la misma empresa"
+                                                                        >
+                                                                            Repetido en {item.hostnameControl.repeticiones} equipos de la empresa
+                                                                        </div>
+                                                                    )}
 
                                                                     <div className="truncate text-xs text-slate-500">
                                                                         {item.serial || "Sin serial"}

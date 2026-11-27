@@ -30,6 +30,7 @@ import type {
     EquipoHistorialItem,
     EquipoRow,
     EquipoMantencion,
+    HostnameSugerido,
 } from "./equipos.types";
 import { http } from "../../service/http";
 
@@ -647,6 +648,10 @@ export default function EquipoViewModal({
     const [mantencionesError, setMantencionesError] = useState<string | null>(null);
     const [mantenciones, setMantenciones] = useState<EquipoMantencion[]>([]);
 
+    const [hostnameSugerido, setHostnameSugerido] =
+        useState<HostnameSugerido | null>(null);
+    const [hostnameCopiado, setHostnameCopiado] = useState(false);
+
     const [activeTab, setActiveTab] =
         useState<EquipoViewTab>(initialTab);
 
@@ -708,8 +713,26 @@ export default function EquipoViewModal({
             }
         }
 
+        async function fetchHostnameSugerido() {
+            setHostnameSugerido(null);
+            setHostnameCopiado(false);
+
+            try {
+                const res = await http.get(
+                    `/equipos/${idEquipo}/hostname-sugerido`,
+                    { signal: c.signal }
+                );
+
+                setHostnameSugerido(res.data ?? null);
+            } catch {
+                // CLIENTE (403) o error: no se muestra la sugerencia
+                setHostnameSugerido(null);
+            }
+        }
+
         void fetchEquipoAgentDetalle();
         void fetchMantencionesEquipo();
+        void fetchHostnameSugerido();
 
         return () => c.abort();
     }, [open, row?.id_equipo, initialTab]);
@@ -1569,6 +1592,56 @@ export default function EquipoViewModal({
                                                 <div className="mt-1 break-all font-semibold text-slate-800">
                                                     {agenteHostname || "—"}
                                                 </div>
+
+                                                {hostnameSugerido &&
+                                                    (hostnameSugerido.sugerido || hostnameSugerido.motivo) ? (
+                                                    <div className="mt-2 border-t border-slate-200 pt-2 text-xs">
+                                                        {hostnameSugerido.sugerido ? (
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span
+                                                                    className="cursor-help text-slate-500"
+                                                                    title="Formato: NT (notebook) o WS (escritorio) - sigla de la empresa - inicial y apellido del solicitante (o correlativo si no tiene). Máximo 15 caracteres."
+                                                                >
+                                                                    Sugerido:
+                                                                </span>
+
+                                                                <span className="break-all font-mono font-semibold text-slate-800">
+                                                                    {hostnameSugerido.sugerido}
+                                                                </span>
+
+                                                                <span
+                                                                    className={clsx(
+                                                                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                                                                        hostnameSugerido.coincide
+                                                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                                            : "border-amber-200 bg-amber-50 text-amber-700"
+                                                                    )}
+                                                                >
+                                                                    {hostnameSugerido.coincide ? "Coincide" : "No estándar"}
+                                                                </span>
+
+                                                                {!hostnameSugerido.coincide && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            void navigator.clipboard
+                                                                                ?.writeText(hostnameSugerido.sugerido ?? "")
+                                                                                .then(() => setHostnameCopiado(true))
+                                                                                .catch(() => undefined);
+                                                                        }}
+                                                                        className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-100"
+                                                                    >
+                                                                        {hostnameCopiado ? "Copiado" : "Copiar"}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-slate-500">
+                                                                {hostnameSugerido.motivo}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : null}
                                             </div>
 
                                             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
@@ -3305,7 +3378,9 @@ export default function EquipoViewModal({
                                                                                 </div>
                                                                             ) : (
                                                                                 <div className="mt-4 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs text-slate-600">
-                                                                                    Ficha del equipo creada en el sistema.
+                                                                                    {h.action === "CREATE"
+                                                                                        ? "Ficha del equipo creada en el sistema."
+                                                                                        : h.description || "Sin cambios visibles."}
                                                                                 </div>
                                                                             )}
                                                                         </article>

@@ -227,6 +227,23 @@ export type EquipoHistorialItem = {
   changes?: Record<string, HistChange> | null;
   diff?: Record<string, HistChange> | null;
   message?: string | null;
+  description?: string | null;
+};
+
+/* GET /equipos/:id/hostname-sugerido */
+export type HostnameSugerido = {
+  ok: boolean;
+  idEquipo: number;
+  actual: string | null;
+  sugerido: string | null;
+  coincide: boolean;
+  motivo: string | null;
+  detalle: {
+    prefijo: string | null;
+    sigla: string | null;
+    parteSolicitante: string | null;
+    sinSolicitante: boolean;
+  };
 };
 
 export type EquipoForm = {

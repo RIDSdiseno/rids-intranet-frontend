@@ -110,6 +110,16 @@ export interface DashboardAgenteItem {
     };
 
     alertas: string[];
+
+    /* Hostname sugerido y repetidos (solo usuarios internos; null para CLIENTE) */
+    hostnameControl?: {
+        sugerido: string | null;
+        coincide: boolean;
+        motivo: string | null;
+        repetido: boolean;
+        repeticiones: number;
+        repeticionesCrm?: number;
+    } | null;
 }
 
 export interface DashboardAgenteResponse {
@@ -162,6 +172,10 @@ export interface DashboardAgenteResponse {
         oneDriveConFallasMes: number;
 
         oneDriveSinInformacion: number;
+
+        /* null para CLIENTE */
+        hostnameNoEstandar?: number | null;
+        hostnameRepetidos?: number | null;
     };
 
     graficos: {

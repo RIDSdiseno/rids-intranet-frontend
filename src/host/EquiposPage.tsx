@@ -80,6 +80,36 @@ type TecnicoApiRow = {
 
 /* =================== Helpers =================== */
 
+/* Selector «Buscar en:» del inventario */
+type CampoBusqueda =
+  | "GENERAL"
+  | "ID"
+  | "SERIAL"
+  | "HOSTNAME"
+  | "SOLICITANTE"
+  | "EMPRESA"
+  | "MARCA_MODELO"
+  | "IP"
+  | "MAC"
+  | "RUT";
+
+const OPCIONES_BUSQUEDA: Array<{
+  value: CampoBusqueda;
+  label: string;
+  placeholder: string;
+}> = [
+    { value: "GENERAL", label: "Todo", placeholder: "serial, modelo, CPU, solicitante, RUT…" },
+    { value: "ID", label: "ID", placeholder: "N° de equipo, ej. 1545" },
+    { value: "SERIAL", label: "Serial", placeholder: "serial del equipo" },
+    { value: "HOSTNAME", label: "Hostname", placeholder: "nombre del equipo, ej. NT-RIDS" },
+    { value: "SOLICITANTE", label: "Solicitante", placeholder: "nombre o correo del solicitante" },
+    { value: "EMPRESA", label: "Empresa", placeholder: "nombre o razón social" },
+    { value: "MARCA_MODELO", label: "Marca / Modelo", placeholder: "ej. HP EliteBook" },
+    { value: "IP", label: "IP", placeholder: "IP local o pública" },
+    { value: "MAC", label: "MAC", placeholder: "con o sin separadores" },
+    { value: "RUT", label: "RUT", placeholder: "RUT del solicitante" },
+  ];
+
 function useDebouncedValue<T>(value: T, delay = 400): T {
   const [debounced, setDebounced] = useState(value);
 
@@ -228,6 +258,10 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
 
   const [q, setQ] = useState("");
   const qDebounced = useDebouncedValue(q, 450);
+  const [searchField, setSearchField] = useState<CampoBusqueda>("GENERAL");
+
+  const opcionBusqueda =
+    OPCIONES_BUSQUEDA.find((o) => o.value === searchField) ?? OPCIONES_BUSQUEDA[0]!;
 
   /* =================== Filtros =================== */
 
@@ -404,6 +438,10 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
           page,
           pageSize,
           search: qDebounced || undefined,
+          searchField:
+            qDebounced && !isMantencionesPage && searchField !== "GENERAL"
+              ? searchField
+              : undefined,
           empresaId: empresaFilterId || undefined,
 
           // Filtros del inventario normal.
@@ -1006,6 +1044,7 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
     page,
     pageSize,
     qDebounced,
+    searchField,
     empresaFilterId,
     solicitanteMultiplesEquipos,
     marcaFilter,
@@ -1057,6 +1096,7 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
 
   const clearAll = () => {
     setQ("");
+    setSearchField("GENERAL");
 
     if (!isCliente) {
       setEmpresaFilterId(null);
@@ -1229,43 +1269,64 @@ const EquiposPage: React.FC<EquiposPageProps> = ({
                   : "md:grid-cols-12 gap-2 sm:gap-3"
               )}
             >
-              {/* Buscar */}
+              {/* Buscar (con selector «Buscar en:» en el inventario) */}
               <div
                 className={clsx(
-                  "relative min-w-0",
+                  "flex min-w-0 gap-2",
                   isMantencionesPage
                     ? "lg:col-span-6 xl:col-span-7"
                     : "md:col-span-4"
                 )}
               >
-                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
-
-                <input
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setPage(1);
-                  }}
-                  placeholder={
-                    isMantencionesPage
-                      ? "serial, modelo, empresa, solicitante…"
-                      : "serial, modelo, CPU, solicitante, RUT…"
-                  }
-                  className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400"
-                  aria-label="Buscar equipos"
-                />
-
-                {q.length > 0 && (
-                  <button
-                    onClick={() => setQ("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
-                    aria-label="Limpiar búsqueda"
-                    title="Limpiar"
-                    type="button"
+                {!isMantencionesPage && (
+                  <select
+                    value={searchField}
+                    onChange={(e) => {
+                      setSearchField(e.target.value as CampoBusqueda);
+                      setPage(1);
+                    }}
+                    className="w-32 shrink-0 rounded-2xl border border-cyan-200/70 bg-white/90 px-2.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400"
+                    aria-label="Buscar en"
+                    title="Buscar en"
                   >
-                    <CloseCircleFilled />
-                  </button>
+                    {OPCIONES_BUSQUEDA.map((opcion) => (
+                      <option key={opcion.value} value={opcion.value}>
+                        {opcion.label}
+                      </option>
+                    ))}
+                  </select>
                 )}
+
+                <div className="relative min-w-0 flex-1">
+                  <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-600/70" />
+
+                  <input
+                    value={q}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder={
+                      isMantencionesPage
+                        ? "serial, modelo, empresa, solicitante…"
+                        : opcionBusqueda.placeholder
+                    }
+                    className="w-full rounded-2xl border border-cyan-200/70 bg-white/90 pl-9 pr-10 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-400"
+                    aria-label="Buscar equipos"
+                  />
+
+                  {q.length > 0 && (
+                    <button
+                      onClick={() => setQ("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-cyan-700/80 hover:text-cyan-900"
+                      aria-label="Limpiar búsqueda"
+                      title="Limpiar"
+                      type="button"
+                    >
+                      <CloseCircleFilled />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Botones principales */}
